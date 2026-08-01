@@ -166,7 +166,7 @@ function ManageCourseRegistrations() {
       Swal.fire('Lưu ý', 'Vui lòng chọn Khoa trước!', 'warning');
       return;
     }
-    const deptCourses = courses.filter((c) => c.dept === regDept);
+    const deptCourses = courses.filter((c) => c.department === regDept);
     setCourseChecklist(
       deptCourses.map((c) => ({
         id: c.id,
@@ -281,7 +281,6 @@ function ManageCourseRegistrations() {
       const originalCourse = courses.find((c) => c.id === course.id);
       newBatch.push({
         id: timestamp + newBatch.length,
-        groupId: timestamp,
         department: regDept,
         courseId: course.id,
         courseName: course.name,
@@ -412,8 +411,7 @@ function ManageCourseRegistrations() {
 
           nextRegs.push({
             id: timestamp + index,
-            groupId: timestamp,
-            department: row.Khoa || originalCourse?.dept || 'N/A',
+            department: row.Khoa || originalCourse?.department || 'N/A',
             courseId,
             courseName: row.TenHP || originalCourse?.name || 'N/A',
             credits: creditsValue,

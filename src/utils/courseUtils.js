@@ -9,16 +9,30 @@ export function dedupeCoursesById(courses) {
   return [...map.values()];
 }
 
-/** Đồng bộ deptId/dept theo danh sách khoa từ API */
+/** Đồng bộ deptId/department theo danh sách khoa từ API */
 export function syncCoursesWithDepartments(courses, departments) {
   if (!Array.isArray(courses) || !Array.isArray(departments)) return courses;
   return courses.map((course) => {
+    const departmentName = course.department || course.dept || '';
+    const deptId = course.deptId || course.departmentId || '';
     const foundDept =
-      departments.find((d) => d.id === course.deptId) ||
-      departments.find((d) => d.name === course.dept);
-    if (!foundDept) return course;
-    if (course.deptId === foundDept.id && course.dept === foundDept.name) return course;
-    return { ...course, deptId: foundDept.id, dept: foundDept.name };
+      departments.find((d) => d.id === deptId) ||
+      departments.find((d) => d.name === departmentName);
+
+    const normalized = {
+      ...course,
+      department: foundDept ? foundDept.name : departmentName,
+      deptId: foundDept ? foundDept.id : deptId,
+    };
+
+    if (foundDept && normalized.deptRef !== foundDept._id) {
+      normalized.deptRef = foundDept._id;
+    }
+
+    delete normalized.dept;
+    delete normalized.departmentId;
+
+    return normalized;
   });
 }
 
@@ -37,7 +51,7 @@ export async function saveCourses(courses) {
 
 export async function fetchCoursesByDepartment(deptName) {
   const courses = await fetchCourses({ fresh: true });
-  return courses.filter((c) => c.dept === deptName || c.deptId === deptName);
+  return courses.filter((c) => c.department === deptName || c.deptId === deptName);
 }
 
 export function formatCurrency(amount) {

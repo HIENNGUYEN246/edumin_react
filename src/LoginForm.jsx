@@ -40,6 +40,39 @@ function LoginForm() {
     return accountPassword === passwordInput;
   };
 
+  const findProfileByUser = (authData, user) => {
+    if (!user || !user.role) return null;
+    const emailKey = user.email?.trim().toLowerCase();
+    const matcher = (item) =>
+      String(item.userId) === String(user._id) ||
+      matchEmail(item.email, emailKey || '') ||
+      matchEmail(item.email, user.email || '');
+
+    if (user.role === 'giao-vien') {
+      return (authData.teachersData || []).find(matcher) || null;
+    }
+
+    if (user.role === 'sinh-vien') {
+      return (authData.studentsData || []).find(matcher) || null;
+    }
+
+    return null;
+  };
+
+  const buildSessionUser = (user, profile) => {
+    const fallbackName = user.hoTen || user.name || profile?.hoTen || profile?.name || '';
+    return {
+      ...user,
+      ...profile,
+      role: user.role || 'dao-tao',
+      hoTen: profile?.hoTen || profile?.name || user.hoTen || user.name || fallbackName,
+      name: profile?.name || profile?.hoTen || user.name || user.hoTen || fallbackName,
+      avatar: profile?.avatar || user.avatar || '',
+      userId: user._id,
+      _id: user._id,
+    };
+  };
+
   const showToast = (message, type = 'error') => {
     const id = Date.now().toString();
     setToasts((prev) => [...prev, { id, message, type }]);
@@ -85,12 +118,12 @@ function LoginForm() {
     // --- 1. Kiểm tra Phòng Đào Tạo (Admin) — dùng users từ API ---
     const pdtList = authData.users || [];
     const pdtAccount = pdtList.find(
-      (u) => matchEmail(u.email, emailInput) && matchAccountPassword(u, passwordInput)
+      (u) => u.role === 'dao-tao' && matchEmail(u.email, emailInput) && matchAccountPassword(u, passwordInput)
     );
 
     if (pdtAccount) {
       clearLegacyEntityStorage();
-      const userWithRole = { ...pdtAccount, role: pdtAccount.role || 'dao-tao' };
+      const userWithRole = buildSessionUser(pdtAccount, null);
       sessionStorage.setItem('currentUser', JSON.stringify(userWithRole));
       showToast('Đăng nhập Admin thành công!', 'success');
       setTimeout(() => navigate('/pdt-dashboard'), 1500);
@@ -98,48 +131,49 @@ function LoginForm() {
     }
 
     // --- 2. Kiểm tra Giáo viên ---
-    const gvList = authData.teachersData || [];
-    const gvAccount = gvList.find(
-      (u) => matchEmail(u.email, emailInput) && matchAccountPassword(u, passwordInput)
+    const teacherUser = pdtList.find(
+      (u) => u.role === 'giao-vien' && matchEmail(u.email, emailInput) && matchAccountPassword(u, passwordInput)
     );
 
-    if (gvAccount) {
-      if (gvAccount.status === 'Locked') {
-        const reason = gvAccount.lockReason?.trim();
+    if (teacherUser) {
+      const profile = findProfileByUser(authData, teacherUser) || teacherUser;
+      const accountStatus = teacherUser.status ?? profile?.status ?? 'Active';
+      const lockReason = (teacherUser.lockReason ?? profile?.lockReason ?? '').trim();
+      if (accountStatus === 'Locked') {
         showToast(
-          reason
-            ? `Tài khoản giáo viên đã bị khóa. Lý do: ${reason}`
+          lockReason
+            ? `Tài khoản giáo viên đã bị khóa. Lý do: ${lockReason}`
             : 'Tài khoản giáo viên này đã bị khóa!'
         );
         return;
       }
       clearLegacyEntityStorage();
-      const userWithRole = { ...gvAccount, role: 'giao-vien' };
-      sessionStorage.setItem('currentUser', JSON.stringify(userWithRole));
+      const user = buildSessionUser(teacherUser, profile);
+      sessionStorage.setItem('currentUser', JSON.stringify(user));
       showToast('Đăng nhập Giáo viên thành công!', 'success');
       setTimeout(() => navigate('/gv-dashboard'), 1500);
       return;
     }
 
-    // --- 3. Kiểm tra Sinh viên ---
-    const svList = authData.studentsData || [];
-    const svAccount = svList.find(
-      (u) => matchEmail(u.email, emailInput) && matchAccountPassword(u, passwordInput)
+    const studentUser = pdtList.find(
+      (u) => u.role === 'sinh-vien' && matchEmail(u.email, emailInput) && matchAccountPassword(u, passwordInput)
     );
 
-    if (svAccount) {
-      if (svAccount.status === 'Locked') {
-        const reason = svAccount.lockReason?.trim();
+    if (studentUser) {
+      const profile = findProfileByUser(authData, studentUser) || studentUser;
+      const accountStatus = studentUser.status ?? profile?.status ?? 'Active';
+      const lockReason = (studentUser.lockReason ?? profile?.lockReason ?? '').trim();
+      if (accountStatus === 'Locked') {
         showToast(
-          reason
-            ? `Tài khoản sinh viên đã bị khóa. Lý do: ${reason}`
-            : 'Tài khoản sinh viên đã bị khóa!'
+          lockReason
+            ? `Tài khoản sinh viên đã bị khóa. Lý do: ${lockReason}`
+            : 'Tài khoản sinh viên này đã bị khóa!'
         );
         return;
       }
       clearLegacyEntityStorage();
-      const userWithRole = { ...svAccount, role: 'sinh-vien' };
-      sessionStorage.setItem('currentUser', JSON.stringify(userWithRole));
+      const user = buildSessionUser(studentUser, profile);
+      sessionStorage.setItem('currentUser', JSON.stringify(user));
       showToast('Đăng nhập Sinh viên thành công!', 'success');
       setTimeout(() => navigate('/sv-dashboard'), 1500);
       return;

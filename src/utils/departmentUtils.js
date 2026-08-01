@@ -44,9 +44,17 @@ export function formatTeacherCode(id) {
 
 export function parseTeacherHeadInfo(str) {
   if (!str) return { name: 'Chưa cập nhật', id: '' };
-  const match = str.match(/(.+) \((GV-\d+)\)/);
+  if (typeof str === 'object' && str !== null) {
+    const teacherName = str.name || str.hoTen || '';
+    const teacherId = str.id ? formatTeacherCode(str.id) : '';
+    return {
+      name: teacherName || 'Chưa cập nhật',
+      id: teacherId,
+    };
+  }
+  const match = String(str).match(/(.+) \((GV-\d+)\)/);
   if (match) return { name: match[1], id: match[2] };
-  return { name: str, id: '' };
+  return { name: String(str), id: '' };
 }
 
 /** Đồng bộ tên khoa lên API (giáo viên, sinh viên, học phần) */
@@ -79,16 +87,17 @@ export async function syncDepartmentReferences(oldName, newName, isDelete = fals
 
   try {
     const courses = await fetchCourses({ fresh: true });
-    if (courses.some((c) => c.dept === oldName)) {
-      const updated = courses.map((c) =>
-        c.dept === oldName
-          ? {
-              ...c,
-              dept: targetValue,
-              deptId: isDelete ? '' : c.deptId,
-            }
-          : c
-      );
+    if (courses.some((c) => c.department === oldName || c.dept === oldName)) {
+      const updated = courses.map((c) => {
+        if (c.department === oldName || c.dept === oldName) {
+          return {
+            ...c,
+            department: targetValue,
+            deptId: isDelete ? '' : c.deptId,
+          };
+        }
+        return c;
+      });
       await saveCourses(updated);
     }
   } catch (err) {

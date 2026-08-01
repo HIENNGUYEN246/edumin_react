@@ -446,7 +446,7 @@ const TeacherAssignmentList = () => {
                 <option value="">-- Chọn học phần --</option>
                 {openClasses.map((course) => (
                   <option key={course.courseId} value={course.courseId}>
-                    {course.courseId} - {course.courseName}
+                    {course.courseId} - {course.courseName || 'Tên học phần chưa rõ'}
                   </option>
                 ))}
               </select>
@@ -497,9 +497,9 @@ const TeacherAssignmentList = () => {
                             </div>
                           </div>
                         </td>
-                        <td className="px-6 py-4 text-center text-gray-500 font-medium">{doc.created}</td>
-                        <td className="px-6 py-4 text-center text-gray-500 font-medium">{doc.modifiedBy}</td>
-                        <td className="px-6 py-4 text-center text-gray-600 font-bold">{doc.size}</td>
+                        <td className="px-6 py-4 text-center text-gray-500 font-medium">{doc.created || formatDate(doc.createdAt || doc.updatedAt || new Date())}</td>
+                        <td className="px-6 py-4 text-center text-gray-500 font-medium">{doc.modifiedBy || 'Không rõ'}</td>
+                        <td className="px-6 py-4 text-center text-gray-600 font-bold">{doc.size || '—'}</td>
                         <td className="px-6 py-4 text-center">
                           <span className={`${doc.status === 'Công khai' ? 'bg-green-100 text-green-600' : 'bg-orange-100 text-orange-600'} px-3 py-1 rounded-full text-[10px] font-bold uppercase`}>
                             {doc.status}

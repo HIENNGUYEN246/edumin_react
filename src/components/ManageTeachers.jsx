@@ -236,6 +236,11 @@ function ManageTeachers() {
       status: existing?.status,
     });
 
+    // Ensure backwards-compatible fields used by backend and older UI
+    if (newData.name && !newData.hoTen) newData.hoTen = newData.name;
+    if (newData.hoTen && !newData.name) newData.name = newData.hoTen;
+    if (!newData.avatar) newData.avatar = defaultAvatar(newData.name || newData.hoTen || 'GV');
+
     const nextTeachers = editingId
       ? teachers.map((t) => (t.id === editingId ? newData : t))
       : [...teachers, newData];
@@ -361,7 +366,8 @@ function ManageTeachers() {
 
           currentTeachers.push({
             id,
-            name: hoTen || 'Ẩn danh',
+              name: hoTen || 'Ẩn danh',
+              hoTen: hoTen || 'Ẩn danh',
             dob: parseExcelDate(find(['NgaySinh', 'Ngày sinh'])),
             address: find(['DiaChi', 'Địa chỉ']) || '',
             gender: find(['GioiTinh', 'Giới tính']) || 'Nam',
@@ -369,7 +375,7 @@ function ManageTeachers() {
             email: find(['Email']),
             department: find(['Khoa']),
             education: find(['TrinhDo', 'Trình độ']),
-            avatar: defaultAvatar(hoTen),
+              avatar: defaultAvatar(hoTen),
             password: '123',
             status: 'Active',
           });

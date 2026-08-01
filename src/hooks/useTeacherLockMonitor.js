@@ -1,14 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../services/api';
-import teacherAPI from '../services/teacherAPI';
 
 const DEFAULT_LOCK_MESSAGE = 'Tài khoản của bạn đã bị tạm khóa.';
 
-function findTeacherByEmail(teachers, email) {
-  if (!email) return null;
+function findUserByEmailAndRole(users, email, role) {
+  if (!email || !role) return null;
   const key = email.trim().toLowerCase();
-  return teachers.find((t) => t.email?.trim().toLowerCase() === key) || null;
+  return users.find((u) => u.email?.trim().toLowerCase() === key && u.role === role) || null;
 }
 
 export function useTeacherLockMonitor(currentUser) {
@@ -30,12 +29,18 @@ export function useTeacherLockMonitor(currentUser) {
     if (!currentUser?.email) return;
 
     try {
-      const teachers = await teacherAPI.getAllTeachers({ fresh: true });
-      applyLockState(findTeacherByEmail(teachers, currentUser.email));
+      const users = await apiClient.getUsersFresh();
+      const account = findUserByEmailAndRole(users, currentUser.email, currentUser.role);
+      if (!account) {
+        setLockReason('Tài khoản không còn tồn tại.');
+        setShowLockModal(true);
+        return true;
+      }
+      applyLockState(account);
     } catch (error) {
       console.error('Không kiểm tra được trạng thái tài khoản:', error);
     }
-  }, [applyLockState, currentUser?.email]);
+  }, [applyLockState, currentUser?.email, currentUser?.role]);
 
   const handleLogoutToLogin = useCallback(() => {
     const user = JSON.parse(sessionStorage.getItem('currentUser') || 'null');

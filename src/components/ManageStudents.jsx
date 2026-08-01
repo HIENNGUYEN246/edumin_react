@@ -255,6 +255,11 @@ function ManageStudents() {
       lockReason: existing?.lockReason || '',
     });
 
+    // ensure backward-compatible hoTen and avatar
+    if (newData.name && !newData.hoTen) newData.hoTen = newData.name;
+    if (newData.hoTen && !newData.name) newData.name = newData.hoTen;
+    if (!newData.avatar) newData.avatar = defaultAvatar(newData.name || newData.hoTen || 'SV');
+
     const nextStudents = editingId
       ? students.map((t) => (t.id === editingId ? newData : t))
       : [...students, newData];

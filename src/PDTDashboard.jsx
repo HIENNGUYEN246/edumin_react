@@ -1,5 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import teacherAPI from './services/teacherAPI';
+import studentAPI from './services/studentAPI';
+import registrationAPI from './services/registrationAPI';
+import { isRegistrationExpired } from './utils/registrationUtils';
 
 const PDTDashboard = () => {
   const navigate = useNavigate();
@@ -10,6 +14,12 @@ const PDTDashboard = () => {
     gv: false,
     sv: false,
     hp: false
+  });
+  const [dashboardStats, setDashboardStats] = useState({
+    teacherCount: 0,
+    studentCount: 0,
+    activeCoursesCount: 0,
+    revenueTotal: 0,
   });
   const [passwordForm, setPasswordForm] = useState({
     oldPassword: '',
@@ -24,6 +34,36 @@ const PDTDashboard = () => {
     if (user) {
       setCurrentUser(user);
     }
+  }, []);
+
+  useEffect(() => {
+    const loadDashboardStats = async () => {
+      try {
+        const [teachers, students, openRegs] = await Promise.all([
+          teacherAPI.getAllTeachers({ fresh: true }),
+          studentAPI.getAllStudents({ fresh: true }),
+          registrationAPI.getOpenRegistrations({ fresh: true }),
+        ]);
+
+        const activeRegs = Array.isArray(openRegs)
+          ? openRegs.filter((reg) => !isRegistrationExpired(reg) && reg.status !== 'Hết hạn/Chưa mở')
+          : [];
+
+        const activeCourseIds = [...new Set(activeRegs.map((reg) => reg.courseId).filter(Boolean))];
+        const revenueTotal = activeRegs.reduce((sum, reg) => sum + Number(reg.fee || 0), 0);
+
+        setDashboardStats({
+          teacherCount: Array.isArray(teachers) ? teachers.length : 0,
+          studentCount: Array.isArray(students) ? students.length : 0,
+          activeCoursesCount: activeCourseIds.length,
+          revenueTotal,
+        });
+      } catch (error) {
+        console.error('Failed to load dashboard stats', error);
+      }
+    };
+
+    loadDashboardStats();
   }, []);
 
   const toggleSubmenu = (menuKey) => {
@@ -226,7 +266,7 @@ const PDTDashboard = () => {
             <div className="bg-indigo-500 p-6 rounded-2xl text-white shadow-lg shadow-indigo-200 relative overflow-hidden">
               <div className="z-10 relative">
                 <p className="text-sm opacity-80 uppercase font-medium">Tổng Giáo Viên</p>
-                <h3 className="text-3xl font-bold my-1">450</h3>
+                <h3 className="text-3xl font-bold my-1">{dashboardStats.teacherCount.toLocaleString('vi-VN')}</h3>
                 <div className="w-full bg-indigo-400 rounded-full h-1.5 mt-4">
                   <div className="bg-white h-1.5 rounded-full" style={{width: '80%'}}></div>
                 </div>
@@ -238,7 +278,7 @@ const PDTDashboard = () => {
             <div className="bg-orange-400 p-6 rounded-2xl text-white shadow-lg shadow-orange-100 relative overflow-hidden">
               <div className="z-10 relative">
                 <p className="text-sm opacity-80 uppercase font-medium">Sinh Viên Mới</p>
-                <h3 className="text-3xl font-bold my-1">1,245</h3>
+                <h3 className="text-3xl font-bold my-1">{dashboardStats.studentCount.toLocaleString('vi-VN')}</h3>
                 <div className="w-full bg-orange-300 rounded-full h-1.5 mt-4">
                   <div className="bg-white h-1.5 rounded-full" style={{width: '50%'}}></div>
                 </div>
@@ -250,11 +290,11 @@ const PDTDashboard = () => {
             <div className="bg-purple-600 p-6 rounded-2xl text-white shadow-lg shadow-purple-200 relative overflow-hidden">
               <div className="z-10 relative">
                 <p className="text-sm opacity-80 uppercase font-medium">Lớp học hoạt động</p>
-                <h3 className="text-3xl font-bold my-1">86</h3>
+                <h3 className="text-3xl font-bold my-1">{dashboardStats.activeCoursesCount.toLocaleString('vi-VN')}</h3>
                 <div className="w-full bg-purple-500 rounded-full h-1.5 mt-4">
                   <div className="bg-white h-1.5 rounded-full" style={{width: '76%'}}></div>
                 </div>
-                <p className="text-xs mt-2 italic">Dựa trên báo cáo thống kê</p>
+                <p className="text-xs mt-2 italic">Dựa trên lớp học đang mở</p>
               </div>
               <i className="fas fa-school absolute -right-4 -bottom-4 text-8xl opacity-10"></i>
             </div>
@@ -262,7 +302,7 @@ const PDTDashboard = () => {
             <div className="bg-red-500 p-6 rounded-2xl text-white shadow-lg shadow-red-200 relative overflow-hidden">
               <div className="z-10 relative">
                 <p className="text-sm opacity-80 uppercase font-medium">Doanh thu học phí</p>
-                <h3 className="text-3xl font-bold my-1">950.5M</h3>
+                <h3 className="text-3xl font-bold my-1">{new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 0 }).format(dashboardStats.revenueTotal)}đ</h3>
                 <div className="w-full bg-red-400 rounded-full h-1.5 mt-4">
                   <div className="bg-white h-1.5 rounded-full" style={{width: '30%'}}></div>
                 </div>

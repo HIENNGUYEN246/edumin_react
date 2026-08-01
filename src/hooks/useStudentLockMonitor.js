@@ -1,14 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../services/api';
-import studentAPI from '../services/studentAPI';
 
 const DEFAULT_LOCK_MESSAGE = 'Tài khoản của bạn đã bị tạm khóa.';
 
-function findStudentByEmail(students, email) {
-  if (!email) return null;
+function findUserByEmailAndRole(users, email, role) {
+  if (!email || !role) return null;
   const key = email.trim().toLowerCase();
-  return students.find((s) => s.email?.trim().toLowerCase() === key) || null;
+  return users.find((u) => u.email?.trim().toLowerCase() === key && u.role === role) || null;
 }
 
 export function useStudentLockMonitor(currentUser) {
@@ -30,12 +29,18 @@ export function useStudentLockMonitor(currentUser) {
     if (!currentUser?.email) return;
 
     try {
-      const students = await studentAPI.getAllStudents({ fresh: true });
-      applyLockState(findStudentByEmail(students, currentUser.email));
+      const users = await apiClient.getUsersFresh();
+      const account = findUserByEmailAndRole(users, currentUser.email, currentUser.role);
+      if (!account) {
+        setLockReason('Tài khoản không còn tồn tại.');
+        setShowLockModal(true);
+        return true;
+      }
+      applyLockState(account);
     } catch (error) {
       console.error('Không kiểm tra được trạng thái tài khoản sinh viên:', error);
     }
-  }, [applyLockState, currentUser?.email]);
+  }, [applyLockState, currentUser?.email, currentUser?.role]);
 
   const handleLogoutToLogin = useCallback(() => {
     sessionStorage.removeItem('currentUser');

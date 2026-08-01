@@ -79,7 +79,7 @@ function ManageCourses() {
     let list = courses.filter(
       (c) =>
         (c.name?.toLowerCase().includes(search) || c.id?.toLowerCase().includes(search)) &&
-        (filterDept === '' || c.dept === filterDept)
+        (filterDept === '' || c.department === filterDept)
     );
     if (sortCourse === 'name-asc') {
       list = [...list].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'vi'));
@@ -108,8 +108,8 @@ function ManageCourses() {
         courseName: c.name,
         courseCredits: String(c.credits ?? ''),
         courseFee: String(c.fee ?? 0),
-        courseDept: c.dept || '',
-        courseDeptId: c.deptId || '',
+        courseDept: c.department || c.dept || '',
+        courseDeptId: c.deptId || c.departmentId || '',
         courseClassId: c.classId || '',
         courseClassName: c.className || '',
       });
@@ -136,10 +136,11 @@ function ManageCourses() {
   };
 
   const getDisplayDeptName = (course) => {
+    const departmentName = course.department || course.dept || '';
     const realDept =
       departments.find((d) => d.id === course.deptId) ||
-      departments.find((d) => d.name === course.dept);
-    return realDept ? realDept.name : course.dept || 'N/A';
+      departments.find((d) => d.name === departmentName);
+    return realDept ? realDept.name : departmentName || 'N/A';
   };
 
   const handleSubmit = async (e) => {
@@ -213,7 +214,7 @@ function ManageCourses() {
       name: nameVal,
       credits: parseInt(creditVal, 10),
       fee: parseInt(feeVal, 10),
-      dept: deptVal,
+      department: deptVal,
       deptId: deptIdVal,
       classId: classIdVal,
       className: classNameVal,
@@ -337,7 +338,7 @@ function ManageCourses() {
             name: nameVal,
             credits: creditVal,
             fee: feeVal,
-            dept: foundDept ? foundDept.name : deptName,
+            department: foundDept ? foundDept.name : deptName,
             deptId: foundDept ? foundDept.id : '',
             classId: classIdVal,
             className: classNameVal,

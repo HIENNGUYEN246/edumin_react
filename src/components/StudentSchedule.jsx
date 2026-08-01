@@ -125,10 +125,16 @@ export default function StudentSchedule() {
     displayUser?.avatar ||
     `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=10b981&color=fff`;
 
-  const myEnrollments = useMemo(
-    () => enrollments.filter((e) => Number(e.studentId) === Number(displayUser?.id)),
-    [enrollments, displayUser?.id]
-  );
+  const myEnrollments = useMemo(() => {
+    const raw = enrollments.filter((e) => Number(e.studentId) === Number(displayUser?.id));
+    // Enrich each student registration with the matching open registration
+    return raw.map((e) => {
+      const match = openRegs.find((r) => r.id === e.regId || r.courseId === e.courseId || r.courseId === e.courseId);
+      if (!match) return e;
+      // merge open registration fields (schedules, studyStart, studyEnd, room, teacher, etc.)
+      return { ...match, ...e };
+    });
+  }, [enrollments, openRegs, displayUser?.id]);
 
   const weekData = useMemo(() => {
     const startOfWeek = getStartOfWeek(currentViewDate);
@@ -148,8 +154,10 @@ export default function StudentSchedule() {
       headers.push({ label: DAY_NAMES[i], date: formatDate(dateInWeek) });
 
       myEnrollments.forEach((course, index) => {
+        if (!course || !course.studyStart || !course.studyEnd) return;
         const startDate = new Date(course.studyStart);
         const endDate = new Date(course.studyEnd);
+        if (Number.isNaN(startDate.valueOf()) || Number.isNaN(endDate.valueOf())) return;
         startDate.setHours(0, 0, 0, 0);
         endDate.setHours(23, 59, 59, 999);
 

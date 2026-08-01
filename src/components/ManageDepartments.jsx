@@ -95,6 +95,23 @@ function ManageDepartments() {
 
   const clearFormErrors = () => setFormErrors({});
 
+  const normalizeHeadValue = useCallback((headValue) => {
+    if (!headValue) return '';
+    if (typeof headValue === 'string') return headValue;
+    if (typeof headValue === 'object') {
+      if (headValue.name || headValue.hoTen) {
+        const teacherName = headValue.name || headValue.hoTen || '';
+        const teacherId = headValue.id ? formatTeacherCode(headValue.id) : '';
+        return teacherId ? `${teacherName} (${teacherId})` : teacherName;
+      }
+      const teacher = teachers.find((t) => String(t._id) === String(headValue._id) || String(t.id) === String(headValue.id));
+      if (teacher) {
+        return `${teacher.name || teacher.hoTen} (${formatTeacherCode(teacher.id)})`;
+      }
+    }
+    return '';
+  }, [teachers]);
+
   const openDeptModal = (id = null) => {
     clearFormErrors();
     setShowSuggestions(false);
@@ -102,7 +119,7 @@ function ManageDepartments() {
       const d = departments.find((x) => x.id === id);
       if (!d) return;
       setEditDeptId(d.id);
-      setForm({ deptId: d.id, deptName: d.name, deptHead: d.head || '' });
+      setForm({ deptId: d.id, deptName: d.name, deptHead: normalizeHeadValue(d.head) });
     } else {
       setEditDeptId('');
       setForm(EMPTY_DEPT_FORM);
@@ -375,7 +392,7 @@ function ManageDepartments() {
               </tr>
             ) : (
               filteredDepartments.map((d) => {
-                const teacherInfo = parseTeacherHeadInfo(d.head);
+                const teacherInfo = parseTeacherHeadInfo(normalizeHeadValue(d.head));
                 return (
                   <tr key={d.id} className="hover:bg-indigo-50/30 transition-colors border-b border-gray-50 last:border-none">
                     <td className="px-6 py-4 font-bold text-indigo-600">{d.id}</td>

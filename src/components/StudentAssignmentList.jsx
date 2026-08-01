@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import studentAPI from '../services/studentAPI';
 import assignmentAPI from '../services/assignmentAPI';
-import { fetchStudentRegistrations } from '../utils/registrationUtils';
+import { fetchOpenRegistrations, fetchStudentRegistrations } from '../utils/registrationUtils';
 import { useStudentLockMonitor } from '../hooks/useStudentLockMonitor';
 
 const StudentAssignmentList = () => {
@@ -36,17 +36,27 @@ const StudentAssignmentList = () => {
     const loadData = async () => {
       if (!currentUser?.email) return;
       try {
-        const [students, regs, allAssignments] = await Promise.all([
+        const [students, regs, allAssignments, openRegs] = await Promise.all([
           studentAPI.getAllStudents({ fresh: true }),
           fetchStudentRegistrations({ fresh: true }),
           assignmentAPI.getAllAssignments({ fresh: true }),
+          fetchOpenRegistrations({ fresh: true }),
         ]);
         const matched = students.find((s) => s.email?.trim().toLowerCase() === currentUser.email?.trim().toLowerCase());
         const merged = matched ? { ...currentUser, ...matched, role: 'sinh-vien' } : currentUser;
         setStudentInfo(merged);
         setCurrentUser(merged);
         sessionStorage.setItem('currentUser', JSON.stringify(merged));
-        setEnrollments(regs.filter((reg) => String(reg.studentId) === String(merged.id)));
+        const myRegs = regs.filter((reg) => String(reg.studentId) === String(merged.id));
+        const enrichedRegs = myRegs.map((reg) => {
+          const match = openRegs.find((o) => o.id === reg.regId || o.courseId === reg.courseId);
+          return {
+            ...match,
+            ...reg,
+            courseName: match?.courseName || reg?.courseName || '',
+          };
+        });
+        setEnrollments(enrichedRegs);
         setAssignments(allAssignments || []);
       } catch (error) {
         console.error('Không tải được dữ liệu bài tập sinh viên:', error);
@@ -313,7 +323,7 @@ const StudentAssignmentList = () => {
                 <option value="">-- Chọn học phần --</option>
                 {myCourses.map((course) => (
                   <option key={course.courseId} value={course.courseId}>
-                    {course.courseId} - {course.courseName}
+                    {course.courseId} - {course.courseName || 'Tên học phần chưa rõ'}
                   </option>
                 ))}
               </select>
@@ -357,9 +367,9 @@ const StudentAssignmentList = () => {
                             <span className="font-bold text-gray-800">{doc.name}</span>
                           </div>
                         </td>
-                        <td className="px-6 py-4 text-center text-gray-500">{doc.created}</td>
-                        <td className="px-6 py-4 text-center text-gray-500 italic">{doc.modifiedBy}</td>
-                        <td className="px-6 py-4 text-center text-gray-600 font-bold">{doc.size}</td>
+                        <td className="px-6 py-4 text-center text-gray-500">{doc.created || formatDate(doc.createdAt || doc.updatedAt || new Date())}</td>
+                        <td className="px-6 py-4 text-center text-gray-500 italic">{doc.modifiedBy || 'Không rõ'}</td>
+                        <td className="px-6 py-4 text-center text-gray-600 font-bold">{doc.size || '—'}</td>
                         <td className="px-6 py-4 text-center">
                           <span className="bg-green-100 text-green-600 px-3 py-1 rounded-full text-[10px] font-bold uppercase">{doc.status}</span>
                         </td>

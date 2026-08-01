@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import studentAPI from '../services/studentAPI';
 import documentAPI from '../services/documentAPI';
-import { fetchStudentRegistrations } from '../utils/registrationUtils';
+import { fetchOpenRegistrations, fetchStudentRegistrations } from '../utils/registrationUtils';
 import { useStudentLockMonitor } from '../hooks/useStudentLockMonitor';
 
 const StudentDocumentList = () => {
@@ -28,10 +28,11 @@ const StudentDocumentList = () => {
     const load = async () => {
       if (!currentUser?.email) return;
       try {
-        const [students, regs, allDocs] = await Promise.all([
+        const [students, regs, allDocs, openRegs] = await Promise.all([
           studentAPI.getAllStudents({ fresh: true }),
           fetchStudentRegistrations({ fresh: true }),
           documentAPI.getAllDocuments({ fresh: true }),
+          fetchOpenRegistrations({ fresh: true }),
         ]);
         const matched = students.find(s => s.email?.trim().toLowerCase() === currentUser.email?.trim().toLowerCase());
         const student = matched || currentUser;
@@ -39,7 +40,15 @@ const StudentDocumentList = () => {
         setCurrentUser((prev)=>{ const merged = { ...prev, ...student }; sessionStorage.setItem('currentUser', JSON.stringify(merged)); return merged; });
 
         const myRegs = regs.filter(r => String(r.studentId) === String(student.id || student.studentId));
-        setRegistrations(myRegs);
+        const enrichedRegs = myRegs.map((reg) => {
+          const match = openRegs.find((o) => o.id === reg.regId || o.courseId === reg.courseId);
+          return {
+            ...match,
+            ...reg,
+            courseName: match?.courseName || reg?.courseName || '',
+          };
+        });
+        setRegistrations(enrichedRegs);
         setDocuments(allDocs || []);
       } catch (error) { console.error('Lỗi tải dữ liệu tài liệu sinh viên', error); }
     };
@@ -152,7 +161,11 @@ const StudentDocumentList = () => {
             <div className="flex items-center gap-3 w-full md:w-auto">
               <select value={selectedCourseId} onChange={(e)=>setSelectedCourseId(e.target.value)} className="flex-1 md:w-72 px-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-medium text-gray-700 shadow-sm transition-all">
                 <option value="">-- Chọn học phần --</option>
-                {registrations.map(r => <option key={r.courseId} value={r.courseId}>{r.courseId} - {r.courseName}</option>)}
+                {registrations.map((r) => (
+                  <option key={r.courseId} value={r.courseId}>
+                    {r.courseId} - {r.courseName || 'Tên học phần chưa rõ'}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
@@ -168,9 +181,9 @@ const StudentDocumentList = () => {
             {!selectedCourseId ? (<tr><td colSpan="5" className="px-6 py-12 text-center text-gray-400 italic">Vui lòng chọn học phần để xem tài liệu.</td></tr>) : displayedDocs.length===0 ? (<tr><td colSpan="5" className="px-6 py-12 text-center text-gray-400 italic">Không có tài liệu công khai cho học phần này.</td></tr>) : displayedDocs.map(doc => (
               <tr key={doc.id} className="hover:bg-gray-50 transition relative">
                 <td className="px-6 py-4"><div className="flex items-center gap-3"><div className="w-10 h-10 bg-indigo-50 rounded-lg flex items-center justify-center text-indigo-600"><i className={`fas ${getFileIcon(doc.name)} text-lg`} /></div><div><p className="font-bold text-gray-800">{doc.name}</p><p className="text-[10px] text-gray-400 uppercase font-bold tracking-wider italic">Mã HP: {doc.courseId}</p></div></div></td>
-                <td className="px-6 py-4 text-center text-gray-500 font-medium">{doc.created}</td>
-                <td className="px-6 py-4 text-center text-gray-500 font-medium">{doc.modifiedBy}</td>
-                <td className="px-6 py-4 text-center text-gray-600 font-bold">{doc.size}</td>
+                <td className="px-6 py-4 text-center text-gray-500 font-medium">{doc.created || formatDate(doc.createdAt || doc.updatedAt || new Date())}</td>
+                <td className="px-6 py-4 text-center text-gray-500 font-medium">{doc.modifiedBy || 'Không rõ'}</td>
+                <td className="px-6 py-4 text-center text-gray-600 font-bold">{doc.size || '—'}</td>
                 <td className="px-6 py-4 text-right relative">
                   <div className="flex items-center justify-end gap-3"><button onClick={()=>handleDownload(doc.id)} className="px-3 py-2 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition"><i className="fas fa-download mr-2" />Tải xuống</button></div>
                 </td>

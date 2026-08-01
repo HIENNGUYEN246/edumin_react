@@ -1,6 +1,8 @@
 import apiClient from './api';
 import { normalizeTeacher } from '../utils/teacherUtils';
 
+const ensureArray = (value) => (Array.isArray(value) ? value : []);
+
 const teacherAPI = {
   async getAllTeachers({ fresh = false } = {}) {
     const list = fresh
@@ -20,17 +22,31 @@ const teacherAPI = {
       throw new Error('Email không hợp lệ');
     }
 
-    const teachers = await this.getAllTeachers({ fresh: true });
-    const index = teachers.findIndex((t) => t.email?.trim().toLowerCase() === emailKey);
-    if (index === -1) {
+    const authData = await apiClient.getAuthData();
+    const users = ensureArray(authData.users);
+    const teachers = ensureArray(authData.teachersData);
+
+    const userIndex = users.findIndex((u) => u.email?.trim().toLowerCase() === emailKey);
+    if (userIndex === -1) {
       throw new Error('Không tìm thấy tài khoản giáo viên');
     }
 
-    const updated = teachers.map((t, i) =>
-      i === index ? { ...t, password: newPassword } : t
+    const teacherIndex = teachers.findIndex((t) => t.email?.trim().toLowerCase() === emailKey);
+
+    const updatedUsers = users.map((u, i) =>
+      i === userIndex ? { ...u, password: newPassword } : u
     );
-    await this.saveAllTeachers(updated);
-    return updated[index];
+    const updatedTeachers = teachers.map((t, i) =>
+      i === teacherIndex ? { ...t, password: newPassword } : t
+    );
+
+    await apiClient.saveAuthData({
+      ...authData,
+      users: updatedUsers,
+      teachersData: updatedTeachers,
+    });
+
+    return updatedTeachers[teacherIndex] || updatedUsers[userIndex];
   },
 };
 

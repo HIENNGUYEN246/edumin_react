@@ -31,7 +31,10 @@ export function dispatchStudentRegistrationsUpdated() {
 
 export function isRegistrationExpired(reg, now = new Date()) {
   if (!reg?.start || !reg?.end) return true;
-  return now > new Date(reg.end) || now < new Date(reg.start);
+  const start = new Date(reg.start);
+  const end = new Date(reg.end);
+  if (Number.isNaN(start.valueOf()) || Number.isNaN(end.valueOf())) return true;
+  return now > end || now < start;
 }
 
 export function getRegistrationStatusLabel(reg, now = new Date()) {
