@@ -26,9 +26,9 @@ const GVDashboard = () => {
   }, []);
 
   useEffect(() => {
-    if (!currentUser) return;
+    if (!currentUser?.email) return;
     updateTeacherProfile();
-  }, [currentUser]);
+  }, [currentUser?.email]);
 
   useEffect(() => {
     const handleClickOutside = () => {

@@ -74,7 +74,7 @@ const TeacherDocumentList = () => {
       }
     };
     loadData();
-  }, [currentUser]);
+  }, [currentUser?.email]);
 
   // Xử lý đóng menu khi nhấn ra ngoài hoặc cuộn trang (Đồng bộ chuẩn fixed)
   useEffect(() => {

@@ -45,11 +45,12 @@ function ManageCourses() {
     setLoading(true);
     const fetchStartTime = Date.now();
     try {
-      const depts = await fetchDepartments({ fresh: true });
+      const [depts, rawCourses] = await Promise.all([
+        fetchDepartments({ fresh: true }),
+        fetchCourses({ fresh: true }),
+      ]);
       setDepartments(depts);
-      let list = await fetchCourses({ fresh: true });
-      const synced = syncCoursesWithDepartments(list, depts);
-      list = await saveCourses(synced);
+      const list = syncCoursesWithDepartments(rawCourses, depts);
       
       // Only update courses if no optimistic update happened during fetch
       // (within 2 second buffer to account for async operations)

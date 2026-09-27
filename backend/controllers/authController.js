@@ -1,3 +1,20 @@
+import { loadAuthData, saveAuthData } from '../services/authService.js';
+
+export async function getAuth(req, res, next) {
+  try {
+    res.json(await loadAuthData());
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function putAuth(req, res, next) {
+  try {
+    res.json(await saveAuthData(req.body));
+  } catch (error) {
+    next(error);
+  }
+}
 import express from 'express';
 import mongoose from 'mongoose';
 import { User, Teacher, Student, Department, Course, OpenRegistration, StudentRegistration, Assignment, Document } from '../models/index.js';
@@ -527,6 +544,8 @@ router.get('/', async (req, res) => {
 router.put('/', async (req, res) => {
   try {
     const body = req.body || {};
+
+    // Insert in order so refs can resolve correctly
     await replaceCollection(Department, body.departmentsData || []);
     await replaceCollection(User, body.users || []);
     await replaceCollection(Teacher, body.teachersData || []);
@@ -536,8 +555,10 @@ router.put('/', async (req, res) => {
     await replaceCollection(StudentRegistration, body.studentRegistrationsData || []);
     await replaceCollection(Assignment, body.assignmentsData || []);
     await replaceCollection(Document, body.documentsData || []);
+
     await cleanupOrphanAccounts();
     await cleanupLegacyFields();
+
     const authData = await getAuthData();
     await ensureSeedAccounts();
     res.json(authData);

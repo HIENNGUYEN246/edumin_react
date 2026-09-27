@@ -35,6 +35,8 @@ class APIClient {
   constructor() {
     this.baseURL = API_URL;
     this._authCache = null;
+    this._authRequest = null;
+    this._authSaveRequest = null;
   }
 
   async fetchJson(path, options = {}) {
@@ -191,12 +193,42 @@ class APIClient {
       return { authData: this._authCache };
     }
 
-    const result = await this.loadOrInitAuthData();
+    if (!this._authRequest) {
+      this._authRequest = this.loadOrInitAuthData()
+        .finally(() => {
+          this._authRequest = null;
+        });
+    }
+
+    const result = await this._authRequest;
     return { authData: result.authData };
   }
 
   clearAuthCache() {
     this._authCache = null;
+  }
+
+  async updateAuthCollection(field, value) {
+    const operation = (this._authSaveRequest || Promise.resolve())
+      .catch(() => undefined)
+      .then(async () => {
+        // Read the latest complete document so updating one collection cannot
+        // overwrite changes made by another screen.
+        const latestAuthData = await this.getAuthData();
+        return this.saveAuthData({
+          ...latestAuthData,
+          [field]: ensureArray(value),
+        });
+      });
+
+    this._authSaveRequest = operation;
+    try {
+      return await operation;
+    } finally {
+      if (this._authSaveRequest === operation) {
+        this._authSaveRequest = null;
+      }
+    }
   }
 
   async getTeachers({ fresh = false } = {}) {
@@ -210,8 +242,7 @@ class APIClient {
   }
 
   async saveTeachersData(teachers) {
-    const { authData } = await this.ensureAuthContext();
-    return this.saveAuthData({ ...authData, teachersData: ensureArray(teachers) });
+    return this.updateAuthCollection('teachersData', teachers);
   }
 
   async getStudents({ fresh = false } = {}) {
@@ -225,8 +256,7 @@ class APIClient {
   }
 
   async saveStudentsData(students) {
-    const { authData } = await this.ensureAuthContext();
-    return this.saveAuthData({ ...authData, studentsData: ensureArray(students) });
+    return this.updateAuthCollection('studentsData', students);
   }
 
   async getDepartments({ fresh = false } = {}) {
@@ -240,8 +270,7 @@ class APIClient {
   }
 
   async saveDepartmentsData(departments) {
-    const { authData } = await this.ensureAuthContext();
-    return this.saveAuthData({ ...authData, departmentsData: ensureArray(departments) });
+    return this.updateAuthCollection('departmentsData', departments);
   }
 
   async getCourses({ fresh = false } = {}) {
@@ -255,8 +284,7 @@ class APIClient {
   }
 
   async saveCoursesData(courses) {
-    const { authData } = await this.ensureAuthContext();
-    return this.saveAuthData({ ...authData, subjectsData: ensureArray(courses) });
+    return this.updateAuthCollection('subjectsData', courses);
   }
 
   async getOpenRegistrations({ fresh = false } = {}) {
@@ -270,8 +298,7 @@ class APIClient {
   }
 
   async saveOpenRegistrationsData(registrations) {
-    const { authData } = await this.ensureAuthContext();
-    return this.saveAuthData({ ...authData, openRegistrationsData: ensureArray(registrations) });
+    return this.updateAuthCollection('openRegistrationsData', registrations);
   }
 
   async getStudentRegistrations({ fresh = false } = {}) {
@@ -285,8 +312,7 @@ class APIClient {
   }
 
   async saveStudentRegistrationsData(enrollments) {
-    const { authData } = await this.ensureAuthContext();
-    return this.saveAuthData({ ...authData, studentRegistrationsData: ensureArray(enrollments) });
+    return this.updateAuthCollection('studentRegistrationsData', enrollments);
   }
 
   async getAssignments({ fresh = false } = {}) {
@@ -300,8 +326,7 @@ class APIClient {
   }
 
   async saveAssignmentsData(assignments) {
-    const { authData } = await this.ensureAuthContext();
-    return this.saveAuthData({ ...authData, assignmentsData: ensureArray(assignments) });
+    return this.updateAuthCollection('assignmentsData', assignments);
   }
 
   async getDocuments({ fresh = false } = {}) {
@@ -315,8 +340,7 @@ class APIClient {
   }
 
   async saveDocumentsData(documents) {
-    const { authData } = await this.ensureAuthContext();
-    return this.saveAuthData({ ...authData, documentsData: ensureArray(documents) });
+    return this.updateAuthCollection('documentsData', documents);
   }
 
   async getUsers() {

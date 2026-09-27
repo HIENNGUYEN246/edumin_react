@@ -27,14 +27,6 @@ if (!MONGO_URI) {
   process.exit(1);
 }
 
-mongoose
-  .connect(MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
-  .then(() => console.log('MongoDB connected'))
-  .catch((error) => {
-    console.error('MongoDB connection error:', error);
-    process.exit(1);
-  });
-
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -62,6 +54,14 @@ app.get('/', (req, res) => {
 });
 
 app.use(errorHandler);
+
+mongoose
+  .connect(MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
+  .then(() => console.log('MongoDB connected'))
+  .catch((error) => {
+    console.error('MongoDB connection error:', error);
+    process.exit(1);
+  });
 
 app.listen(PORT, () => {
   console.log(`Edumin backend listening on http://localhost:${PORT}`);

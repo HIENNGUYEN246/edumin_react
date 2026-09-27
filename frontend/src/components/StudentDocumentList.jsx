@@ -53,7 +53,7 @@ const StudentDocumentList = () => {
       } catch (error) { console.error('Lỗi tải dữ liệu tài liệu sinh viên', error); }
     };
     load();
-  }, [currentUser]);
+  }, [currentUser?.email]);
 
   useEffect(() => { if (!toasts.length) return; const timers = toasts.map(t=> setTimeout(()=> setToasts(prev=> prev.filter(x=> x.id !== t.id)), 3000)); return ()=> timers.forEach(clearTimeout); }, [toasts]);
   const addToast = (message, type='success') => setToasts(prev => [...prev, { id: Date.now().toString(), message, type }]);

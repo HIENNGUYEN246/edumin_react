@@ -1,8 +1,5 @@
-import express from 'express';
 import mongoose from 'mongoose';
 import { User, Teacher, Student, Department, Course, OpenRegistration, StudentRegistration, Assignment, Document } from '../models/index.js';
-
-const router = express.Router();
 
 const getAuthData = async () => {
   const [users, teachers, students, departments, courses, openRegistrations, studentRegistrations, assignments, documents] =
@@ -499,52 +496,39 @@ const defaultAuthData = {
   documentsData: [],
 };
 
-router.get('/', async (req, res) => {
-  try {
-    const authData = await getAuthData();
-    const isEmpty = !authData.users.length && !authData.studentsData.length && !authData.departmentsData.length;
+export async function loadAuthData() {
+  const authData = await getAuthData();
+  const isEmpty = !authData.users.length && !authData.studentsData.length && !authData.departmentsData.length;
 
-    if (isEmpty) {
-      await replaceCollection(User, defaultAuthData.users);
-      await replaceCollection(Teacher, defaultAuthData.teachersData);
-      await replaceCollection(Student, defaultAuthData.studentsData);
-      await replaceCollection(Department, defaultAuthData.departmentsData);
-      await ensureSeedAccounts();
-      await cleanupLegacyFields();
-      return res.json(defaultAuthData);
-    }
-
+  if (isEmpty) {
+    await replaceCollection(User, defaultAuthData.users);
+    await replaceCollection(Teacher, defaultAuthData.teachersData);
+    await replaceCollection(Student, defaultAuthData.studentsData);
+    await replaceCollection(Department, defaultAuthData.departmentsData);
     await ensureSeedAccounts();
     await cleanupLegacyFields();
-    const cleanedAuthData = await getAuthData();
-    res.json(cleanedAuthData);
-  } catch (error) {
-    console.error('GET /api/auth error:', error);
-    res.status(500).json({ error: 'Lỗi khi tải dữ liệu xác thực' });
+    return defaultAuthData;
   }
-});
 
-router.put('/', async (req, res) => {
-  try {
-    const body = req.body || {};
-    await replaceCollection(Department, body.departmentsData || []);
-    await replaceCollection(User, body.users || []);
-    await replaceCollection(Teacher, body.teachersData || []);
-    await replaceCollection(Student, body.studentsData || []);
-    await replaceCollection(Course, body.subjectsData || []);
-    await replaceCollection(OpenRegistration, body.openRegistrationsData || []);
-    await replaceCollection(StudentRegistration, body.studentRegistrationsData || []);
-    await replaceCollection(Assignment, body.assignmentsData || []);
-    await replaceCollection(Document, body.documentsData || []);
-    await cleanupOrphanAccounts();
-    await cleanupLegacyFields();
-    const authData = await getAuthData();
-    await ensureSeedAccounts();
-    res.json(authData);
-  } catch (error) {
-    console.error('PUT /api/auth error:', error);
-    res.status(500).json({ error: 'Lỗi khi lưu dữ liệu xác thực' });
-  }
-});
+  await ensureSeedAccounts();
+  await cleanupLegacyFields();
+  return getAuthData();
+}
 
-export default router;
+export async function saveAuthData(body = {}) {
+  await replaceCollection(Department, body.departmentsData || []);
+  await replaceCollection(User, body.users || []);
+  await replaceCollection(Teacher, body.teachersData || []);
+  await replaceCollection(Student, body.studentsData || []);
+  await replaceCollection(Course, body.subjectsData || []);
+  await replaceCollection(OpenRegistration, body.openRegistrationsData || []);
+  await replaceCollection(StudentRegistration, body.studentRegistrationsData || []);
+  await replaceCollection(Assignment, body.assignmentsData || []);
+  await replaceCollection(Document, body.documentsData || []);
+
+  await cleanupOrphanAccounts();
+  await cleanupLegacyFields();
+  const authData = await getAuthData();
+  await ensureSeedAccounts();
+  return authData;
+}

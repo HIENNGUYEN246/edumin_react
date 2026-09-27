@@ -10,7 +10,7 @@ function findUserByEmailAndRole(users, email, role) {
   return users.find((u) => u.email?.trim().toLowerCase() === key && u.role === role) || null;
 }
 
-export function useTeacherLockMonitor(currentUser) {
+export function useStudentLockMonitor(currentUser) {
   const navigate = useNavigate();
   const [showLockModal, setShowLockModal] = useState(false);
   const [lockReason, setLockReason] = useState(DEFAULT_LOCK_MESSAGE);
@@ -38,17 +38,11 @@ export function useTeacherLockMonitor(currentUser) {
       }
       applyLockState(account);
     } catch (error) {
-      console.error('Không kiểm tra được trạng thái tài khoản:', error);
+      console.error('Không kiểm tra được trạng thái tài khoản sinh viên:', error);
     }
   }, [applyLockState, currentUser?.email, currentUser?.role]);
 
   const handleLogoutToLogin = useCallback(() => {
-    const user = JSON.parse(sessionStorage.getItem('currentUser') || 'null');
-    if (user?.email) {
-      const heartbeats = JSON.parse(localStorage.getItem('user_heartbeats') || '{}');
-      delete heartbeats[user.email];
-      localStorage.setItem('user_heartbeats', JSON.stringify(heartbeats));
-    }
     sessionStorage.removeItem('currentUser');
     apiClient.clearAuthCache();
     navigate('/');
@@ -58,7 +52,7 @@ export function useTeacherLockMonitor(currentUser) {
     if (!currentUser?.email) return undefined;
 
     checkAccountStatus();
-    const statusTimer = setInterval(checkAccountStatus, 3000);
+    const statusTimer = setInterval(checkAccountStatus, 30000);
     return () => clearInterval(statusTimer);
   }, [checkAccountStatus, currentUser?.email]);
 
