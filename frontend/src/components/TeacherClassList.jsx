@@ -27,14 +27,14 @@ export default function TeacherClassList() {
     const load = async () => {
       try {
         const user = JSON.parse(sessionStorage.getItem('currentUser')) || {};
-        const teachers = await teacherAPI.getAllTeachers({ fresh: true });
-        const teacher = teachers.find((t) => t.email?.toLowerCase() === user.email?.toLowerCase());
-        setMyTeacherId(teacher?.id ?? null);
-        const [regs, enrollments, studs] = await Promise.all([
+        const [teachers, regs, enrollments, studs] = await Promise.all([
+          teacherAPI.getAllTeachers({ fresh: true }),
           fetchOpenRegistrations({ fresh: true }),
           fetchStudentRegistrations({ fresh: true }),
           studentAPI.getAllStudents({ fresh: true }),
         ]);
+        const teacher = teachers.find((t) => t.email?.toLowerCase() === user.email?.toLowerCase());
+        setMyTeacherId(teacher?.id ?? null);
         setOpenRegs(regs);
         setStudentRegs(enrollments);
         setStudents(studs);

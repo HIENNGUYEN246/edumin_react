@@ -40,8 +40,7 @@ const teacherAPI = {
       i === teacherIndex ? { ...t, password: newPassword } : t
     );
 
-    await apiClient.saveAuthData({
-      ...authData,
+    await apiClient.updateAuthCollections({
       users: updatedUsers,
       teachersData: updatedTeachers,
     });

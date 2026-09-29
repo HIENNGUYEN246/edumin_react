@@ -135,9 +135,21 @@ class APIClient {
     }
   }
 
+  async login(email, password) {
+    return this.fetchJson('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    });
+  }
+
+  async getAccountStatus(email, role) {
+    const query = new URLSearchParams({ email: email || '', role: role || '' });
+    const result = await this.fetchJson(`/auth/status?${query.toString()}`);
+    return result.account || null;
+  }
+
   async getUsers({ fresh = false } = {}) {
-    if (fresh) this.clearAuthCache();
-    const { authData } = await this.ensureAuthContext();
+    const { authData } = await this.ensureAuthContext({ fresh });
     return authData.users;
   }
 
@@ -146,20 +158,9 @@ class APIClient {
   }
 
   async saveAuthData(authData) {
-    // Clean up student registrations before saving - keep only essential fields
     const cleanedData = {
       ...authData,
-      studentRegistrationsData: (authData.studentRegistrationsData || []).map((reg) => {
-        const cleaned = {};
-        if (reg.regId) cleaned.regId = reg.regId;
-        // Frontend sends studentId/courseId, backend expects studentRef/courseRef
-        // Keep frontend format (studentId/courseId) so backend can resolve them
-        if (reg.studentId != null) cleaned.studentId = reg.studentId;
-        if (reg.courseId) cleaned.courseId = reg.courseId;
-        if (reg.studentRef) cleaned.studentRef = reg.studentRef;
-        if (reg.courseRef) cleaned.courseRef = reg.courseRef;
-        return cleaned;
-      }),
+      studentRegistrationsData: this.cleanStudentRegistrations(authData.studentRegistrationsData),
     };
     const payload = this.normalizeAuthPayload(cleanedData);
     await this.fetchJson('/auth', {
@@ -167,58 +168,79 @@ class APIClient {
       body: JSON.stringify(payload),
     });
     this._authCache = payload;
+    this._authCacheAt = Date.now();
     return payload;
   }
 
-  async loadOrInitAuthData() {
-    try {
-      const authData = await this.getAuthData();
-
-      if (!authData.users.length) {
-        const defaultData = getDefaultAuthData();
-        await this.saveAuthData(defaultData);
-        return { authData: defaultData, initialized: true };
-      }
-
-      this._authCache = authData;
-      return { authData, initialized: false };
-    } catch (error) {
-      console.error('Error loading auth data:', error);
-      throw error;
-    }
+  cleanStudentRegistrations(registrations) {
+    return ensureArray(registrations).map((reg) => {
+      const cleaned = {};
+      if (reg.regId) cleaned.regId = reg.regId;
+      if (reg.studentId != null) cleaned.studentId = reg.studentId;
+      if (reg.courseId) cleaned.courseId = reg.courseId;
+      if (reg.studentRef) cleaned.studentRef = reg.studentRef;
+      if (reg.courseRef) cleaned.courseRef = reg.courseRef;
+      return cleaned;
+    });
   }
 
-  async ensureAuthContext() {
-    if (this._authCache) {
+  async loadOrInitAuthData() {
+    const { authData } = await this.ensureAuthContext();
+    return { authData, initialized: false };
+  }
+
+  async ensureAuthContext({ fresh = false } = {}) {
+    // Reuse only a request that is currently in flight. An explicit fresh read
+    // after it completes always reaches the server.
+    if (this._authCache && !fresh) {
       return { authData: this._authCache };
     }
 
+    if (fresh && !this._authRequest) {
+      this.clearAuthCache();
+    }
+
     if (!this._authRequest) {
-      this._authRequest = this.loadOrInitAuthData()
+      this._authRequest = this.getAuthData()
+        .then((authData) => {
+          this._authCache = authData;
+          this._authCacheAt = Date.now();
+          return { authData };
+        })
         .finally(() => {
           this._authRequest = null;
         });
     }
 
-    const result = await this._authRequest;
-    return { authData: result.authData };
+    return this._authRequest;
   }
 
   clearAuthCache() {
     this._authCache = null;
+    this._authCacheAt = 0;
   }
 
-  async updateAuthCollection(field, value) {
+  async updateAuthCollections(changes) {
+    const updates = Object.fromEntries(
+      Object.entries(changes || {}).map(([field, value]) => [
+        field,
+        field === 'studentRegistrationsData'
+          ? this.cleanStudentRegistrations(value)
+          : ensureArray(value),
+      ])
+    );
+
     const operation = (this._authSaveRequest || Promise.resolve())
       .catch(() => undefined)
       .then(async () => {
-        // Read the latest complete document so updating one collection cannot
-        // overwrite changes made by another screen.
-        const latestAuthData = await this.getAuthData();
-        return this.saveAuthData({
-          ...latestAuthData,
-          [field]: ensureArray(value),
+        await this.fetchJson('/auth/collections', {
+          method: 'PUT',
+          body: JSON.stringify(updates),
         });
+        // A partial write cannot prove that the untouched collections are
+        // current, so invalidate the aggregate cache instead of blessing it.
+        this.clearAuthCache();
+        return null;
       });
 
     this._authSaveRequest = operation;
@@ -231,9 +253,12 @@ class APIClient {
     }
   }
 
+  async updateAuthCollection(field, value) {
+    return this.updateAuthCollections({ [field]: value });
+  }
+
   async getTeachers({ fresh = false } = {}) {
-    if (fresh) this.clearAuthCache();
-    const { authData } = await this.ensureAuthContext();
+    const { authData } = await this.ensureAuthContext({ fresh });
     return authData.teachersData;
   }
 
@@ -246,8 +271,7 @@ class APIClient {
   }
 
   async getStudents({ fresh = false } = {}) {
-    if (fresh) this.clearAuthCache();
-    const { authData } = await this.ensureAuthContext();
+    const { authData } = await this.ensureAuthContext({ fresh });
     return authData.studentsData;
   }
 
@@ -260,8 +284,7 @@ class APIClient {
   }
 
   async getDepartments({ fresh = false } = {}) {
-    if (fresh) this.clearAuthCache();
-    const { authData } = await this.ensureAuthContext();
+    const { authData } = await this.ensureAuthContext({ fresh });
     return authData.departmentsData;
   }
 
@@ -274,8 +297,7 @@ class APIClient {
   }
 
   async getCourses({ fresh = false } = {}) {
-    if (fresh) this.clearAuthCache();
-    const { authData } = await this.ensureAuthContext();
+    const { authData } = await this.ensureAuthContext({ fresh });
     return authData.subjectsData;
   }
 
@@ -288,8 +310,7 @@ class APIClient {
   }
 
   async getOpenRegistrations({ fresh = false } = {}) {
-    if (fresh) this.clearAuthCache();
-    const { authData } = await this.ensureAuthContext();
+    const { authData } = await this.ensureAuthContext({ fresh });
     return authData.openRegistrationsData;
   }
 
@@ -302,8 +323,7 @@ class APIClient {
   }
 
   async getStudentRegistrations({ fresh = false } = {}) {
-    if (fresh) this.clearAuthCache();
-    const { authData } = await this.ensureAuthContext();
+    const { authData } = await this.ensureAuthContext({ fresh });
     return authData.studentRegistrationsData;
   }
 
@@ -316,8 +336,7 @@ class APIClient {
   }
 
   async getAssignments({ fresh = false } = {}) {
-    if (fresh) this.clearAuthCache();
-    const { authData } = await this.ensureAuthContext();
+    const { authData } = await this.ensureAuthContext({ fresh });
     return authData.assignmentsData;
   }
 
@@ -330,8 +349,7 @@ class APIClient {
   }
 
   async getDocuments({ fresh = false } = {}) {
-    if (fresh) this.clearAuthCache();
-    const { authData } = await this.ensureAuthContext();
+    const { authData } = await this.ensureAuthContext({ fresh });
     return authData.documentsData;
   }
 
@@ -341,11 +359,6 @@ class APIClient {
 
   async saveDocumentsData(documents) {
     return this.updateAuthCollection('documentsData', documents);
-  }
-
-  async getUsers() {
-    const { authData } = await this.ensureAuthContext();
-    return authData.users;
   }
 
   async isAvailable() {

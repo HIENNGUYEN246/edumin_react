@@ -4,12 +4,6 @@ import apiClient from '../services/api';
 
 const DEFAULT_LOCK_MESSAGE = 'Tài khoản của bạn đã bị tạm khóa.';
 
-function findUserByEmailAndRole(users, email, role) {
-  if (!email || !role) return null;
-  const key = email.trim().toLowerCase();
-  return users.find((u) => u.email?.trim().toLowerCase() === key && u.role === role) || null;
-}
-
 export function useTeacherLockMonitor(currentUser) {
   const navigate = useNavigate();
   const [showLockModal, setShowLockModal] = useState(false);
@@ -26,17 +20,17 @@ export function useTeacherLockMonitor(currentUser) {
   }, []);
 
   const checkAccountStatus = useCallback(async () => {
-    if (!currentUser?.email) return;
+    if (!currentUser?.email || !currentUser?.role) return;
 
     try {
-      const users = await apiClient.getUsersFresh();
-      const account = findUserByEmailAndRole(users, currentUser.email, currentUser.role);
+      // Poll only the current account status instead of downloading all app data.
+      const account = await apiClient.getAccountStatus(currentUser.email, currentUser.role);
       if (!account) {
         setLockReason('Tài khoản không còn tồn tại.');
         setShowLockModal(true);
         return true;
       }
-      applyLockState(account);
+      return applyLockState(account);
     } catch (error) {
       console.error('Không kiểm tra được trạng thái tài khoản:', error);
     }

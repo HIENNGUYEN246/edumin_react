@@ -37,10 +37,12 @@ export default function TeacherSchedule() {
     setLoading(true);
     try {
       const user = JSON.parse(sessionStorage.getItem('currentUser'));
-      const teachers = await teacherAPI.getAllTeachers({ fresh: true });
+      const [teachers, regs] = await Promise.all([
+        teacherAPI.getAllTeachers({ fresh: true }),
+        fetchOpenRegistrations({ fresh: true }),
+      ]);
       const teacherRecord = teachers.find((t) => t.email?.toLowerCase() === user?.email?.toLowerCase());
       setMyTeacherId(teacherRecord?.id ?? null);
-      const regs = await fetchOpenRegistrations({ fresh: true });
       setOpenRegs(regs);
     } catch (e) {
       console.error(e);

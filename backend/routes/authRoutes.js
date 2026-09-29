@@ -450,9 +450,19 @@ const cleanupLegacyFields = async () => {
 };
 
 const replaceCollection = async (Model, docs) => {
+  if (!Array.isArray(docs)) {
+    throw new TypeError(`${Model.modelName} data must be an array`);
+  }
+
+  // Resolve and validate the complete replacement before touching live rows.
+  // This prevents malformed payloads from emptying a collection.
+  const mapped = docs.length ? await prepareDocumentsForModel(Model, docs) : [];
+  for (const item of mapped) {
+    await new Model(item).validate();
+  }
+
   await Model.deleteMany({});
-  if (!Array.isArray(docs) || docs.length === 0) return;
-  const mapped = await prepareDocumentsForModel(Model, docs);
+  if (mapped.length === 0) return;
   const inserted = await Model.insertMany(mapped);
 
   if (Model.modelName === 'Teacher') {
@@ -499,31 +509,149 @@ const defaultAuthData = {
   documentsData: [],
 };
 
-router.get('/', async (req, res) => {
-  try {
-    const authData = await getAuthData();
-    const isEmpty = !authData.users.length && !authData.studentsData.length && !authData.departmentsData.length;
+const collectionModels = [
+  ['departmentsData', Department],
+  ['users', User],
+  ['teachersData', Teacher],
+  ['studentsData', Student],
+  ['subjectsData', Course],
+  ['openRegistrationsData', OpenRegistration],
+  ['studentRegistrationsData', StudentRegistration],
+  ['assignmentsData', Assignment],
+  ['documentsData', Document],
+];
 
-    if (isEmpty) {
-      await replaceCollection(User, defaultAuthData.users);
-      await replaceCollection(Teacher, defaultAuthData.teachersData);
-      await replaceCollection(Student, defaultAuthData.studentsData);
-      await replaceCollection(Department, defaultAuthData.departmentsData);
+let initializationPromise = null;
+
+const ensureAuthInitialized = () => {
+  if (!initializationPromise) {
+    initializationPromise = (async () => {
+      const [userCount, studentCount, departmentCount] = await Promise.all([
+        User.estimatedDocumentCount(),
+        Student.estimatedDocumentCount(),
+        Department.estimatedDocumentCount(),
+      ]);
+      const isEmpty = userCount === 0 && studentCount === 0 && departmentCount === 0;
+
+      if (isEmpty) {
+        await replaceCollection(User, defaultAuthData.users);
+        await replaceCollection(Department, defaultAuthData.departmentsData);
+      }
+
+      // Seed/migration work is intentionally executed once per backend process,
+      // never on every GET request.
       await ensureSeedAccounts();
       await cleanupLegacyFields();
-      return res.json(defaultAuthData);
+    })().catch((error) => {
+      initializationPromise = null;
+      throw error;
+    });
+  }
+  return initializationPromise;
+};
+
+router.post('/login', async (req, res) => {
+  try {
+    await ensureAuthInitialized();
+    const email = String(req.body?.email || '').trim().toLowerCase();
+    const password = String(req.body?.password || '');
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email và mật khẩu là bắt buộc' });
     }
 
-    await ensureSeedAccounts();
-    await cleanupLegacyFields();
-    const cleanedAuthData = await getAuthData();
-    res.json(cleanedAuthData);
+    const user = await User.findOne({ email, password }).lean();
+    if (!user) {
+      return res.status(401).json({ error: 'Email hoặc mật khẩu không chính xác' });
+    }
+
+    let profile = null;
+    if (user.role === 'giao-vien') {
+      profile = await Teacher.findOne({ $or: [{ userId: user._id }, { email }] }).lean();
+    } else if (user.role === 'sinh-vien') {
+      profile = await Student.findOne({ $or: [{ userId: user._id }, { email }] }).lean();
+    }
+
+    res.json({ user, profile });
+  } catch (error) {
+    console.error('POST /api/auth/login error:', error);
+    res.status(500).json({ error: 'Lỗi khi đăng nhập' });
+  }
+});
+
+router.get('/status', async (req, res) => {
+  try {
+    await ensureAuthInitialized();
+    const email = String(req.query.email || '').trim().toLowerCase();
+    const role = String(req.query.role || '').trim();
+    if (!email || !role) {
+      return res.status(400).json({ error: 'Email và vai trò là bắt buộc' });
+    }
+
+    const account = await User.findOne({ email, role })
+      .select('email role status lockReason')
+      .lean();
+    res.json({ account });
+  } catch (error) {
+    console.error('GET /api/auth/status error:', error);
+    res.status(500).json({ error: 'Lỗi khi kiểm tra trạng thái tài khoản' });
+  }
+});
+
+let collectionUpdateQueue = Promise.resolve();
+
+// Update only the collections supplied by the client. This keeps the legacy
+// normalization rules while avoiding a full read + replacement of all data.
+router.put('/collections', async (req, res) => {
+  try {
+    const body = req.body || {};
+    const updates = collectionModels.filter(([field]) => Object.prototype.hasOwnProperty.call(body, field));
+    if (!updates.length) {
+      return res.status(400).json({ error: 'Không có collection hợp lệ để cập nhật' });
+    }
+
+    const invalidField = updates.find(([field]) => !Array.isArray(body[field]));
+    if (invalidField) {
+      return res.status(400).json({ error: `${invalidField[0]} phải là một mảng` });
+    }
+
+    // Serialize replacements across all clients so delete/insert phases cannot
+    // overlap and produce transient duplicate-key errors or empty reads.
+    const operation = collectionUpdateQueue
+      .catch(() => undefined)
+      .then(async () => {
+        for (const [field, Model] of updates) {
+          await replaceCollection(Model, body[field]);
+        }
+
+        if (updates.some(([field]) => field === 'teachersData' || field === 'studentsData')) {
+          await cleanupOrphanAccounts();
+        }
+        if (updates.some(([field]) => field === 'users')) {
+          await ensureSeedAccounts();
+        }
+      });
+    collectionUpdateQueue = operation;
+    await operation;
+
+    res.json({ success: true, updatedFields: updates.map(([field]) => field) });
+  } catch (error) {
+    console.error('PUT /api/auth/collections error:', error);
+    res.status(500).json({ error: 'Lỗi khi cập nhật dữ liệu' });
+  }
+});
+
+router.get('/', async (req, res) => {
+  try {
+    await ensureAuthInitialized();
+    // GET is now read-only and scans each collection exactly once.
+    res.json(await getAuthData());
   } catch (error) {
     console.error('GET /api/auth error:', error);
     res.status(500).json({ error: 'Lỗi khi tải dữ liệu xác thực' });
   }
 });
 
+// Kept for backward compatibility. New frontend writes use /collections.
 router.put('/', async (req, res) => {
   try {
     const body = req.body || {};
@@ -538,9 +666,8 @@ router.put('/', async (req, res) => {
     await replaceCollection(Document, body.documentsData || []);
     await cleanupOrphanAccounts();
     await cleanupLegacyFields();
-    const authData = await getAuthData();
     await ensureSeedAccounts();
-    res.json(authData);
+    res.json(await getAuthData());
   } catch (error) {
     console.error('PUT /api/auth error:', error);
     res.status(500).json({ error: 'Lỗi khi lưu dữ liệu xác thực' });

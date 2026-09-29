@@ -9,55 +9,7 @@ function LoginForm() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [toasts, setToasts] = useState([]);
-  const [usersData, setUsersData] = useState({ users: [], teachersData: [], studentsData: [] });
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const { authData, initialized } = await apiClient.loadOrInitAuthData();
-        setUsersData(authData);
-
-        if (initialized) {
-          showToast('Đã khởi tạo tài khoản mẫu và lưu lên API!', 'success');
-        }
-      } catch (error) {
-        console.error('Error fetching data:', error);
-        showToast('Không tải được dữ liệu đăng nhập từ API. Vui lòng thử lại sau.');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-  }, []);
-
-  const matchEmail = (accountEmail, inputEmail) =>
-    accountEmail?.trim().toLowerCase() === inputEmail.trim().toLowerCase();
-
-  const matchAccountPassword = (account, passwordInput) => {
-    const accountPassword = account.pass ?? account.password;
-    return accountPassword === passwordInput;
-  };
-
-  const findProfileByUser = (authData, user) => {
-    if (!user || !user.role) return null;
-    const emailKey = user.email?.trim().toLowerCase();
-    const matcher = (item) =>
-      String(item.userId) === String(user._id) ||
-      matchEmail(item.email, emailKey || '') ||
-      matchEmail(item.email, user.email || '');
-
-    if (user.role === 'giao-vien') {
-      return (authData.teachersData || []).find(matcher) || null;
-    }
-
-    if (user.role === 'sinh-vien') {
-      return (authData.studentsData || []).find(matcher) || null;
-    }
-
-    return null;
-  };
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const buildSessionUser = (user, profile) => {
     const fallbackName = user.hoTen || user.name || profile?.hoTen || profile?.name || '';
@@ -91,107 +43,60 @@ function LoginForm() {
   }, [toasts]);
 
   const handleLogin = async (event) => {
-    if (event && event.preventDefault) {
-      event.preventDefault();
-    }
+    event?.preventDefault?.();
+    if (isSubmitting) return;
 
     const emailInput = email.trim();
     const passwordInput = password.trim();
-
     if (!emailInput || !passwordInput) {
       showToast('Vui lòng nhập đầy đủ email và mật khẩu!');
       return;
     }
 
-    let authData = usersData;
+    setIsSubmitting(true);
     try {
-      apiClient.clearAuthCache();
-      const loaded = await apiClient.loadOrInitAuthData();
-      authData = loaded.authData;
-      setUsersData(authData);
+      // Login now queries one account (and at most one profile) instead of
+      // downloading every collection before checking credentials.
+      const { user, profile } = await apiClient.login(emailInput, passwordInput);
+      const accountStatus = user.status ?? profile?.status ?? 'Active';
+      const lockReason = (user.lockReason ?? profile?.lockReason ?? '').trim();
+
+      if (accountStatus === 'Locked') {
+        showToast(
+          lockReason
+            ? `Tài khoản đã bị khóa. Lý do: ${lockReason}`
+            : 'Tài khoản này đã bị khóa!'
+        );
+        return;
+      }
+
+      clearLegacyEntityStorage();
+      const sessionUser = buildSessionUser(user, profile);
+      sessionStorage.setItem('currentUser', JSON.stringify(sessionUser));
+
+      const destinations = {
+        'dao-tao': '/pdt-dashboard',
+        'giao-vien': '/gv-dashboard',
+        'sinh-vien': '/sv-dashboard',
+      };
+      const roleLabels = {
+        'dao-tao': 'Admin',
+        'giao-vien': 'Giáo viên',
+        'sinh-vien': 'Sinh viên',
+      };
+      showToast(`Đăng nhập ${roleLabels[user.role] || ''} thành công!`, 'success');
+      navigate(destinations[user.role] || '/');
     } catch (error) {
-      console.error('Error refreshing auth data:', error);
-      showToast('Không tải được dữ liệu đăng nhập. Vui lòng thử lại.');
-      return;
+      console.error('Error logging in:', error);
+      showToast(
+        error.message?.includes('401')
+          ? 'Email hoặc mật khẩu không chính xác!'
+          : 'Không thể kết nối tới API. Vui lòng thử lại.'
+      );
+    } finally {
+      setIsSubmitting(false);
     }
-
-    // --- 1. Kiểm tra Phòng Đào Tạo (Admin) — dùng users từ API ---
-    const pdtList = authData.users || [];
-    const pdtAccount = pdtList.find(
-      (u) => u.role === 'dao-tao' && matchEmail(u.email, emailInput) && matchAccountPassword(u, passwordInput)
-    );
-
-    if (pdtAccount) {
-      clearLegacyEntityStorage();
-      const userWithRole = buildSessionUser(pdtAccount, null);
-      sessionStorage.setItem('currentUser', JSON.stringify(userWithRole));
-      showToast('Đăng nhập Admin thành công!', 'success');
-      setTimeout(() => navigate('/pdt-dashboard'), 1500);
-      return;
-    }
-
-    // --- 2. Kiểm tra Giáo viên ---
-    const teacherUser = pdtList.find(
-      (u) => u.role === 'giao-vien' && matchEmail(u.email, emailInput) && matchAccountPassword(u, passwordInput)
-    );
-
-    if (teacherUser) {
-      const profile = findProfileByUser(authData, teacherUser) || teacherUser;
-      const accountStatus = teacherUser.status ?? profile?.status ?? 'Active';
-      const lockReason = (teacherUser.lockReason ?? profile?.lockReason ?? '').trim();
-      if (accountStatus === 'Locked') {
-        showToast(
-          lockReason
-            ? `Tài khoản giáo viên đã bị khóa. Lý do: ${lockReason}`
-            : 'Tài khoản giáo viên này đã bị khóa!'
-        );
-        return;
-      }
-      clearLegacyEntityStorage();
-      const user = buildSessionUser(teacherUser, profile);
-      sessionStorage.setItem('currentUser', JSON.stringify(user));
-      showToast('Đăng nhập Giáo viên thành công!', 'success');
-      setTimeout(() => navigate('/gv-dashboard'), 1500);
-      return;
-    }
-
-    const studentUser = pdtList.find(
-      (u) => u.role === 'sinh-vien' && matchEmail(u.email, emailInput) && matchAccountPassword(u, passwordInput)
-    );
-
-    if (studentUser) {
-      const profile = findProfileByUser(authData, studentUser) || studentUser;
-      const accountStatus = studentUser.status ?? profile?.status ?? 'Active';
-      const lockReason = (studentUser.lockReason ?? profile?.lockReason ?? '').trim();
-      if (accountStatus === 'Locked') {
-        showToast(
-          lockReason
-            ? `Tài khoản sinh viên đã bị khóa. Lý do: ${lockReason}`
-            : 'Tài khoản sinh viên này đã bị khóa!'
-        );
-        return;
-      }
-      clearLegacyEntityStorage();
-      const user = buildSessionUser(studentUser, profile);
-      sessionStorage.setItem('currentUser', JSON.stringify(user));
-      showToast('Đăng nhập Sinh viên thành công!', 'success');
-      setTimeout(() => navigate('/sv-dashboard'), 1500);
-      return;
-    }
-
-    showToast('Email hoặc mật khẩu không chính xác!');
   };
-
-  if (loading) {
-    return (
-      <div className="relative flex items-center justify-center h-screen overflow-hidden">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-indigo-500"></div>
-          <p className="mt-4 text-slate-600">Đang tải dữ liệu...</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="relative flex items-center justify-center h-screen overflow-hidden">
@@ -269,11 +174,11 @@ function LoginForm() {
             </div>
 
             <button
-              type="button"
-              onClick={handleLogin}
-              className="bg-gradient-to-r from-indigo-600 to-blue-500 hover:from-indigo-700 hover:to-blue-600 w-80 font-bold text-white rounded-full py-3.5 shadow-xl transition-all transform hover:-translate-y-0.5 mt-2"
+              type="submit"
+              disabled={isSubmitting}
+              className="bg-gradient-to-r from-indigo-600 to-blue-500 hover:from-indigo-700 hover:to-blue-600 disabled:cursor-not-allowed disabled:opacity-60 w-80 font-bold text-white rounded-full py-3.5 shadow-xl transition-all transform hover:-translate-y-0.5 mt-2"
             >
-              Đăng nhập
+              {isSubmitting ? 'Đang đăng nhập...' : 'Đăng nhập'}
             </button>
           </form>
         </div>

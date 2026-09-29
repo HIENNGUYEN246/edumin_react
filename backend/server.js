@@ -55,14 +55,17 @@ app.get('/', (req, res) => {
 
 app.use(errorHandler);
 
-mongoose
-  .connect(MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
-  .then(() => console.log('MongoDB connected'))
-  .catch((error) => {
+const startServer = async () => {
+  try {
+    await mongoose.connect(MONGO_URI);
+    console.log('MongoDB connected');
+    app.listen(PORT, () => {
+      console.log(`Edumin backend listening on http://localhost:${PORT}`);
+    });
+  } catch (error) {
     console.error('MongoDB connection error:', error);
     process.exit(1);
-  });
+  }
+};
 
-app.listen(PORT, () => {
-  console.log(`Edumin backend listening on http://localhost:${PORT}`);
-});
+startServer();
