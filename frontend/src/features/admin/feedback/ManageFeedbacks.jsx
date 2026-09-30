@@ -5,6 +5,7 @@ import { Modal } from '../../../components/ui/Modal.jsx';
 import { useToast } from '../../../app/providers/ToastProvider.jsx';
 import { useConfirm } from '../../../app/providers/ConfirmProvider.jsx';
 import { useDebounce } from '../../../lib/useDebounce.js';
+import { formatStudentCode, formatTeacherCode } from '../../../lib/format.js';
 import { feedbackApi } from '../../../api/feedbackApi.js';
 
 export function ManageFeedbacks() {
@@ -15,6 +16,7 @@ export function ManageFeedbacks() {
 
   // Filters
   const [filterRating, setFilterRating] = useState('all');
+  const [filterStatus, setFilterStatus] = useState('all');
   const [searchText, setSearchText] = useState('');
   const search = useDebounce(searchText);
 
@@ -47,19 +49,36 @@ export function ManageFeedbacks() {
       if (filterRating !== 'all' && Number(item.rating) !== Number(filterRating)) {
         return false;
       }
+      if (filterStatus === 'replied' && !item.response) {
+        return false;
+      }
+      if (filterStatus === 'pending' && item.response) {
+        return false;
+      }
       if (search) {
         const q = search.toLowerCase();
         const sName = (item.studentName || '').toLowerCase();
+        const sCode = item.studentId ? formatStudentCode(item.studentId).toLowerCase() : '';
         const cName = (item.courseName || '').toLowerCase();
+        const cCode = (item.courseId || '').toLowerCase();
+        const regId = (item.regId || '').toLowerCase();
         const tName = (item.teacherName || '').toLowerCase();
         const text = (item.feedbackText || '').toLowerCase();
-        if (!sName.includes(q) && !cName.includes(q) && !tName.includes(q) && !text.includes(q)) {
+        if (
+          !sName.includes(q) &&
+          !sCode.includes(q) &&
+          !cName.includes(q) &&
+          !cCode.includes(q) &&
+          !regId.includes(q) &&
+          !tName.includes(q) &&
+          !text.includes(q)
+        ) {
           return false;
         }
       }
       return true;
     });
-  }, [feedbacks, filterRating, search]);
+  }, [feedbacks, filterRating, filterStatus, search]);
 
   const stats = useMemo(() => {
     const total = feedbacks.length;
@@ -149,7 +168,7 @@ export function ManageFeedbacks() {
 
       {/* Filters toolbar */}
       <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-xs flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <select
             value={filterRating}
             onChange={(e) => setFilterRating(e.target.value)}
@@ -163,16 +182,27 @@ export function ManageFeedbacks() {
             <option value="1">⭐ 1 sao</option>
           </select>
 
-          {(filterRating !== 'all' || searchText) && (
+          <select
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+            className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
+          >
+            <option value="all">Tất cả trạng thái</option>
+            <option value="pending">Chờ giải đáp</option>
+            <option value="replied">Đã giải đáp</option>
+          </select>
+
+          {(filterRating !== 'all' || filterStatus !== 'all' || searchText) && (
             <button
               type="button"
               onClick={() => {
                 setFilterRating('all');
+                setFilterStatus('all');
                 setSearchText('');
               }}
               className="text-xs text-rose-600 font-semibold hover:underline"
             >
-              Đặt lại
+              Đặt lại bộ lọc
             </button>
           )}
         </div>
@@ -181,7 +211,7 @@ export function ManageFeedbacks() {
           <SearchInput
             value={searchText}
             onChange={setSearchText}
-            placeholder="Tìm theo sinh viên, nội dung..."
+            placeholder="Tìm theo sinh viên, môn, GV..."
           />
         </div>
       </div>
@@ -195,7 +225,7 @@ export function ManageFeedbacks() {
         ) : filteredList.length === 0 ? (
           <div className="p-12 text-center text-gray-400 bg-white rounded-2xl border border-gray-100 shadow-xs">
             <i className="far fa-comments text-4xl mb-3 block text-gray-300" />
-            <p className="font-semibold text-gray-600 text-sm">Chưa có phản hồi nào</p>
+            <p className="font-semibold text-gray-600 text-sm">Chưa có phản hồi nào phù hợp</p>
             <p className="text-xs text-gray-400 mt-1">Khi sinh viên gửi góp ý về học phần, nội dung sẽ hiển thị ở đây.</p>
           </div>
         ) : (
@@ -205,7 +235,7 @@ export function ManageFeedbacks() {
               className="bg-white p-5 rounded-2xl border border-gray-100 shadow-xs hover:border-indigo-100 transition space-y-3"
             >
               <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="flex items-center gap-3">
+                <div className="flex items-start gap-3">
                   <img
                     src={
                       item.isAnonymous
@@ -214,55 +244,134 @@ export function ManageFeedbacks() {
                           `https://ui-avatars.com/api/?name=${encodeURIComponent(item.studentName || 'SV')}&background=6366f1&color=fff`
                     }
                     alt=""
-                    className="w-10 h-10 rounded-full object-cover border border-gray-100"
+                    className="w-11 h-11 rounded-full object-cover border border-gray-200 mt-0.5"
                   />
-                  <div>
-                    <div className="flex items-center gap-2">
+                  <div className="space-y-1">
+                    <div className="flex flex-wrap items-center gap-2">
                       <p className="font-bold text-gray-900">
                         {item.isAnonymous ? 'Sinh viên ẩn danh' : item.studentName || 'Sinh viên'}
                       </p>
-                      {item.isAnonymous && (
+                      {item.isAnonymous ? (
                         <span className="bg-gray-100 text-gray-600 text-[10px] font-bold px-2 py-0.5 rounded-full">
                           Ẩn danh
                         </span>
+                      ) : (
+                        <>
+                          {item.studentId != null && (
+                            <span className="bg-indigo-50 text-indigo-700 text-[10px] font-bold px-2 py-0.5 rounded-md border border-indigo-100">
+                              {formatStudentCode(item.studentId)}
+                            </span>
+                          )}
+                          {item.studentClass && (
+                            <span className="text-xs text-gray-500 font-medium">
+                              Lớp: <strong className="text-gray-700">{item.studentClass}</strong>
+                            </span>
+                          )}
+                          {item.studentEmail && (
+                            <span className="text-xs text-gray-400">
+                              ({item.studentEmail})
+                            </span>
+                          )}
+                        </>
                       )}
                     </div>
-                    <p className="text-xs text-indigo-600 font-medium">
-                      Môn: {item.courseName || item.courseId} • Giảng viên: {item.teacherName || 'Chưa phân công'}
-                    </p>
+
+                    {/* Course & Teacher information */}
+                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                      <span className="font-semibold text-indigo-700">
+                        {item.courseName || item.courseId}
+                      </span>
+                      {item.regId && (
+                        <span className="bg-blue-50 text-blue-700 font-medium px-2 py-0.5 rounded text-[10px] border border-blue-100">
+                          Mã lớp: {item.regId}
+                        </span>
+                      )}
+                      <span className="text-gray-300">•</span>
+                      <div className="flex items-center gap-1.5 text-gray-600">
+                        {item.teacherAvatar && (
+                          <img
+                            src={item.teacherAvatar}
+                            alt=""
+                            className="w-4 h-4 rounded-full object-cover"
+                          />
+                        )}
+                        <span>GV: <strong>{item.teacherName || 'Chưa phân công'}</strong></span>
+                        {item.teacherId != null && (
+                          <span className="text-[10px] text-gray-400">({formatTeacherCode(item.teacherId)})</span>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center text-amber-400 text-xs gap-0.5">
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <i
-                        key={star}
-                        className={`fas fa-star ${star <= item.rating ? 'text-amber-400' : 'text-gray-200'}`}
-                      />
-                    ))}
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+                  <div className="flex items-center gap-2">
+                    {item.courseQuality && (
+                      <span
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${
+                          item.courseQuality === 'Tốt'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : item.courseQuality === 'Ổn'
+                            ? 'bg-blue-50 text-blue-700 border-blue-200'
+                            : 'bg-amber-50 text-amber-700 border-amber-200'
+                        }`}
+                      >
+                        {item.courseQuality}
+                      </span>
+                    )}
+
+                    <div className="flex items-center text-amber-400 text-xs gap-0.5">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <i
+                          key={star}
+                          className={`fas fa-star ${star <= item.rating ? 'text-amber-400' : 'text-gray-200'}`}
+                        />
+                      ))}
+                    </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => handleOpenReply(item)}
-                    className="ml-3 px-3 py-1 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-lg text-xs font-bold transition flex items-center gap-1.5"
-                  >
-                    <i className="fas fa-reply text-[10px]" />
-                    {item.response ? 'Sửa phản hồi' : 'Trả lời'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleDelete(item)}
-                    className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
-                    title="Xóa góp ý"
-                  >
-                    <i className="fas fa-trash text-xs" />
-                  </button>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleOpenReply(item)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                        item.response
+                          ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-xs'
+                      }`}
+                    >
+                      <i className="fas fa-reply text-[10px]" />
+                      {item.response ? 'Sửa phản hồi' : 'Giải đáp ngay'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(item)}
+                      className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                      title="Xóa góp ý"
+                    >
+                      <i className="fas fa-trash text-xs" />
+                    </button>
+                  </div>
                 </div>
               </div>
 
-              <div className="bg-gray-50/60 p-3.5 rounded-xl border border-gray-100 text-sm text-gray-700 leading-relaxed">
-                "{item.feedbackText}"
+              {/* Submission timestamp & content */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-[11px] text-gray-400">
+                  <span>Thời gian gửi: {item.createdAtFormatted || (item.createdAt ? new Date(item.createdAt).toLocaleString('vi-VN') : 'Mới đây')}</span>
+                  {item.response ? (
+                    <span className="text-emerald-600 font-semibold flex items-center gap-1">
+                      <i className="fas fa-check-circle text-xs" /> Đã giải đáp
+                    </span>
+                  ) : (
+                    <span className="text-amber-600 font-semibold flex items-center gap-1">
+                      <i className="fas fa-clock text-xs" /> Chờ phản hồi
+                    </span>
+                  )}
+                </div>
+                <div className="bg-gray-50/70 p-3.5 rounded-xl border border-gray-100 text-sm text-gray-800 leading-relaxed">
+                  "{item.feedbackText}"
+                </div>
               </div>
 
               {item.response && (

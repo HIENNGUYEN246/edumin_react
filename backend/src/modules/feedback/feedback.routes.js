@@ -3,6 +3,7 @@ import { Feedback } from './feedback.model.js';
 import { Student } from '../students/student.model.js';
 import { Teacher } from '../teachers/teacher.model.js';
 import { Course } from '../courses/course.model.js';
+import { CourseClass } from '../classes/courseClass.model.js';
 
 const router = Router();
 
@@ -16,30 +17,75 @@ const parseTeacherId = (val) => {
 // GET /api/feedbacks
 router.get('/', async (req, res, next) => {
   try {
-    const { teacherId, studentId, courseId, rating } = req.query;
+    const { teacherId, studentId, courseId, rating, regId } = req.query;
     const filter = {};
     if (teacherId) {
       const parsedTeacherId = parseTeacherId(teacherId);
-      filter.$or = [{ teacherId: parsedTeacherId }, { teacherId: String(teacherId) }];
+      const teacherOr = [{ teacherId: parsedTeacherId }, { teacherId: String(teacherId) }];
+      if (String(teacherId).match(/^[0-9a-fA-F]{24}$/)) {
+        teacherOr.push({ teacherRef: teacherId });
+      }
+      filter.$or = teacherOr;
     }
-    if (studentId) filter.studentId = Number(studentId);
+    if (studentId) {
+      if (String(studentId).match(/^[0-9a-fA-F]{24}$/)) {
+        filter.$or = [{ studentRef: studentId }, { studentId: Number(studentId) || 0 }];
+      } else {
+        filter.studentId = Number(studentId);
+      }
+    }
     if (courseId) filter.courseId = String(courseId);
+    if (regId) filter.regId = String(regId);
     if (rating) filter.rating = Number(rating);
 
     const list = await Feedback.find(filter)
-      .populate('studentRef', 'id hoTen name email avatar')
-      .populate('teacherRef', 'id hoTen name email avatar')
+      .populate('studentRef', 'id hoTen name email avatar className department')
+      .populate('teacherRef', 'id hoTen name email avatar department')
       .sort({ createdAt: -1 })
       .lean();
 
     const formatted = list.map((item) => {
+      const student = item.studentRef;
+      const teacher = item.teacherRef;
+
+      // Always resolve actual database properties
+      const sName = student?.hoTen || student?.name || item.studentName || 'Sinh viên';
+      const sEmail = student?.email || item.studentEmail || '';
+      const sCode = student?.id != null ? student.id : item.studentId;
+      const sClass = student?.className || '';
       const sAvatar =
+        (typeof student?.avatar === 'string' ? student.avatar : student?.avatar?.url) ||
         item.studentAvatar ||
-        (typeof item.studentRef?.avatar === 'string' ? item.studentRef?.avatar : item.studentRef?.avatar?.url) ||
         '';
+
+      const tName = teacher?.hoTen || teacher?.name || item.teacherName || 'Giảng viên';
+      const tCode = teacher?.id != null ? teacher.id : item.teacherId;
+      const tAvatar =
+        (typeof teacher?.avatar === 'string' ? teacher.avatar : teacher?.avatar?.url) ||
+        '';
+
+      const pad = (n) => String(n).padStart(2, '0');
+      let createdFormatted = '';
+      const dateSource = item.createdAt || item.timestamp;
+      if (dateSource) {
+        const d = new Date(dateSource);
+        if (!Number.isNaN(d.getTime())) {
+          createdFormatted = `${pad(d.getHours())}:${pad(d.getMinutes())} ${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+        }
+      }
+
       return {
         ...item,
-        studentAvatar: sAvatar,
+        studentName: sName,
+        studentEmail: sEmail,
+        studentId: sCode,
+        studentClass: sClass,
+        studentAvatar: item.isAnonymous ? '' : sAvatar,
+        displayName: item.isAnonymous ? 'Sinh viên ẩn danh' : sName,
+        teacherName: tName,
+        teacherId: tCode,
+        teacherAvatar: tAvatar,
+        createdAtFormatted: createdFormatted,
       };
     });
 
@@ -68,38 +114,74 @@ router.post('/', async (req, res, next) => {
       isAnonymous = false,
     } = req.body;
 
-    if (!studentId || !feedbackText) {
+    if (!studentId || !feedbackText || !feedbackText.trim()) {
       return res.status(400).json({ error: 'Thiếu thông tin đánh giá (studentId, feedbackText)' });
     }
 
     const numericStudentId = Number(studentId);
     const parsedTeacherId = parseTeacherId(teacherId);
 
-    const [student, teacher] = await Promise.all([
-      Student.findOne({ $or: [{ id: numericStudentId }, { email: studentEmail }] }),
-      parsedTeacherId ? Teacher.findOne({ $or: [{ id: parsedTeacherId }, { _id: String(teacherId).match(/^[0-9a-fA-F]{24}$/) ? teacherId : null }] }) : null,
-    ]);
+    // Resolve student directly from DB
+    const student = await Student.findOne({
+      $or: [
+        { id: numericStudentId },
+        ...(studentEmail ? [{ email: studentEmail }] : []),
+        ...(String(studentId).match(/^[0-9a-fA-F]{24}$/) ? [{ _id: studentId }] : []),
+      ],
+    });
 
-    const sAvatar =
+    // Resolve class directly from DB if regId or courseId provided
+    let resolvedClass = null;
+    if (regId) {
+      resolvedClass = await CourseClass.findOne({
+        $or: [{ id: regId }, ...(String(regId).match(/^[0-9a-fA-F]{24}$/) ? [{ _id: regId }] : [])],
+      });
+    }
+    if (!resolvedClass && courseId) {
+      resolvedClass = await CourseClass.findOne({ courseId });
+    }
+
+    // Resolve teacher directly from DB
+    let teacher = null;
+    const finalTeacherId = resolvedClass?.teacherId || parsedTeacherId;
+    if (resolvedClass?.teacherRef) {
+      teacher = await Teacher.findById(resolvedClass.teacherRef);
+    } else if (finalTeacherId) {
+      teacher = await Teacher.findOne({
+        $or: [
+          { id: finalTeacherId },
+          ...(String(teacherId).match(/^[0-9a-fA-F]{24}$/) ? [{ _id: teacherId }] : []),
+        ],
+      });
+    }
+
+    const finalStudentName = student?.hoTen || studentName || 'Sinh viên';
+    const finalStudentEmail = student?.email || studentEmail || '';
+    const finalStudentAvatar =
+      (typeof student?.avatar === 'string' ? student.avatar : student?.avatar?.url) ||
       studentAvatar ||
-      (typeof student?.avatar === 'string' ? student?.avatar : student?.avatar?.url) ||
       '';
 
-    const id = `FB_${Date.now()}_${numericStudentId}`;
+    const finalTeacherName = teacher?.hoTen || resolvedClass?.teacher || teacherName || 'Giảng viên';
+    const finalCourseId = resolvedClass?.courseId || courseId || '';
+    const finalCourseName = resolvedClass?.courseName || courseName || '';
+    const finalRegId = resolvedClass?.id || regId || '';
+
+    const id = `FB_${Date.now()}_${student?.id || numericStudentId || Math.floor(Math.random() * 1000)}`;
     const newFeedback = await Feedback.create({
       id,
-      studentId: numericStudentId,
+      studentId: student?.id || numericStudentId,
       studentRef: student ? student._id : null,
-      studentName: studentName || student?.hoTen || 'Sinh viên',
-      studentEmail: studentEmail || student?.email || '',
-      studentAvatar: sAvatar,
-      teacherId: parsedTeacherId,
-      teacherRef: teacher ? teacher._id : null,
-      teacherName: teacherName || teacher?.hoTen || '',
-      courseId: courseId || '',
-      courseName: courseName || '',
-      regId: regId || '',
-      rating: Number(rating) || 5,
+      studentName: finalStudentName,
+      studentEmail: finalStudentEmail,
+      studentAvatar: finalStudentAvatar,
+      teacherId: teacher?.id || finalTeacherId,
+      teacherRef: teacher ? teacher._id : resolvedClass?.teacherRef || null,
+      teacherName: finalTeacherName,
+      courseId: finalCourseId,
+      courseName: finalCourseName,
+      regId: finalRegId,
+      rating: Math.min(5, Math.max(1, Number(rating) || 5)),
       courseQuality: courseQuality || 'Tốt',
       feedbackText: feedbackText.trim(),
       isAnonymous: Boolean(isAnonymous),

@@ -23,9 +23,10 @@ export function StudentDashboard() {
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  const studentId = profile?.id || user?.id || 1;
+  const studentId = profile?.id ?? user?.studentId ?? user?.id;
 
   const loadFeedbacks = useCallback(async () => {
+    if (!studentId) return;
     try {
       const res = await feedbackApi.list({ studentId });
       setFeedbacks(Array.isArray(res) ? res : res?.data || []);
@@ -41,7 +42,10 @@ export function StudentDashboard() {
   // Set default selected course
   useEffect(() => {
     if (!selectedCourse && enrollments.length > 0) {
-      setSelectedCourse(enrollments[0].class?.courseId || enrollments[0].classId);
+      const firstClassId = enrollments[0].class?.id || enrollments[0].classId;
+      if (firstClassId) {
+        setSelectedCourse(firstClassId);
+      }
     }
   }, [selectedCourse, enrollments]);
 
@@ -53,7 +57,7 @@ export function StudentDashboard() {
     }
 
     const currentEnr = enrollments.find(
-      (e) => (e.class?.courseId || e.classId) === selectedCourse
+      (enr) => (enr.class?.id || enr.classId) === selectedCourse
     );
     const classObj = currentEnr?.class;
 
@@ -62,12 +66,12 @@ export function StudentDashboard() {
       await feedbackApi.submit({
         studentId,
         studentName: profile?.hoTen || user?.hoTen || 'Sinh viên',
-        studentEmail: user?.email || '',
+        studentEmail: profile?.email || user?.email || '',
         studentAvatar: typeof profile?.avatar === 'string' ? profile?.avatar : profile?.avatar?.url || '',
         teacherId: classObj?.teacherId || null,
         teacherName: classObj?.teacher || 'Giảng viên',
-        courseId: classObj?.courseId || selectedCourse,
-        courseName: classObj?.courseName || selectedCourse,
+        courseId: classObj?.courseId || '',
+        courseName: classObj?.courseName || '',
         regId: classObj?.id || selectedCourse,
         rating: feedbackRating,
         courseQuality: feedbackQuality,
@@ -158,18 +162,28 @@ export function StudentDashboard() {
                   className="p-4 bg-gray-50/75 rounded-2xl border border-gray-100 space-y-2 text-xs"
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-bold text-gray-800">{fb.courseName || fb.courseId}</span>
+                      {fb.regId && (
+                        <span className="px-1.5 py-0.5 rounded text-[10px] bg-indigo-50 text-indigo-600 font-semibold border border-indigo-100">
+                          Mã lớp: {fb.regId}
+                        </span>
+                      )}
                       <span className="text-gray-300">•</span>
-                      <span className="text-gray-500">GV. {fb.teacherName || 'Chưa phân công'}</span>
+                      <span className="text-gray-500 font-medium">GV: {fb.teacherName || 'Chưa phân công'}</span>
                     </div>
-                    <div className="flex items-center text-amber-400 text-xs">
-                      {[1, 2, 3, 4, 5].map((s) => (
-                        <i
-                          key={s}
-                          className={`fas fa-star ${s <= fb.rating ? 'text-amber-400' : 'text-gray-200'}`}
-                        />
-                      ))}
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-gray-400">
+                        {fb.createdAtFormatted || (fb.createdAt ? new Date(fb.createdAt).toLocaleDateString('vi-VN') : '')}
+                      </span>
+                      <div className="flex items-center text-amber-400 text-xs">
+                        {[1, 2, 3, 4, 5].map((s) => (
+                          <i
+                            key={s}
+                            className={`fas fa-star ${s <= fb.rating ? 'text-amber-400' : 'text-gray-200'}`}
+                          />
+                        ))}
+                      </div>
                     </div>
                   </div>
 
@@ -179,7 +193,9 @@ export function StudentDashboard() {
                     <div className="mt-2 p-3 bg-indigo-50/70 border border-indigo-100 rounded-xl space-y-1">
                       <div className="flex items-center justify-between">
                         <span className="font-bold text-indigo-700">Phản hồi từ Thầy/Cô:</span>
-                        <span className="text-[10px] text-gray-400">{fb.respondedAt}</span>
+                        <span className="text-[10px] text-gray-400">
+                          {fb.respondedAt ? new Date(fb.respondedAt).toLocaleString('vi-VN') : ''}
+                        </span>
                       </div>
                       <p className="text-gray-700">{fb.response}</p>
                     </div>
@@ -195,7 +211,7 @@ export function StudentDashboard() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
-                  Chọn học phần góp ý
+                  Chọn lớp học phần góp ý
                 </label>
                 <select
                   value={selectedCourse}
@@ -205,11 +221,17 @@ export function StudentDashboard() {
                   {enrollments.length === 0 ? (
                     <option value="">Chưa đăng ký môn học nào</option>
                   ) : (
-                    enrollments.map((enr) => (
-                      <option key={enr._id} value={enr.class?.courseId || enr.classId}>
-                        {enr.class?.courseName || enr.class?.courseId || enr.classId}
-                      </option>
-                    ))
+                    enrollments.map((enr) => {
+                      const c = enr.class;
+                      const classId = c?.id || enr.classId;
+                      const courseName = c?.courseName || c?.courseId || classId;
+                      const teacherName = c?.teacher ? ` - GV: ${c.teacher}` : '';
+                      return (
+                        <option key={enr._id || classId} value={classId}>
+                          {courseName} ({classId}){teacherName}
+                        </option>
+                      );
+                    })
                   )}
                 </select>
               </div>
