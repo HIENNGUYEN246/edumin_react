@@ -30,11 +30,16 @@ export function dispatchStudentRegistrationsUpdated() {
 }
 
 export function isRegistrationExpired(reg, now = new Date()) {
-  if (!reg?.start || !reg?.end) return true;
-  const start = new Date(reg.start);
-  const end = new Date(reg.end);
-  if (Number.isNaN(start.valueOf()) || Number.isNaN(end.valueOf())) return true;
-  return now > end || now < start;
+  if (!reg) return true;
+  if (reg.status === 'Đã đóng') return true;
+  if (!reg.start && !reg.end) {
+    return reg.status !== 'Đang mở';
+  }
+  const start = reg.start ? new Date(reg.start) : null;
+  const end = reg.end ? new Date(reg.end) : null;
+  if (start && !Number.isNaN(start.valueOf()) && now < start) return true;
+  if (end && !Number.isNaN(end.valueOf()) && now > end) return true;
+  return false;
 }
 
 export function getRegistrationStatusLabel(reg, now = new Date()) {
@@ -42,19 +47,19 @@ export function getRegistrationStatusLabel(reg, now = new Date()) {
 }
 
 export function checkCourseExists(existingRegs, courseId) {
-  return existingRegs.some((reg) => reg.courseId === courseId);
+  return existingRegs.some((reg) => String(reg.courseId).toUpperCase() === String(courseId).toUpperCase());
 }
 
 export function checkConflict(existingRegs, teacherId, room, newSchedules) {
   for (const reg of existingRegs) {
     for (const newSched of newSchedules) {
       for (const oldSched of reg.schedules || []) {
-        if (newSched.dayId === oldSched.dayId && newSched.shiftId === oldSched.shiftId) {
-          if (reg.teacherId == teacherId) {
-            return `Giảng viên có mã ${teacherId} (${reg.teacher}) trùng lịch dạy (${newSched.dayLabel}, ${newSched.shiftLabel}) tại lớp ${reg.courseName}.`;
+        if (String(newSched.dayId) === String(oldSched.dayId) && String(newSched.shiftId) === String(oldSched.shiftId)) {
+          if (teacherId && String(reg.teacherId) === String(teacherId)) {
+            return `Giảng viên có mã ${teacherId} (${reg.teacher}) trùng lịch dạy (${newSched.dayLabel || 'ngày ' + newSched.dayId}, ${newSched.shiftLabel || 'ca ' + newSched.shiftId}) tại lớp ${reg.courseName}.`;
           }
-          if (reg.room === room) {
-            return `Phòng ${room} đã bận (${newSched.dayLabel}, ${newSched.shiftLabel}) bởi lớp ${reg.courseName}.`;
+          if (room && String(reg.room).toUpperCase() === String(room).toUpperCase()) {
+            return `Phòng ${room} đã bận (${newSched.dayLabel || 'ngày ' + newSched.dayId}, ${newSched.shiftLabel || 'ca ' + newSched.shiftId}) bởi lớp ${reg.courseName}.`;
           }
         }
       }
@@ -94,8 +99,8 @@ export async function fetchOpenRegistrations({ fresh = false } = {}) {
   return registrationAPI.getOpenRegistrations({ fresh });
 }
 
-export async function saveOpenRegistrations(regs) {
-  const saved = await registrationAPI.saveOpenRegistrations(regs);
+export async function saveOpenRegistrations(regs, options = {}) {
+  const saved = await registrationAPI.saveOpenRegistrations(regs, options);
   dispatchOpenRegistrationsUpdated();
   return saved;
 }
@@ -104,8 +109,8 @@ export async function fetchStudentRegistrations({ fresh = false } = {}) {
   return registrationAPI.getStudentRegistrations({ fresh });
 }
 
-export async function saveStudentRegistrations(enrollments) {
-  const saved = await registrationAPI.saveStudentRegistrations(enrollments);
+export async function saveStudentRegistrations(enrollments, options = {}) {
+  const saved = await registrationAPI.saveStudentRegistrations(enrollments, options);
   dispatchStudentRegistrationsUpdated();
   return saved;
 }

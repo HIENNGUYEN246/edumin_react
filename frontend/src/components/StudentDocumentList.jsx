@@ -4,6 +4,7 @@ import studentAPI from '../services/studentAPI';
 import documentAPI from '../services/documentAPI';
 import { fetchOpenRegistrations, fetchStudentRegistrations } from '../utils/registrationUtils';
 import { useStudentLockMonitor } from '../hooks/useStudentLockMonitor';
+import NotificationBell from './NotificationBell';
 
 const StudentDocumentList = () => {
   const navigate = useNavigate();
@@ -78,7 +79,7 @@ const StudentDocumentList = () => {
       <header className="w-full bg-white shadow-sm z-50 flex items-center justify-between px-6 py-4 border-b border-gray-200 sticky top-0">
         <div className="flex items-center gap-3 w-64"><div className="bg-indigo-600 p-2 rounded-lg"><i className="fas fa-user-graduate text-white text-xl" /></div><span className="text-2xl font-bold text-indigo-900 uppercase">EDUMIN</span></div>
         <div className="flex items-center gap-6">
-          <div className="relative"><i className="far fa-bell text-gray-600 text-xl" /><span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] rounded-full h-4 w-4 flex items-center justify-center">3</span></div>
+          <NotificationBell currentUser={currentUser} customRole="sinh-vien" />
           <div className="relative">
             <div className="flex items-center gap-3 border-l pl-6 border-gray-300 cursor-pointer">
               <div className="text-right hidden sm:block"><p className="text-sm font-bold text-gray-800">SV. {name}</p><p className="text-xs text-gray-500">Đã đăng nhập</p></div>
@@ -149,6 +150,15 @@ const StudentDocumentList = () => {
                 >
                   <i className="fas fa-layer-group w-5 text-center" />
                   <span>Đăng ký học phần</span>
+                </NavLink>
+              </li>
+              <li>
+                <NavLink
+                  to="/sv/attendance"
+                  className={({ isActive }) => `flex items-center gap-3 p-3 rounded-lg transition-all ${isActive ? 'bg-indigo-50 text-indigo-600 font-bold' : 'text-gray-600 hover:bg-gray-50 hover:text-indigo-600'}`}
+                >
+                  <i className="fas fa-user-check w-5 text-center" />
+                  <span>Điểm danh học phần</span>
                 </NavLink>
               </li>
             </ul>

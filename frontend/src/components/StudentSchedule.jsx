@@ -11,6 +11,7 @@ import {
   STUDENT_REGISTRATIONS_UPDATED_EVENT,
 } from '../utils/registrationUtils';
 import { formatStudentId } from '../utils/studentUtils';
+import NotificationBell from './NotificationBell';
 
 const DAY_NAMES = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ nhật'];
 const DAY_KEYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -230,10 +231,7 @@ export default function StudentSchedule() {
           <span className="text-2xl font-bold text-indigo-900 uppercase">EDUMIN</span>
         </div>
         <div className="flex items-center gap-6">
-          <div className="relative">
-            <i className="far fa-bell text-gray-600 text-xl" />
-            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] rounded-full h-4 w-4 flex items-center justify-center">3</span>
-          </div>
+          <NotificationBell currentUser={currentUser} customRole="sinh-vien" />
           <div className="relative">
             <div className="flex items-center gap-3 border-l pl-6 border-gray-300 cursor-pointer" onClick={() => setShowUserDropdown((prev) => !prev)}>
               <div className="text-right hidden sm:block">
@@ -302,6 +300,11 @@ export default function StudentSchedule() {
               <li>
                 <NavLink to="/sv/course-registration" className={({ isActive }) => `flex items-center gap-3 p-3 rounded-lg transition-all ${isActive ? 'bg-indigo-50 text-indigo-600 font-bold' : 'text-gray-600 hover:bg-gray-50 hover:text-indigo-600'}`}>
                   <i className="fas fa-layer-group w-5 text-center" /> <span>Đăng ký học phần</span>
+                </NavLink>
+              </li>
+              <li>
+                <NavLink to="/sv/attendance" className={({ isActive }) => `flex items-center gap-3 p-3 rounded-lg transition-all ${isActive ? 'bg-indigo-50 text-indigo-600 font-bold' : 'text-gray-600 hover:bg-gray-50 hover:text-indigo-600'}`}>
+                  <i className="fas fa-user-check w-5 text-center" /> <span>Điểm danh học phần</span>
                 </NavLink>
               </li>
             </ul>

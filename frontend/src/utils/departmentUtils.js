@@ -42,6 +42,60 @@ export function formatTeacherCode(id) {
   return `GV-${String(id).padStart(3, '0')}`;
 }
 
+export function isTeacherInDept(teacher, deptName, deptId) {
+  if (!teacher) return false;
+  const teacherDept = (teacher.department || teacher.dept || '').trim().toLowerCase();
+  if (!teacherDept) return false;
+
+  const targetName = (deptName || '').trim().toLowerCase();
+  const targetId = (deptId || '').trim().toLowerCase();
+
+  const clean = (str) =>
+    (str || '')
+      .toLowerCase()
+      .replace(/^(khoa|viện|bộ môn)\s+/i, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+  const cTeacherDept = clean(teacherDept);
+  const cTargetName = clean(targetName);
+  const cTargetId = clean(targetId);
+
+  if (teacherDept === targetName || (targetId && teacherDept === targetId)) {
+    return true;
+  }
+  if (cTeacherDept && cTargetName && cTeacherDept === cTargetName) {
+    return true;
+  }
+  if (cTeacherDept && cTargetId && cTeacherDept === cTargetId) {
+    return true;
+  }
+  return false;
+}
+
+export function findTeacherFromHeadString(headStr, teachers = []) {
+  if (!headStr) return null;
+  const raw = String(headStr).trim();
+  const match = raw.match(/\((GV-\d+)\)/i);
+  if (match) {
+    const targetId = parseInt(match[1].replace(/GV-/i, ''), 10);
+    const found = teachers.find((t) => Number(t.id) === targetId);
+    if (found) return found;
+  }
+  const codeMatch = raw.match(/^GV-(\d+)$/i);
+  if (codeMatch) {
+    const targetId = parseInt(codeMatch[1], 10);
+    const found = teachers.find((t) => Number(t.id) === targetId);
+    if (found) return found;
+  }
+  const nameOnly = raw.replace(/\s*\((GV-\d+)\)\s*$/i, '').trim().toLowerCase();
+  return teachers.find(
+    (t) =>
+      (t.name || t.hoTen || '').trim().toLowerCase() === nameOnly ||
+      formatTeacherCode(t.id).toLowerCase() === raw.toLowerCase()
+  );
+}
+
 export function parseTeacherHeadInfo(str) {
   if (!str) return { name: 'Chưa cập nhật', id: '' };
   if (typeof str === 'object' && str !== null) {

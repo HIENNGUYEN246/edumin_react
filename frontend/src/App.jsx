@@ -18,6 +18,10 @@ import TeacherAssignmentList from './components/TeacherAssignmentList';
 import StudentAssignmentList from './components/StudentAssignmentList';
 import TeacherDocumentList from './components/TeacherDocumentList';
 import StudentDocumentList from './components/StudentDocumentList';
+import ManageAttendance from './components/ManageAttendance';
+import ManageFeedbacks from './components/ManageFeedbacks';
+import TeacherAttendance from './components/TeacherAttendance';
+import StudentAttendance from './components/StudentAttendance';
 import ProtectedRoute from './ProtectedRoute';
 
 function App() {
@@ -32,16 +36,20 @@ function App() {
       <Route path="/pdt/manage-departments" element={<ProtectedRoute requiredRole="dao-tao"><ManageDepartments /></ProtectedRoute>} />
       <Route path="/pdt/manage-courses" element={<ProtectedRoute requiredRole="dao-tao"><ManageCourses /></ProtectedRoute>} />
       <Route path="/pdt/course-registrations" element={<ProtectedRoute requiredRole="dao-tao"><ManageCourseRegistrations /></ProtectedRoute>} />
+      <Route path="/pdt/manage-attendance" element={<ProtectedRoute requiredRole="dao-tao"><ManageAttendance /></ProtectedRoute>} />
+      <Route path="/pdt/manage-feedbacks" element={<ProtectedRoute requiredRole="dao-tao"><ManageFeedbacks /></ProtectedRoute>} />
       <Route path="/gv-dashboard" element={<ProtectedRoute requiredRole="giao-vien"><GVDashboard /></ProtectedRoute>} />
       <Route path="/gv/schedule" element={<ProtectedRoute requiredRole="giao-vien"><TeacherSchedule /></ProtectedRoute>} />
       <Route path="/gv/classes" element={<ProtectedRoute requiredRole="giao-vien"><TeacherClassList /></ProtectedRoute>} />
       <Route path="/gv/assignments" element={<ProtectedRoute requiredRole="giao-vien"><TeacherAssignmentList /></ProtectedRoute>} />
       <Route path="/gv/documents" element={<ProtectedRoute requiredRole="giao-vien"><TeacherDocumentList /></ProtectedRoute>} />
+      <Route path="/gv/attendance" element={<ProtectedRoute requiredRole="giao-vien"><TeacherAttendance /></ProtectedRoute>} />
       <Route path="/sv-dashboard" element={<ProtectedRoute requiredRole="sinh-vien"><SVPage /></ProtectedRoute>} />
       <Route path="/sv/assignments" element={<ProtectedRoute requiredRole="sinh-vien"><StudentAssignmentList /></ProtectedRoute>} />
       <Route path="/sv/documents" element={<ProtectedRoute requiredRole="sinh-vien"><StudentDocumentList /></ProtectedRoute>} />
       <Route path="/sv/course-registration" element={<ProtectedRoute requiredRole="sinh-vien"><StudentCourseRegistration /></ProtectedRoute>} />
       <Route path="/sv/timetable" element={<ProtectedRoute requiredRole="sinh-vien"><StudentSchedule /></ProtectedRoute>} />
+      <Route path="/sv/attendance" element={<ProtectedRoute requiredRole="sinh-vien"><StudentAttendance /></ProtectedRoute>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

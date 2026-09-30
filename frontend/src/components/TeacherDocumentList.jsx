@@ -4,6 +4,8 @@ import teacherAPI from '../services/teacherAPI';
 import documentAPI from '../services/documentAPI';
 import { fetchOpenRegistrations } from '../utils/registrationUtils';
 import { useTeacherLockMonitor } from '../hooks/useTeacherLockMonitor';
+import { isClassOfTeacher } from '../utils/teacherUtils';
+import NotificationBell from './NotificationBell';
 
 const TeacherDocumentList = () => {
   const navigate = useNavigate();
@@ -63,10 +65,9 @@ const TeacherDocumentList = () => {
           return merged;
         });
 
-        const teacherId = String(teacher.id ?? teacher.teacherId ?? '');
         const classes = openRegs
-          .filter((reg) => String(reg.teacherId) === teacherId)
-          .reduce((acc, reg) => { if (!acc.some((item) => item.courseId === reg.courseId)) acc.push(reg); return acc; }, []);
+          .filter((reg) => isClassOfTeacher(reg, teacher))
+          .reduce((acc, reg) => { if (!acc.some((item) => String(item.courseId).toLowerCase() === String(reg.courseId).toLowerCase())) acc.push(reg); return acc; }, []);
         setOpenClasses(classes);
         setDocuments(allDocs || []);
       } catch (error) {
@@ -321,10 +322,7 @@ const TeacherDocumentList = () => {
           <span className="text-2xl font-bold text-indigo-900 uppercase">EDUMIN</span>
         </div>
         <div className="flex items-center gap-6">
-          <div className="relative">
-            <i className="far fa-bell text-gray-600 text-xl" />
-            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] rounded-full h-4 w-4 flex items-center justify-center">5</span>
-          </div>
+          <NotificationBell currentUser={currentUser} customRole="giao-vien" />
           <div className="relative" data-user-dropdown>
             <div className="flex items-center gap-3 border-l pl-6 border-gray-300 cursor-pointer" onClick={toggleUserDropdown}>
               <div className="text-right hidden sm:block">

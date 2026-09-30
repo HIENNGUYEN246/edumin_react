@@ -291,87 +291,139 @@ function ManageCourses() {
         const workbook = XLSX.read(data, { type: 'array' });
         const firstSheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[firstSheetName];
-        const jsonData = XLSX.utils.sheet_to_json(worksheet);
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
 
         if (jsonData.length === 0) {
           Swal.fire('Lỗi', 'File Excel không có dữ liệu!', 'error');
           return;
         }
 
-        let next = [...courses];
+        const normalizeKey = (str) =>
+          String(str || '')
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toLowerCase()
+            .replace(/[^a-z0-9]/g, '');
+
+        setSaving(true);
+        const freshCourses = await fetchCourses({ fresh: true });
+        const currentCourses = freshCourses.length > 0 ? freshCourses : courses;
+        let next = [...currentCourses];
         let importCount = 0;
+        let updateCount = 0;
         let skipCount = 0;
 
         jsonData.forEach((item) => {
-          const getVal = (keys) => {
-            for (const key of keys) {
-              if (item[key] !== undefined) return item[key];
+          const getVal = (patterns) => {
+            const normPatterns = patterns.map(normalizeKey);
+            for (const itemKey of Object.keys(item)) {
+              const normItemKey = normalizeKey(itemKey);
+              if (normPatterns.some((p) => normItemKey === p || normItemKey.includes(p) || p.includes(normItemKey))) {
+                const val = item[itemKey];
+                if (val !== undefined && val !== null && String(val).trim() !== '') {
+                  return val;
+                }
+              }
             }
             return '';
           };
 
-          const idVal = getVal(['MaHP', 'Mã Học Phần', 'Mã HP', 'mahp']).toString().trim().toUpperCase();
-          const nameVal = getVal(['TenHP', 'Tên Học Phần', 'Tên HP', 'tenhp']).toString().trim();
-          const creditVal = parseInt(getVal(['TinChi', 'Số Tín Chỉ', 'Số tín chỉ', 'tinchi']) || 0, 10);
-          const feeVal = parseInt(getVal(['HocPhi', 'Học Phí', 'Học phí', 'hocphi']) || 0, 10);
-          const deptName = getVal(['Khoa', 'Khoa Quản Lý', 'Khoa quản lý', 'khoa']).toString().trim();
-          const classIdVal = getVal(['MaLop', 'Mã Lớp', 'Mã lớp', 'malop']).toString().trim();
-          const classNameVal = getVal([
-            'TenLopHP',
-            'Tên Lớp HP',
-            'TenLớp',
-            'Tên Lớp',
-            'Lớp',
-            'tenlop',
-          ])
+          const idVal = getVal(['mahp', 'mahocphan', 'mamon', 'mamonhoc', 'mamh', 'courseid', 'code', 'id', 'ma'])
+            .toString()
+            .trim()
+            .toUpperCase();
+          const nameVal = getVal(['tenhp', 'tenhocphan', 'tenmon', 'tenmonhoc', 'tenmh', 'coursename', 'name', 'ten'])
+            .toString()
+            .trim();
+          const creditVal = parseInt(
+            getVal(['tinchi', 'sotinchi', 'sotc', 'tc', 'credits', 'credit']) || 0,
+            10
+          );
+          const feeVal = parseInt(
+            getVal(['hocphi', 'fee', 'price', 'tiengui', 'tienhoc', 'tuition']) || 0,
+            10
+          );
+          const deptName = getVal(['khoa', 'khoaquanly', 'makhoa', 'dept', 'department', 'deptid', 'donvi'])
+            .toString()
+            .trim();
+          const classIdVal = getVal(['malop', 'malophocphan', 'malophp', 'classid', 'classcode'])
+            .toString()
+            .trim();
+          const classNameVal = getVal(['tenlop', 'tenlophocphan', 'tenlophp', 'classname'])
             .toString()
             .trim();
 
-          if (!idVal || !nameVal || next.some((c) => c.id === idVal)) {
+          if (!idVal && !nameVal) {
             skipCount++;
             return;
           }
 
-          const foundDept = departments.find((d) => d.name.toLowerCase() === deptName.toLowerCase());
+          const finalId = idVal || `HP${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+          const finalName = nameVal || finalId;
+          const finalCredits = creditVal > 0 ? creditVal : 3;
+          const finalFee = feeVal >= 0 && feeVal ? feeVal : finalCredits * 450000;
 
-          next.push({
-            id: idVal,
-            name: nameVal,
-            credits: creditVal,
-            fee: feeVal,
-            department: foundDept ? foundDept.name : deptName,
-            deptId: foundDept ? foundDept.id : '',
-            classId: classIdVal,
-            className: classNameVal,
+          const normDeptName = normalizeKey(deptName);
+          const foundDept = departments.find((d) => {
+            const dName = normalizeKey(d.name);
+            const dId = normalizeKey(d.id);
+            return (
+              normDeptName === dName ||
+              normDeptName === dId ||
+              dName.includes(normDeptName) ||
+              normDeptName.includes(dName) ||
+              dId.includes(normDeptName)
+            );
           });
-          importCount++;
+
+          const finalDept = foundDept ? foundDept.name : (deptName || (departments[0]?.name || 'Khoa Công Nghệ Thông Tin'));
+          const finalDeptId = foundDept ? foundDept.id : (departments[0]?.id || 'CNTT');
+          const finalClassId = classIdVal || `${finalId}_01`;
+          const finalClassName = classNameVal || `${finalName} - Lớp 01`;
+
+          const existingIndex = next.findIndex((c) => c.id?.toUpperCase() === finalId.toUpperCase());
+          if (existingIndex !== -1) {
+            next[existingIndex] = {
+              ...next[existingIndex],
+              name: finalName,
+              credits: finalCredits,
+              fee: finalFee,
+              department: finalDept,
+              deptId: finalDeptId,
+              classId: classIdVal || next[existingIndex].classId || finalClassId,
+              className: classNameVal || next[existingIndex].className || finalClassName,
+            };
+            updateCount++;
+          } else {
+            next.push({
+              id: finalId,
+              name: finalName,
+              credits: finalCredits,
+              fee: finalFee,
+              department: finalDept,
+              deptId: finalDeptId,
+              classId: finalClassId,
+              className: finalClassName,
+            });
+            importCount++;
+          }
         });
 
-        // Optimistic update: update state immediately
+        const saved = await saveCourses(next);
         lastOptimisticUpdateRef.current = Date.now();
-        setCourses(next);
-        setSaving(true);
+        setCourses(saved);
 
-        // Show success message
         Swal.fire({
           icon: 'success',
           title: 'Import thành công',
-          text: `Đã thêm ${importCount} học phần mới, bỏ qua ${skipCount} bản ghi lỗi/trùng.`,
+          text: `Đã thêm ${importCount} học phần mới và cập nhật ${updateCount} học phần (bỏ qua ${skipCount} dòng trống).`,
           confirmButtonColor: '#4f46e5',
         });
-
-        // Save to API in background
-        saveCourses(next)
-          .catch((err) => {
-            console.error(err);
-            setCourses(courses); // Rollback on error
-            Swal.fire('Lỗi', 'Không lưu được dữ liệu import lên API.', 'error');
-          })
-          .finally(() => {
-            setSaving(false);
-          });
-      } catch {
-        Swal.fire('Lỗi', 'Có lỗi xảy ra khi xử lý file!', 'error');
+      } catch (err) {
+        console.error(err);
+        Swal.fire('Lỗi', 'Có lỗi xảy ra khi xử lý file hoặc lưu dữ liệu!', 'error');
+      } finally {
+        setSaving(false);
       }
       e.target.value = '';
     };

@@ -114,6 +114,8 @@ const openRegistrationSchema = new Schema(
     teacher: { type: String, default: '' },
     status: { type: String, default: 'Đang mở' },
     room: { type: String, default: '' },
+    classId: { type: String, trim: true, default: '' },
+    className: { type: String, trim: true, default: '' },
   },
   { timestamps: true }
 );
@@ -176,6 +178,64 @@ const documentSchema = new Schema(
   { timestamps: true }
 );
 
+const attendanceSchema = new Schema(
+  {
+    id: { type: String, default: () => `ATT_${Date.now()}_${Math.floor(Math.random() * 1000)}` },
+    regId: { type: String, required: true },
+    courseId: { type: String, default: '' },
+    courseName: { type: String, default: '' },
+    studentId: { type: Number, required: true },
+    studentRef: { type: Schema.Types.ObjectId, ref: 'Student', default: null },
+    studentName: { type: String, default: '' },
+    studentEmail: { type: String, default: '' },
+    studentAvatar: { type: String, default: '' },
+    avatar: { type: String, default: '' },
+    date: { type: String, required: true }, // YYYY-MM-DD
+    shiftId: { type: String, default: '1' },
+    shiftLabel: { type: String, default: '' },
+    status: {
+      type: String,
+      enum: ['Có mặt', 'Đi muộn', 'Vắng mặt', 'Vắng có phép'],
+      default: 'Có mặt',
+    },
+    checkInTime: { type: String, default: '' },
+    checkedBy: { type: String, enum: ['student', 'teacher', 'admin'], default: 'student' },
+    note: { type: String, default: '' },
+    score: { type: Number, default: null },
+    evaluation: { type: String, default: '' },
+    teacherId: { type: Schema.Types.Mixed, default: null },
+    teacherName: { type: String, default: '' },
+    evaluatedAt: { type: String, default: '' },
+    timestamp: { type: Number, default: Date.now },
+  },
+  { timestamps: true }
+);
+
+const feedbackSchema = new Schema(
+  {
+    id: { type: String, default: () => `FB_${Date.now()}_${Math.floor(Math.random() * 1000)}` },
+    studentId: { type: Number, required: true },
+    studentRef: { type: Schema.Types.ObjectId, ref: 'Student', default: null },
+    studentName: { type: String, default: '' },
+    studentEmail: { type: String, default: '' },
+    studentAvatar: { type: String, default: '' },
+    teacherId: { type: Schema.Types.Mixed, default: null },
+    teacherRef: { type: Schema.Types.ObjectId, ref: 'Teacher', default: null },
+    teacherName: { type: String, default: '' },
+    courseId: { type: String, default: '' },
+    courseName: { type: String, default: '' },
+    regId: { type: String, default: '' },
+    rating: { type: Number, default: 5, min: 1, max: 5 },
+    courseQuality: { type: String, default: 'Tốt' },
+    feedbackText: { type: String, required: true },
+    isAnonymous: { type: Boolean, default: false },
+    response: { type: String, default: '' },
+    respondedAt: { type: String, default: '' },
+    timestamp: { type: Number, default: Date.now },
+  },
+  { timestamps: true }
+);
+
 const User = mongoose.model('User', userSchema, 'users');
 const Teacher = mongoose.model('Teacher', teacherSchema, 'teachers');
 const Student = mongoose.model('Student', studentSchema, 'students');
@@ -185,5 +245,7 @@ const OpenRegistration = mongoose.model('OpenRegistration', openRegistrationSche
 const StudentRegistration = mongoose.model('StudentRegistration', studentRegistrationSchema, 'studentregistrations');
 const Assignment = mongoose.model('Assignment', assignmentSchema, 'assignments');
 const Document = mongoose.model('Document', documentSchema, 'documents');
+const Attendance = mongoose.model('Attendance', attendanceSchema, 'attendances');
+const Feedback = mongoose.model('Feedback', feedbackSchema, 'feedbacks');
 
-export { User, Teacher, Student, Department, Course, OpenRegistration, StudentRegistration, Assignment, Document };
+export { User, Teacher, Student, Department, Course, OpenRegistration, StudentRegistration, Assignment, Document, Attendance, Feedback };

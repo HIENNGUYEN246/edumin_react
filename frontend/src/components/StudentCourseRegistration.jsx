@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import studentAPI from '../services/studentAPI';
@@ -12,6 +12,7 @@ import {
   saveStudentRegistrations,
   OPEN_REGISTRATIONS_UPDATED_EVENT,
 } from '../utils/registrationUtils';
+import NotificationBell from './NotificationBell';
 
 function padID(id) {
   return `SV-${String(id).padStart(3, '0')}`;
@@ -43,7 +44,13 @@ export default function StudentCourseRegistration() {
     }
     try {
       const students = await studentAPI.getAllStudents({ fresh: true });
-      const profile = students.find((s) => s.email === user.email);
+      const userEmail = (user.email || '').trim().toLowerCase();
+      const profile = students.find((s) =>
+        (s.email && s.email.trim().toLowerCase() === userEmail) ||
+        (user.id != null && String(s.id) === String(user.id)) ||
+        (user._id && String(s.userId) === String(user._id)) ||
+        (user._id && String(s._id) === String(user._id))
+      );
       const merged = profile ? { ...user, ...profile, role: 'sinh-vien' } : user;
       setCurrentUser(merged);
       sessionStorage.setItem('currentUser', JSON.stringify(merged));
@@ -101,27 +108,62 @@ export default function StudentCourseRegistration() {
   }
 
   const studentDept = (currentUser.department || currentUser.khoa || '').trim().toLowerCase();
-  const myEnrollments = enrollments.filter((e) => e.studentId === currentUser.id);
-  const availableCourses = openRegs.filter((reg) => (reg.department || '').trim().toLowerCase() === studentDept);
+
+  const currentStudentId = currentUser.id != null ? String(currentUser.id) : (currentUser.studentId != null ? String(currentUser.studentId) : '');
+  const currentStudentEmail = (currentUser.email || '').trim().toLowerCase();
+
+  const isMyEnrollment = useCallback((e) => {
+    if (!e) return false;
+    if (currentStudentId && String(e.studentId) === currentStudentId) return true;
+    if (currentStudentEmail && (e.email || e.studentEmail) && (String(e.email || e.studentEmail).trim().toLowerCase() === currentStudentEmail)) return true;
+    if (e.studentRef) {
+      if (typeof e.studentRef === 'object') {
+        if (currentStudentId && String(e.studentRef.id) === currentStudentId) return true;
+        if (currentStudentEmail && e.studentRef.email && e.studentRef.email.trim().toLowerCase() === currentStudentEmail) return true;
+      } else if (currentUser._id && String(e.studentRef) === String(currentUser._id)) {
+        return true;
+      }
+    }
+    return false;
+  }, [currentStudentId, currentStudentEmail, currentUser._id]);
+
+  const myEnrollments = useMemo(() => enrollments.filter(isMyEnrollment), [enrollments, isMyEnrollment]);
+  const availableCourses = useMemo(() => {
+    return openRegs.filter((reg) => {
+      if (!studentDept) return true;
+      const regDept = (reg.department || '').trim().toLowerCase();
+      if (regDept === studentDept) return true;
+      const cleanReg = regDept.replace(/^khoa\s+/i, '');
+      const cleanStudent = studentDept.replace(/^khoa\s+/i, '');
+      return cleanReg === cleanStudent || regDept.includes(cleanStudent) || studentDept.includes(cleanReg);
+    });
+  }, [openRegs, studentDept]);
 
   const registerCourse = async (regId, courseName, isExpired) => {
     if (isExpired) {
       Swal.fire('Lỗi', 'Học phần này hiện không trong thời gian đăng ký!', 'error');
       return;
     }
-    const courseData = openRegs.find((r) => r.id === regId);
+    const courseData = openRegs.find((r) => String(r.id) === String(regId));
     if (!courseData) {
       Swal.fire('Lỗi', 'Không tìm thấy thông tin học phần!', 'error');
       return;
     }
-    if (myEnrollments.some((e) => e.regId === regId)) return;
+    if (myEnrollments.some((e) => String(e.regId) === String(regId) || (e.courseId && courseData.courseId && String(e.courseId) === String(courseData.courseId)))) {
+      Swal.fire('Thông báo', 'Bạn đã đăng ký học phần này rồi!', 'info');
+      return;
+    }
 
     let conflictInfo = null;
     for (const newSched of courseData.schedules || []) {
       for (const enrolledCourse of myEnrollments) {
         for (const oldSched of enrolledCourse.schedules || []) {
-          if (newSched.dayId === oldSched.dayId && newSched.shiftId === oldSched.shiftId) {
-            conflictInfo = { day: newSched.dayLabel, shift: newSched.shiftLabel, course: enrolledCourse.courseName };
+          if (String(newSched.dayId) === String(oldSched.dayId) && String(newSched.shiftId) === String(oldSched.shiftId)) {
+            conflictInfo = {
+              day: newSched.dayLabel || `Thứ ${newSched.dayId}`,
+              shift: newSched.shiftLabel || newSched.shiftId,
+              course: enrolledCourse.courseName || enrolledCourse.courseId,
+            };
             break;
           }
         }
@@ -143,22 +185,30 @@ export default function StudentCourseRegistration() {
       return;
     }
 
-    const next = [
-      ...enrollments,
-      {
-        regId,
-        studentId: Number(currentUser.id),
-        courseName: courseData.courseName,
-        courseId: courseData.courseId,
-        teacher: courseData.teacher,
-        teacherId: courseData.teacherId,
-        schedules: courseData.schedules,
-        studyStart: courseData.studyStart || '',
-        studyEnd: courseData.studyEnd || '',
-        room: courseData.room,
-        enrolledDate: new Date().toLocaleString('vi-VN'),
-      },
-    ];
+    const studentNumericId = Number.isFinite(Number(currentUser.id))
+      ? Number(currentUser.id)
+      : (currentUser.studentId && Number.isFinite(Number(currentUser.studentId)) ? Number(currentUser.studentId) : null);
+
+    const newEnrollment = {
+      regId: String(regId),
+      studentId: studentNumericId,
+      studentRef: currentUser.studentId || currentUser._id || undefined,
+      email: currentUser.email || '',
+      studentEmail: currentUser.email || '',
+      studentName: currentUser.hoTen || currentUser.name || '',
+      courseName: courseData.courseName,
+      courseId: courseData.courseId,
+      teacher: courseData.teacher,
+      teacherId: courseData.teacherId,
+      schedules: courseData.schedules || [],
+      studyStart: courseData.studyStart || '',
+      studyEnd: courseData.studyEnd || '',
+      room: courseData.room || '',
+      department: courseData.department || currentUser.department || '',
+      enrolledDate: new Date().toLocaleString('vi-VN'),
+    };
+
+    const next = [...enrollments, newEnrollment];
     try {
       await saveStudentRegistrations(next);
       setEnrollments(next);
@@ -183,9 +233,13 @@ export default function StudentCourseRegistration() {
       cancelButtonText: 'Quay lại',
     }).then(async (result) => {
       if (!result.isConfirmed) return;
-      const next = enrollments.filter((e) => !(e.regId === regId && e.studentId === currentUser.id));
+      const next = enrollments.filter((e) => {
+        const matchesReg = String(e.regId) === String(regId);
+        const matchesStudent = isMyEnrollment(e);
+        return !(matchesReg && matchesStudent);
+      });
       try {
-        await saveStudentRegistrations(next);
+        await saveStudentRegistrations(next, { forceWipe: next.length === 0 });
         setEnrollments(next);
         Swal.fire('Đã hủy!', 'Học phần đã được huỷ.', 'success');
       } catch {
@@ -213,15 +267,18 @@ export default function StudentCourseRegistration() {
           <div className="bg-indigo-600 p-2 rounded-lg"><i className="fas fa-graduation-cap text-white text-xl" /></div>
           <span className="text-2xl font-bold text-indigo-900 uppercase">EDUMIN</span>
         </div>
-        <SVHeaderUser
-          displayName={displayName}
-          displayAvatar={displayAvatar}
-          currentUser={currentUser}
-          padID={padID}
-          showUserDropdown={showUserDropdown}
-          setShowUserDropdown={setShowUserDropdown}
-          handleLogout={handleLogout}
-        />
+        <div className="flex items-center gap-6">
+          <NotificationBell currentUser={currentUser} customRole="sinh-vien" />
+          <SVHeaderUser
+            displayName={displayName}
+            displayAvatar={displayAvatar}
+            currentUser={currentUser}
+            padID={padID}
+            showUserDropdown={showUserDropdown}
+            setShowUserDropdown={setShowUserDropdown}
+            handleLogout={handleLogout}
+          />
+        </div>
       </header>
 
       <div className="flex flex-1">
@@ -275,6 +332,11 @@ export default function StudentCourseRegistration() {
                   <i className="fas fa-layer-group w-5 text-center" /><span>Đăng ký học phần</span>
                 </NavLink>
               </li>
+              <li>
+                <NavLink to="/sv/attendance" className={({ isActive }) => `flex items-center gap-3 p-3 rounded-lg ${isActive ? 'bg-indigo-50 text-indigo-600 font-bold' : 'text-gray-600 hover:bg-gray-50 hover:text-indigo-600'}`}>
+                  <i className="fas fa-user-check w-5 text-center" /><span>Điểm danh học phần</span>
+                </NavLink>
+              </li>
             </ul>
           </nav>
         </aside>
@@ -315,7 +377,7 @@ export default function StudentCourseRegistration() {
                   <tbody className="divide-y divide-gray-50 text-sm">
                     {availableCourses.map((course) => {
                       const expired = isRegistrationExpired(course);
-                      const isRegistered = myEnrollments.some((e) => e.regId === course.id);
+                      const isRegistered = myEnrollments.some((e) => String(e.regId) === String(course.id) || (e.courseId && course.courseId && String(e.courseId) === String(course.courseId)));
                       return (
                         <tr key={course.id} className="hover:bg-gray-50 transition-colors">
                           <td className="px-6 py-4 font-mono text-indigo-600 font-bold">{course.courseId}</td>

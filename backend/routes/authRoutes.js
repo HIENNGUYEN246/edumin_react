@@ -1,11 +1,11 @@
 import express from 'express';
 import mongoose from 'mongoose';
-import { User, Teacher, Student, Department, Course, OpenRegistration, StudentRegistration, Assignment, Document } from '../models/index.js';
+import { User, Teacher, Student, Department, Course, OpenRegistration, StudentRegistration, Assignment, Document, Attendance } from '../models/index.js';
 
 const router = express.Router();
 
 const getAuthData = async () => {
-  const [users, teachers, students, departments, courses, openRegistrations, studentRegistrations, assignments, documents] =
+  const [users, teachers, students, departments, courses, openRegistrations, studentRegistrations, assignments, documents, attendances] =
     await Promise.all([
       User.find({}).lean(),
       Teacher.find({}).lean(),
@@ -16,16 +16,41 @@ const getAuthData = async () => {
       StudentRegistration.find({}).populate('studentRef courseRef').lean(),
       Assignment.find({}).lean(),
       Document.find({}).lean(),
+      Attendance.find({}).lean(),
     ]);
 
-  // Normalize student registrations: add studentId and courseId from populated references
+  const openRegsById = new Map(openRegistrations.map((o) => [String(o.id), o]));
+  const openRegsByCourseId = new Map(openRegistrations.map((o) => [String(o.courseId), o]));
+
+  // Normalize student registrations: add studentId, courseId, and rich metadata from populated references & openRegistrations
   const normalizedStudentRegs = studentRegistrations.map((reg) => {
     const normalized = { ...reg };
-    if (reg.studentRef && typeof reg.studentRef === 'object' && reg.studentRef.id) {
-      normalized.studentId = reg.studentRef.id;
+    if (reg.studentRef && typeof reg.studentRef === 'object') {
+      if (reg.studentRef.id != null) normalized.studentId = reg.studentRef.id;
+      if (reg.studentRef.hoTen || reg.studentRef.name) normalized.studentName = reg.studentRef.hoTen || reg.studentRef.name;
     }
-    if (reg.courseRef && typeof reg.courseRef === 'object' && reg.courseRef.id) {
-      normalized.courseId = reg.courseRef.id;
+    if (reg.courseRef && typeof reg.courseRef === 'object') {
+      if (reg.courseRef.id) normalized.courseId = reg.courseRef.id;
+      if (reg.courseRef.name) normalized.courseName = reg.courseRef.name;
+      if (reg.courseRef.department) normalized.department = reg.courseRef.department;
+    }
+    const matchedOpen = openRegsById.get(String(reg.regId)) || (normalized.courseId && openRegsByCourseId.get(String(normalized.courseId)));
+    if (matchedOpen) {
+      if (!normalized.courseName && matchedOpen.courseName) normalized.courseName = matchedOpen.courseName;
+      if (!normalized.department && matchedOpen.department) normalized.department = matchedOpen.department;
+      normalized.teacher = matchedOpen.teacher || normalized.teacher || '';
+      normalized.teacherId = matchedOpen.teacherId ?? normalized.teacherId ?? null;
+      normalized.room = matchedOpen.room || normalized.room || '';
+      normalized.studyStart = matchedOpen.studyStart || normalized.studyStart || '';
+      normalized.studyEnd = matchedOpen.studyEnd || normalized.studyEnd || '';
+      normalized.schedules = Array.isArray(matchedOpen.schedules) ? matchedOpen.schedules : (normalized.schedules || []);
+      normalized.credits = matchedOpen.credits ?? normalized.credits ?? 0;
+      normalized.fee = matchedOpen.fee ?? normalized.fee ?? 0;
+    }
+    if (reg.createdAt && !normalized.enrolledDate) {
+      try {
+        normalized.enrolledDate = new Date(reg.createdAt).toLocaleString('vi-VN');
+      } catch {}
     }
     return normalized;
   });
@@ -65,6 +90,7 @@ const getAuthData = async () => {
     studentRegistrationsData: normalizedStudentRegs,
     assignmentsData: assignments,
     documentsData: documents,
+    attendancesData: attendances,
   };
 };
 
@@ -128,14 +154,39 @@ const resolveTeacherReference = async (head) => {
 
 const updateDepartmentHeadRefs = async (departmentDocs) => {
   if (!Array.isArray(departmentDocs)) return;
+  const clean = (s) => (s || '').toLowerCase().replace(/^(khoa|viện|bộ môn)\s+/i, '').replace(/\s+/g, ' ').trim();
+
   for (const dept of departmentDocs) {
-    if (!dept || !dept.head) continue;
+    if (!dept || !dept.head) {
+      await Department.updateOne(
+        { id: dept?.id || dept?.name },
+        { head: null }
+      );
+      continue;
+    }
     const teacher = await resolveTeacherReference(dept.head);
     if (teacher) {
-      await Department.updateOne(
-        { id: dept.id || dept.name },
-        { head: teacher._id }
-      );
+      const teacherDept = (teacher.department || '').trim().toLowerCase();
+      const targetName = (dept.name || '').trim().toLowerCase();
+      const targetId = (dept.id || '').trim().toLowerCase();
+
+      const isMatch =
+        teacherDept === targetName ||
+        (targetId && teacherDept === targetId) ||
+        (clean(teacherDept) && clean(targetName) && clean(teacherDept) === clean(targetName)) ||
+        (clean(teacherDept) && clean(targetId) && clean(teacherDept) === clean(targetId));
+
+      if (isMatch) {
+        await Department.updateOne(
+          { id: dept.id || dept.name },
+          { head: teacher._id }
+        );
+      } else {
+        await Department.updateOne(
+          { id: dept.id || dept.name },
+          { head: null }
+        );
+      }
     } else {
       await Department.updateOne(
         { id: dept.id || dept.name },
@@ -234,7 +285,7 @@ const ensureSeedAccounts = async () => {
 const prepareDocumentsForModel = async (Model, docs) => {
   const mapped = [];
   for (const doc of docs) {
-    const d = { ...doc };
+    let d = { ...doc };
     if (!d) continue;
 
     const coerceEmptyToNull = (field) => {
@@ -277,6 +328,9 @@ const prepareDocumentsForModel = async (Model, docs) => {
         delete d.status;
         delete d.lockReason;
         delete d.departmentId;
+        if (d.departmentRef && typeof d.departmentRef === 'object' && d.departmentRef._id) {
+          d.departmentRef = d.departmentRef._id;
+        }
         if (!d.departmentRef && (d.department || d.departmentId)) {
           const dept = await resolveDepartment(d.department, d.departmentId || d.department);
           if (dept) d.departmentRef = dept._id;
@@ -302,6 +356,9 @@ const prepareDocumentsForModel = async (Model, docs) => {
         delete d.lockReason;
         delete d.className;
         delete d.departmentId;
+        if (d.departmentRef && typeof d.departmentRef === 'object' && d.departmentRef._id) {
+          d.departmentRef = d.departmentRef._id;
+        }
         if (!d.departmentRef && (d.department || d.departmentId)) {
           const dept = await resolveDepartment(d.department, d.departmentId || d.department);
           if (dept) d.departmentRef = dept._id;
@@ -311,6 +368,10 @@ const prepareDocumentsForModel = async (Model, docs) => {
       case 'Course': {
         delete d.teacherId;
         delete d.teacherRef;
+
+        if (d.deptRef && typeof d.deptRef === 'object' && d.deptRef._id) {
+          d.deptRef = d.deptRef._id;
+        }
 
         if (!d.department && d.dept) {
           d.department = d.dept;
@@ -331,6 +392,13 @@ const prepareDocumentsForModel = async (Model, docs) => {
           }
         }
 
+        if (!d.classId) {
+          d.classId = `${d.id}_01`;
+        }
+        if (!d.className) {
+          d.className = `${d.name || d.id} - Lớp 01`;
+        }
+
         delete d.dept;
         delete d.departmentId;
         break;
@@ -343,19 +411,54 @@ const prepareDocumentsForModel = async (Model, docs) => {
         delete d.regId;
         delete d.groupId;
 
-        if (d.courseId) {
-          const course = await resolveCourseById(d.courseId);
-          if (course) {
-            d.courseRef = course._id;
-            d.department = d.department || course.department || '';
-            d.credits = Number.isFinite(Number(d.credits)) ? Number(d.credits) : Number.isFinite(Number(course.credits)) ? Number(course.credits) : 0;
-            d.fee = Number.isFinite(Number(d.fee)) ? Number(d.fee) : Number.isFinite(Number(course.fee)) ? Number(course.fee) : 0;
+        let courseId = d.courseId || (d.courseRef && typeof d.courseRef === 'object' ? d.courseRef.id : '');
+        let course = null;
+        if (courseId) {
+          course = await resolveCourseById(courseId);
+        }
+        if (!course && d.courseRef) {
+          const cid = typeof d.courseRef === 'object' ? d.courseRef._id : d.courseRef;
+          if (cid && mongoose.Types.ObjectId.isValid(cid)) {
+            course = await Course.findById(cid);
           }
         }
-        if (d.teacherId != null) {
-          const teacher = await resolveTeacherById(d.teacherId);
-          if (teacher) d.teacherRef = teacher._id;
+        if (course) {
+          d.courseRef = course._id;
+          d.courseId = course.id;
+          d.courseName = d.courseName || course.name || '';
+          d.department = d.department || course.department || '';
+          d.credits = Number.isFinite(Number(d.credits)) && Number(d.credits) > 0 ? Number(d.credits) : (course.credits || 0);
+          d.fee = Number.isFinite(Number(d.fee)) && Number(d.fee) > 0 ? Number(d.fee) : (course.fee || 0);
+          d.classId = d.classId || course.classId || '';
+          d.className = d.className || course.className || '';
+        } else if (d.courseRef && typeof d.courseRef === 'object' && d.courseRef._id) {
+          d.courseRef = d.courseRef._id;
         }
+
+        let teacherId = d.teacherId != null ? d.teacherId : (d.teacherRef && typeof d.teacherRef === 'object' ? d.teacherRef.id : null);
+        let teacher = null;
+        if (teacherId != null) {
+          teacher = await resolveTeacherById(teacherId);
+        }
+        if (!teacher && d.teacherRef) {
+          const tid = typeof d.teacherRef === 'object' ? d.teacherRef._id : d.teacherRef;
+          if (tid && mongoose.Types.ObjectId.isValid(tid)) {
+            teacher = await Teacher.findById(tid);
+          }
+        }
+        if (!teacher && d.teacher) {
+          teacher = await Teacher.findOne({
+            $or: [{ hoTen: d.teacher }, { name: d.teacher }]
+          });
+        }
+        if (teacher) {
+          d.teacherRef = teacher._id;
+          d.teacherId = teacher.id;
+          d.teacher = d.teacher || teacher.hoTen || teacher.name || '';
+        } else if (d.teacherRef && typeof d.teacherRef === 'object' && d.teacherRef._id) {
+          d.teacherRef = d.teacherRef._id;
+        }
+
         d.studyStart = d.studyStart || '';
         d.studyEnd = d.studyEnd || '';
         d.start = d.start || '';
@@ -365,33 +468,122 @@ const prepareDocumentsForModel = async (Model, docs) => {
         break;
       }
       case 'StudentRegistration': {
-        // Resolve references FIRST before deleting fields
-        if (!d.studentRef && d.studentId != null) {
-          const student = await resolveStudentById(d.studentId);
-          if (student) d.studentRef = student._id;
+        let studentId = d.studentId != null ? d.studentId : (d.studentRef && typeof d.studentRef === 'object' ? d.studentRef.id : null);
+        let student = null;
+        if (studentId != null) {
+          student = await resolveStudentById(studentId);
         }
-        if (!d.courseRef && d.courseId) {
-          const course = await resolveCourseById(d.courseId);
-          if (course) d.courseRef = course._id;
+        if (!student && d.studentRef) {
+          const sid = typeof d.studentRef === 'object' ? d.studentRef._id : d.studentRef;
+          if (sid && mongoose.Types.ObjectId.isValid(sid)) {
+            student = await Student.findById(sid);
+            if (!student) {
+              student = await Student.findOne({ userId: sid });
+            }
+          }
         }
-        // Then delete unused fields
+        if (!student && (d.email || d.studentEmail)) {
+          const email = (d.email || d.studentEmail).trim().toLowerCase();
+          student = await Student.findOne({ email });
+          if (!student) {
+            const user = await User.findOne({ email, role: 'sinh-vien' });
+            if (user) {
+              const maxStudent = await Student.findOne().sort({ id: -1 });
+              const nextId = (maxStudent?.id || 0) + 1;
+              student = await Student.create({
+                userId: user._id,
+                id: nextId,
+                email: user.email,
+                hoTen: user.hoTen || 'Sinh viên',
+                department: user.department || '',
+              });
+              await User.updateOne({ _id: user._id }, { studentId: student._id });
+            }
+          }
+        }
+        if (student) {
+          d.studentRef = student._id;
+        } else if (d.studentRef && typeof d.studentRef === 'object' && d.studentRef._id) {
+          d.studentRef = d.studentRef._id;
+        }
+
+        let courseId = d.courseId || (d.courseRef && typeof d.courseRef === 'object' ? d.courseRef.id : '');
+        let course = null;
+        if (courseId) {
+          course = await resolveCourseById(courseId);
+        }
+        if (!course && d.courseRef) {
+          const cid = typeof d.courseRef === 'object' ? d.courseRef._id : d.courseRef;
+          if (cid && mongoose.Types.ObjectId.isValid(cid)) {
+            course = await Course.findById(cid);
+          }
+        }
+        let openReg = null;
+        if (d.regId) {
+          openReg = await OpenRegistration.findOne({ id: String(d.regId) });
+          if (openReg) {
+            if (!course && openReg.courseRef && mongoose.Types.ObjectId.isValid(openReg.courseRef)) {
+              course = await Course.findById(openReg.courseRef);
+            }
+            if (!course && openReg.courseId) {
+              course = await resolveCourseById(openReg.courseId);
+            }
+          }
+        }
+        if (!course && (d.courseId || openReg?.courseId)) {
+          const cId = d.courseId || openReg?.courseId;
+          const cName = d.courseName || openReg?.courseName || cId;
+          course = await Course.create({
+            id: cId,
+            name: cName,
+            credits: openReg?.credits || 0,
+            fee: openReg?.fee || 0,
+            department: openReg?.department || '',
+          });
+        }
+        if (course) {
+          d.courseRef = course._id;
+        } else if (d.courseRef && typeof d.courseRef === 'object' && d.courseRef._id) {
+          d.courseRef = d.courseRef._id;
+        }
+
         delete d.id;
         delete d.studentId;
         delete d.courseId;
         delete d.courseName;
         delete d.studentName;
         delete d.department;
-        // Skip if missing required regId
-        if (!d.regId) {
+
+        if (!d.regId || !d.studentRef || !d.courseRef) {
           d = null;
         }
         break;
       }
       case 'Assignment':
       case 'Document': {
-        if (d.courseId) {
-          const course = await resolveCourseById(d.courseId);
-          if (course) d.courseRef = course._id;
+        let courseId = d.courseId || (d.courseRef && typeof d.courseRef === 'object' ? d.courseRef.id : '');
+        let course = null;
+        if (courseId) {
+          course = await resolveCourseById(courseId);
+        }
+        if (!course && d.courseRef) {
+          const cid = typeof d.courseRef === 'object' ? d.courseRef._id : d.courseRef;
+          if (cid && mongoose.Types.ObjectId.isValid(cid)) {
+            course = await Course.findById(cid);
+          }
+        }
+        if (course) {
+          d.courseRef = course._id;
+        } else if (d.courseRef && typeof d.courseRef === 'object' && d.courseRef._id && mongoose.Types.ObjectId.isValid(d.courseRef._id)) {
+          d.courseRef = d.courseRef._id;
+        } else if (d.courseRef && typeof d.courseRef === 'string' && mongoose.Types.ObjectId.isValid(d.courseRef)) {
+          // valid ObjectId string
+        } else {
+          d.courseRef = null;
+        }
+
+        if (d.modifiedByRef && typeof d.modifiedByRef === 'object' && d.modifiedByRef._id && mongoose.Types.ObjectId.isValid(d.modifiedByRef._id)) {
+          d.modifiedByRef = d.modifiedByRef._id;
         }
         if (d.modifiedBy) {
           const teacher = await Teacher.findOne({
@@ -403,6 +595,22 @@ const prepareDocumentsForModel = async (Model, docs) => {
             ],
           });
           if (teacher) d.modifiedByRef = teacher._id;
+        }
+        if (d.modifiedByRef && !mongoose.Types.ObjectId.isValid(d.modifiedByRef)) {
+          d.modifiedByRef = null;
+        }
+
+        if (d._id && !mongoose.Types.ObjectId.isValid(d._id)) {
+          delete d._id;
+        }
+        delete d.__v;
+
+        if (Model.modelName === 'Assignment') {
+          if (!d.type) d.type = 'file';
+          if (!d.name && d.title) d.name = d.title;
+          if (!d.title && d.name) d.title = d.name;
+          d.questions = Array.isArray(d.questions) ? d.questions : [];
+          d.submissions = Array.isArray(d.submissions) ? d.submissions : [];
         }
         break;
       }
@@ -450,10 +658,83 @@ const cleanupLegacyFields = async () => {
 };
 
 const replaceCollection = async (Model, docs) => {
-  await Model.deleteMany({});
-  if (!Array.isArray(docs) || docs.length === 0) return;
+  if (!Array.isArray(docs)) return;
+
+  // Safe non-destructive update for Assignment and Document
+  if (Model.modelName === 'Assignment' || Model.modelName === 'Document') {
+    const mapped = await prepareDocumentsForModel(Model, docs);
+    const deduped = [];
+    const seenKeys = new Set();
+    for (const item of mapped) {
+      if (!item) continue;
+      const key = (item.id || '').toString().trim();
+      if (key) {
+        if (seenKeys.has(key)) continue;
+        seenKeys.add(key);
+      }
+      deduped.push(item);
+    }
+
+    const validIds = [];
+    for (const item of deduped) {
+      if (!item || !item.id) continue;
+      validIds.push(item.id);
+      const updateData = { ...item };
+      delete updateData._id;
+      delete updateData.__v;
+      await Model.findOneAndUpdate(
+        { id: item.id },
+        { $set: updateData },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      );
+    }
+
+    // Only delete items not in validIds if validIds has at least 1 item
+    if (validIds.length > 0) {
+      await Model.deleteMany({ id: { $nin: validIds } });
+    }
+    return;
+  }
+
   const mapped = await prepareDocumentsForModel(Model, docs);
-  const inserted = await Model.insertMany(mapped);
+
+  // Deduplicate before inserting to avoid duplicate key errors
+  const deduped = [];
+  const seenKeys = new Set();
+  for (const item of mapped) {
+    if (!item) continue;
+    let key = '';
+    if (Model.modelName === 'Course') {
+      key = (item.id || '').toString().trim().toUpperCase();
+    } else if (Model.modelName === 'User') {
+      key = (item.email || '').toString().trim().toLowerCase();
+    } else if (Model.modelName === 'Teacher') {
+      key = item.id != null ? String(item.id) : (item.email || '').toLowerCase();
+    } else if (Model.modelName === 'Student') {
+      key = item.id != null ? String(item.id) : (item.email || '').toLowerCase();
+    } else if (Model.modelName === 'Department') {
+      key = (item.id || item.name || '').toString().trim().toLowerCase();
+    } else if (Model.modelName === 'OpenRegistration') {
+      key = (item.id || `${item.courseId}_${item.teacherId}`).toString().trim();
+    } else if (Model.modelName === 'StudentRegistration') {
+      key = `${item.regId}_${String(item.studentRef)}`;
+    }
+    if (key) {
+      if (seenKeys.has(key)) continue;
+      seenKeys.add(key);
+    }
+    if (Model.modelName === 'StudentRegistration' || Model.modelName === 'OpenRegistration') {
+      delete item._id;
+    } else if (item._id && !mongoose.Types.ObjectId.isValid(item._id)) {
+      delete item._id;
+    }
+    delete item.__v;
+    deduped.push(item);
+  }
+
+  await Model.deleteMany({});
+  if (deduped.length === 0) return;
+  const inserted = await Model.insertMany(deduped);
 
   if (Model.modelName === 'Teacher') {
     await Promise.all(
@@ -497,6 +778,7 @@ const defaultAuthData = {
   studentRegistrationsData: [],
   assignmentsData: [],
   documentsData: [],
+  attendancesData: [],
 };
 
 router.get('/', async (req, res) => {
@@ -511,7 +793,8 @@ router.get('/', async (req, res) => {
       await replaceCollection(Department, defaultAuthData.departmentsData);
       await ensureSeedAccounts();
       await cleanupLegacyFields();
-      return res.json(defaultAuthData);
+      const currentAuthData = await getAuthData();
+      return res.json(currentAuthData);
     }
 
     await ensureSeedAccounts();
@@ -527,15 +810,36 @@ router.get('/', async (req, res) => {
 router.put('/', async (req, res) => {
   try {
     const body = req.body || {};
-    await replaceCollection(Department, body.departmentsData || []);
-    await replaceCollection(User, body.users || []);
-    await replaceCollection(Teacher, body.teachersData || []);
-    await replaceCollection(Student, body.studentsData || []);
-    await replaceCollection(Course, body.subjectsData || []);
-    await replaceCollection(OpenRegistration, body.openRegistrationsData || []);
-    await replaceCollection(StudentRegistration, body.studentRegistrationsData || []);
-    await replaceCollection(Assignment, body.assignmentsData || []);
-    await replaceCollection(Document, body.documentsData || []);
+    if (Array.isArray(body.departmentsData)) await replaceCollection(Department, body.departmentsData);
+    if (Array.isArray(body.users)) await replaceCollection(User, body.users);
+    if (Array.isArray(body.teachersData)) await replaceCollection(Teacher, body.teachersData);
+    if (Array.isArray(body.studentsData)) await replaceCollection(Student, body.studentsData);
+    if (Array.isArray(body.subjectsData)) await replaceCollection(Course, body.subjectsData);
+    if (Array.isArray(body.openRegistrationsData)) {
+      if (body.openRegistrationsData.length > 0 || body.forceWipeOpenRegistrations === true) {
+        await replaceCollection(OpenRegistration, body.openRegistrationsData);
+      }
+    }
+    if (Array.isArray(body.studentRegistrationsData)) {
+      if (body.studentRegistrationsData.length > 0 || body.forceWipeStudentRegistrations === true) {
+        await replaceCollection(StudentRegistration, body.studentRegistrationsData);
+      }
+    }
+    if (Array.isArray(body.assignmentsData)) {
+      if (body.assignmentsData.length > 0 || body.forceWipeAssignments === true) {
+        await replaceCollection(Assignment, body.assignmentsData);
+      }
+    }
+    if (Array.isArray(body.documentsData)) {
+      if (body.documentsData.length > 0 || body.forceWipeDocuments === true) {
+        await replaceCollection(Document, body.documentsData);
+      }
+    }
+    if (Array.isArray(body.attendancesData)) {
+      if (body.attendancesData.length > 0 || body.forceWipeAttendances === true) {
+        await replaceCollection(Attendance, body.attendancesData);
+      }
+    }
     await cleanupOrphanAccounts();
     await cleanupLegacyFields();
     const authData = await getAuthData();
@@ -543,7 +847,7 @@ router.put('/', async (req, res) => {
     res.json(authData);
   } catch (error) {
     console.error('PUT /api/auth error:', error);
-    res.status(500).json({ error: 'Lỗi khi lưu dữ liệu xác thực' });
+    res.status(500).json({ error: 'Lỗi khi lưu dữ liệu xác thực', details: error.message });
   }
 });
 

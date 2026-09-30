@@ -110,3 +110,20 @@ export function getMaxDobForTeacher() {
   const maxYear = today.getFullYear() - 24;
   return new Date(maxYear, today.getMonth(), today.getDate()).toISOString().split('T')[0];
 }
+
+export function isClassOfTeacher(reg, teacher) {
+  if (!reg || !teacher) return false;
+  const tNum = teacher.id != null ? String(teacher.id).trim() : null;
+  const tTeacherId = teacher.teacherId != null ? String(teacher.teacherId).trim() : null;
+  const tMongo = (teacher._id || teacher.userId) != null ? String(teacher._id || teacher.userId).trim() : null;
+  const tName = (teacher.hoTen || teacher.name || '').trim().toLowerCase();
+  const regName = (reg.teacher || '').trim().toLowerCase();
+  const regTid = reg.teacherId != null ? String(reg.teacherId).trim() : '';
+  const regTref = reg.teacherRef != null ? String(typeof reg.teacherRef === 'object' ? reg.teacherRef._id : reg.teacherRef).trim() : '';
+
+  if (tNum && regTid === tNum) return true;
+  if (tTeacherId && (regTid === tTeacherId || regTref === tTeacherId)) return true;
+  if (tMongo && (regTref === tMongo || regTid === tMongo)) return true;
+  if (tName && regName && (regName === tName || regName.includes(tName) || tName.includes(regName))) return true;
+  return false;
+}

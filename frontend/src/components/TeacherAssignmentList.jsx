@@ -4,9 +4,11 @@ import teacherAPI from '../services/teacherAPI';
 import studentAPI from '../services/studentAPI';
 import assignmentAPI from '../services/assignmentAPI';
 import courseAPI from '../services/courseAPI';
-import { fetchOpenRegistrations } from '../utils/registrationUtils';
+import { fetchOpenRegistrations, fetchStudentRegistrations } from '../utils/registrationUtils';
 import { useTeacherLockMonitor } from '../hooks/useTeacherLockMonitor';
 import { formatStudentId } from '../utils/studentUtils';
+import { isClassOfTeacher } from '../utils/teacherUtils';
+import NotificationBell from './NotificationBell';
 
 const defaultQuizForm = () => ({
   title: '',
@@ -46,6 +48,11 @@ const TeacherAssignmentList = () => {
   const [quizErrors, setQuizErrors] = useState({});
   const isCreatingQuiz = searchParams.get('mode') === 'create-quiz';
   const [selectedResultAssignment, setSelectedResultAssignment] = useState(null);
+  const [studentRegistrations, setStudentRegistrations] = useState([]);
+  const [editingSubmissions, setEditingSubmissions] = useState([]);
+  const [savingGrades, setSavingGrades] = useState(false);
+  const [gradeFilter, setGradeFilter] = useState('all');
+  const [gradeSearch, setGradeSearch] = useState('');
   const { showLockModal, lockReason, handleLogoutToLogin } = useTeacherLockMonitor(currentUser);
 
   useEffect(() => {
@@ -63,13 +70,15 @@ const TeacherAssignmentList = () => {
     const loadData = async () => {
       if (!currentUser?.email) return;
       try {
-        const [teachers, allStudents, openRegs, allAssignments, courses] = await Promise.all([
+        const [teachers, allStudents, openRegs, allAssignments, courses, studentRegs] = await Promise.all([
           teacherAPI.getAllTeachers({ fresh: true }),
           studentAPI.getAllStudents({ fresh: true }),
           fetchOpenRegistrations({ fresh: true }),
           assignmentAPI.getAllAssignments({ fresh: true }),
           courseAPI.getAllCourses({ fresh: true }),
+          fetchStudentRegistrations({ fresh: true }),
         ]);
+        setStudentRegistrations(studentRegs || []);
 
         const matchedTeacher = teachers.find((t) => t.email?.trim().toLowerCase() === currentUser.email?.trim().toLowerCase());
         const teacher = matchedTeacher || currentUser;
@@ -80,12 +89,11 @@ const TeacherAssignmentList = () => {
           return merged;
         });
 
-        const teacherId = String(teacher.id ?? teacher.teacherId ?? '');
         const classes = openRegs
-          .filter((reg) => String(reg.teacherId) === teacherId)
+          .filter((reg) => isClassOfTeacher(reg, teacher))
           .reduce((acc, reg) => {
-            if (!acc.some((item) => item.courseId === reg.courseId)) {
-              const course = courses.find((item) => item.id === reg.courseId);
+            if (!acc.some((item) => String(item.courseId).toLowerCase() === String(reg.courseId).toLowerCase())) {
+              const course = courses.find((item) => String(item.id).toLowerCase() === String(reg.courseId).toLowerCase());
               acc.push({
                 ...reg,
                 classId: reg.classId || course?.classId || '',
@@ -94,6 +102,29 @@ const TeacherAssignmentList = () => {
             }
             return acc;
           }, []);
+
+        // Đảm bảo các học phần có bài tập do giảng viên tạo đều xuất hiện trong danh sách
+        const teacherCoursesFromAssignments = (allAssignments || [])
+          .filter((a) => {
+            const mod = (a.modifiedBy || '').trim().toLowerCase();
+            const tName = (teacher.hoTen || teacher.name || '').trim().toLowerCase();
+            return mod && tName && (mod === tName || mod.includes(tName) || tName.includes(mod));
+          })
+          .map((a) => a.courseId)
+          .filter(Boolean);
+
+        for (const cId of teacherCoursesFromAssignments) {
+          if (!classes.some((item) => String(item.courseId).toLowerCase() === String(cId).toLowerCase())) {
+            const course = courses.find((c) => String(c.id).toLowerCase() === String(cId).toLowerCase());
+            classes.push({
+              courseId: cId,
+              courseName: course?.name || cId,
+              classId: course?.classId || `${cId}_01`,
+              className: course?.className || `${cId} - Lớp học phần`,
+            });
+          }
+        }
+
         setOpenClasses(classes);
         setStudents(allStudents || []);
         setAssignments(allAssignments || []);
@@ -106,7 +137,12 @@ const TeacherAssignmentList = () => {
 
   useEffect(() => {
     const courseId = searchParams.get('courseId');
-    setSelectedCourseId(courseId || '');
+    if (courseId) {
+      setSelectedCourseId(courseId);
+      sessionStorage.setItem('edumin_gv_selected_course', courseId);
+    } else {
+      setSelectedCourseId('');
+    }
   }, [searchParams]);
 
   useEffect(() => {
@@ -149,11 +185,12 @@ const TeacherAssignmentList = () => {
 
   const displayedDocs = useMemo(() => {
     if (!selectedCourseId) return [];
-    return assignments.filter((doc) => doc.courseId === selectedCourseId);
+    const target = String(selectedCourseId).trim().toLowerCase();
+    return assignments.filter((doc) => String(doc.courseId || '').trim().toLowerCase() === target);
   }, [assignments, selectedCourseId]);
 
   const selectedClass = useMemo(
-    () => openClasses.find((course) => course.courseId === selectedCourseId),
+    () => openClasses.find((course) => String(course.courseId).trim().toLowerCase() === String(selectedCourseId).trim().toLowerCase()),
     [openClasses, selectedCourseId]
   );
 
@@ -161,7 +198,8 @@ const TeacherAssignmentList = () => {
     const query = classSearch.trim().toLowerCase();
     const result = openClasses.filter((course) => {
       const matchesSearch = !query || `${course.courseId} ${course.courseName || ''} ${course.classId || ''} ${course.className || ''}`.toLowerCase().includes(query);
-      const assignmentCount = assignments.filter((item) => item.courseId === course.courseId).length;
+      const cId = String(course.courseId || '').trim().toLowerCase();
+      const assignmentCount = assignments.filter((item) => String(item.courseId || '').trim().toLowerCase() === cId).length;
       const matchesFilter = classFilter === 'all'
         || (classFilter === 'withAssignments' && assignmentCount > 0)
         || (classFilter === 'withoutAssignments' && assignmentCount === 0);
@@ -172,8 +210,10 @@ const TeacherAssignmentList = () => {
       if (classSort === 'name') return String(first.courseName || '').localeCompare(String(second.courseName || ''), 'vi');
       if (classSort === 'code') return String(first.courseId || '').localeCompare(String(second.courseId || ''), 'vi');
       if (classSort === 'assignments') {
-        const firstCount = assignments.filter((item) => item.courseId === first.courseId).length;
-        const secondCount = assignments.filter((item) => item.courseId === second.courseId).length;
+        const firstCId = String(first.courseId || '').trim().toLowerCase();
+        const secondCId = String(second.courseId || '').trim().toLowerCase();
+        const firstCount = assignments.filter((item) => String(item.courseId || '').trim().toLowerCase() === firstCId).length;
+        const secondCount = assignments.filter((item) => String(item.courseId || '').trim().toLowerCase() === secondCId).length;
         return secondCount - firstCount;
       }
       return 0;
@@ -181,6 +221,187 @@ const TeacherAssignmentList = () => {
   }, [assignments, classFilter, classSearch, classSort, openClasses]);
 
   const getStudentForSubmission = (submission) => students.find((student) => String(student.id) === String(submission.studentId));
+
+  const openResultModal = (doc) => {
+    setSelectedResultAssignment(doc);
+    setActiveActionMenu(null);
+
+    const existingSubs = Array.isArray(doc.submissions) ? doc.submissions : [];
+    const courseId = doc.courseId;
+
+    // Lấy danh sách sinh viên đã đăng ký học phần này
+    const enrolled = studentRegistrations.filter((r) =>
+      String(r.courseId).toLowerCase() === String(courseId).toLowerCase() ||
+      String(r.regId) === String(doc.classId || doc.regId)
+    );
+
+    const mergedList = [];
+    const seenStudentIds = new Set();
+
+    // 1. Thêm các sinh viên đã nộp bài
+    existingSubs.forEach((sub) => {
+      seenStudentIds.add(String(sub.studentId));
+      const student = students.find((s) => String(s.id) === String(sub.studentId));
+      const scoreNum = sub.score !== null && sub.score !== undefined && sub.score !== '' ? Number(sub.score) : null;
+      const isPassed = sub.isPassed !== undefined
+        ? Boolean(sub.isPassed)
+        : (scoreNum !== null ? scoreNum >= 4.0 : false);
+
+      mergedList.push({
+        studentId: sub.studentId,
+        studentName: student?.name || student?.hoTen || sub.studentName || 'Sinh viên',
+        studentCode: formatStudentId(student?.id ?? sub.studentId),
+        department: student?.department || 'Chưa cập nhật',
+        education: student?.education || 'Chưa cập nhật',
+        avatar: student?.avatar,
+        score: scoreNum !== null ? scoreNum : '',
+        submittedAt: sub.submittedAt || '',
+        isPassed,
+        feedback: sub.feedback || '',
+        hasSubmitted: true,
+        answers: sub.answers || {},
+      });
+    });
+
+    // 2. Thêm các sinh viên trong lớp chưa nộp trực tuyến để GV có thể chấm điểm và đánh giá
+    enrolled.forEach((reg) => {
+      if (seenStudentIds.has(String(reg.studentId))) return;
+      seenStudentIds.add(String(reg.studentId));
+      const student = students.find((s) => String(s.id) === String(reg.studentId));
+      mergedList.push({
+        studentId: reg.studentId,
+        studentName: student?.name || student?.hoTen || reg.studentName || 'Sinh viên',
+        studentCode: formatStudentId(student?.id ?? reg.studentId),
+        department: student?.department || reg.department || 'Chưa cập nhật',
+        education: student?.education || 'Chưa cập nhật',
+        avatar: student?.avatar,
+        score: '',
+        submittedAt: 'Chưa nộp trực tuyến',
+        isPassed: false,
+        feedback: '',
+        hasSubmitted: false,
+        answers: {},
+      });
+    });
+
+    setEditingSubmissions(mergedList);
+    setGradeFilter('all');
+    setGradeSearch('');
+  };
+
+  const handleScoreChange = (studentId, val) => {
+    setEditingSubmissions((prev) =>
+      prev.map((item) => {
+        if (String(item.studentId) === String(studentId)) {
+          if (val === '') {
+            return { ...item, score: '', isPassed: false };
+          }
+          const num = Math.max(0, Math.min(10, Number(val)));
+          return {
+            ...item,
+            score: num,
+            isPassed: num >= 4.0,
+          };
+        }
+        return item;
+      })
+    );
+  };
+
+  const handleTogglePass = (studentId, passStatus) => {
+    setEditingSubmissions((prev) =>
+      prev.map((item) => {
+        if (String(item.studentId) === String(studentId)) {
+          return {
+            ...item,
+            isPassed: passStatus,
+          };
+        }
+        return item;
+      })
+    );
+  };
+
+  const handleFeedbackChange = (studentId, feedback) => {
+    setEditingSubmissions((prev) =>
+      prev.map((item) => {
+        if (String(item.studentId) === String(studentId)) {
+          return { ...item, feedback };
+        }
+        return item;
+      })
+    );
+  };
+
+  const handleBatchMarkPassed = () => {
+    setEditingSubmissions((prev) =>
+      prev.map((item) => {
+        const scoreNum = Number(item.score);
+        if (item.score !== '' && !Number.isNaN(scoreNum) && scoreNum >= 4.0) {
+          return { ...item, isPassed: true };
+        }
+        return item;
+      })
+    );
+    addToast('Đã xác nhận đủ điểm qua môn cho tất cả sinh viên có điểm >= 4.0!', 'success');
+  };
+
+  const saveAllGrades = async () => {
+    if (!selectedResultAssignment) return;
+    setSavingGrades(true);
+    try {
+      const updatedSubmissions = editingSubmissions
+        .filter((item) => item.score !== '' || item.hasSubmitted)
+        .map((item) => ({
+          studentId: item.studentId,
+          studentName: item.studentName,
+          score: item.score !== '' ? Number(item.score) : 0,
+          submittedAt: item.submittedAt && item.submittedAt !== 'Chưa nộp trực tuyến' ? item.submittedAt : new Date().toLocaleString('vi-VN'),
+          isPassed: Boolean(item.isPassed),
+          feedback: item.feedback || '',
+          answers: item.answers || {},
+        }));
+
+      const nextAssignments = assignments.map((a) => {
+        if (String(a.id) === String(selectedResultAssignment.id)) {
+          return {
+            ...a,
+            submissions: updatedSubmissions,
+          };
+        }
+        return a;
+      });
+
+      await assignmentAPI.saveAllAssignments(nextAssignments);
+      setAssignments(nextAssignments);
+      setSelectedResultAssignment((prev) => ({
+        ...prev,
+        submissions: updatedSubmissions,
+      }));
+      addToast('Đã lưu điểm và xác nhận kết quả qua môn thành công!', 'success');
+    } catch (err) {
+      console.error('Lỗi lưu điểm:', err);
+      addToast(err.message || 'Không thể lưu bảng điểm', 'error');
+    } finally {
+      setSavingGrades(false);
+    }
+  };
+
+  const filteredEditingSubmissions = useMemo(() => {
+    return editingSubmissions.filter((item) => {
+      if (gradeFilter === 'passed' && !item.isPassed) return false;
+      if (gradeFilter === 'failed' && (item.isPassed || item.score === '')) return false;
+      if (gradeFilter === 'ungraded' && item.score !== '') return false;
+      if (gradeSearch.trim()) {
+        const q = gradeSearch.trim().toLowerCase();
+        const matchName = String(item.studentName || '').toLowerCase().includes(q);
+        const matchCode = String(item.studentCode || '').toLowerCase().includes(q);
+        const matchDept = String(item.department || '').toLowerCase().includes(q);
+        if (!matchName && !matchCode && !matchDept) return false;
+      }
+      return true;
+    });
+  }, [editingSubmissions, gradeFilter, gradeSearch]);
 
   const formatDate = (date = new Date()) => {
     const d = new Date(date);
@@ -235,7 +456,9 @@ const TeacherAssignmentList = () => {
 
     setSavingQuiz(true);
     try {
-      const next = [...assignments, newQuiz];
+      const freshAssignments = await assignmentAPI.getAllAssignments({ fresh: true });
+      const currentList = Array.isArray(freshAssignments) && freshAssignments.length > 0 ? freshAssignments : assignments;
+      const next = [...currentList.filter((item) => item.id !== newQuiz.id), newQuiz];
       await assignmentAPI.saveAllAssignments(next);
       setAssignments(next);
       setQuizForm(defaultQuizForm());
@@ -265,16 +488,20 @@ const TeacherAssignmentList = () => {
         const name = file.name;
         const size = `${(file.size / (1024 * 1024)).toFixed(2)} MB`;
         const newDoc = {
-          id: `LSN${Date.now()}`,
+          id: `ASN${Date.now()}`,
           courseId: selectedCourseId,
+          type: 'file',
           name,
+          title: name,
           created: formatDate(),
           modifiedBy: teacherInfo?.name || currentUser?.hoTen || 'Giảng viên',
           size,
           status: 'Công khai',
           content,
         };
-        const next = [...assignments, newDoc];
+        const freshAssignments = await assignmentAPI.getAllAssignments({ fresh: true });
+        const currentList = Array.isArray(freshAssignments) && freshAssignments.length > 0 ? freshAssignments : assignments;
+        const next = [...currentList.filter((item) => item.id !== newDoc.id), newDoc];
         await assignmentAPI.saveAllAssignments(next);
         setAssignments(next);
         addToast('Tải bài tập lên thành công!', 'success');
@@ -322,10 +549,12 @@ const TeacherAssignmentList = () => {
       setRenameError('Tên không được để trống');
       return;
     }
-    const next = assignments.map((item) =>
-      item.id === deleteId ? { ...item, name: trimmed } : item
-    );
     try {
+      const freshAssignments = await assignmentAPI.getAllAssignments({ fresh: true });
+      const currentList = Array.isArray(freshAssignments) && freshAssignments.length > 0 ? freshAssignments : assignments;
+      const next = currentList.map((item) =>
+        item.id === deleteId ? { ...item, name: trimmed, title: trimmed } : item
+      );
       await assignmentAPI.saveAllAssignments(next);
       setAssignments(next);
       setShowRenameModal(false);
@@ -343,9 +572,11 @@ const TeacherAssignmentList = () => {
   };
 
   const confirmDelete = async () => {
-    const next = assignments.filter((item) => item.id !== deleteId);
     try {
-      await assignmentAPI.saveAllAssignments(next);
+      const freshAssignments = await assignmentAPI.getAllAssignments({ fresh: true });
+      const currentList = Array.isArray(freshAssignments) && freshAssignments.length > 0 ? freshAssignments : assignments;
+      const next = currentList.filter((item) => item.id !== deleteId);
+      await assignmentAPI.saveAllAssignments(next, { forceWipe: next.length === 0 });
       setAssignments(next);
       setShowDeleteModal(false);
       addToast('Đã xóa bài tập!', 'success');
@@ -449,10 +680,7 @@ const TeacherAssignmentList = () => {
         </div>
 
         <div className="flex items-center gap-6">
-          <div className="relative">
-            <i className="far fa-bell text-gray-600 text-xl" />
-            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] rounded-full h-4 w-4 flex items-center justify-center">5</span>
-          </div>
+          <NotificationBell currentUser={currentUser} customRole="giao-vien" />
           <div className="relative" data-user-dropdown>
             <div className="flex items-center gap-3 border-l pl-6 border-gray-300 cursor-pointer" onClick={toggleUserDropdown}>
               <div className="text-right hidden sm:block">
@@ -739,25 +967,36 @@ const TeacherAssignmentList = () => {
                             </span>
                           </td>
                           <td className="px-6 py-4 text-right">
-                            <button
-                              data-action-button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (activeActionMenu === doc.id) {
-                                  setActiveActionMenu(null);
-                                } else {
-                                  const rect = e.currentTarget.getBoundingClientRect();
-                                  setMenuPosition({
-                                    top: rect.bottom + window.scrollY,
-                                    right: window.innerWidth - rect.right - window.scrollX,
-                                  });
-                                  setActiveActionMenu(doc.id);
-                                }
-                              }}
-                              className="p-2 hover:bg-gray-100 rounded-lg transition text-gray-400"
-                            >
-                              <i className="fas fa-ellipsis-v" />
-                            </button>
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                type="button"
+                                onClick={() => openResultModal(doc)}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-bold text-xs transition shadow-sm"
+                                title="Nhập điểm & Xác nhận qua môn"
+                              >
+                                <i className="fas fa-clipboard-check text-[11px]" />
+                                <span>Chấm điểm ({doc.submissions?.length || 0})</span>
+                              </button>
+                              <button
+                                data-action-button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (activeActionMenu === doc.id) {
+                                    setActiveActionMenu(null);
+                                  } else {
+                                    const rect = e.currentTarget.getBoundingClientRect();
+                                    setMenuPosition({
+                                      top: rect.bottom + window.scrollY,
+                                      right: window.innerWidth - rect.right - window.scrollX,
+                                    });
+                                    setActiveActionMenu(doc.id);
+                                  }
+                                }}
+                                className="p-2 hover:bg-gray-100 rounded-lg transition text-gray-400"
+                              >
+                                <i className="fas fa-ellipsis-v" />
+                              </button>
+                            </div>
                             {activeActionMenu === doc.id && (
                               <div
                                 className="text-left py-2 fixed bg-white border border-gray-200 rounded-2xl shadow-xl min-w-[220px] z-[9999]"
@@ -766,11 +1005,10 @@ const TeacherAssignmentList = () => {
                                   right: `${menuPosition.right + window.scrollX}px`,
                                 }}
                               >
-                                {doc.type === 'quiz' ? (
-                                  <button onClick={() => { setSelectedResultAssignment(doc); setActiveActionMenu(null); }} className="w-full px-4 py-2 text-xs text-gray-700 hover:bg-violet-50 hover:text-violet-600 flex items-center gap-2">
-                                    <i className="fas fa-chart-bar w-4" /> Xem kết quả
-                                  </button>
-                                ) : (
+                                <button onClick={() => openResultModal(doc)} className="w-full px-4 py-2 text-xs text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 flex items-center gap-2">
+                                  <i className="fas fa-clipboard-check w-4 text-emerald-600" /> Nhập điểm & Kết quả
+                                </button>
+                                {doc.type !== 'quiz' && (
                                   <button onClick={() => handleDownload(doc.id)} className="w-full px-4 py-2 text-xs text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 flex items-center gap-2">
                                     <i className="fas fa-download w-4" /> Tải xuống
                                   </button>
@@ -798,54 +1036,264 @@ const TeacherAssignmentList = () => {
       </div>
 
       {selectedResultAssignment && (
-        <div className="fixed inset-0 bg-black/50 z-[300] flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-6xl max-h-[88vh] overflow-y-auto p-6">
-            <div className="flex justify-between items-center mb-4">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[300] flex items-center justify-center p-3 md:p-6 overflow-y-auto">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-6xl max-h-[92vh] overflow-y-auto p-6 md:p-8 flex flex-col border border-gray-100">
+            {/* Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-5 border-b border-gray-100 gap-4">
               <div>
-                <p className="text-sm font-bold uppercase tracking-[0.2em] text-violet-500">Kết quả bài làm</p>
-                <h3 className="text-2xl font-bold text-gray-800">{selectedResultAssignment.name || selectedResultAssignment.title}</h3>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-lg">
+                    Quản lý điểm số
+                  </span>
+                  <span className="text-xs text-gray-400 font-medium">
+                    Học phần: <strong className="text-gray-700">{selectedResultAssignment.courseId}</strong>
+                  </span>
+                </div>
+                <h3 className="text-2xl font-bold text-gray-800 mt-1">
+                  {selectedResultAssignment.name || selectedResultAssignment.title}
+                </h3>
               </div>
-              <button onClick={() => setSelectedResultAssignment(null)} className="text-gray-400 hover:text-gray-600">
-                <i className="fas fa-times text-xl" />
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={saveAllGrades}
+                  disabled={savingGrades}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-emerald-200 transition flex items-center gap-2 disabled:opacity-50"
+                >
+                  <i className={`fas ${savingGrades ? 'fa-spinner fa-spin' : 'fa-save'}`} />
+                  <span>{savingGrades ? 'Đang lưu...' : 'Lưu bảng điểm & Kết quả'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedResultAssignment(null)}
+                  className="w-10 h-10 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-700 flex items-center justify-center transition"
+                  title="Đóng"
+                >
+                  <i className="fas fa-times text-lg" />
+                </button>
+              </div>
             </div>
-            {(selectedResultAssignment.submissions?.length || 0) === 0 ? (
-              <div className="text-center py-10 text-gray-400">Chưa có sinh viên nào nộp bài.</div>
+
+            {/* Statistics Banner */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 my-5">
+              <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Tổng sinh viên</p>
+                <p className="text-2xl font-black text-gray-800 mt-1">{editingSubmissions.length}</p>
+                <p className="text-[11px] text-gray-400 mt-0.5">Sinh viên lớp học phần</p>
+              </div>
+              <div className="p-4 bg-blue-50/60 rounded-2xl border border-blue-100">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-blue-500">Đã nhập điểm</p>
+                <p className="text-2xl font-black text-blue-700 mt-1">
+                  {editingSubmissions.filter((s) => s.score !== '').length}
+                </p>
+                <p className="text-[11px] text-blue-500 mt-0.5">Đã được ghi nhận điểm</p>
+              </div>
+              <div className="p-4 bg-emerald-50/80 rounded-2xl border border-emerald-100">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-600">Đủ điểm qua môn</p>
+                <p className="text-2xl font-black text-emerald-700 mt-1">
+                  {editingSubmissions.filter((s) => s.isPassed).length}
+                </p>
+                <p className="text-[11px] text-emerald-600 mt-0.5">
+                  Tỷ lệ: {editingSubmissions.length > 0 ? Math.round((editingSubmissions.filter((s) => s.isPassed).length / editingSubmissions.length) * 100) : 0}%
+                </p>
+              </div>
+              <div className="p-4 bg-rose-50/60 rounded-2xl border border-rose-100">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-rose-500">Chưa đủ điểm</p>
+                <p className="text-2xl font-black text-rose-700 mt-1">
+                  {editingSubmissions.filter((s) => !s.isPassed && s.score !== '').length}
+                </p>
+                <p className="text-[11px] text-rose-500 mt-0.5">Cần thi lại hoặc cải thiện</p>
+              </div>
+            </div>
+
+            {/* Filter and Tool Bar */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+              <div className="flex items-center gap-2 flex-1 max-w-md">
+                <div className="relative w-full">
+                  <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400" />
+                  <input
+                    type="text"
+                    value={gradeSearch}
+                    onChange={(e) => setGradeSearch(e.target.value)}
+                    placeholder="Tìm tên SV, mã SV, khoa..."
+                    className="w-full text-xs pl-8 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
+                  />
+                </div>
+                <select
+                  value={gradeFilter}
+                  onChange={(e) => setGradeFilter(e.target.value)}
+                  className="text-xs px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl font-medium text-gray-700 outline-none"
+                >
+                  <option value="all">Tất cả ({editingSubmissions.length})</option>
+                  <option value="passed">Đủ điểm qua môn ({editingSubmissions.filter((s) => s.isPassed).length})</option>
+                  <option value="failed">Chưa đủ điểm ({editingSubmissions.filter((s) => !s.isPassed && s.score !== '').length})</option>
+                  <option value="ungraded">Chưa nhập điểm ({editingSubmissions.filter((s) => s.score === '').length})</option>
+                </select>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleBatchMarkPassed}
+                  className="px-3 py-2 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-xl text-xs font-bold transition flex items-center gap-1.5"
+                  title="Tự động đánh dấu Đạt cho tất cả sinh viên có điểm >= 4.0"
+                >
+                  <i className="fas fa-check-double text-[11px]" />
+                  <span>Xác nhận Đạt (≥ 4.0)</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Student Grading Table */}
+            {filteredEditingSubmissions.length === 0 ? (
+              <div className="text-center py-12 text-gray-400 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
+                <i className="fas fa-user-graduate text-3xl mb-2 text-gray-300" />
+                <p className="font-semibold text-gray-600">Không tìm thấy sinh viên phù hợp.</p>
+              </div>
             ) : (
-              <div className="overflow-x-auto border border-gray-200 rounded-2xl">
-                <table className="w-full min-w-[760px] text-sm">
+              <div className="overflow-x-auto border border-gray-200 rounded-2xl flex-1">
+                <table className="w-full min-w-[900px] text-sm">
                   <thead className="bg-gray-50 border-b border-gray-200">
                     <tr>
-                      <th className="px-4 py-3 text-left text-xs text-gray-500">STT</th>
-                      <th className="px-4 py-3 text-left text-xs text-gray-500">Mã SV</th>
-                      <th className="px-4 py-3 text-left text-xs text-gray-500">Tên sinh viên</th>
-                      <th className="px-4 py-3 text-left text-xs text-gray-500">Khoa</th>
-                      <th className="px-4 py-3 text-left text-xs text-gray-500">Hệ đào tạo</th>
-                      <th className="px-4 py-3 text-center text-xs text-gray-500">Thời gian nộp</th>
-                      <th className="px-4 py-3 text-right text-xs text-gray-500">Điểm</th>
+                      <th className="px-3 py-3 text-center text-xs text-gray-500 w-12">STT</th>
+                      <th className="px-4 py-3 text-left text-xs text-gray-500 w-28">Mã SV</th>
+                      <th className="px-4 py-3 text-left text-xs text-gray-500 min-w-[180px]">Sinh viên</th>
+                      <th className="px-4 py-3 text-center text-xs text-gray-500 w-36">Thời gian nộp</th>
+                      <th className="px-4 py-3 text-center text-xs text-gray-500 w-44">
+                        Điểm số <span className="text-[10px] text-indigo-500 font-normal">(Thang 10)</span>
+                      </th>
+                      <th className="px-4 py-3 text-center text-xs text-gray-500 w-64">
+                        Xác nhận qua môn
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs text-gray-500 min-w-[180px]">
+                        Lời phê / Nhận xét của GV
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {[...(selectedResultAssignment.submissions || [])]
-                      .sort((a, b) => Number(b.score || 0) - Number(a.score || 0) || String(a.studentName || '').localeCompare(String(b.studentName || ''), 'vi'))
-                      .map((submission, index) => {
-                        const student = getStudentForSubmission(submission);
-                        return (
-                          <tr key={`${submission.studentId}-${index}`} className="hover:bg-violet-50/40">
-                            <td className="px-4 py-3 text-gray-500">{index + 1}</td>
-                            <td className="px-4 py-3 font-semibold text-gray-700">{formatStudentId(student?.id ?? submission.studentId)}</td>
-                            <td className="px-4 py-3 font-bold text-gray-800">{student?.name || submission.studentName || 'Sinh viên'}</td>
-                            <td className="px-4 py-3 text-gray-600">{student?.department || 'Chưa cập nhật'}</td>
-                            <td className="px-4 py-3 text-gray-600">{student?.education || 'Chưa cập nhật'}</td>
-                            <td className="px-4 py-3 text-center text-xs text-gray-500">{submission.submittedAt || 'Không rõ'}</td>
-                            <td className="px-4 py-3 text-right text-lg font-bold text-violet-600">{Number(submission.score || 0).toFixed(1)}<span className="text-xs text-gray-400"> / 10</span></td>
-                          </tr>
-                        );
-                      })}
+                    {filteredEditingSubmissions.map((submission, index) => {
+                      const isPassing = Boolean(submission.isPassed);
+                      const hasScore = submission.score !== '' && submission.score !== null;
+                      return (
+                        <tr
+                          key={`${submission.studentId}-${index}`}
+                          className={`transition ${isPassing ? 'hover:bg-emerald-50/30' : 'hover:bg-rose-50/20'}`}
+                        >
+                          <td className="px-3 py-3 text-center text-gray-400 text-xs font-semibold">{index + 1}</td>
+                          <td className="px-4 py-3 font-semibold text-indigo-600 text-xs font-mono">
+                            {submission.studentCode}
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2.5">
+                              <img
+                                src={
+                                  submission.avatar ||
+                                  `https://ui-avatars.com/api/?name=${encodeURIComponent(submission.studentName)}&background=6366f1&color=fff`
+                                }
+                                alt=""
+                                className="w-8 h-8 rounded-full object-cover shrink-0 border border-gray-100"
+                              />
+                              <div className="min-w-0">
+                                <p className="font-bold text-gray-800 text-sm truncate">{submission.studentName}</p>
+                                <p className="text-[11px] text-gray-400 truncate">{submission.department}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-center text-xs text-gray-500">
+                            {submission.submittedAt ? (
+                              <span className="inline-flex items-center gap-1 text-gray-600 font-medium">
+                                <i className="far fa-clock text-[10px] text-gray-400" />
+                                {submission.submittedAt}
+                              </span>
+                            ) : (
+                              <span className="text-gray-400 italic">Chưa nộp</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <div className="inline-flex items-center gap-1.5 bg-gray-50 px-2 py-1 rounded-xl border border-gray-200 focus-within:border-indigo-500 focus-within:bg-white transition">
+                              <input
+                                type="number"
+                                min="0"
+                                max="10"
+                                step="0.1"
+                                value={submission.score}
+                                onChange={(e) => handleScoreChange(submission.studentId, e.target.value)}
+                                placeholder="0.0"
+                                className="w-14 text-center font-black text-base text-gray-800 bg-transparent outline-none"
+                              />
+                              <span className="text-xs font-bold text-gray-400">/ 10</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <div className="inline-flex items-center p-1 rounded-xl bg-gray-100 gap-1 border border-gray-200">
+                              <button
+                                type="button"
+                                onClick={() => handleTogglePass(submission.studentId, true)}
+                                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                                  isPassing
+                                    ? 'bg-emerald-600 text-white shadow-sm'
+                                    : 'text-gray-600 hover:text-emerald-700 hover:bg-emerald-50'
+                                }`}
+                                title="Xác nhận sinh viên đủ điểm qua môn"
+                              >
+                                <i className="fas fa-check-circle text-[11px]" />
+                                <span>Đủ điểm qua môn</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleTogglePass(submission.studentId, false)}
+                                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                                  !isPassing && hasScore
+                                    ? 'bg-rose-600 text-white shadow-sm'
+                                    : 'text-gray-600 hover:text-rose-700 hover:bg-rose-50'
+                                }`}
+                                title="Xác nhận sinh viên chưa đủ điểm qua môn"
+                              >
+                                <i className="fas fa-times-circle text-[11px]" />
+                                <span>Chưa đủ điểm</span>
+                              </button>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <input
+                              type="text"
+                              placeholder="Lời phê / góp ý cho sinh viên..."
+                              value={submission.feedback}
+                              onChange={(e) => handleFeedbackChange(submission.studentId, e.target.value)}
+                              className="w-full text-xs px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:bg-white outline-none transition"
+                            />
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
             )}
+
+            {/* Footer Buttons */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-5 mt-4 border-t border-gray-100">
+              <p className="text-xs text-gray-500">
+                * Quy chuẩn đào tạo: Sinh viên đạt từ <strong>4.0 / 10</strong> trở lên được tự động công nhận đủ điểm qua môn.
+              </p>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setSelectedResultAssignment(null)}
+                  className="px-5 py-2.5 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-100 transition"
+                >
+                  Đóng
+                </button>
+                <button
+                  type="button"
+                  onClick={saveAllGrades}
+                  disabled={savingGrades}
+                  className="px-6 py-2.5 rounded-xl text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-200 transition flex items-center gap-2 disabled:opacity-50"
+                >
+                  <i className={`fas ${savingGrades ? 'fa-spinner fa-spin' : 'fa-save'}`} />
+                  <span>{savingGrades ? 'Đang lưu...' : 'Lưu bảng điểm & Kết quả'}</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

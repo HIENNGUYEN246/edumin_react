@@ -3,7 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import teacherAPI from './services/teacherAPI';
 import studentAPI from './services/studentAPI';
 import registrationAPI from './services/registrationAPI';
+import attendanceAPI from './services/attendanceAPI';
+import feedbackAPI from './services/feedbackAPI';
+import NotificationBell from './components/NotificationBell';
 import { isRegistrationExpired } from './utils/registrationUtils';
+import { getTodayDateString } from './utils/attendanceUtils';
 
 const PDTDashboard = () => {
   const navigate = useNavigate();
@@ -20,6 +24,10 @@ const PDTDashboard = () => {
     studentCount: 0,
     activeCoursesCount: 0,
     revenueTotal: 0,
+    attendanceCount: 0,
+    attendancePresentRate: 100,
+    feedbackCount: 0,
+    avgRating: '5.0',
   });
   const [passwordForm, setPasswordForm] = useState({
     oldPassword: '',
@@ -39,10 +47,12 @@ const PDTDashboard = () => {
   useEffect(() => {
     const loadDashboardStats = async () => {
       try {
-        const [teachers, students, openRegs] = await Promise.all([
+        const [teachers, students, openRegs, attendances, feedbacks] = await Promise.all([
           teacherAPI.getAllTeachers({ fresh: true }),
           studentAPI.getAllStudents({ fresh: true }),
           registrationAPI.getOpenRegistrations({ fresh: true }),
+          attendanceAPI.getAllAttendances(),
+          feedbackAPI.getFeedbacks(),
         ]);
 
         const activeRegs = Array.isArray(openRegs)
@@ -52,11 +62,24 @@ const PDTDashboard = () => {
         const activeCourseIds = [...new Set(activeRegs.map((reg) => reg.courseId).filter(Boolean))];
         const revenueTotal = activeRegs.reduce((sum, reg) => sum + Number(reg.fee || 0), 0);
 
+        const attList = Array.isArray(attendances) ? attendances : [];
+        const presentCount = attList.filter((a) => a.status === 'Có mặt').length;
+        const lateCount = attList.filter((a) => a.status === 'Đi muộn').length;
+        const presentRate = attList.length > 0 ? Math.round(((presentCount + lateCount * 0.5) / attList.length) * 100) : 100;
+
+        const fbList = Array.isArray(feedbacks) ? feedbacks : [];
+        const fbTotal = fbList.length;
+        const fbAvg = fbTotal > 0 ? (fbList.reduce((acc, f) => acc + (Number(f.rating) || 5), 0) / fbTotal).toFixed(1) : '5.0';
+
         setDashboardStats({
           teacherCount: Array.isArray(teachers) ? teachers.length : 0,
           studentCount: Array.isArray(students) ? students.length : 0,
           activeCoursesCount: activeCourseIds.length,
           revenueTotal,
+          attendanceCount: attList.length,
+          attendancePresentRate: presentRate,
+          feedbackCount: fbTotal,
+          avgRating: fbAvg,
         });
       } catch (error) {
         console.error('Failed to load dashboard stats', error);
@@ -155,10 +178,7 @@ const PDTDashboard = () => {
         </div>
 
         <div className="flex items-center gap-6">
-          <div className="relative">
-            <i className="far fa-bell text-gray-600 text-xl"></i>
-            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] rounded-full h-4 w-4 flex items-center justify-center">15</span>
-          </div>
+          <NotificationBell currentUser={currentUser} customRole="dao-tao" />
           <div className="relative">
             <div className="flex items-center gap-3 border-l pl-6 border-gray-300 cursor-pointer" onClick={toggleUserDropdown}>
               <div className="text-right hidden sm:block">
@@ -256,59 +276,108 @@ const PDTDashboard = () => {
                   </ul>
                 </div>
               </li>
+
+              <li>
+                <button
+                  type="button"
+                  onClick={() => navigate('/pdt/manage-attendance')}
+                  className="w-full flex items-center gap-3 p-3 text-gray-600 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg transition-all"
+                >
+                  <i className="fa-solid fa-clipboard-check w-5 text-center"></i>
+                  <span>Điểm danh & Đánh giá</span>
+                </button>
+              </li>
+
+              <li>
+                <button
+                  type="button"
+                  onClick={() => navigate('/pdt/manage-feedbacks')}
+                  className="w-full flex items-center gap-3 p-3 text-gray-600 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg transition-all"
+                >
+                  <i className="fa-solid fa-comment-dots w-5 text-center"></i>
+                  <span>Ý kiến & Phản hồi SV</span>
+                </button>
+              </li>
             </ul>
           </nav>
         </aside>
 
         {/* Main Content */}
         <main className="flex-1 p-4 md:p-8 overflow-y-auto">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <div className="bg-indigo-500 p-6 rounded-2xl text-white shadow-lg shadow-indigo-200 relative overflow-hidden">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
+            <div className="bg-indigo-500 p-5 rounded-2xl text-white shadow-lg shadow-indigo-200 relative overflow-hidden">
               <div className="z-10 relative">
-                <p className="text-sm opacity-80 uppercase font-medium">Tổng Giáo Viên</p>
-                <h3 className="text-3xl font-bold my-1">{dashboardStats.teacherCount.toLocaleString('vi-VN')}</h3>
-                <div className="w-full bg-indigo-400 rounded-full h-1.5 mt-4">
-                  <div className="bg-white h-1.5 rounded-full" style={{width: '80%'}}></div>
+                <p className="text-xs opacity-80 uppercase font-medium">Tổng Giáo Viên</p>
+                <h3 className="text-2xl font-bold my-1">{dashboardStats.teacherCount.toLocaleString('vi-VN')}</h3>
+                <div className="w-full bg-indigo-400 rounded-full h-1 mt-3">
+                  <div className="bg-white h-1 rounded-full" style={{width: '80%'}}></div>
                 </div>
-                <p className="text-xs mt-2 italic">80% Đang hoạt động</p>
+                <p className="text-[11px] mt-1.5 italic">80% Đang hoạt động</p>
               </div>
-              <i className="fas fa-user-tie absolute -right-4 -bottom-4 text-8xl opacity-10"></i>
+              <i className="fas fa-user-tie absolute -right-3 -bottom-3 text-7xl opacity-10"></i>
             </div>
 
-            <div className="bg-orange-400 p-6 rounded-2xl text-white shadow-lg shadow-orange-100 relative overflow-hidden">
+            <div className="bg-orange-400 p-5 rounded-2xl text-white shadow-lg shadow-orange-100 relative overflow-hidden">
               <div className="z-10 relative">
-                <p className="text-sm opacity-80 uppercase font-medium">Sinh Viên Mới</p>
-                <h3 className="text-3xl font-bold my-1">{dashboardStats.studentCount.toLocaleString('vi-VN')}</h3>
-                <div className="w-full bg-orange-300 rounded-full h-1.5 mt-4">
-                  <div className="bg-white h-1.5 rounded-full" style={{width: '50%'}}></div>
+                <p className="text-xs opacity-80 uppercase font-medium">Sinh Viên Mới</p>
+                <h3 className="text-2xl font-bold my-1">{dashboardStats.studentCount.toLocaleString('vi-VN')}</h3>
+                <div className="w-full bg-orange-300 rounded-full h-1 mt-3">
+                  <div className="bg-white h-1 rounded-full" style={{width: '50%'}}></div>
                 </div>
-                <p className="text-xs mt-2 italic">50% Tăng trưởng tháng này</p>
+                <p className="text-[11px] mt-1.5 italic">50% Tăng trưởng</p>
               </div>
-              <i className="fas fa-user-graduate absolute -right-4 -bottom-4 text-8xl opacity-10"></i>
+              <i className="fas fa-user-graduate absolute -right-3 -bottom-3 text-7xl opacity-10"></i>
             </div>
 
-            <div className="bg-purple-600 p-6 rounded-2xl text-white shadow-lg shadow-purple-200 relative overflow-hidden">
+            <div className="bg-purple-600 p-5 rounded-2xl text-white shadow-lg shadow-purple-200 relative overflow-hidden">
               <div className="z-10 relative">
-                <p className="text-sm opacity-80 uppercase font-medium">Lớp học hoạt động</p>
-                <h3 className="text-3xl font-bold my-1">{dashboardStats.activeCoursesCount.toLocaleString('vi-VN')}</h3>
-                <div className="w-full bg-purple-500 rounded-full h-1.5 mt-4">
-                  <div className="bg-white h-1.5 rounded-full" style={{width: '76%'}}></div>
+                <p className="text-xs opacity-80 uppercase font-medium">Lớp học mở</p>
+                <h3 className="text-2xl font-bold my-1">{dashboardStats.activeCoursesCount.toLocaleString('vi-VN')}</h3>
+                <div className="w-full bg-purple-500 rounded-full h-1 mt-3">
+                  <div className="bg-white h-1 rounded-full" style={{width: '76%'}}></div>
                 </div>
-                <p className="text-xs mt-2 italic">Dựa trên lớp học đang mở</p>
+                <p className="text-[11px] mt-1.5 italic">Lớp học phần mở</p>
               </div>
-              <i className="fas fa-school absolute -right-4 -bottom-4 text-8xl opacity-10"></i>
+              <i className="fas fa-school absolute -right-3 -bottom-3 text-7xl opacity-10"></i>
             </div>
 
-            <div className="bg-red-500 p-6 rounded-2xl text-white shadow-lg shadow-red-200 relative overflow-hidden">
+            <div className="bg-emerald-600 p-5 rounded-2xl text-white shadow-lg shadow-emerald-200 relative overflow-hidden">
               <div className="z-10 relative">
-                <p className="text-sm opacity-80 uppercase font-medium">Doanh thu học phí</p>
-                <h3 className="text-3xl font-bold my-1">{new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 0 }).format(dashboardStats.revenueTotal)}đ</h3>
-                <div className="w-full bg-red-400 rounded-full h-1.5 mt-4">
-                  <div className="bg-white h-1.5 rounded-full" style={{width: '30%'}}></div>
+                <p className="text-xs opacity-80 uppercase font-medium">Tỷ lệ chuyên cần</p>
+                <h3 className="text-2xl font-bold my-1">{dashboardStats.attendancePresentRate}%</h3>
+                <div className="w-full bg-emerald-500 rounded-full h-1 mt-3">
+                  <div className="bg-white h-1 rounded-full" style={{width: `${dashboardStats.attendancePresentRate}%`}}></div>
                 </div>
-                <p className="text-xs mt-2 italic">30% Mục tiêu quý này</p>
+                <p className="text-[11px] mt-1.5 italic">{dashboardStats.attendanceCount} lượt ghi nhận</p>
               </div>
-              <i className="fas fa-dollar-sign absolute -right-4 -bottom-4 text-8xl opacity-10"></i>
+              <i className="fas fa-clipboard-check absolute -right-3 -bottom-3 text-7xl opacity-10"></i>
+            </div>
+
+            <div className="bg-red-500 p-5 rounded-2xl text-white shadow-lg shadow-red-200 relative overflow-hidden">
+              <div className="z-10 relative">
+                <p className="text-xs opacity-80 uppercase font-medium">Học phí thu</p>
+                <h3 className="text-2xl font-bold my-1">{new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 0 }).format(dashboardStats.revenueTotal)}đ</h3>
+                <div className="w-full bg-red-400 rounded-full h-1 mt-3">
+                  <div className="bg-white h-1 rounded-full" style={{width: '30%'}}></div>
+                </div>
+                <p className="text-[11px] mt-1.5 italic">30% Mục tiêu quý</p>
+              </div>
+              <i className="fas fa-dollar-sign absolute -right-3 -bottom-3 text-7xl opacity-10"></i>
+            </div>
+
+            <div
+              onClick={() => navigate('/pdt/manage-feedbacks')}
+              className="bg-teal-600 p-5 rounded-2xl text-white shadow-lg shadow-teal-200 relative overflow-hidden cursor-pointer hover:bg-teal-700 transition"
+            >
+              <div className="z-10 relative">
+                <p className="text-xs opacity-80 uppercase font-medium">Ý kiến phản hồi</p>
+                <h3 className="text-2xl font-bold my-1">{dashboardStats.feedbackCount} lượt</h3>
+                <div className="w-full bg-teal-500 rounded-full h-1 mt-3">
+                  <div className="bg-white h-1 rounded-full" style={{width: `${Math.min(100, (Number(dashboardStats.avgRating) / 5) * 100)}%`}}></div>
+                </div>
+                <p className="text-[11px] mt-1.5 italic">⭐ {dashboardStats.avgRating} / 5.0 hài lòng</p>
+              </div>
+              <i className="fas fa-comment-dots absolute -right-3 -bottom-3 text-7xl opacity-10"></i>
             </div>
           </div>
 

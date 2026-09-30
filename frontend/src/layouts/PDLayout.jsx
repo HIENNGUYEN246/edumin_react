@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, NavLink, useLocation } from 'react-router-dom';
+import NotificationBell from '../components/NotificationBell';
 
 function PDLayout({ children }) {
   const navigate = useNavigate();
@@ -118,12 +119,7 @@ function PDLayout({ children }) {
         </div>
 
         <div className="flex items-center gap-6">
-          <div className="relative">
-            <i className="far fa-bell text-gray-600 text-xl" />
-            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] rounded-full h-4 w-4 flex items-center justify-center">
-              15
-            </span>
-          </div>
+          <NotificationBell currentUser={currentUser} customRole="dao-tao" />
           <div className="relative" data-user-menu>
             <div
               className="flex items-center gap-3 border-l pl-6 border-gray-300 cursor-pointer"
@@ -321,6 +317,38 @@ function PDLayout({ children }) {
                     </li>
                   </ul>
                 </div>
+              </li>
+
+              <li>
+                <NavLink
+                  to="/pdt/manage-attendance"
+                  className={({ isActive }) =>
+                    `flex items-center gap-3 p-3 rounded-lg transition ${
+                      isActive
+                        ? 'bg-indigo-50 text-indigo-600 font-bold'
+                        : 'text-gray-600 hover:bg-indigo-50 hover:text-indigo-600'
+                    }`
+                  }
+                >
+                  <i className="fas fa-clipboard-check w-5 text-center" />
+                  <span>Điểm danh & Đánh giá</span>
+                </NavLink>
+              </li>
+
+              <li>
+                <NavLink
+                  to="/pdt/manage-feedbacks"
+                  className={({ isActive }) =>
+                    `flex items-center gap-3 p-3 rounded-lg transition ${
+                      isActive
+                        ? 'bg-indigo-50 text-indigo-600 font-bold'
+                        : 'text-gray-600 hover:bg-indigo-50 hover:text-indigo-600'
+                    }`
+                  }
+                >
+                  <i className="fas fa-comment-dots w-5 text-center" />
+                  <span>Ý kiến & Phản hồi SV</span>
+                </NavLink>
               </li>
             </ul>
           </nav>

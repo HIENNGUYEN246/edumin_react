@@ -5,8 +5,8 @@ const assignmentAPI = {
     return fresh ? await apiClient.getAssignmentsFresh() : await apiClient.getAssignments();
   },
 
-  async saveAllAssignments(assignments) {
-    await apiClient.saveAssignmentsData(assignments);
+  async saveAllAssignments(assignments, options = {}) {
+    await apiClient.saveAssignmentsData(assignments, options);
     return assignments;
   },
 };

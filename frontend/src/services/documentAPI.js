@@ -5,8 +5,8 @@ const documentAPI = {
     return fresh ? await apiClient.getDocumentsFresh() : await apiClient.getDocuments();
   },
 
-  async saveAllDocuments(documents) {
-    await apiClient.saveDocumentsData(documents);
+  async saveAllDocuments(documents, options = {}) {
+    await apiClient.saveDocumentsData(documents, options);
     return documents;
   },
 };

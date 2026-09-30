@@ -8,6 +8,8 @@ import {
   syncDepartmentReferences,
   parseTeacherHeadInfo,
   formatTeacherCode,
+  isTeacherInDept,
+  findTeacherFromHeadString,
 } from '../utils/departmentUtils';
 import { fetchCoursesByDepartment } from '../utils/courseUtils';
 
@@ -132,23 +134,43 @@ function ManageDepartments() {
     setShowSuggestions(false);
   };
 
+  const currentDeptName = form.deptName.trim() || departments.find((d) => d.id === editDeptId)?.name || '';
+  const currentDeptId = form.deptId.trim() || editDeptId || '';
+
+  const deptTeachers = useMemo(() => {
+    if (!currentDeptName && !currentDeptId) return [];
+    return teachers.filter((t) => isTeacherInDept(t, currentDeptName, currentDeptId));
+  }, [teachers, currentDeptName, currentDeptId]);
+
   const handleHeadInput = (value) => {
     setForm((prev) => ({ ...prev, deptHead: value }));
-    if (!value.trim()) {
-      setSuggestions([]);
-      setShowSuggestions(false);
-      return;
-    }
-    const searchStr = value.toLowerCase();
-    const filtered = teachers.filter((t) => {
+    setFormErrors((prev) => ({ ...prev, deptHead: '' }));
+
+    const searchStr = value.toLowerCase().trim();
+    const filtered = deptTeachers.filter((t) => {
       const formattedId = formatTeacherCode(t.id);
       return (
-        (t.name || '').toLowerCase().includes(searchStr) ||
+        !searchStr ||
+        (t.name || t.hoTen || '').toLowerCase().includes(searchStr) ||
         formattedId.toLowerCase().includes(searchStr)
       );
     });
     setSuggestions(filtered);
-    setShowSuggestions(filtered.length > 0);
+    setShowSuggestions(true);
+  };
+
+  const handleHeadFocus = () => {
+    const searchStr = form.deptHead.toLowerCase().trim();
+    const filtered = deptTeachers.filter((t) => {
+      const formattedId = formatTeacherCode(t.id);
+      return (
+        !searchStr ||
+        (t.name || t.hoTen || '').toLowerCase().includes(searchStr) ||
+        formattedId.toLowerCase().includes(searchStr)
+      );
+    });
+    setSuggestions(filtered);
+    setShowSuggestions(true);
   };
 
   const selectTeacher = (name, fullId) => {
@@ -200,10 +222,6 @@ function ManageDepartments() {
     const errors = {};
     if (!idVal) errors.deptId = 'Vui lòng nhập mã khoa!';
     if (!nameVal) errors.deptName = 'Vui lòng nhập tên khoa!';
-    if (Object.keys(errors).length) {
-      setFormErrors(errors);
-      return;
-    }
 
     const isDuplicateId = depts.some((d) => d.id.toUpperCase() === idVal.toUpperCase() && d.id !== editDeptId);
     const isDuplicateName = depts.some(
@@ -211,8 +229,21 @@ function ManageDepartments() {
     );
     if (isDuplicateId) errors.deptId = 'Mã khoa đã tồn tại!';
     if (isDuplicateName) errors.deptName = 'Tên khoa đã tồn tại!';
+
+    if (headVal) {
+      const matchedTeacher = findTeacherFromHeadString(headVal, teachers);
+      if (!matchedTeacher) {
+        errors.deptHead = 'Không tìm thấy thông tin giảng viên!';
+      } else if (!isTeacherInDept(matchedTeacher, nameVal, idVal)) {
+        errors.deptHead = `Giảng viên "${matchedTeacher.name || matchedTeacher.hoTen}" thuộc khoa "${matchedTeacher.department || 'chưa có khoa'}", chỉ được làm Trưởng khoa của khoa đó!`;
+      }
+    }
+
     if (Object.keys(errors).length) {
       setFormErrors(errors);
+      if (errors.deptHead) {
+        showToast(errors.deptHead, 'error');
+      }
       return;
     }
 
@@ -535,19 +566,62 @@ function ManageDepartments() {
                 {formErrors.deptName && <p className="text-red-500 text-xs mt-1">{formErrors.deptName}</p>}
               </div>
               <div className="relative" ref={suggestionRef}>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">Trưởng Khoa</label>
-                <input type="text" value={form.deptHead} onChange={(e) => handleHeadInput(e.target.value)} placeholder="Tìm mã hoặc tên giảng viên..." className={`w-full p-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 ${formErrors.deptHead ? 'error-border' : ''}`} />
-                {showSuggestions && suggestions.length > 0 && (
-                  <div className="absolute w-full max-h-[200px] overflow-y-auto bg-white border border-gray-200 rounded-xl mt-1 shadow-lg z-[1000]">
-                    {suggestions.map((t) => {
-                      const teacherFullId = formatTeacherCode(t.id);
-                      return (
-                        <button key={t.id} type="button" className="w-full text-left px-4 py-2.5 border-b border-gray-100 last:border-none hover:bg-[#f0f7ff] transition" onClick={() => selectTeacher(t.name, teacherFullId)}>
-                          <div className="text-sm font-bold text-indigo-600">{teacherFullId}</div>
-                          <div className="text-xs text-gray-600">{t.name}</div>
-                        </button>
-                      );
-                    })}
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-sm font-semibold text-gray-700">Trưởng Khoa</label>
+                  {(form.deptName || form.deptId) && (
+                    <span className="text-[11px] text-indigo-600 font-medium">
+                      {deptTeachers.length > 0 ? `${deptTeachers.length} GV thuộc khoa` : 'Chưa có GV thuộc khoa'}
+                    </span>
+                  )}
+                </div>
+                <input
+                  type="text"
+                  value={form.deptHead}
+                  onFocus={handleHeadFocus}
+                  onChange={(e) => handleHeadInput(e.target.value)}
+                  placeholder={
+                    deptTeachers.length > 0
+                      ? 'Chọn hoặc tìm giảng viên thuộc khoa...'
+                      : 'Khoa này chưa có giảng viên thuộc khoa...'
+                  }
+                  className={`w-full p-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 ${formErrors.deptHead ? 'error-border' : ''}`}
+                />
+                <p className="text-[11px] text-gray-400 mt-1">
+                  * Chỉ giảng viên thuộc đúng khoa này mới được bổ nhiệm làm Trưởng khoa.
+                </p>
+                {showSuggestions && (
+                  <div className="absolute w-full max-h-[220px] overflow-y-auto bg-white border border-gray-200 rounded-xl mt-1 shadow-xl z-[1000]">
+                    {suggestions.length > 0 ? (
+                      suggestions.map((t) => {
+                        const teacherFullId = formatTeacherCode(t.id);
+                        const teacherName = t.name || t.hoTen || '';
+                        return (
+                          <button
+                            key={t.id}
+                            type="button"
+                            className="w-full text-left px-4 py-2.5 border-b border-gray-100 last:border-none hover:bg-indigo-50 transition flex items-center justify-between"
+                            onClick={() => selectTeacher(teacherName, teacherFullId)}
+                          >
+                            <div>
+                              <div className="text-sm font-bold text-indigo-600 flex items-center gap-2">
+                                <span>{teacherFullId}</span>
+                                <span className="text-gray-800 font-semibold">{teacherName}</span>
+                              </div>
+                              <div className="text-xs text-gray-500">Khoa: {t.department}</div>
+                            </div>
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-700">
+                              Đúng khoa
+                            </span>
+                          </button>
+                        );
+                      })
+                    ) : (
+                      <div className="p-3 text-xs text-amber-700 bg-amber-50 rounded-xl">
+                        {deptTeachers.length === 0
+                          ? 'Khoa này hiện chưa có giảng viên nào trong hệ thống. Vui lòng phân công giảng viên vào khoa này trước khi bổ nhiệm Trưởng khoa.'
+                          : `Không tìm thấy giảng viên thuộc khoa nào khớp với "${form.deptHead}".`}
+                      </div>
+                    )}
                   </div>
                 )}
                 {formErrors.deptHead && <p className="text-red-500 text-xs mt-1">{formErrors.deptHead}</p>}

@@ -3,7 +3,7 @@ import * as XLSX from 'xlsx';
 import Swal from 'sweetalert2';
 import PDLayout from '../layouts/PDLayout';
 import { fetchCourses } from '../utils/courseUtils';
-import { fetchDepartments } from '../utils/departmentUtils';
+import { fetchDepartments, isTeacherInDept } from '../utils/departmentUtils';
 import teacherAPI from '../services/teacherAPI';
 import studentAPI from '../services/studentAPI';
 import { CourseRegModals } from './courseReg/CourseRegModals';
@@ -74,8 +74,15 @@ function ManageCourseRegistrations() {
 
   const importRef = useRef(null);
   const lastOptimisticUpdateRef = useRef(0);
-  const today = useMemo(() => new Date().toISOString().split('T')[0], []);
-  const nowLocal = useMemo(() => new Date().toISOString().slice(0, 16), []);
+  const pad = (n) => String(n).padStart(2, '0');
+  const today = useMemo(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  }, []);
+  const nowLocal = useMemo(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }, []);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -133,10 +140,16 @@ function ManageCourseRegistrations() {
     });
   }, [sortedRegistrations, searchInput, filterDept, filterStatus]);
 
-  const deptTeachers = useMemo(
-    () => teachers.filter((t) => t.department === regDept),
-    [teachers, regDept]
+  const selectedDeptObj = useMemo(
+    () => departments.find((d) => d.name === regDept || d.id === regDept),
+    [departments, regDept]
   );
+
+  const deptTeachers = useMemo(() => {
+    if (!regDept) return [];
+    const matched = teachers.filter((t) => isTeacherInDept(t, regDept, selectedDeptObj?.id));
+    return matched.length > 0 ? matched : teachers;
+  }, [teachers, regDept, selectedDeptObj]);
 
   const openRegModal = () => {
     setShowRegModal(true);
@@ -166,7 +179,23 @@ function ManageCourseRegistrations() {
       Swal.fire('Lưu ý', 'Vui lòng chọn Khoa trước!', 'warning');
       return;
     }
-    const deptCourses = courses.filter((c) => c.department === regDept);
+    const clean = (str) =>
+      (str || '')
+        .toLowerCase()
+        .replace(/^(khoa|viện|bộ môn)\s+/i, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    const cleanReg = clean(regDept);
+    let deptCourses = courses.filter((c) => {
+      if (!c) return false;
+      if (c.department === regDept) return true;
+      if (selectedDeptObj?.id && (c.deptId === selectedDeptObj.id || c.department === selectedDeptObj.id)) return true;
+      if (clean(c.department) === cleanReg) return true;
+      return false;
+    });
+    if (deptCourses.length === 0) {
+      deptCourses = courses;
+    }
     setCourseChecklist(
       deptCourses.map((c) => ({
         id: c.id,
@@ -245,21 +274,16 @@ function ManageCourseRegistrations() {
     let regStart = regStartDate;
     let regEnd = regEndDate;
     if (regStart.length === 10) regStart += 'T00:00';
-    if (regEnd.length === 10) regEnd += 'T00:00';
+    if (regEnd.length === 10) regEnd += 'T23:59';
 
     const timestamp = Date.now();
     const newBatch = [];
 
     for (const course of selectedCourses) {
-      if (checkCourseExists(registrations, course.id)) {
-        Swal.fire('Lỗi', `Học phần ${course.name} (${course.id}) đã được mở lớp trước đó!`, 'error');
-        return;
-      }
-
       const conf = scheduleConfigs[course.id] || EMPTY_SCHEDULE_CONFIG();
       const teacherId = parseInt(conf.teacherId, 10);
-      const teacher = deptTeachers.find((t) => t.id === teacherId);
-      const teacherName = teacher?.name || '';
+      const teacher = teachers.find((t) => Number(t.id) === Number(teacherId) || String(t.id) === String(conf.teacherId));
+      const teacherName = teacher?.hoTen || teacher?.name || '';
       const room = (conf.room || '').trim().toUpperCase();
       const dayKeys = Object.keys(conf.days || {});
 
@@ -269,6 +293,19 @@ function ManageCourseRegistrations() {
       }
 
       const schedules = buildSchedulesFromConfig(course.id);
+
+      const isExactDuplicate = registrations.some(
+        (r) =>
+          String(r.courseId).toUpperCase() === String(course.id).toUpperCase() &&
+          Number(r.teacherId) === Number(teacherId) &&
+          String(r.room).toUpperCase() === room &&
+          JSON.stringify(r.schedules || []) === JSON.stringify(schedules)
+      );
+      if (isExactDuplicate) {
+        Swal.fire('Cảnh báo', `Lớp học phần ${course.name} (${course.id}) với cùng giảng viên, phòng và lịch học đã tồn tại!`, 'warning');
+        return;
+      }
+
       const conflictMsg =
         checkConflict(registrations, teacherId, room, schedules) ||
         checkInternalConflict(teacherId, room, schedules, newBatch);
@@ -368,7 +405,20 @@ function ManageCourseRegistrations() {
         for (const [index, row] of jsonData.entries()) {
           const courseId = row.MaHP ? row.MaHP.toString().trim().toUpperCase() : '';
           if (!courseId) continue;
-          if (checkCourseExists(nextRegs, courseId)) {
+
+          let teacherId = row.MaGV ? row.MaGV.toString().trim() : '0';
+          if (teacherId.includes('-')) teacherId = parseInt(teacherId.split('-').pop(), 10);
+          else teacherId = parseInt(teacherId, 10);
+
+          const room = row.Phong ? row.Phong.toString().toUpperCase() : 'TBA';
+
+          const isExactDuplicate = nextRegs.some(
+            (r) =>
+              String(r.courseId).toUpperCase() === courseId &&
+              Number(r.teacherId) === Number(teacherId) &&
+              String(r.room).toUpperCase() === room
+          );
+          if (isExactDuplicate) {
             skippedCount += 1;
             continue;
           }
@@ -402,11 +452,6 @@ function ManageCourseRegistrations() {
           const creditsValue = parseNumeric(row.TinChi, originalCourse?.credits ?? 0);
           const feeValue = parseNumeric(row.HocPhi, originalCourse?.fee ?? 0);
 
-          let teacherId = row.MaGV ? row.MaGV.toString().trim() : '0';
-          if (teacherId.includes('-')) teacherId = parseInt(teacherId.split('-').pop(), 10);
-          else teacherId = parseInt(teacherId, 10);
-
-          const room = row.Phong ? row.Phong.toString().toUpperCase() : 'TBA';
           if (checkConflict(nextRegs, teacherId, room, schedules)) continue;
 
           nextRegs.push({
@@ -433,12 +478,12 @@ function ManageCourseRegistrations() {
         lastOptimisticUpdateRef.current = Date.now();
         setRegistrations(nextRegs);
         let msg = `Đã import thành công ${count} lớp học phần!`;
-        if (skippedCount > 0) msg += ` (Bỏ qua ${skippedCount} học phần đã được mở trước đó)`;
+        if (skippedCount > 0) msg += ` (Bỏ qua ${skippedCount} học phần trùng lặp)`;
         Swal.fire('Hoàn tất', msg, 'success');
         setSaving(true);
         
         // Save to API in background
-        saveOpenRegistrations(nextRegs)
+        saveOpenRegistrations(nextRegs, { forceWipe: nextRegs.length === 0 })
           .catch((err) => {
             console.error(err);
             setRegistrations(registrations); // Rollback on error
@@ -458,22 +503,38 @@ function ManageCourseRegistrations() {
   };
 
   const viewDetail = (id) => {
-    const reg = registrations.find((r) => r.id === id);
+    const reg = registrations.find((r) => String(r.id) === String(id));
     if (reg) {
       setDetailReg(reg);
       setShowDetailModal(true);
     }
   };
 
-  const viewStudentList = (courseId) => {
-    const course = registrations.find((r) => r.courseId === courseId);
-    setStudentListCourse({ courseId, courseName: course?.courseName });
+  const viewStudentList = (courseOrReg) => {
+    const reg = typeof courseOrReg === 'object' && courseOrReg !== null
+      ? courseOrReg
+      : registrations.find((r) => String(r.id) === String(courseOrReg) || String(r.courseId) === String(courseOrReg));
+    setStudentListCourse({
+      courseId: reg?.courseId || courseOrReg,
+      courseName: reg?.courseName,
+      regId: reg?.id,
+    });
     setShowStudentListModal(true);
   };
 
-  const signedUpForCourse = enrollments.filter(
-    (sr) => studentListCourse && sr.courseId === studentListCourse.courseId
-  );
+  const signedUpForCourse = useMemo(() => {
+    if (!studentListCourse) return [];
+    return enrollments.filter((sr) => {
+      if (studentListCourse.regId && String(sr.regId) === String(studentListCourse.regId)) {
+        return true;
+      }
+      if (!sr.regId && studentListCourse.courseId) {
+        if (sr.courseId && String(sr.courseId).toUpperCase() === String(studentListCourse.courseId).toUpperCase()) return true;
+        if (sr.courseRef && typeof sr.courseRef === 'object' && sr.courseRef.id && String(sr.courseRef.id).toUpperCase() === String(studentListCourse.courseId).toUpperCase()) return true;
+      }
+      return false;
+    });
+  }, [enrollments, studentListCourse]);
 
   const confirmDeleteReg = (id) => {
     setIdToDelete(id);
@@ -492,7 +553,7 @@ function ManageCourseRegistrations() {
   const executeDelete = () => {
     if (idToDelete == null) return;
     
-    const updated = registrations.filter((r) => r.id !== idToDelete);
+    const updated = registrations.filter((r) => String(r.id) !== String(idToDelete));
     
     // Optimistic update: update state immediately
     lastOptimisticUpdateRef.current = Date.now();
@@ -501,7 +562,7 @@ function ManageCourseRegistrations() {
     setSaving(true);
     
     // Save to API in background
-    saveOpenRegistrations(updated)
+    saveOpenRegistrations(updated, { forceWipe: updated.length === 0 })
       .catch((err) => {
         console.error(err);
         setRegistrations(registrations); // Rollback on error
@@ -638,7 +699,7 @@ function ManageCourseRegistrations() {
                           <button type="button" onClick={() => viewDetail(reg.id)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg" title="Xem lịch học">
                             <i className="fas fa-eye" />
                           </button>
-                          <button type="button" onClick={() => viewStudentList(reg.courseId)} className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg" title="Xem sinh viên đăng ký">
+                          <button type="button" onClick={() => viewStudentList(reg)} className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg" title="Xem sinh viên đăng ký">
                             <i className="fas fa-users" />
                           </button>
                           <button type="button" onClick={() => confirmDeleteReg(reg.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg">

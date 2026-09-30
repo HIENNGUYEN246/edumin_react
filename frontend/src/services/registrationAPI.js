@@ -7,8 +7,8 @@ const registrationAPI = {
       : await apiClient.getOpenRegistrations();
   },
 
-  async saveOpenRegistrations(registrations) {
-    await apiClient.saveOpenRegistrationsData(registrations);
+  async saveOpenRegistrations(registrations, options = {}) {
+    await apiClient.saveOpenRegistrationsData(registrations, options);
     return registrations;
   },
 
@@ -18,8 +18,8 @@ const registrationAPI = {
       : await apiClient.getStudentRegistrations();
   },
 
-  async saveStudentRegistrations(enrollments) {
-    await apiClient.saveStudentRegistrationsData(enrollments);
+  async saveStudentRegistrations(enrollments, options = {}) {
+    await apiClient.saveStudentRegistrationsData(enrollments, options);
     return enrollments;
   },
 };

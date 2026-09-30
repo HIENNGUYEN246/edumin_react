@@ -44,7 +44,10 @@ export function normalizeStudent(student) {
 }
 
 export function formatStudentId(id) {
-  return `SV-${String(id).padStart(3, '0')}`;
+  if (id == null || id === '') return '---';
+  const str = String(id).trim();
+  if (str.toUpperCase().startsWith('SV-')) return str.toUpperCase();
+  return `SV-${str.padStart(3, '0')}`;
 }
 
 export function getMaxDobForStudent() {

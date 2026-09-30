@@ -3,6 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import apiClient from '../services/api';
 import teacherAPI from '../services/teacherAPI';
 import { useTeacherLockMonitor } from '../hooks/useTeacherLockMonitor';
+import NotificationBell from '../components/NotificationBell';
 
 export default function GVLayout({ children }) {
   const navigate = useNavigate();
@@ -184,10 +185,7 @@ function GVShell({
           <span className="text-2xl font-bold text-indigo-900 uppercase">EDUMIN</span>
         </div>
         <div className="flex items-center gap-6">
-          <div className="relative">
-            <i className="far fa-bell text-gray-600 text-xl" />
-            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] rounded-full h-4 w-4 flex items-center justify-center">5</span>
-          </div>
+          <NotificationBell currentUser={currentUser} customRole="giao-vien" />
           <div className="relative">
             <div
               className="flex items-center gap-3 border-l pl-6 border-gray-300 cursor-pointer"
@@ -299,6 +297,19 @@ function GVShell({
                 >
                   <i className="fas fa-history w-5 text-center" />
                   <span>Thời khoá biểu</span>
+                </NavLink>
+              </li>
+              <li>
+                <NavLink
+                  to="/gv/attendance"
+                  className={({ isActive }) =>
+                    `flex items-center gap-3 p-3 rounded-lg transition-all ${
+                      isActive ? 'bg-indigo-50 text-indigo-600 font-bold' : 'text-gray-600 hover:bg-indigo-50 hover:text-indigo-600'
+                    }`
+                  }
+                >
+                  <i className="fas fa-user-check w-5 text-center" />
+                  <span>Điểm danh & Đánh giá</span>
                 </NavLink>
               </li>
             </ul>

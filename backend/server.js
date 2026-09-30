@@ -15,7 +15,10 @@ import {
   StudentRegistration,
   Assignment,
   Document,
+  Attendance,
 } from './models/index.js';
+import attendanceRoutes from './routes/attendanceRoutes.js';
+import feedbackRoutes from './routes/feedbackRoutes.js';
 
 dotenv.config();
 
@@ -29,9 +32,12 @@ if (!MONGO_URI) {
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 app.use('/api/auth', authRoutes);
+app.use('/api/attendance', attendanceRoutes);
+app.use('/api/feedbacks', feedbackRoutes);
 
 const collections = [
   { path: 'users', model: User },
@@ -43,6 +49,7 @@ const collections = [
   { path: 'student-registrations', model: StudentRegistration },
   { path: 'assignments', model: Assignment },
   { path: 'documents', model: Document },
+  { path: 'attendances', model: Attendance },
 ];
 
 collections.forEach(({ path, model }) => {
@@ -63,6 +70,14 @@ mongoose
     process.exit(1);
   });
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`Edumin backend listening on http://localhost:${PORT}`);
+});
+
+server.on('error', (error) => {
+  if (error.code === 'EADDRINUSE') {
+    console.error(`Port ${PORT} is already in use. Please check running node processes or update PORT in backend/.env`);
+  } else {
+    console.error('Server error:', error);
+  }
 });

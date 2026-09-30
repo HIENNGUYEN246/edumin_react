@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import GVLayout from '../layouts/GVLayout';
 import teacherAPI from '../services/teacherAPI';
 import studentAPI from '../services/studentAPI';
+import { isClassOfTeacher } from '../utils/teacherUtils';
 import {
   fetchOpenRegistrations,
   fetchStudentRegistrations,
@@ -16,6 +17,7 @@ export default function TeacherClassList() {
   const [openRegs, setOpenRegs] = useState([]);
   const [studentRegs, setStudentRegs] = useState([]);
   const [students, setStudents] = useState([]);
+  const [currentTeacher, setCurrentTeacher] = useState(null);
   const [myTeacherId, setMyTeacherId] = useState(null);
   const [selectedRegId, setSelectedRegId] = useState(() => searchParams.get('regId') || '');
   const [classSearch, setClassSearch] = useState('');
@@ -28,7 +30,8 @@ export default function TeacherClassList() {
       try {
         const user = JSON.parse(sessionStorage.getItem('currentUser')) || {};
         const teachers = await teacherAPI.getAllTeachers({ fresh: true });
-        const teacher = teachers.find((t) => t.email?.toLowerCase() === user.email?.toLowerCase());
+        const teacher = teachers.find((t) => t.email?.toLowerCase() === user.email?.toLowerCase() || (user.id != null && t.id === Number(user.id)));
+        setCurrentTeacher(teacher || null);
         setMyTeacherId(teacher?.id ?? null);
         const [regs, enrollments, studs] = await Promise.all([
           fetchOpenRegistrations({ fresh: true }),
@@ -54,23 +57,97 @@ export default function TeacherClassList() {
     };
   }, []);
 
-  const myClasses = useMemo(() => (
-    myTeacherId == null ? [] : openRegs.filter((item) => String(item.teacherId) === String(myTeacherId))
-  ), [openRegs, myTeacherId]);
+  const myClasses = useMemo(() => {
+    if (!currentTeacher && myTeacherId == null) return [];
+    return openRegs.filter((item) => {
+      if (currentTeacher && isClassOfTeacher(item, currentTeacher)) return true;
+      if (myTeacherId != null && String(item.teacherId) === String(myTeacherId)) return true;
+      return false;
+    });
+  }, [openRegs, currentTeacher, myTeacherId]);
+
+  const getStudentCount = useCallback((registrationOrClass) => {
+    if (!registrationOrClass) return 0;
+    const targetRegId = typeof registrationOrClass === 'object' ? String(registrationOrClass.id) : String(registrationOrClass);
+    const targetCourseId = typeof registrationOrClass === 'object' ? String(registrationOrClass.courseId || '') : '';
+
+    return studentRegs.filter((item) => {
+      const matchesReg = String(item.regId) === targetRegId;
+      const matchesCourse = Boolean(targetCourseId && (
+        String(item.courseId) === targetCourseId ||
+        (item.courseRef && typeof item.courseRef === 'object' && String(item.courseRef.id) === targetCourseId)
+      ));
+      return matchesReg || matchesCourse;
+    }).length;
+  }, [studentRegs]);
 
   const enrolledList = useMemo(() => {
     if (!selectedRegId) return [];
+    const currentClass = openRegs.find((item) => String(item.id) === String(selectedRegId) || String(item.courseId) === String(selectedRegId));
+    const targetRegId = currentClass ? String(currentClass.id) : String(selectedRegId);
+    const targetCourseId = currentClass ? String(currentClass.courseId) : '';
+
     return studentRegs
-      .filter((item) => String(item.regId) === String(selectedRegId))
-      .map((item) => ({ enrollment: item, student: students.find((student) => String(student.id) === String(item.studentId)) }))
-      .filter((item) => item.student);
-  }, [selectedRegId, studentRegs, students]);
+      .filter((item) => {
+        const matchesReg = String(item.regId) === targetRegId || String(item.regId) === String(selectedRegId);
+        const matchesCourse = Boolean(targetCourseId && (
+          String(item.courseId) === targetCourseId ||
+          (item.courseRef && typeof item.courseRef === 'object' && String(item.courseRef.id) === targetCourseId)
+        ));
+        return matchesReg || matchesCourse;
+      })
+      .map((item) => {
+        let student = null;
+        if (item.studentRef && typeof item.studentRef === 'object') {
+          student = {
+            id: item.studentRef.id,
+            name: item.studentRef.hoTen || item.studentRef.name,
+            gender: item.studentRef.gender,
+            email: item.studentRef.email,
+            department: item.studentRef.department,
+            dob: item.studentRef.dob,
+            avatar: item.studentRef.avatar,
+          };
+        }
+        if (!student || !student.id) {
+          const s = students.find((stud) =>
+            String(stud.id) === String(item.studentId) ||
+            (stud._id && item.studentRef && String(stud._id) === String(typeof item.studentRef === 'object' ? item.studentRef._id : item.studentRef)) ||
+            (stud.email && item.studentRef && typeof item.studentRef === 'object' && stud.email === item.studentRef.email)
+          );
+          if (s) {
+            student = {
+              id: s.id,
+              name: s.hoTen || s.name,
+              gender: s.gender,
+              email: s.email,
+              department: s.department,
+              dob: s.dob,
+              avatar: s.avatar,
+            };
+          }
+        }
+        if (!student && item.studentId) {
+          student = {
+            id: item.studentId,
+            name: item.studentName || 'Sinh viên',
+            gender: 'Nam',
+            email: 'N/A',
+            department: item.department || '',
+            dob: '',
+            avatar: '',
+          };
+        }
+        return { enrollment: item, student };
+      })
+      .filter((item) => item.student != null);
+  }, [selectedRegId, openRegs, studentRegs, students]);
 
   const filteredClasses = useMemo(() => {
     const query = classSearch.trim().toLowerCase();
     const result = myClasses.filter((item) => {
       const matchesSearch = !query || `${item.courseId} ${item.courseName || ''}`.toLowerCase().includes(query);
-      const studentCount = studentRegs.filter((enrollment) => String(enrollment.regId) === String(item.id)).length;
+      const studentCount = getStudentCount(item);
       const matchesFilter = classFilter === 'all'
         || (classFilter === 'withStudents' && studentCount > 0)
         || (classFilter === 'withoutStudents' && studentCount === 0);
@@ -81,19 +158,17 @@ export default function TeacherClassList() {
       if (classSort === 'name') return String(first.courseName || '').localeCompare(String(second.courseName || ''), 'vi');
       if (classSort === 'code') return String(first.courseId || '').localeCompare(String(second.courseId || ''), 'vi');
       if (classSort === 'students') {
-        const firstCount = studentRegs.filter((item) => String(item.regId) === String(first.id)).length;
-        const secondCount = studentRegs.filter((item) => String(item.regId) === String(second.id)).length;
+        const firstCount = getStudentCount(first);
+        const secondCount = getStudentCount(second);
         return secondCount - firstCount;
       }
       return 0;
     });
-  }, [classFilter, classSearch, classSort, myClasses, studentRegs]);
+  }, [classFilter, classSearch, classSort, myClasses, getStudentCount]);
 
   useEffect(() => {
     setSelectedRegId(searchParams.get('regId') || '');
   }, [searchParams]);
-
-  const getStudentCount = (registrationId) => studentRegs.filter((item) => String(item.regId) === String(registrationId)).length;
 
   function showToast(message, type = 'error') {
     setToasts((previous) => [...previous, { id: Date.now().toString(), message, type }]);
@@ -129,7 +204,32 @@ export default function TeacherClassList() {
                 <thead className="bg-gray-50 text-[11px] uppercase tracking-wider text-gray-400"><tr><th className="px-5 py-4 w-16">STT</th><th className="px-5 py-4">Mã học phần</th><th className="px-5 py-4">Tên học phần</th><th className="px-5 py-4 text-center">Sinh viên</th><th className="px-5 py-4 text-right">Trạng thái</th></tr></thead>
                 <tbody className="divide-y divide-gray-50 text-sm">
                   {filteredClasses.map((item, index) => {
-                    return <tr key={item.id} onClick={() => navigate(`/gv/classes?regId=${encodeURIComponent(item.id)}`)} className="cursor-pointer transition-colors hover:bg-indigo-50/40"><td className="px-5 py-4 text-gray-400">{index + 1}</td><td className="px-5 py-4"><span className="font-bold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg">{item.courseId}</span></td><td className="px-5 py-4 font-bold text-gray-800">{item.courseName || 'Tên học phần chưa rõ'}</td><td className="px-5 py-4 text-center font-bold text-gray-700">{getStudentCount(item.id)}<span className="text-xs text-gray-400 ml-1">SV</span></td><td className="px-5 py-4 text-right"><span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gray-100 text-gray-500 text-xs font-bold"><i className="fas fa-arrow-right text-[10px]" /> Xem sinh viên</span></td></tr>;
+                    return (
+                      <tr key={item.id} onClick={() => navigate(`/gv/classes?regId=${encodeURIComponent(item.id)}`)} className="cursor-pointer transition-colors hover:bg-indigo-50/40">
+                        <td className="px-5 py-4 text-gray-400">{index + 1}</td>
+                        <td className="px-5 py-4"><span className="font-bold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg">{item.courseId}</span></td>
+                        <td className="px-5 py-4 font-bold text-gray-800">{item.courseName || 'Tên học phần chưa rõ'}</td>
+                        <td className="px-5 py-4 text-center font-bold text-gray-700">{getStudentCount(item)}<span className="text-xs text-gray-400 ml-1">SV</span></td>
+                        <td className="px-5 py-4 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/gv/attendance?regId=${encodeURIComponent(item.id)}`);
+                              }}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-xs font-bold transition shadow-sm"
+                              title="Điểm danh & Đánh giá lớp này"
+                            >
+                              <i className="fas fa-user-check text-[11px]" /> Điểm danh
+                            </button>
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-100 text-gray-600 text-xs font-bold">
+                              <i className="fas fa-users text-[10px]" /> Danh sách
+                            </span>
+                          </div>
+                        </td>
+                      </tr>
+                    );
                   })}
                   {!filteredClasses.length && <tr><td colSpan="5" className="px-5 py-12 text-center text-gray-400">Không tìm thấy lớp học phần phù hợp.</td></tr>}
                 </tbody>
@@ -140,7 +240,23 @@ export default function TeacherClassList() {
         ) : (
           <div className="mb-6">
             <button type="button" onClick={() => navigate('/gv/classes', { replace: true })} className="group inline-flex items-center gap-2.5 text-sm font-bold text-gray-600 hover:text-indigo-600 transition mb-5"><span className="w-8 h-8 rounded-full border border-gray-200 bg-white flex items-center justify-center shadow-sm group-hover:border-indigo-200 group-hover:bg-indigo-50 transition"><i className="fas fa-arrow-left text-xs" /></span><span>Quay lại danh sách lớp</span></button>
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"><div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between"><div><p className="text-[10px] uppercase tracking-[0.2em] text-indigo-500 font-bold">Danh sách sinh viên</p><h2 className="text-xl font-bold text-gray-800 mt-1">{myClasses.find((item) => String(item.id) === String(selectedRegId))?.courseName || 'Lớp học phần'}</h2></div><div className="bg-indigo-50 text-indigo-700 px-3 py-2 rounded-lg text-sm font-bold">{enrolledList.length} sinh viên</div></div><div className="overflow-x-auto"><table className="w-full min-w-[900px] text-left custom-table"><thead><tr><th className="p-4 text-center w-16">STT</th><th className="p-4">Mã sinh viên</th><th className="p-4">Họ và tên</th><th className="p-4">Giới tính</th><th className="p-4">Email</th><th className="p-4">Khoa</th><th className="p-4">Ngày sinh</th><th className="p-4 text-right">Trạng thái</th></tr></thead><tbody className="divide-y divide-gray-50 text-sm text-gray-600">{enrolledList.map((item, index) => { const student = item.student; return <tr key={student.id} className="hover:bg-gray-50 transition border-b border-gray-50"><td className="p-4 text-center font-medium text-gray-400">{index + 1}</td><td className="p-4 font-bold text-indigo-600">{`SV-${String(student.id).padStart(3, '0')}`}</td><td className="p-4"><div className="flex items-center gap-3"><img src={student.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(student.name)}`} alt="avatar" className="w-8 h-8 rounded-full object-cover" /><span className="font-bold text-gray-700">{student.name}</span></div></td><td className="p-4">{student.gender || 'Nam'}</td><td className="p-4">{student.email || 'N/A'}</td><td className="p-4">{student.department || 'N/A'}</td><td className="p-4 text-gray-500">{student.dob || ''}</td><td className="p-4 text-right"><span className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase bg-green-100 text-green-600">Đang học</span></td></tr>; })}{enrolledList.length === 0 && <tr><td colSpan={8} className="p-8 text-center text-gray-400">Không có sinh viên đăng ký cho học phần này.</td></tr>}</tbody></table></div></div>
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+              <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-3">
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-indigo-500 font-bold">Danh sách sinh viên</p>
+                  <h2 className="text-xl font-bold text-gray-800 mt-1">{openRegs.find((item) => String(item.id) === String(selectedRegId) || String(item.courseId) === String(selectedRegId))?.courseName || 'Lớp học phần'}</h2>
+                </div>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/gv/attendance?regId=${encodeURIComponent(selectedRegId)}`)}
+                    className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-md shadow-emerald-200 transition"
+                  >
+                    <i className="fas fa-user-check" /> Điểm danh & Đánh giá lớp này
+                  </button>
+                  <div className="bg-indigo-50 text-indigo-700 px-3 py-2 rounded-lg text-sm font-bold">{enrolledList.length} sinh viên</div>
+                </div>
+              </div><div className="overflow-x-auto"><table className="w-full min-w-[900px] text-left custom-table"><thead><tr><th className="p-4 text-center w-16">STT</th><th className="p-4">Mã sinh viên</th><th className="p-4">Họ và tên</th><th className="p-4">Giới tính</th><th className="p-4">Email</th><th className="p-4">Khoa</th><th className="p-4">Ngày sinh</th><th className="p-4 text-right">Trạng thái</th></tr></thead><tbody className="divide-y divide-gray-50 text-sm text-gray-600">{enrolledList.map((item, index) => { const student = item.student; return <tr key={`${student.id || index}-${item.enrollment?.regId || index}`} className="hover:bg-gray-50 transition border-b border-gray-50"><td className="p-4 text-center font-medium text-gray-400">{index + 1}</td><td className="p-4 font-bold text-indigo-600">{`SV-${String(student.id).padStart(3, '0')}`}</td><td className="p-4"><div className="flex items-center gap-3"><img src={student.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(student.name)}`} alt="avatar" className="w-8 h-8 rounded-full object-cover" /><span className="font-bold text-gray-700">{student.name}</span></div></td><td className="p-4">{student.gender || 'Nam'}</td><td className="p-4">{student.email || 'N/A'}</td><td className="p-4">{student.department || 'N/A'}</td><td className="p-4 text-gray-500">{student.dob || ''}</td><td className="p-4 text-right"><span className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase bg-green-100 text-green-600">Đang học</span></td></tr>; })}{enrolledList.length === 0 && <tr><td colSpan={8} className="p-8 text-center text-gray-400">Không có sinh viên đăng ký cho học phần này.</td></tr>}</tbody></table></div></div>
           </div>
         )}
 

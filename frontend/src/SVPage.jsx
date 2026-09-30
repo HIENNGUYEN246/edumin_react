@@ -1,7 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
+import Swal from 'sweetalert2';
 import apiClient from './services/api';
 import studentAPI from './services/studentAPI';
+import registrationAPI from './services/registrationAPI';
+import teacherAPI from './services/teacherAPI';
+import feedbackAPI from './services/feedbackAPI';
+import NotificationBell from './components/NotificationBell';
 import { useStudentLockMonitor } from './hooks/useStudentLockMonitor';
 
 const SVPage = () => {
@@ -26,7 +31,19 @@ const SVPage = () => {
     confirmPassword: false
   });
   const [passwordErrors, setPasswordErrors] = useState({});
+
+  // Feedback States
   const [feedbackText, setFeedbackText] = useState('');
+  const [enrolledClasses, setEnrolledClasses] = useState([]);
+  const [teachersList, setTeachersList] = useState([]);
+  const [selectedClassId, setSelectedClassId] = useState('');
+  const [feedbackRating, setFeedbackRating] = useState(5);
+  const [feedbackQuality, setFeedbackQuality] = useState('Tốt');
+  const [feedbackAnonymous, setFeedbackAnonymous] = useState(false);
+  const [submittingFeedback, setSubmittingFeedback] = useState(false);
+  const [myFeedbacks, setMyFeedbacks] = useState([]);
+  const [showFeedbackHistory, setShowFeedbackHistory] = useState(false);
+
   const { showLockModal, lockReason, handleLogoutToLogin } = useStudentLockMonitor(currentUser);
 
   useEffect(() => {
@@ -60,6 +77,76 @@ const SVPage = () => {
 
     syncProfile();
   }, [currentUser?.email]);
+
+  const loadStudentClassesAndFeedbacks = useCallback(async () => {
+    try {
+      const studentId = studentInfo?.id ?? currentUser?.id ?? '';
+      const email = (studentInfo?.email ?? currentUser?.email ?? '').trim().toLowerCase();
+
+      const [openRegs, studentRegs, teachers, allFeedbacks] = await Promise.all([
+        registrationAPI.getOpenRegistrations({ fresh: true }),
+        registrationAPI.getStudentRegistrations({ fresh: true }),
+        teacherAPI.getAllTeachers({ fresh: true }),
+        feedbackAPI.getFeedbacks(),
+      ]);
+
+      const tList = Array.isArray(teachers) ? teachers : [];
+      setTeachersList(tList);
+
+      // Filter enrollments for this student
+      const myRegs = (Array.isArray(studentRegs) ? studentRegs : []).filter((e) => {
+        if (!e) return false;
+        if (studentId && String(e.studentId) === String(studentId)) return true;
+        if (email && (e.email || e.studentEmail) && String(e.email || e.studentEmail).trim().toLowerCase() === email) return true;
+        if (e.studentRef && typeof e.studentRef === 'object' && studentId && String(e.studentRef.id) === String(studentId)) return true;
+        return false;
+      });
+
+      const classes = [];
+      const seen = new Set();
+      myRegs.forEach((e) => {
+        const matched = (Array.isArray(openRegs) ? openRegs : []).find(
+          (o) => String(o.id) === String(e.regId) || (e.courseId && String(o.courseId) === String(e.courseId))
+        );
+        const regId = matched ? String(matched.id) : String(e.regId || e.courseId);
+        if (seen.has(regId)) return;
+        seen.add(regId);
+
+        classes.push({
+          regId,
+          courseId: matched?.courseId || e.courseId || regId,
+          courseName: matched?.courseName || e.courseName || 'Học phần',
+          teacher: matched?.teacher || e.teacher || 'Chưa phân công',
+          teacherId: matched?.teacherId || e.teacherId || null,
+        });
+      });
+
+      setEnrolledClasses(classes);
+      if (classes.length > 0 && !selectedClassId) {
+        setSelectedClassId(classes[0].regId);
+      } else if (!selectedClassId && tList.length > 0) {
+        setSelectedClassId(`TCH_${tList[0].id || tList[0]._id}`);
+      }
+
+      // Filter feedbacks for this student
+      const userFbs = (Array.isArray(allFeedbacks) ? allFeedbacks : []).filter(
+        (f) => (studentId && String(f.studentId) === String(studentId)) ||
+               (email && f.studentEmail && f.studentEmail.toLowerCase() === email)
+      );
+      setMyFeedbacks(userFbs);
+    } catch (err) {
+      console.error('Lỗi khi tải thông tin học phần/phản hồi của sinh viên:', err);
+    }
+  }, [studentInfo?.id, studentInfo?.email, currentUser?.id, currentUser?.email, selectedClassId]);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    loadStudentClassesAndFeedbacks();
+
+    const onFeedbackUpdated = () => loadStudentClassesAndFeedbacks();
+    window.addEventListener('edumin_feedback_updated', onFeedbackUpdated);
+    return () => window.removeEventListener('edumin_feedback_updated', onFeedbackUpdated);
+  }, [currentUser, loadStudentClassesAndFeedbacks]);
 
   const padID = (id) => {
     return "SV-" + String(id).padStart(3, '0');
@@ -175,13 +262,84 @@ const SVPage = () => {
     }
   };
 
-  const submitFeedback = () => {
+  const submitFeedback = async () => {
     if (!feedbackText.trim()) {
-      alert('Vui lòng nhập nội dung đóng góp của bạn');
+      Swal.fire({
+        icon: 'warning',
+        title: 'Chưa nhập nội dung',
+        text: 'Vui lòng nhập nội dung cảm nghĩ hoặc đóng góp ý kiến của bạn!',
+      });
       return;
     }
-    alert('Cảm ơn bạn! Phản hồi của bạn đã được ghi nhận vào hệ thống.');
-    setFeedbackText('');
+
+    setSubmittingFeedback(true);
+    try {
+      const studentId = studentInfo?.id ?? currentUser?.id ?? 0;
+      const sName = studentInfo?.name || studentInfo?.hoTen || currentUser?.name || currentUser?.hoTen || 'Sinh viên';
+      const sEmail = studentInfo?.email || currentUser?.email || '';
+      const sAvatar = studentInfo?.avatar || currentUser?.avatar || '';
+
+      // Find target class or teacher
+      let targetTeacherId = null;
+      let targetTeacherName = 'Giảng viên';
+      let targetCourseId = '';
+      let targetCourseName = '';
+      let targetRegId = '';
+
+      const matchedClass = enrolledClasses.find((c) => String(c.regId) === String(selectedClassId));
+      if (matchedClass) {
+        targetTeacherId = matchedClass.teacherId;
+        targetTeacherName = matchedClass.teacher;
+        targetCourseId = matchedClass.courseId;
+        targetCourseName = matchedClass.courseName;
+        targetRegId = matchedClass.regId;
+      } else {
+        const tchIdStr = selectedClassId.replace('TCH_', '');
+        const matchedTch = teachersList.find((t) => String(t.id || t._id) === tchIdStr);
+        if (matchedTch) {
+          targetTeacherId = matchedTch.id;
+          targetTeacherName = matchedTch.hoTen || matchedTch.name;
+        }
+      }
+
+      const payload = {
+        studentId,
+        studentName: sName,
+        studentEmail: sEmail,
+        studentAvatar: sAvatar,
+        teacherId: targetTeacherId,
+        teacherName: targetTeacherName,
+        courseId: targetCourseId,
+        courseName: targetCourseName,
+        regId: targetRegId,
+        rating: feedbackRating,
+        courseQuality: feedbackQuality,
+        feedbackText: feedbackText.trim(),
+        isAnonymous: feedbackAnonymous,
+      };
+
+      await feedbackAPI.submitFeedback(payload);
+
+      Swal.fire({
+        icon: 'success',
+        title: 'Gửi thành công!',
+        text: 'Cảm ơn bạn! Phản hồi của bạn đã được gửi tới Giảng viên và Nhà trường.',
+        timer: 2000,
+        showConfirmButton: false,
+      });
+
+      setFeedbackText('');
+      loadStudentClassesAndFeedbacks();
+    } catch (err) {
+      console.error('Lỗi gửi phản hồi:', err);
+      Swal.fire({
+        icon: 'error',
+        title: 'Lỗi',
+        text: 'Không thể gửi phản hồi. Vui lòng thử lại.',
+      });
+    } finally {
+      setSubmittingFeedback(false);
+    }
   };
 
   if (!currentUser) return null;
@@ -220,10 +378,7 @@ const SVPage = () => {
         </div>
 
         <div className="flex items-center gap-6">
-          <div className="relative">
-            <i className="far fa-bell text-gray-600 text-xl"></i>
-            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] rounded-full h-4 w-4 flex items-center justify-center">3</span>
-          </div>
+          <NotificationBell currentUser={currentUser} customRole="sinh-vien" />
 
           <div className="relative">
             <div className="flex items-center gap-3 border-l pl-6 border-gray-300 cursor-pointer" onClick={toggleUserDropdown}>
@@ -321,6 +476,18 @@ const SVPage = () => {
                   <i className="fas fa-layer-group w-5 text-center"></i><span>Đăng ký học phần</span>
                 </NavLink>
               </li>
+              <li>
+                <NavLink
+                  to="/sv/attendance"
+                  className={({ isActive }) =>
+                    `flex items-center gap-3 p-3 rounded-lg transition-all ${
+                      isActive ? 'bg-indigo-50 text-indigo-600 font-bold' : 'text-gray-600 hover:bg-gray-50 hover:text-indigo-600'
+                    }`
+                  }
+                >
+                  <i className="fas fa-user-check w-5 text-center"></i><span>Điểm danh học phần</span>
+                </NavLink>
+              </li>
             </ul>
           </nav>
         </aside>
@@ -409,45 +576,263 @@ const SVPage = () => {
 
             <div className="space-y-8">
               {/* Feedback Giảng viên */}
-              <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-gray-50">
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="w-10 h-10 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-600">
-                    <i className="fas fa-comment-dots"></i>
-                  </div>
-                  <h4 className="text-lg font-bold text-gray-800">Feedback Giảng viên</h4>
-                </div>
-                <div className="space-y-5">
-                  <div>
-                    <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2 block">Nội dung học phần</label>
-                    <div className="flex gap-2">
-                      <button className="flex-1 py-2 rounded-xl border border-gray-100 text-xs font-bold hover:bg-indigo-600 hover:text-white hover:border-indigo-600 transition">Tốt</button>
-                      <button className="flex-1 py-2 rounded-xl border border-gray-100 text-xs font-bold hover:bg-indigo-600 hover:text-white hover:border-indigo-600 transition">Ổn</button>
-                      <button className="flex-1 py-2 rounded-xl border border-gray-100 text-xs font-bold hover:bg-indigo-600 hover:text-white hover:border-indigo-600 transition">Cần cải thiện</button>
+              <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-gray-50 space-y-5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-600">
+                      <i className="fas fa-comment-dots"></i>
+                    </div>
+                    <div>
+                      <h4 className="text-lg font-bold text-gray-800">Feedback Giảng viên</h4>
+                      <p className="text-[11px] text-gray-400">Đóng góp ý kiến cho thầy/cô</p>
                     </div>
                   </div>
-                  <div>
-                    <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2 block">Chất lượng tài liệu</label>
-                    <div className="flex justify-around bg-gray-50 p-2 rounded-2xl">
-                      <i className="fas fa-star text-yellow-400 cursor-pointer"></i>
-                      <i className="fas fa-star text-yellow-400 cursor-pointer"></i>
-                      <i className="fas fa-star text-yellow-400 cursor-pointer"></i>
-                      <i className="fas fa-star text-yellow-400 cursor-pointer"></i>
-                      <i className="far fa-star text-gray-300 cursor-pointer"></i>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2 block">Đóng góp ý kiến</label>
-                    <textarea
-                      value={feedbackText}
-                      onChange={(e) => setFeedbackText(e.target.value)}
-                      className="w-full h-24 p-4 bg-gray-50 border-none rounded-2xl text-xs text-gray-600 outline-none focus:ring-2 focus:ring-indigo-100 transition resize-none"
-                      placeholder="Viết cảm nghĩ hoặc góp ý của bạn về tiết học hôm nay..."
-                    ></textarea>
-                  </div>
-                  <button onClick={submitFeedback} className="w-full bg-indigo-600 text-white py-4 rounded-2xl text-[11px] font-black uppercase shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition active:scale-95">
-                    Gửi phản hồi ngay
-                  </button>
+                  {myFeedbacks.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowFeedbackHistory(!showFeedbackHistory)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                        showFeedbackHistory
+                          ? 'bg-indigo-600 text-white shadow-sm'
+                          : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'
+                      }`}
+                    >
+                      <i className="fas fa-history text-[10px]"></i>
+                      <span>Lịch sử ({myFeedbacks.length})</span>
+                    </button>
+                  )}
                 </div>
+
+                {showFeedbackHistory ? (
+                  /* Feedback History view */
+                  <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
+                    <div className="flex items-center justify-between text-xs text-gray-500 pb-2 border-b border-gray-100">
+                      <span className="font-bold">Các phản hồi bạn đã gửi:</span>
+                      <button
+                        type="button"
+                        onClick={() => setShowFeedbackHistory(false)}
+                        className="text-indigo-600 hover:underline text-[11px] font-bold"
+                      >
+                        + Viết phản hồi mới
+                      </button>
+                    </div>
+                    {myFeedbacks.map((fb) => (
+                      <div key={fb.id || fb._id} className="p-3.5 bg-gray-50 rounded-2xl border border-gray-100 space-y-2 text-xs">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-gray-800">{fb.courseName || 'Học phần'}</span>
+                            <span className="text-[10px] text-gray-400">•</span>
+                            <span className="text-[11px] text-gray-500 font-medium">{fb.teacherName || 'GV'}</span>
+                          </div>
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            fb.courseQuality === 'Tốt'
+                              ? 'bg-emerald-50 text-emerald-700'
+                              : fb.courseQuality === 'Ổn'
+                              ? 'bg-blue-50 text-blue-700'
+                              : 'bg-rose-50 text-rose-700'
+                          }`}>
+                            {fb.courseQuality || 'Tốt'}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2 text-xs">
+                          <div className="flex text-amber-400">
+                            {[1, 2, 3, 4, 5].map((st) => (
+                              <i
+                                key={st}
+                                className={`fas fa-star text-[10px] ${st <= (fb.rating || 5) ? 'text-amber-400' : 'text-gray-200'}`}
+                              ></i>
+                            ))}
+                          </div>
+                          {fb.isAnonymous && (
+                            <span className="px-1.5 py-0.5 bg-purple-50 text-purple-600 text-[9px] font-bold rounded-md">
+                              Ẩn danh
+                            </span>
+                          )}
+                          <span className="text-[10px] text-gray-400 ml-auto">
+                            {fb.createdAtFormatted || (fb.timestamp ? new Date(fb.timestamp).toLocaleDateString('vi-VN') : '')}
+                          </span>
+                        </div>
+
+                        <p className="text-gray-700 italic bg-white p-2 rounded-xl border border-gray-100">
+                          "{fb.feedbackText}"
+                        </p>
+
+                        {/* Teacher Response */}
+                        {fb.response ? (
+                          <div className="p-2.5 bg-indigo-50 border border-indigo-100 rounded-xl space-y-1">
+                            <div className="flex items-center justify-between text-indigo-700 font-bold text-[10px]">
+                              <span className="flex items-center gap-1">
+                                <i className="fas fa-reply"></i> Thầy/Cô đã phản hồi:
+                              </span>
+                              {fb.respondedAt && <span className="text-indigo-400 font-normal">{fb.respondedAt}</span>}
+                            </div>
+                            <p className="text-gray-700 font-medium text-[11px] leading-relaxed">{fb.response}</p>
+                          </div>
+                        ) : (
+                          <p className="text-[10px] text-amber-600 italic">
+                            <i className="far fa-clock mr-1"></i> Đang chờ phản hồi từ Thầy/Cô...
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  /* Form to submit feedback */
+                  <div className="space-y-4">
+                    {/* Class / Teacher Selection */}
+                    <div>
+                      <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5 block">
+                        Chọn học phần / Giảng viên:
+                      </label>
+                      <select
+                        value={selectedClassId}
+                        onChange={(e) => setSelectedClassId(e.target.value)}
+                        className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-2xl text-xs text-gray-700 outline-none focus:ring-2 focus:ring-indigo-100 transition"
+                      >
+                        {enrolledClasses.length > 0 ? (
+                          <>
+                            <optgroup label="Học phần đang học">
+                              {enrolledClasses.map((c) => (
+                                <option key={c.regId} value={c.regId}>
+                                  {c.courseName} — GV. {c.teacher}
+                                </option>
+                              ))}
+                            </optgroup>
+                            {teachersList.length > 0 && (
+                              <optgroup label="Tất cả Giảng viên">
+                                {teachersList.map((t) => (
+                                  <option key={`tch-${t.id || t._id}`} value={`TCH_${t.id || t._id}`}>
+                                    {t.hoTen || t.name} (Khoa {t.departmentId || 'Chung'})
+                                  </option>
+                                ))}
+                              </optgroup>
+                            )}
+                          </>
+                        ) : teachersList.length > 0 ? (
+                          teachersList.map((t) => (
+                            <option key={`tch-${t.id || t._id}`} value={`TCH_${t.id || t._id}`}>
+                              {t.hoTen || t.name} (Khoa {t.departmentId || 'Chung'})
+                            </option>
+                          ))
+                        ) : (
+                          <option value="">Giảng viên bộ môn</option>
+                        )}
+                      </select>
+                    </div>
+
+                    {/* Course Quality */}
+                    <div>
+                      <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5 block">
+                        Đánh giá chất lượng học phần
+                      </label>
+                      <div className="flex gap-2">
+                        {['Tốt', 'Ổn', 'Cần cải thiện'].map((q) => (
+                          <button
+                            key={q}
+                            type="button"
+                            onClick={() => setFeedbackQuality(q)}
+                            className={`flex-1 py-2 rounded-xl text-xs font-bold transition border ${
+                              feedbackQuality === q
+                                ? q === 'Tốt'
+                                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                                  : q === 'Ổn'
+                                  ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                                  : 'bg-amber-600 text-white border-amber-600 shadow-sm'
+                                : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
+                            }`}
+                          >
+                            {q}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Star Rating */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block">
+                          Mức độ hài lòng:
+                        </label>
+                        <span className="text-xs font-bold text-amber-500">
+                          {feedbackRating} / 5 sao
+                        </span>
+                      </div>
+                      <div className="flex justify-around bg-gray-50 p-2.5 rounded-2xl border border-gray-100">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <button
+                            key={star}
+                            type="button"
+                            onClick={() => setFeedbackRating(star)}
+                            className="p-1 text-lg hover:scale-125 transition-transform"
+                            title={`${star} sao`}
+                          >
+                            <i
+                              className={`${
+                                star <= feedbackRating
+                                  ? 'fas fa-star text-amber-400'
+                                  : 'far fa-star text-gray-300'
+                              }`}
+                            ></i>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Feedback Comments Textarea */}
+                    <div>
+                      <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5 block">
+                        Đóng góp ý kiến:
+                      </label>
+                      <textarea
+                        value={feedbackText}
+                        onChange={(e) => setFeedbackText(e.target.value)}
+                        className="w-full h-24 p-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-xs text-gray-700 outline-none focus:ring-2 focus:ring-indigo-100 transition resize-none"
+                        placeholder="Viết cảm nghĩ hoặc góp ý của bạn về phương pháp giảng dạy, bài tập, tài liệu học..."
+                      ></textarea>
+                    </div>
+
+                    {/* Anonymous toggle */}
+                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-2xl border border-gray-100">
+                      <div className="flex items-center gap-2">
+                        <i className={`fas fa-user-secret ${feedbackAnonymous ? 'text-purple-600' : 'text-gray-400'}`}></i>
+                        <div>
+                          <p className="text-xs font-bold text-gray-700">Gửi phản hồi ẩn danh</p>
+                          <p className="text-[10px] text-gray-400">Giấu tên và ảnh đại diện của bạn</p>
+                        </div>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={feedbackAnonymous}
+                          onChange={(e) => setFeedbackAnonymous(e.target.checked)}
+                          className="sr-only peer"
+                        />
+                        <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-purple-600"></div>
+                      </label>
+                    </div>
+
+                    {/* Submit Button */}
+                    <button
+                      type="button"
+                      disabled={submittingFeedback}
+                      onClick={submitFeedback}
+                      className="w-full bg-indigo-600 text-white py-3.5 rounded-2xl text-[11px] font-black uppercase shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      {submittingFeedback ? (
+                        <>
+                          <i className="fas fa-spinner fa-spin"></i>
+                          <span>Đang gửi phản hồi...</span>
+                        </>
+                      ) : (
+                        <>
+                          <i className="fas fa-paper-plane"></i>
+                          <span>Gửi phản hồi ngay</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Điểm trung bình */}

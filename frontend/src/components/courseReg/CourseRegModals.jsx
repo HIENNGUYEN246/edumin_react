@@ -1,4 +1,4 @@
-import { DAYS, SHIFTS } from '../../utils/registrationUtils';
+import { DAYS, SHIFTS, padTeacherID } from '../../utils/registrationUtils';
 import { formatStudentId } from '../../utils/studentUtils';
 
 export function CourseRegModals(props) {
@@ -316,11 +316,15 @@ function CourseScheduleBlock({ course, conf, deptTeachers, updateScheduleConfig,
             className="w-full p-2.5 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"
           >
             <option value="">Chọn giảng viên</option>
-            {deptTeachers.map((t) => (
-              <option key={t.id} value={t.id}>
-                GV-00{t.id} - {t.name}
-              </option>
-            ))}
+            {deptTeachers.map((t) => {
+              const code = padTeacherID(t.id);
+              const name = t.hoTen || t.name || 'Chưa đặt tên';
+              return (
+                <option key={t.id} value={t.id}>
+                  {code} - {name}
+                </option>
+              );
+            })}
           </select>
         </div>
         <div>
@@ -439,20 +443,36 @@ function StudentListTable({ signedUpForCourse, students }) {
             </tr>
           ) : (
             signedUpForCourse.map((reg, index) => {
-              const info = students.find((s) => s.id === reg.studentId) || {};
+              let info = (reg.studentRef && typeof reg.studentRef === 'object' && reg.studentRef.id != null)
+                ? { ...reg.studentRef, name: reg.studentRef.hoTen || reg.studentRef.name }
+                : null;
+              if (!info) {
+                const s = students.find((item) =>
+                  (item.id != null && String(item.id) === String(reg.studentId)) ||
+                  (item._id && reg.studentRef && String(item._id) === String(typeof reg.studentRef === 'object' ? reg.studentRef._id : reg.studentRef)) ||
+                  (item.email && reg.studentRef && typeof reg.studentRef === 'object' && item.email.trim().toLowerCase() === String(reg.studentRef.email || '').trim().toLowerCase()) ||
+                  (item.email && reg.email && item.email.trim().toLowerCase() === String(reg.email).trim().toLowerCase()) ||
+                  (item.email && reg.studentEmail && item.email.trim().toLowerCase() === String(reg.studentEmail).trim().toLowerCase())
+                );
+                if (s) {
+                  info = { ...s, name: s.hoTen || s.name };
+                }
+              }
+              const studentIdVal = info?.id ?? reg.studentId;
+              const studentNameVal = info?.name ?? info?.hoTen ?? reg.studentName ?? 'Sinh viên';
               return (
-                <tr key={`${reg.studentId}-${reg.regId}`} className="hover:bg-indigo-50/30 transition-colors">
+                <tr key={`${studentIdVal || index}-${reg.regId || index}`} className="hover:bg-indigo-50/30 transition-colors">
                   <td className="text-center font-medium text-gray-500">{index + 1}</td>
-                  <td className="font-mono font-bold text-indigo-600">{formatStudentId(reg.studentId)}</td>
-                  <td className="font-bold text-gray-800">{info.name || reg.studentName}</td>
-                  <td className="text-gray-600">{info.dob || '---'}</td>
-                  <td className="text-gray-600">{info.gender || '---'}</td>
-                  <td className="text-gray-600 truncate max-w-[150px]">{info.address || '---'}</td>
-                  <td className="text-gray-600">{info.phone || '---'}</td>
-                  <td className="text-gray-600 italic">{info.email || '---'}</td>
+                  <td className="font-mono font-bold text-indigo-600">{formatStudentId(studentIdVal)}</td>
+                  <td className="font-bold text-gray-800">{studentNameVal}</td>
+                  <td className="text-gray-600">{info?.dob || '---'}</td>
+                  <td className="text-gray-600">{info?.gender || '---'}</td>
+                  <td className="text-gray-600 truncate max-w-[150px]">{info?.address || '---'}</td>
+                  <td className="text-gray-600">{info?.phone || '---'}</td>
+                  <td className="text-gray-600 italic">{info?.email || reg.email || reg.studentEmail || '---'}</td>
                   <td>
                     <span className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded text-[10px] font-bold whitespace-nowrap">
-                      {info.department || 'Chưa rõ'}
+                      {info?.department || reg.department || 'Chưa rõ'}
                     </span>
                   </td>
                 </tr>
@@ -482,8 +502,8 @@ function TeacherBlock({ detailReg }) {
   return (
     <div className="p-3 bg-white rounded-lg shadow-sm border">
       <p className="text-[10px] text-gray-400 font-bold uppercase mb-1">Giảng viên phụ trách</p>
-      <span className="text-[11px] font-bold text-indigo-600 font-mono">GV-00{detailReg.teacherId || 'N/A'}</span>
-      <p className="font-bold text-gray-800">{detailReg.teacher}</p>
+      <span className="text-[11px] font-bold text-indigo-600 font-mono">{padTeacherID(detailReg.teacherId)}</span>
+      <p className="font-bold text-gray-800">{detailReg.teacher || 'Chưa cập nhật'}</p>
     </div>
   );
 }
