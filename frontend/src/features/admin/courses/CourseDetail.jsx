@@ -44,8 +44,6 @@ export function CourseDetail() {
         schedules: cls.schedules || [],
         studyStart: cls.studyStart || '',
         studyEnd: cls.studyEnd || '',
-        start: cls.start || '',
-        end: cls.end || '',
         status: cls.status || 'Nháp',
       },
     });
@@ -56,7 +54,10 @@ export function CourseDetail() {
         await create.mutateAsync(payload);
         toast.success('Đã thêm lớp');
       } else {
-        await update.mutateAsync({ id: formModal.cls._id, ...payload });
+        // Drop the class code from the edit payload; the id below is the Mongo _id.
+        const { id: _code, ...changes } = payload;
+        void _code;
+        await update.mutateAsync({ id: formModal.cls._id, ...changes });
         toast.success('Đã cập nhật lớp');
       }
       setFormModal(null);

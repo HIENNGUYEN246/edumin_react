@@ -16,8 +16,6 @@ export const createClassSchema = z.object({
   schedules: z.array(scheduleSlot).min(1, 'Cần ít nhất một buổi học'),
   studyStart: z.string().trim().optional().default(''),
   studyEnd: z.string().trim().optional().default(''),
-  start: z.string().trim().optional().default(''),
-  end: z.string().trim().optional().default(''),
   status: z.enum(CLASS_STATUS).optional().default('Nháp'),
 });
 

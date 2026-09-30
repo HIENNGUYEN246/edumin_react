@@ -19,8 +19,6 @@ const baseClass = (overrides = {}) => ({
   schedules: [{ dayId: '2', shiftId: 'S1' }],
   studyStart: '2026-01-01',
   studyEnd: '2026-06-01',
-  start: '2026-01-01',
-  end: '2030-01-01',
   status: 'Đang mở',
   ...overrides,
 });

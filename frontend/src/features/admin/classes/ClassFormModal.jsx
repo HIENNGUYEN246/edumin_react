@@ -16,8 +16,6 @@ const emptyForm = (courseId) => ({
   schedules: [],
   studyStart: '',
   studyEnd: '',
-  start: '',
-  end: '',
   status: 'Nháp',
 });
 
@@ -62,8 +60,6 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
       schedules: form.schedules,
       studyStart: form.studyStart,
       studyEnd: form.studyEnd,
-      start: form.start,
-      end: form.end,
       status: form.status,
     }, setErrors);
   };
@@ -97,13 +93,7 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
           <FormField label="Kết thúc học">
             <input type="date" className={inputClass} value={form.studyEnd} onChange={set('studyEnd')} />
           </FormField>
-          <FormField label="Mở đăng ký từ">
-            <input type="datetime-local" className={inputClass} value={form.start} onChange={set('start')} />
-          </FormField>
-          <FormField label="Đóng đăng ký">
-            <input type="datetime-local" className={inputClass} value={form.end} onChange={set('end')} />
-          </FormField>
-          <FormField label="Trạng thái">
+          <FormField label="Trạng thái" hint="Chọn 'Đang mở' để sinh viên thấy và đăng ký">
             <select className={inputClass} value={form.status} onChange={set('status')}>
               {CLASS_STATUSES.map((s) => (
                 <option key={s} value={s}>

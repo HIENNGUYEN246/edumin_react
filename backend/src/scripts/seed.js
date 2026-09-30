@@ -97,8 +97,6 @@ export async function seed({ withSamples = true } = {}) {
       capacity: 40,
       studyStart: '2026-01-06',
       studyEnd: '2026-05-30',
-      start: '2020-01-01',
-      end: '2030-01-01',
       status: 'Đang mở',
       ...extra,
     });

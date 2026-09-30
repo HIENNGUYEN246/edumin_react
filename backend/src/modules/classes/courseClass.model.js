@@ -33,9 +33,6 @@ const courseClassSchema = new Schema(
     // Study period (used for schedule-overlap checks).
     studyStart: { type: String, default: '' },
     studyEnd: { type: String, default: '' },
-    // Registration window (used to gate enrollment).
-    start: { type: String, default: '' },
-    end: { type: String, default: '' },
 
     // Lifecycle: Nháp (draft, hidden) -> Đang mở (open to students) ->
     // Đã đóng (registration closed) / Đã hủy (cancelled).

@@ -24,7 +24,7 @@ async function makeStudent(idNum = 1, email = `sv${idNum}@edu.vn`) {
   return { token: signToken(user), student };
 }
 
-const openWindow = { start: '2020-01-01', end: '2999-01-01', status: 'Đang mở' };
+const openWindow = { status: 'Đang mở' };
 
 async function makeClass(id, slots, overrides = {}) {
   const courseId = overrides.courseId || 'IT101';
@@ -69,12 +69,12 @@ describe('Enrollments', () => {
     expect(res.status).toBe(409);
   });
 
-  it('rejects enrolling outside the registration window', async () => {
+  it('rejects enrolling into a class that is not open', async () => {
     const { token } = await makeStudent();
-    const cls = await makeClass('IT101-01', [{ dayId: '2', shiftId: 'S1' }], { start: '2000-01-01', end: '2000-02-01' });
+    const cls = await makeClass('IT101-01', [{ dayId: '2', shiftId: 'S1' }], { status: 'Đã đóng' });
     const res = await request(app).post('/api/enrollments').set(authHeader(token)).send({ classId: cls._id });
     expect(res.status).toBe(409);
-    expect(res.body.error.message).toMatch(/thời gian đăng ký/);
+    expect(res.body.error.message).toMatch(/không mở đăng ký/);
   });
 
   it('rejects a schedule clash with an existing enrollment (different courses, same slot)', async () => {

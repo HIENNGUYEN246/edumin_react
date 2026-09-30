@@ -109,7 +109,7 @@ Deleting a department clears `departmentRef` on teachers, students and courses
 
 | Method | Path              | Auth  | Description                                                          |
 | ------ | ----------------- | ----- | -------------------------------------------------------------------- |
-| GET    | `/classes/open`             | any           | Open classes (`Đang mở`) inside their registration window (students). Includes `enrolledCount`/`capacity`. |
+| GET    | `/classes/open`             | any           | Classes with status `Đang mở` (students). Includes `enrolledCount`/`capacity`. |
 | GET    | `/classes/by-course/:courseId` | admin/teacher | All classes of a course with `enrolledCount`/`capacity` (course-detail page). |
 | GET    | `/classes`                  | any           | Paginated list. `?teacher=me` scopes to the caller (teacher); `?courseId`, `?status`. |
 | GET    | `/classes/:id`              | any           | Single class.                                                       |
@@ -120,15 +120,17 @@ Deleting a department clears `departmentRef` on teachers, students and courses
 | DELETE | `/classes/:id`              | admin         | Delete class + its enrollments (transaction).                        |
 
 - **Status lifecycle:** `Nháp` (draft, hidden) → `Đang mở` (open) → `Đã đóng` / `Đã hủy`.
-  Only `Đang mở` classes within their window appear to students.
+  A class is available to students purely by its `Đang mở` status (no separate
+  registration time window).
 - **Capacity:** `capacity` (0 = unlimited). Enrollment is rejected when `enrolledCount >= capacity`.
 - **Conflict rule:** two classes clash if they share a day+shift slot, their study
   periods overlap, and they share the same teacher or room (`Đã hủy` classes are ignored).
   Slots use `dayId` ∈ {2..7, CN} and `shiftId` ∈ {S1,S2,C1,C2,T1}.
 
-Enrollment rules (student): must be within the registration window, cannot enroll
-twice in the same class, cannot take two classes of the same course (one class per
-course), cannot exceed capacity, and cannot clash with an already-enrolled slot.
+Enrollment rules (student): the class must be `Đang mở`, cannot enroll twice in the
+same class, cannot take two classes of the same course (one class per course),
+cannot exceed capacity, and cannot clash with an already-enrolled slot. A student
+can self-cancel only while the class is still `Đang mở`.
 
 ## Enrollments (`/enrollments`, student only)
 

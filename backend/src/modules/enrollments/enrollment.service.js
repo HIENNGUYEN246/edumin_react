@@ -23,20 +23,14 @@ export async function listMyEnrollments(user) {
     .map((e) => ({ _id: e._id, classId: e.classId, enrolledAt: e.createdAt, class: e.classRef }));
 }
 
-function isWithinWindow(courseClass, now = new Date()) {
-  const start = new Date(courseClass.start);
-  const end = new Date(courseClass.end);
-  if (Number.isNaN(start.valueOf()) || Number.isNaN(end.valueOf())) return false;
-  return courseClass.status === 'Đang mở' && now >= start && now <= end;
-}
-
 export async function enroll(user, classId) {
   const student = await requireStudent(user);
   const target = await CourseClass.findById(classId);
   if (!target) throw AppError.notFound('Không tìm thấy lớp học phần');
 
-  if (!isWithinWindow(target)) {
-    throw AppError.conflict('Lớp hiện không trong thời gian đăng ký');
+  // A class is open for registration solely based on its status.
+  if (target.status !== 'Đang mở') {
+    throw AppError.conflict('Lớp hiện không mở đăng ký');
   }
 
   const existing = await Enrollment.findOne({ student: student._id, classRef: target._id });
@@ -78,12 +72,10 @@ export async function cancel(user, classId) {
   const student = await requireStudent(user);
   const target = await CourseClass.findById(classId);
 
-  // Allow cleanup even if the class was already removed by an admin.
-  if (target) {
-    const end = new Date(target.end);
-    if (!Number.isNaN(end.valueOf()) && new Date() > end) {
-      throw AppError.conflict('Đã hết thời gian tự hủy học phần');
-    }
+  // Students may self-cancel only while the class is still open. If the class
+  // was removed by an admin, still let them clean up the orphan enrollment.
+  if (target && target.status !== 'Đang mở') {
+    throw AppError.conflict('Lớp đã đóng đăng ký, không thể tự hủy');
   }
 
   const deleted = await Enrollment.findOneAndDelete({ student: student._id, classRef: classId });

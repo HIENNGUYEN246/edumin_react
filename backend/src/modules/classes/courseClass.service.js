@@ -45,8 +45,6 @@ async function buildClassFields(payload) {
     schedules: payload.schedules,
     studyStart: payload.studyStart || '',
     studyEnd: payload.studyEnd || '',
-    start: payload.start || '',
-    end: payload.end || '',
     status: payload.status || 'Nháp',
   };
 }
@@ -98,19 +96,12 @@ export async function listClassesByCourse(courseId) {
 }
 
 /**
- * Open classes inside their registration window (for students), with counts.
- * Only 'Đang mở' classes are ever exposed here.
+ * Classes open for registration (for students), with counts.
+ * A class is available purely based on its 'Đang mở' status.
  */
 export async function listOpenClasses() {
-  const now = new Date();
   const classes = await CourseClass.find({ status: 'Đang mở' }).populate(POPULATE).lean();
-  const inWindow = classes.filter((c) => {
-    const start = new Date(c.start);
-    const end = new Date(c.end);
-    if (Number.isNaN(start.valueOf()) || Number.isNaN(end.valueOf())) return false;
-    return now >= start && now <= end;
-  });
-  return withEnrolledCount(inWindow);
+  return withEnrolledCount(classes);
 }
 
 export async function getClass(id) {
@@ -150,8 +141,6 @@ export async function updateClass(id, payload) {
     schedules: payload.schedules || cls.schedules,
     studyStart: payload.studyStart !== undefined ? payload.studyStart : cls.studyStart,
     studyEnd: payload.studyEnd !== undefined ? payload.studyEnd : cls.studyEnd,
-    start: payload.start !== undefined ? payload.start : cls.start,
-    end: payload.end !== undefined ? payload.end : cls.end,
     status: payload.status || cls.status,
   };
   const fields = await buildClassFields(merged);
