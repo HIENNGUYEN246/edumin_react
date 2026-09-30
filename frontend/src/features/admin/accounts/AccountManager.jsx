@@ -4,6 +4,7 @@ import { DataTable } from '../../../components/ui/DataTable.jsx';
 import { Pagination } from '../../../components/ui/Pagination.jsx';
 import { Modal } from '../../../components/ui/Modal.jsx';
 import { FormField, inputClass } from '../../../components/ui/FormField.jsx';
+import { Avatar } from '../../../components/ui/Avatar.jsx';
 import { useToast } from '../../../app/providers/ToastProvider.jsx';
 import { useConfirm } from '../../../app/providers/ConfirmProvider.jsx';
 import { useDebounce } from '../../../lib/useDebounce.js';
@@ -87,6 +88,15 @@ export function AccountManager({ config }) {
 
   const columns = [
     {
+      key: 'avatar',
+      header: '',
+      className: 'w-12 text-center',
+      render: (a) => {
+        const profile = a[config.role === 'giao-vien' ? 'teacher' : 'student'];
+        return <Avatar src={profile?.avatar?.url || profile?.avatar} name={a.hoTen} size={36} />;
+      },
+    },
+    {
       key: 'code',
       header: 'Mã',
       className: 'font-semibold text-gray-800',
@@ -94,7 +104,7 @@ export function AccountManager({ config }) {
         ? config.formatCode(a[config.role === 'giao-vien' ? 'teacher' : 'student'].id)
         : '—'),
     },
-    { key: 'hoTen', header: 'Họ tên', render: (a) => a.hoTen || '—' },
+    { key: 'hoTen', header: 'Họ tên', className: 'font-bold text-gray-900', render: (a) => a.hoTen || '—' },
     { key: 'email', header: 'Email' },
     {
       key: 'status',

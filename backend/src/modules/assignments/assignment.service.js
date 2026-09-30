@@ -114,7 +114,7 @@ export async function listSubmissions(id, user) {
   if (!doc) throw AppError.notFound('Không tìm thấy bài tập');
   await requireCourseTeacher(user, doc.courseId);
   const submissions = await Submission.find({ assignmentRef: doc._id })
-    .populate({ path: 'student', select: 'id hoTen email' })
+    .populate({ path: 'student', select: 'id hoTen email avatar className' })
     .sort({ score: -1 })
     .lean();
   return { data: submissions };

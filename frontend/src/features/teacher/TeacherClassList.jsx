@@ -4,6 +4,7 @@ import { PageHeader } from '../../components/ui/PageHeader.jsx';
 import { DataTable } from '../../components/ui/DataTable.jsx';
 import { Spinner } from '../../components/ui/Spinner.jsx';
 import { Modal } from '../../components/ui/Modal.jsx';
+import { Avatar } from '../../components/ui/Avatar.jsx';
 import { describeSchedules } from '../../lib/schedule.js';
 import { formatStudentCode } from '../../lib/format.js';
 import { useMyTeacherClasses, useClassStudents } from './useTeacherClasses.js';
@@ -18,8 +19,14 @@ function StudentsModal({ classId, className, onClose }) {
       ) : (
         <DataTable
           columns={[
-            { key: 'id', header: 'Mã SV', render: (s) => formatStudentCode(s.id) },
-            { key: 'hoTen', header: 'Họ tên' },
+            {
+              key: 'avatar',
+              header: '',
+              className: 'w-12 text-center',
+              render: (s) => <Avatar src={s.avatar?.url || s.avatar} name={s.hoTen} size={34} />,
+            },
+            { key: 'id', header: 'Mã SV', className: 'font-semibold text-gray-800', render: (s) => formatStudentCode(s.id) },
+            { key: 'hoTen', header: 'Họ tên', className: 'font-bold text-gray-900' },
             { key: 'email', header: 'Email' },
             { key: 'className', header: 'Lớp' },
           ]}

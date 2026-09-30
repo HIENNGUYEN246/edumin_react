@@ -20,7 +20,7 @@ export function ProfileCard({ profile, user, code, fields = [] }) {
   });
 
   const name = profile?.hoTen || user?.hoTen || '';
-  const avatar = profile?.avatar?.url || '';
+  const avatar = profile?.avatar?.url || profile?.avatar || user?.avatar || '';
 
   return (
     <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-6 flex flex-col sm:flex-row items-center gap-6">

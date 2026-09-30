@@ -13,6 +13,7 @@ import { useCourseClasses, useClassMutations } from '../classes/useClasses.js';
 import { ClassStatusBadge } from '../classes/ClassStatusBadge.jsx';
 import { ClassFormModal } from '../classes/ClassFormModal.jsx';
 import { ClassStudentsModal } from '../classes/ClassStudentsModal.jsx';
+import { Avatar } from '../../../components/ui/Avatar.jsx';
 
 export function CourseDetail() {
   const { id } = useParams();
@@ -105,7 +106,19 @@ export function CourseDetail() {
 
   const columns = [
     { key: 'id', header: 'Mã lớp', className: 'font-semibold text-gray-800' },
-    { key: 'teacher', header: 'Giáo viên', render: (c) => c.teacher || <span className="text-gray-400">Chưa phân công</span> },
+    {
+      key: 'teacher',
+      header: 'Giáo viên',
+      render: (c) =>
+        c.teacher ? (
+          <div className="flex items-center gap-2">
+            <Avatar src={c.teacherRef?.avatar?.url || c.teacherRef?.avatar} name={c.teacher} size={28} />
+            <span className="font-semibold text-gray-800 text-xs">{c.teacher}</span>
+          </div>
+        ) : (
+          <span className="text-gray-400 text-xs italic">Chưa phân công</span>
+        ),
+    },
     { key: 'schedules', header: 'Lịch học', render: (c) => <span className="text-xs">{describeSchedules(c.schedules)}</span> },
     { key: 'room', header: 'Phòng' },
     {

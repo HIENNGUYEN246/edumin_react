@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { PageHeader } from '../../components/ui/PageHeader.jsx';
 import { DataTable } from '../../components/ui/DataTable.jsx';
 import { Spinner } from '../../components/ui/Spinner.jsx';
+import { Avatar } from '../../components/ui/Avatar.jsx';
 import { useToast } from '../../app/providers/ToastProvider.jsx';
 import { useConfirm } from '../../app/providers/ConfirmProvider.jsx';
 import { describeSchedules } from '../../lib/schedule.js';
@@ -53,9 +54,9 @@ function ClassRow({ cls, state, onEnroll, pending }) {
   return (
     <div className={`flex flex-wrap items-center gap-x-6 gap-y-1 px-4 py-3 rounded-xl border ${state.enrolledThisClass ? 'border-emerald-200 bg-emerald-50/40' : 'border-gray-100 bg-white'}`}>
       <span className="font-semibold text-gray-800 w-24">{cls.id}</span>
-      <span className="text-sm text-gray-600 flex-1 min-w-[140px]">
-        <i className="fas fa-user-tie text-gray-300 mr-1.5" />
-        {cls.teacher || 'Chưa phân công'}
+      <span className="text-sm text-gray-600 flex-1 min-w-[150px] flex items-center gap-2">
+        <Avatar src={cls.teacherRef?.avatar?.url || cls.teacherRef?.avatar} name={cls.teacher || 'GV'} size={24} />
+        <span className="font-medium text-gray-800">{cls.teacher || 'Chưa phân công'}</span>
       </span>
       <span className="text-xs text-gray-500 min-w-[180px]">
         <i className="far fa-clock text-gray-300 mr-1.5" />
@@ -117,6 +118,19 @@ export function StudentCourseRegistration() {
   const enrolledColumns = [
     { key: 'classId', header: 'Mã lớp', className: 'font-semibold text-gray-800' },
     { key: 'courseName', header: 'Học phần', render: (e) => e.class?.courseName || '—' },
+    {
+      key: 'teacher',
+      header: 'Giảng viên',
+      render: (e) =>
+        e.class?.teacher ? (
+          <div className="flex items-center gap-2">
+            <Avatar src={e.class?.teacherRef?.avatar?.url || e.class?.teacherRef?.avatar} name={e.class.teacher} size={24} />
+            <span className="text-xs font-semibold text-gray-800">{e.class.teacher}</span>
+          </div>
+        ) : (
+          <span className="text-gray-400 text-xs italic">Chưa phân công</span>
+        ),
+    },
     { key: 'schedules', header: 'Lịch học', render: (e) => <span className="text-xs">{describeSchedules(e.class?.schedules)}</span> },
     { key: 'fee', header: 'Học phí', render: (e) => formatCurrency(e.class?.fee) },
     {

@@ -9,7 +9,7 @@ import { Teacher } from '../teachers/teacher.model.js';
 
 const POPULATE = [
   { path: 'courseRef', select: 'id name credits fee department' },
-  { path: 'teacherRef', select: 'id hoTen' },
+  { path: 'teacherRef', select: 'id hoTen avatar email phone education department' },
 ];
 
 /**
@@ -167,7 +167,7 @@ export async function listClassStudents(classId, requester) {
 
   const Enrollment = mongoose.model('Enrollment');
   const enrollments = await Enrollment.find({ classRef: cls._id })
-    .populate({ path: 'student', select: 'id hoTen email className department' })
+    .populate({ path: 'student', select: 'id hoTen email className department avatar' })
     .lean();
   const students = enrollments.map((e) => e.student).filter(Boolean);
   return { class: { ...cls.toObject(), enrolledCount: students.length }, students };
