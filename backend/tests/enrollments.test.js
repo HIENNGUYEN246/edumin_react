@@ -1,0 +1,106 @@
+import { describe, it, expect, beforeEach } from 'vitest';
+import request from 'supertest';
+import { app } from './helpers/testApp.js';
+import { createUser, authHeader } from './helpers/factories.js';
+import { ROLES } from '../src/lib/roles.js';
+import { hashPassword } from '../src/lib/password.js';
+import { signToken } from '../src/lib/jwt.js';
+import { User } from '../src/modules/auth/user.model.js';
+import { Student } from '../src/modules/students/student.model.js';
+import { Course } from '../src/modules/courses/course.model.js';
+import { CourseClass } from '../src/modules/classes/courseClass.model.js';
+
+// Build a student account linked to a Student profile and return a token.
+async function makeStudent(idNum = 1, email = `sv${idNum}@edu.vn`) {
+  const user = await User.create({
+    email,
+    passwordHash: await hashPassword('Passw0rd'),
+    role: ROLES.STUDENT,
+    hoTen: `SV ${idNum}`,
+  });
+  const student = await Student.create({ userId: user._id, id: idNum, email, hoTen: `SV ${idNum}` });
+  user.student = student._id;
+  await user.save();
+  return { token: signToken(user), student };
+}
+
+const openWindow = { start: '2020-01-01', end: '2999-01-01', status: 'Đang mở' };
+
+async function makeClass(id, slots, overrides = {}) {
+  const course = await Course.findOne({ id: 'IT101' });
+  return CourseClass.create({
+    id,
+    courseRef: course._id,
+    courseId: 'IT101',
+    courseName: 'Lập trình',
+    schedules: slots,
+    studyStart: '2026-01-01',
+    studyEnd: '2026-06-01',
+    ...openWindow,
+    ...overrides,
+  });
+}
+
+let adminToken;
+beforeEach(async () => {
+  const { token } = await createUser({ role: ROLES.ADMIN });
+  adminToken = token;
+  await Course.create({ id: 'IT101', name: 'Lập trình' });
+});
+
+describe('Enrollments', () => {
+  it('enrolls a student into an open class', async () => {
+    const { token } = await makeStudent();
+    const cls = await makeClass('IT101-01', [{ dayId: '2', shiftId: 'S1' }]);
+    const res = await request(app).post('/api/enrollments').set(authHeader(token)).send({ classId: cls._id });
+    expect(res.status).toBe(201);
+    expect(res.body.classId).toBe('IT101-01');
+  });
+
+  it('rejects a duplicate enrollment', async () => {
+    const { token } = await makeStudent();
+    const cls = await makeClass('IT101-01', [{ dayId: '2', shiftId: 'S1' }]);
+    await request(app).post('/api/enrollments').set(authHeader(token)).send({ classId: cls._id });
+    const res = await request(app).post('/api/enrollments').set(authHeader(token)).send({ classId: cls._id });
+    expect(res.status).toBe(409);
+  });
+
+  it('rejects enrolling outside the registration window', async () => {
+    const { token } = await makeStudent();
+    const cls = await makeClass('IT101-01', [{ dayId: '2', shiftId: 'S1' }], { start: '2000-01-01', end: '2000-02-01' });
+    const res = await request(app).post('/api/enrollments').set(authHeader(token)).send({ classId: cls._id });
+    expect(res.status).toBe(409);
+    expect(res.body.error.message).toMatch(/thời gian đăng ký/);
+  });
+
+  it('rejects a schedule clash with an existing enrollment', async () => {
+    const { token } = await makeStudent();
+    const a = await makeClass('IT101-01', [{ dayId: '2', shiftId: 'S1' }]);
+    const b = await makeClass('IT101-02', [{ dayId: '2', shiftId: 'S1' }]);
+    await request(app).post('/api/enrollments').set(authHeader(token)).send({ classId: a._id });
+    const res = await request(app).post('/api/enrollments').set(authHeader(token)).send({ classId: b._id });
+    expect(res.status).toBe(409);
+    expect(res.body.error.message).toMatch(/trùng lịch/);
+  });
+
+  it('lists my enrollments and lets me cancel', async () => {
+    const { token } = await makeStudent();
+    const cls = await makeClass('IT101-01', [{ dayId: '2', shiftId: 'S1' }]);
+    await request(app).post('/api/enrollments').set(authHeader(token)).send({ classId: cls._id });
+
+    const list = await request(app).get('/api/enrollments/me').set(authHeader(token));
+    expect(list.body.data).toHaveLength(1);
+
+    const cancel = await request(app).delete(`/api/enrollments/${cls._id}`).set(authHeader(token));
+    expect(cancel.status).toBe(200);
+
+    const after = await request(app).get('/api/enrollments/me').set(authHeader(token));
+    expect(after.body.data).toHaveLength(0);
+  });
+
+  it('forbids a non-student from enrolling', async () => {
+    void adminToken;
+    const res = await request(app).post('/api/enrollments').set(authHeader(adminToken)).send({ classId: 'x' });
+    expect(res.status).toBe(403);
+  });
+});

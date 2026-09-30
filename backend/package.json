@@ -1,21 +1,38 @@
 {
   "name": "edumin-react-backend",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
+  "main": "src/server.js",
   "scripts": {
-    "dev": "nodemon server.js",
-    "start": "node server.js",
-    "test": "node --check server.js && node --check scripts/inspectDB.js && node --check tests/testAuth.js && node --check tests/testSingleTeacher.js && node --check tests/testHoTenTeacher.js",
-    "test:integration": "node tests/testAuth.js"
+    "dev": "nodemon src/server.js",
+    "start": "node src/server.js",
+    "seed": "node src/scripts/seed.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint .",
+    "format": "prettier --write ."
   },
   "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cloudinary": "^2.5.1",
     "cors": "^2.8.5",
-    "dotenv": "^16.3.1",
-    "express": "^4.18.4",
-    "mongoose": "^7.6.2"
+    "dotenv": "^16.4.5",
+    "express": "^4.21.1",
+    "express-rate-limit": "^7.4.1",
+    "helmet": "^8.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^7.8.3",
+    "multer": "^2.0.0",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
-    "nodemon": "^3.0.1"
+    "eslint": "^9.14.0",
+    "globals": "^15.12.0",
+    "mongodb-memory-server": "^10.1.2",
+    "nodemon": "^3.1.7",
+    "prettier": "^3.3.3",
+    "supertest": "^7.0.0",
+    "vitest": "^2.1.4"
   }
 }
