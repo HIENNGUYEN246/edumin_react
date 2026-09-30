@@ -24,6 +24,7 @@ const StudentCourseRegistration = lazy(() => import('../features/student/Student
 const StudentTimetable = lazy(() => import('../features/student/StudentTimetable.jsx'));
 const StudentDocumentList = lazy(() => import('../features/student/StudentDocumentList.jsx'));
 const StudentAssignmentList = lazy(() => import('../features/student/assignments/StudentAssignmentList.jsx'));
+const StudentQuizPage = lazy(() => import('../features/student/assignments/StudentQuizPage.jsx'));
 
 export function AppRouter() {
   return (
@@ -73,6 +74,7 @@ export function AppRouter() {
         <Route path="/student/timetable" element={<StudentTimetable />} />
         <Route path="/student/documents" element={<StudentDocumentList />} />
         <Route path="/student/assignments" element={<StudentAssignmentList />} />
+        <Route path="/student/assignments/:id" element={<StudentQuizPage />} />
       </Route>
 
       <Route path="/" element={<Navigate to="/login" replace />} />

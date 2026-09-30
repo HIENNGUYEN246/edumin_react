@@ -1,60 +1,75 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { PageHeader } from '../../../components/ui/PageHeader.jsx';
-import { DataTable } from '../../../components/ui/DataTable.jsx';
-import { Modal } from '../../../components/ui/Modal.jsx';
-import { inputClass } from '../../../components/ui/FormField.jsx';
 import { Spinner } from '../../../components/ui/Spinner.jsx';
+import { inputClass } from '../../../components/ui/FormField.jsx';
 import { useCourseOptions } from '../../shared/useCourseOptions.js';
 import { useAssignments } from '../../shared/useAssignments.js';
-import { assignmentsApi } from '../../../api/assignmentsApi.js';
-import { QuizPlayer } from './QuizPlayer.jsx';
 
-function QuizModal({ assignment, onClose }) {
-  // Load any prior submission so a returning student sees their result + key.
-  const { data, isLoading } = useQuery({
-    queryKey: ['assignments', assignment._id, 'my-submission'],
-    queryFn: () => assignmentsApi.mySubmission(assignment._id),
-  });
+function isPastDue(dueDate) {
+  if (!dueDate) return false;
+  const deadline = new Date(`${dueDate}T23:59:59`);
+  return !Number.isNaN(deadline.valueOf()) && new Date() > deadline;
+}
 
-  const prior = data?.submission
-    ? { score: data.submission.score, answerKey: data.answerKey || [] }
-    : null;
+function AssignmentCard({ assignment, onOpen }) {
+  const quiz = assignment.type === 'quiz';
+  const overdue = isPastDue(assignment.dueDate);
+  const count = assignment.questions?.length || 0;
 
   return (
-    <Modal open onClose={onClose} title={assignment.title} size="lg">
-      {isLoading ? <Spinner /> : <QuizPlayer assignment={assignment} initialResult={prior} />}
-    </Modal>
+    <article className="group relative overflow-hidden rounded-3xl bg-white border border-gray-100 shadow-sm hover:shadow-md transition">
+      <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${quiz ? 'bg-gradient-to-b from-violet-500 to-indigo-500' : 'bg-gradient-to-b from-sky-500 to-cyan-500'}`} />
+      <div className="p-5 pl-6">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full ${quiz ? 'text-violet-700 bg-violet-50' : 'text-sky-700 bg-sky-50'}`}>
+              <i className={`fas ${quiz ? 'fa-list-check' : 'fa-file-lines'}`} />
+              {quiz ? 'Trắc nghiệm' : 'Tệp'}
+            </span>
+            <span className="text-xs font-semibold text-gray-400">{assignment.courseId}</span>
+          </div>
+          {assignment.dueDate && (
+            <span className={`text-xs font-semibold ${overdue ? 'text-red-500' : 'text-gray-500'}`}>
+              <i className="far fa-clock mr-1" />
+              {overdue ? 'Hết hạn' : `Hạn ${assignment.dueDate}`}
+            </span>
+          )}
+        </div>
+
+        <h3 className="mt-3 text-lg font-extrabold text-gray-900 leading-6">{assignment.title}</h3>
+        {assignment.description && (
+          <p className="mt-1 text-sm text-gray-500 line-clamp-2">{assignment.description}</p>
+        )}
+
+        <div className="mt-4 flex items-center justify-between">
+          <span className="text-xs text-gray-400">{quiz ? `${count} câu hỏi` : 'Tài liệu đính kèm'}</span>
+          {quiz ? (
+            <button
+              type="button"
+              onClick={() => onOpen(assignment)}
+              disabled={overdue}
+              className="px-4 py-2 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {overdue ? 'Đã đóng' : 'Làm bài'}
+              {!overdue && <i className="fas fa-arrow-right ml-2" />}
+            </button>
+          ) : (
+            <span className="text-xs text-gray-400">Xem ở mục Tài liệu</span>
+          )}
+        </div>
+      </div>
+    </article>
   );
 }
 
 export function StudentAssignmentList() {
+  const navigate = useNavigate();
   const { courses } = useCourseOptions();
   const [courseId, setCourseId] = useState('');
   const { data, isLoading } = useAssignments(courseId);
-  const [active, setActive] = useState(null);
 
   const assignments = data?.data || [];
-
-  const columns = [
-    { key: 'title', header: 'Tiêu đề', className: 'font-semibold text-gray-800' },
-    { key: 'courseId', header: 'Học phần' },
-    { key: 'type', header: 'Loại', render: (a) => (a.type === 'quiz' ? 'Trắc nghiệm' : 'Tệp') },
-    { key: 'dueDate', header: 'Hạn nộp', render: (a) => a.dueDate || '—' },
-    {
-      key: 'action',
-      header: '',
-      className: 'text-right w-28',
-      render: (a) =>
-        a.type === 'quiz' ? (
-          <button type="button" onClick={() => setActive(a)} className="px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700">
-            Làm bài
-          </button>
-        ) : (
-          <span className="text-xs text-gray-400">Tệp</span>
-        ),
-    },
-  ];
 
   return (
     <div>
@@ -65,13 +80,27 @@ export function StudentAssignmentList() {
           <select className={inputClass} value={courseId} onChange={(e) => setCourseId(e.target.value)}>
             <option value="">Tất cả học phần</option>
             {courses.map((c) => (
-              <option key={c.id} value={c.id}>{c.id} — {c.name}</option>
+              <option key={c.id} value={c.id}>
+                {c.id} — {c.name}
+              </option>
             ))}
           </select>
         }
       />
-      <DataTable columns={columns} rows={assignments} isLoading={isLoading} emptyText="Chưa có bài tập" />
-      {active && <QuizModal assignment={active} onClose={() => setActive(null)} />}
+
+      {isLoading ? (
+        <Spinner />
+      ) : assignments.length === 0 ? (
+        <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-10 text-center text-gray-400">
+          Chưa có bài tập nào.
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {assignments.map((a) => (
+            <AssignmentCard key={a._id} assignment={a} onOpen={(item) => navigate(`/student/assignments/${item._id}`)} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -11,6 +11,7 @@ const router = Router();
 router.use(authenticate);
 
 router.get('/', controller.list);
+router.get('/:id', controller.getOne);
 
 // Teacher/admin management.
 router.post('/', authorize(ROLES.ADMIN, ROLES.TEACHER), validate(createAssignmentSchema), controller.create);

@@ -40,6 +40,21 @@ export async function listAssignments(query, user) {
   return { data: assignments.map((a) => a.toObject()) };
 }
 
+/** Single assignment for the taking page. Students get the answer-stripped DTO. */
+export async function getAssignment(id, user) {
+  const assignment = await Assignment.findById(id);
+  if (!assignment) throw AppError.notFound('Không tìm thấy bài tập');
+
+  if (user.role === ROLES.STUDENT) {
+    if (assignment.status !== 'Công khai') throw AppError.forbidden('Bài tập không khả dụng');
+    const allowed = await canAccessCourse(user, assignment.courseId);
+    if (!allowed) throw AppError.forbidden('Bạn chưa đăng ký học phần này');
+    return toStudentDto(assignment);
+  }
+  await requireCourseTeacher(user, assignment.courseId);
+  return assignment.toObject();
+}
+
 export async function createAssignment(payload, user) {
   const course = await Course.findOne({ id: payload.courseId });
   if (!course) throw AppError.badRequest('Học phần không tồn tại');

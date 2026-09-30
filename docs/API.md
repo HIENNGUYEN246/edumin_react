@@ -158,6 +158,7 @@ Schedule slots use `dayId` ∈ {2..7, CN} and `shiftId` ∈ {S1,S2,C1,C2,T1}.
 | Method | Path                            | Auth          | Description                                                    |
 | ------ | ------------------------------- | ------------- | -------------------------------------------------------------- |
 | GET    | `/assignments?courseId=`        | any           | List. Students receive an answer-stripped DTO (no `correctIndex`). |
+| GET    | `/assignments/:id`              | any           | Single assignment. Students: answer-stripped, requires enrollment. |
 | POST   | `/assignments`                  | admin/teacher | Create file/quiz assignment. Teacher must teach the course.    |
 | PATCH  | `/assignments/:id`              | admin/teacher | Update fields/questions.                                       |
 | DELETE | `/assignments/:id`              | admin/teacher | Delete assignment + its submissions.                           |

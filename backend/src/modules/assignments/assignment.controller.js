@@ -5,6 +5,10 @@ export const list = asyncHandler(async (req, res) => {
   res.json(await service.listAssignments(req.query, req.user));
 });
 
+export const getOne = asyncHandler(async (req, res) => {
+  res.json(await service.getAssignment(req.params.id, req.user));
+});
+
 export const create = asyncHandler(async (req, res) => {
   res.status(201).json(await service.createAssignment(req.body, req.user));
 });

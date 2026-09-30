@@ -81,6 +81,22 @@ describe('Assignments', () => {
     expect(quiz.questions[0].options).toBeDefined();
   });
 
+  it('serves a single assignment to an enrolled student without correctIndex', async () => {
+    const quiz = await makeQuiz();
+    const { token } = await enrolledStudent(1);
+    const res = await request(app).get(`/api/assignments/${quiz.body._id}`).set(authHeader(token));
+    expect(res.status).toBe(200);
+    expect(res.body.title).toBe('Quiz 1');
+    expect(res.body.questions[0].correctIndex).toBeUndefined();
+  });
+
+  it('blocks a non-enrolled student from opening a single assignment', async () => {
+    const quiz = await makeQuiz();
+    const { token } = await makeStudent(2);
+    const res = await request(app).get(`/api/assignments/${quiz.body._id}`).set(authHeader(token));
+    expect(res.status).toBe(403);
+  });
+
   it('grades a submission on a 0-10 scale and returns the answer key', async () => {
     const quiz = await makeQuiz();
     const { token } = await enrolledStudent(1);
