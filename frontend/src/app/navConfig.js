@@ -20,7 +20,6 @@ export const NAV_BY_ROLE = {
     { to: '/admin/student-accounts', label: 'Tài khoản sinh viên', icon: 'fa-id-card' },
     { to: '/admin/departments', label: 'Quản lý khoa', icon: 'fa-building-columns' },
     { to: '/admin/courses', label: 'Quản lý học phần', icon: 'fa-book' },
-    { to: '/admin/classes', label: 'Quản lý đăng ký', icon: 'fa-calendar-check' },
   ],
   [ROLES.TEACHER]: [
     { to: '/teacher', label: 'Tổng quan', icon: 'fa-gauge-high', end: true },

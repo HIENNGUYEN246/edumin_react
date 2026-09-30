@@ -9,6 +9,14 @@ export const listOpen = asyncHandler(async (_req, res) => {
   res.json({ data: await service.listOpenClasses() });
 });
 
+export const listByCourse = asyncHandler(async (req, res) => {
+  res.json(await service.listClassesByCourse(req.params.courseId));
+});
+
+export const changeStatus = asyncHandler(async (req, res) => {
+  res.json(await service.changeStatus(req.params.id, req.body.status));
+});
+
 export const getOne = asyncHandler(async (req, res) => {
   res.json(await service.getClass(req.params.id));
 });

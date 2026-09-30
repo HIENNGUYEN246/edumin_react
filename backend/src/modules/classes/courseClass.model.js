@@ -27,6 +27,8 @@ const courseClassSchema = new Schema(
 
     room: { type: String, default: '' },
     schedules: { type: [scheduleSlotSchema], default: [] },
+    // Maximum students. 0 = unlimited.
+    capacity: { type: Number, default: 0, min: 0 },
 
     // Study period (used for schedule-overlap checks).
     studyStart: { type: String, default: '' },
@@ -35,10 +37,18 @@ const courseClassSchema = new Schema(
     start: { type: String, default: '' },
     end: { type: String, default: '' },
 
-    status: { type: String, enum: ['Đang mở', 'Đã đóng'], default: 'Đang mở' },
+    // Lifecycle: Nháp (draft, hidden) -> Đang mở (open to students) ->
+    // Đã đóng (registration closed) / Đã hủy (cancelled).
+    status: {
+      type: String,
+      enum: ['Nháp', 'Đang mở', 'Đã đóng', 'Đã hủy'],
+      default: 'Nháp',
+    },
   },
   { timestamps: true }
 );
+
+export const CLASS_STATUSES = ['Nháp', 'Đang mở', 'Đã đóng', 'Đã hủy'];
 
 export const CourseClass = mongoose.model('CourseClass', courseClassSchema, 'courseclasses');
 export default CourseClass;

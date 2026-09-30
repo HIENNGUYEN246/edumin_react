@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { PageHeader, SearchInput } from '../../../components/ui/PageHeader.jsx';
 import { DataTable } from '../../../components/ui/DataTable.jsx';
 import { Pagination } from '../../../components/ui/Pagination.jsx';
@@ -18,6 +19,7 @@ const EMPTY = { id: '', name: '', credits: 0, fee: 0, departmentId: '' };
 export function ManageCourses() {
   const toast = useToast();
   const confirm = useConfirm();
+  const navigate = useNavigate();
   const fileRef = useRef(null);
   const [page, setPage] = useState(1);
   const [searchText, setSearchText] = useState('');
@@ -121,8 +123,23 @@ export function ManageCourses() {
     }
   };
 
+  const stop = (fn) => (e) => {
+    e.stopPropagation();
+    fn();
+  };
+
   const columns = [
-    { key: 'id', header: 'Mã', className: 'font-semibold text-gray-800' },
+    {
+      key: 'id',
+      header: 'Mã',
+      className: 'font-semibold text-indigo-700',
+      render: (c) => (
+        <span className="inline-flex items-center gap-1.5">
+          {c.id}
+          <i className="fas fa-arrow-up-right-from-square text-[10px] text-gray-300" />
+        </span>
+      ),
+    },
     { key: 'name', header: 'Tên học phần' },
     { key: 'credits', header: 'Tín chỉ' },
     { key: 'fee', header: 'Học phí', render: (c) => formatCurrency(c.fee) },
@@ -130,13 +147,16 @@ export function ManageCourses() {
     {
       key: 'actions',
       header: '',
-      className: 'text-right w-24',
+      className: 'text-right w-32',
       render: (c) => (
         <div className="flex justify-end gap-2">
-          <button type="button" onClick={() => openEdit(c)} className="w-8 h-8 rounded-lg text-indigo-600 hover:bg-indigo-50" aria-label="Sửa">
+          <button type="button" onClick={stop(() => navigate(`/admin/courses/${c._id}`))} className="w-8 h-8 rounded-lg text-gray-600 hover:bg-gray-100" aria-label="Lớp học phần" title="Lớp học phần">
+            <i className="fas fa-layer-group" />
+          </button>
+          <button type="button" onClick={stop(() => openEdit(c))} className="w-8 h-8 rounded-lg text-indigo-600 hover:bg-indigo-50" aria-label="Sửa">
             <i className="fas fa-pen" />
           </button>
-          <button type="button" onClick={() => onDelete(c)} className="w-8 h-8 rounded-lg text-red-600 hover:bg-red-50" aria-label="Xóa">
+          <button type="button" onClick={stop(() => onDelete(c))} className="w-8 h-8 rounded-lg text-red-600 hover:bg-red-50" aria-label="Xóa">
             <i className="fas fa-trash-alt" />
           </button>
         </div>
@@ -166,7 +186,13 @@ export function ManageCourses() {
         }
       />
 
-      <DataTable columns={columns} rows={rows} isLoading={isLoading} emptyText="Chưa có học phần" />
+      <DataTable
+        columns={columns}
+        rows={rows}
+        isLoading={isLoading}
+        emptyText="Chưa có học phần"
+        onRowClick={(c) => navigate(`/admin/courses/${c._id}`)}
+      />
       <Pagination page={meta.page} pages={meta.pages} total={meta.total} onPageChange={setPage} />
 
       <Modal open={Boolean(modal)} onClose={() => setModal(null)} title={modal?.mode === 'create' ? 'Thêm học phần' : 'Sửa học phần'}>

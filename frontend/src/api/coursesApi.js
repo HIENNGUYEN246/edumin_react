@@ -3,6 +3,7 @@ import { qs } from './departmentsApi.js';
 
 export const coursesApi = {
   list: (params) => http.get(`/courses${qs(params)}`),
+  get: (id) => http.get(`/courses/${id}`),
   create: (payload) => http.post('/courses', payload),
   update: (id, payload) => http.patch(`/courses/${id}`, payload),
   remove: (id) => http.delete(`/courses/${id}`),

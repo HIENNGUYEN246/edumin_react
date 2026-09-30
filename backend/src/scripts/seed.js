@@ -78,32 +78,44 @@ export async function seed({ withSamples = true } = {}) {
     await course.save();
   }
 
-  // Open one class with a wide registration window so enrollment is testable.
-  const it101 = await Course.findOne({ id: 'IT101' });
-  const teacher1 = teachers[0];
-  const openClass = await CourseClass.create({
-    id: 'IT101-01',
-    courseRef: it101._id,
-    courseId: it101.id,
-    courseName: it101.name,
-    department: it101.department,
-    credits: it101.credits,
-    fee: it101.fee,
-    teacherRef: teacher1._id,
-    teacherId: teacher1.id,
-    teacher: teacher1.hoTen,
-    room: 'A101',
-    schedules: [{ dayId: '2', shiftId: 'S1' }],
-    studyStart: '2026-01-06',
-    studyEnd: '2026-05-30',
-    start: '2020-01-01',
-    end: '2030-01-01',
-    status: 'Đang mở',
-  });
+  // Helper to build a class from a course + teacher.
+  const [teacher1, teacher2] = teachers;
+  const makeClass = async (courseCode, suffix, teacher, schedules, extra = {}) => {
+    const course = await Course.findOne({ id: courseCode });
+    return CourseClass.create({
+      id: `${courseCode}-${suffix}`,
+      courseRef: course._id,
+      courseId: course.id,
+      courseName: course.name,
+      department: course.department,
+      credits: course.credits,
+      fee: course.fee,
+      teacherRef: teacher?._id || null,
+      teacherId: teacher?.id ?? null,
+      teacher: teacher?.hoTen || '',
+      schedules,
+      capacity: 40,
+      studyStart: '2026-01-06',
+      studyEnd: '2026-05-30',
+      start: '2020-01-01',
+      end: '2030-01-01',
+      status: 'Đang mở',
+      ...extra,
+    });
+  };
 
-  // Enroll the first student.
+  // IT101: two open classes (A/B). IT202: one open + one draft. EN101: one open.
+  const classes = await Promise.all([
+    makeClass('IT101', '01', teacher1, [{ dayId: '2', shiftId: 'S1' }], { room: 'A101' }),
+    makeClass('IT101', '02', teacher2, [{ dayId: '4', shiftId: 'S2' }], { room: 'A102' }),
+    makeClass('IT202', '01', teacher1, [{ dayId: '3', shiftId: 'C1' }], { room: 'B201' }),
+    makeClass('IT202', '02', teacher2, [{ dayId: '6', shiftId: 'C2' }], { room: 'B202', status: 'Nháp' }),
+    makeClass('EN101', '01', teacher2, [{ dayId: '5', shiftId: 'S1' }], { room: 'C301' }),
+  ]);
+
+  // Enroll the first student into IT101-01.
   const student1 = students[0];
-  await Enrollment.create({ student: student1._id, classRef: openClass._id, classId: openClass.id });
+  await Enrollment.create({ student: student1._id, classRef: classes[0]._id, classId: classes[0].id });
 
   return {
     adminEmail: admin.email,
@@ -111,7 +123,7 @@ export async function seed({ withSamples = true } = {}) {
     teachers: teachers.length,
     students: students.length,
     courses: SAMPLE_COURSES.length,
-    classes: 1,
+    classes: classes.length,
     samplePassword: SEED_PASSWORD,
   };
 }

@@ -27,17 +27,20 @@ async function makeStudent(idNum = 1, email = `sv${idNum}@edu.vn`) {
 const openWindow = { start: '2020-01-01', end: '2999-01-01', status: 'Đang mở' };
 
 async function makeClass(id, slots, overrides = {}) {
-  const course = await Course.findOne({ id: 'IT101' });
+  const courseId = overrides.courseId || 'IT101';
+  const course = await Course.findOne({ id: courseId });
+  const { courseId: _c, ...rest } = overrides;
+  void _c;
   return CourseClass.create({
     id,
     courseRef: course._id,
-    courseId: 'IT101',
-    courseName: 'Lập trình',
+    courseId: course.id,
+    courseName: course.name,
     schedules: slots,
     studyStart: '2026-01-01',
     studyEnd: '2026-06-01',
     ...openWindow,
-    ...overrides,
+    ...rest,
   });
 }
 
@@ -46,6 +49,7 @@ beforeEach(async () => {
   const { token } = await createUser({ role: ROLES.ADMIN });
   adminToken = token;
   await Course.create({ id: 'IT101', name: 'Lập trình' });
+  await Course.create({ id: 'IT202', name: 'Cấu trúc dữ liệu' });
 });
 
 describe('Enrollments', () => {
@@ -73,14 +77,35 @@ describe('Enrollments', () => {
     expect(res.body.error.message).toMatch(/thời gian đăng ký/);
   });
 
-  it('rejects a schedule clash with an existing enrollment', async () => {
+  it('rejects a schedule clash with an existing enrollment (different courses, same slot)', async () => {
     const { token } = await makeStudent();
     const a = await makeClass('IT101-01', [{ dayId: '2', shiftId: 'S1' }]);
-    const b = await makeClass('IT101-02', [{ dayId: '2', shiftId: 'S1' }]);
+    const b = await makeClass('IT202-01', [{ dayId: '2', shiftId: 'S1' }], { courseId: 'IT202' });
     await request(app).post('/api/enrollments').set(authHeader(token)).send({ classId: a._id });
     const res = await request(app).post('/api/enrollments').set(authHeader(token)).send({ classId: b._id });
     expect(res.status).toBe(409);
     expect(res.body.error.message).toMatch(/trùng lịch/);
+  });
+
+  it('rejects a second class of the same course (one class per course)', async () => {
+    const { token } = await makeStudent();
+    const a = await makeClass('IT101-01', [{ dayId: '2', shiftId: 'S1' }]);
+    const b = await makeClass('IT101-02', [{ dayId: '3', shiftId: 'C1' }]); // no slot clash
+    await request(app).post('/api/enrollments').set(authHeader(token)).send({ classId: a._id });
+    const res = await request(app).post('/api/enrollments').set(authHeader(token)).send({ classId: b._id });
+    expect(res.status).toBe(409);
+    expect(res.body.error.message).toMatch(/một lớp của học phần/);
+  });
+
+  it('rejects enrolling into a full class', async () => {
+    const full = await makeClass('IT101-01', [{ dayId: '2', shiftId: 'S1' }], { capacity: 1 });
+    const first = await makeStudent(1);
+    await request(app).post('/api/enrollments').set(authHeader(first.token)).send({ classId: full._id });
+
+    const second = await makeStudent(2);
+    const res = await request(app).post('/api/enrollments').set(authHeader(second.token)).send({ classId: full._id });
+    expect(res.status).toBe(409);
+    expect(res.body.error.message).toMatch(/đủ sĩ số/);
   });
 
   it('lists my enrollments and lets me cancel', async () => {

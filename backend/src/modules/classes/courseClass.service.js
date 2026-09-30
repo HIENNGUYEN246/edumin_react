@@ -41,18 +41,33 @@ async function buildClassFields(payload) {
     teacherId: teacher?.id ?? null,
     teacher: teacher?.hoTen || '',
     room: payload.room || '',
+    capacity: Number.isFinite(Number(payload.capacity)) ? Number(payload.capacity) : 0,
     schedules: payload.schedules,
     studyStart: payload.studyStart || '',
     studyEnd: payload.studyEnd || '',
     start: payload.start || '',
     end: payload.end || '',
-    status: payload.status || 'Đang mở',
+    status: payload.status || 'Nháp',
   };
 }
 
-/** Reject teacher/room double-booking against every other class. */
+/** Attach a live enrolledCount to a class object (or array of them). */
+async function withEnrolledCount(classes) {
+  const list = Array.isArray(classes) ? classes : [classes];
+  const Enrollment = mongoose.model('Enrollment');
+  const counts = await Enrollment.aggregate([
+    { $match: { classRef: { $in: list.map((c) => c._id) } } },
+    { $group: { _id: '$classRef', n: { $sum: 1 } } },
+  ]);
+  const byId = new Map(counts.map((c) => [String(c._id), c.n]));
+  const mapped = list.map((c) => ({ ...c, enrolledCount: byId.get(String(c._id)) || 0 }));
+  return Array.isArray(classes) ? mapped : mapped[0];
+}
+
+/** Reject teacher/room double-booking against every other active class. */
 async function assertNoConflict(fields, excludeId) {
-  const filter = excludeId ? { _id: { $ne: excludeId } } : {};
+  const filter = { status: { $ne: 'Đã hủy' } };
+  if (excludeId) filter._id = { $ne: excludeId };
   const others = await CourseClass.find(filter).lean();
   const reason = findScheduleConflict(fields, others);
   if (reason) throw AppError.conflict(reason);
@@ -71,25 +86,46 @@ export async function listClasses(query, requester) {
   }
   if (query.status) filter.status = query.status;
 
-  return paginate(CourseClass, { filter, page, limit, skip, sort, populate: POPULATE });
+  const result = await paginate(CourseClass, { filter, page, limit, skip, sort, populate: POPULATE });
+  result.data = await withEnrolledCount(result.data);
+  return result;
 }
 
-/** Open classes currently inside their registration window (for students). */
+/** All classes of a course (for the admin course-detail page), with counts. */
+export async function listClassesByCourse(courseId) {
+  const classes = await CourseClass.find({ courseId }).sort({ id: 1 }).populate(POPULATE).lean();
+  return { data: await withEnrolledCount(classes) };
+}
+
+/**
+ * Open classes inside their registration window (for students), with counts.
+ * Only 'Đang mở' classes are ever exposed here.
+ */
 export async function listOpenClasses() {
   const now = new Date();
   const classes = await CourseClass.find({ status: 'Đang mở' }).populate(POPULATE).lean();
-  return classes.filter((c) => {
+  const inWindow = classes.filter((c) => {
     const start = new Date(c.start);
     const end = new Date(c.end);
     if (Number.isNaN(start.valueOf()) || Number.isNaN(end.valueOf())) return false;
     return now >= start && now <= end;
   });
+  return withEnrolledCount(inWindow);
 }
 
 export async function getClass(id) {
   const doc = await CourseClass.findById(id).populate(POPULATE).lean();
   if (!doc) throw AppError.notFound('Không tìm thấy lớp học phần');
-  return doc;
+  return withEnrolledCount(doc);
+}
+
+/** Change only the lifecycle status of a class. */
+export async function changeStatus(id, status) {
+  const cls = await CourseClass.findById(id);
+  if (!cls) throw AppError.notFound('Không tìm thấy lớp học phần');
+  cls.status = status;
+  await cls.save();
+  return withEnrolledCount(await CourseClass.findById(cls._id).populate(POPULATE).lean());
 }
 
 export async function createClass(payload) {
@@ -98,7 +134,7 @@ export async function createClass(payload) {
   const fields = await buildClassFields(payload);
   await assertNoConflict(fields);
   const created = await CourseClass.create({ id: payload.id, ...fields });
-  return CourseClass.findById(created._id).populate(POPULATE).lean();
+  return withEnrolledCount(await CourseClass.findById(created._id).populate(POPULATE).lean());
 }
 
 export async function updateClass(id, payload) {
@@ -110,6 +146,7 @@ export async function updateClass(id, payload) {
     courseId: payload.courseId || cls.courseId,
     teacherId: payload.teacherId !== undefined ? payload.teacherId : cls.teacherId,
     room: payload.room !== undefined ? payload.room : cls.room,
+    capacity: payload.capacity !== undefined ? payload.capacity : cls.capacity,
     schedules: payload.schedules || cls.schedules,
     studyStart: payload.studyStart !== undefined ? payload.studyStart : cls.studyStart,
     studyEnd: payload.studyEnd !== undefined ? payload.studyEnd : cls.studyEnd,
@@ -121,7 +158,7 @@ export async function updateClass(id, payload) {
   await assertNoConflict(fields, cls._id);
   Object.assign(cls, fields);
   await cls.save();
-  return CourseClass.findById(cls._id).populate(POPULATE).lean();
+  return withEnrolledCount(await CourseClass.findById(cls._id).populate(POPULATE).lean());
 }
 
 /**
@@ -143,7 +180,8 @@ export async function listClassStudents(classId, requester) {
   const enrollments = await Enrollment.find({ classRef: cls._id })
     .populate({ path: 'student', select: 'id hoTen email className department' })
     .lean();
-  return { class: cls.toObject(), students: enrollments.map((e) => e.student).filter(Boolean) };
+  const students = enrollments.map((e) => e.student).filter(Boolean);
+  return { class: { ...cls.toObject(), enrolledCount: students.length }, students };
 }
 
 export async function deleteClass(id) {

@@ -109,16 +109,26 @@ Deleting a department clears `departmentRef` on teachers, students and courses
 
 | Method | Path              | Auth  | Description                                                          |
 | ------ | ----------------- | ----- | -------------------------------------------------------------------- |
-| GET    | `/classes/open`   | any   | Open classes currently inside their registration window (students). |
-| GET    | `/classes`        | any   | Paginated list. `?teacher=me` scopes to the caller (teacher).        |
-| GET    | `/classes/:id`    | any   | Single class.                                                       |
-| POST   | `/classes`        | admin | Create; 409 on teacher/room schedule conflict.                      |
-| PATCH  | `/classes/:id`    | admin | Update; re-checks conflicts.                                        |
-| DELETE | `/classes/:id`    | admin | Delete class + its enrollments (transaction).                        |
+| GET    | `/classes/open`             | any           | Open classes (`Đang mở`) inside their registration window (students). Includes `enrolledCount`/`capacity`. |
+| GET    | `/classes/by-course/:courseId` | admin/teacher | All classes of a course with `enrolledCount`/`capacity` (course-detail page). |
+| GET    | `/classes`                  | any           | Paginated list. `?teacher=me` scopes to the caller (teacher); `?courseId`, `?status`. |
+| GET    | `/classes/:id`              | any           | Single class.                                                       |
+| GET    | `/classes/:id/students`     | admin/teacher | Enrolled students (teacher: own class only).                        |
+| POST   | `/classes`                  | admin         | Create; 409 on teacher/room schedule conflict.                      |
+| PATCH  | `/classes/:id`              | admin         | Update; re-checks conflicts.                                        |
+| PATCH  | `/classes/:id/status`       | admin         | `{ status }` → change lifecycle only.                               |
+| DELETE | `/classes/:id`              | admin         | Delete class + its enrollments (transaction).                        |
 
-Conflict rule: two classes clash if they share a day+shift slot, their study
-periods overlap, and they share the same teacher or the same room.
-Schedule slots use `dayId` ∈ {2..7, CN} and `shiftId` ∈ {S1,S2,C1,C2,T1}.
+- **Status lifecycle:** `Nháp` (draft, hidden) → `Đang mở` (open) → `Đã đóng` / `Đã hủy`.
+  Only `Đang mở` classes within their window appear to students.
+- **Capacity:** `capacity` (0 = unlimited). Enrollment is rejected when `enrolledCount >= capacity`.
+- **Conflict rule:** two classes clash if they share a day+shift slot, their study
+  periods overlap, and they share the same teacher or room (`Đã hủy` classes are ignored).
+  Slots use `dayId` ∈ {2..7, CN} and `shiftId` ∈ {S1,S2,C1,C2,T1}.
+
+Enrollment rules (student): must be within the registration window, cannot enroll
+twice in the same class, cannot take two classes of the same course (one class per
+course), cannot exceed capacity, and cannot clash with an already-enrolled slot.
 
 ## Enrollments (`/enrollments`, student only)
 

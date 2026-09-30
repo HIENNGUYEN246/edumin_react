@@ -42,8 +42,22 @@ export async function enroll(user, classId) {
   const existing = await Enrollment.findOne({ student: student._id, classRef: target._id });
   if (existing) throw AppError.conflict('Bạn đã đăng ký lớp học phần này');
 
-  // Reject if the new class clashes with any already-enrolled class slot.
+  // Capacity: 0 means unlimited. Reject when the class is full.
+  if (target.capacity && target.capacity > 0) {
+    const enrolled = await Enrollment.countDocuments({ classRef: target._id });
+    if (enrolled >= target.capacity) {
+      throw AppError.conflict('Lớp đã đủ sĩ số');
+    }
+  }
+
+  // One class per course: a student may only take one class of a given course.
   const current = await Enrollment.find({ student: student._id }).populate('classRef').lean();
+  const sameCourse = current.find((e) => e.classRef && e.classRef.courseId === target.courseId);
+  if (sameCourse) {
+    throw AppError.conflict('Bạn đã đăng ký một lớp của học phần này');
+  }
+
+  // Reject if the new class clashes with any already-enrolled class slot.
   const clash = current.some((e) =>
     (e.classRef?.schedules || []).some((existingSlot) =>
       (target.schedules || []).some((newSlot) => slotsClash(newSlot, existingSlot))

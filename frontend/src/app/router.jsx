@@ -13,7 +13,7 @@ const ManageStudents = lazy(() => import('../features/admin/students/ManageStude
 const ManageTeacherAccounts = lazy(() => import('../features/admin/accounts/ManageTeacherAccounts.jsx'));
 const ManageStudentAccounts = lazy(() => import('../features/admin/accounts/ManageStudentAccounts.jsx'));
 const ManageCourses = lazy(() => import('../features/admin/courses/ManageCourses.jsx'));
-const ManageClasses = lazy(() => import('../features/admin/classes/ManageClasses.jsx'));
+const CourseDetail = lazy(() => import('../features/admin/courses/CourseDetail.jsx'));
 const TeacherDashboard = lazy(() => import('../features/teacher/TeacherDashboard.jsx'));
 const TeacherSchedule = lazy(() => import('../features/teacher/TeacherSchedule.jsx'));
 const TeacherClassList = lazy(() => import('../features/teacher/TeacherClassList.jsx'));
@@ -45,7 +45,7 @@ export function AppRouter() {
         <Route path="/admin/student-accounts" element={<ManageStudentAccounts />} />
         <Route path="/admin/departments" element={<ManageDepartments />} />
         <Route path="/admin/courses" element={<ManageCourses />} />
-        <Route path="/admin/classes" element={<ManageClasses />} />
+        <Route path="/admin/courses/:id" element={<CourseDetail />} />
       </Route>
 
       <Route
