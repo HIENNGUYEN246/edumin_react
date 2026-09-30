@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { PageHeader } from '../../components/ui/PageHeader.jsx';
 import { DataTable } from '../../components/ui/DataTable.jsx';
 import { Spinner } from '../../components/ui/Spinner.jsx';
@@ -46,11 +47,24 @@ export function TeacherClassList() {
     {
       key: 'action',
       header: '',
-      className: 'text-right w-32',
+      className: 'text-right w-48',
       render: (c) => (
-        <button type="button" onClick={() => setSelected(c)} className="px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700">
-          Danh sách SV
-        </button>
+        <div className="flex justify-end items-center gap-2">
+          <Link
+            to={`/teacher/attendance?classId=${c._id}`}
+            className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 inline-flex items-center gap-1.5 shadow-sm"
+          >
+            <i className="fa-solid fa-clipboard-user text-[11px]"></i>
+            <span>Điểm danh</span>
+          </Link>
+          <button
+            type="button"
+            onClick={() => setSelected(c)}
+            className="px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700"
+          >
+            Danh sách SV
+          </button>
+        </div>
       ),
     },
   ];

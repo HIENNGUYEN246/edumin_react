@@ -3,6 +3,7 @@ import { useAuth } from '../../app/providers/AuthProvider.jsx';
 import { ROLE_LABEL } from '../../app/navConfig.js';
 import { Avatar } from '../ui/Avatar.jsx';
 import { ChangePasswordModal } from '../account/ChangePasswordModal.jsx';
+import NotificationBell from '../NotificationBell.jsx';
 
 export function Header() {
   const { user, profile, logout } = useAuth();
@@ -31,12 +32,14 @@ export function Header() {
         <span className="text-2xl font-bold text-indigo-900 uppercase tracking-tight">EDUMIN</span>
       </div>
 
-      <div className="relative" ref={menuRef}>
-        <button
-          type="button"
-          className="flex items-center gap-3 border-l pl-6 border-gray-200"
-          onClick={() => setMenuOpen((v) => !v)}
-        >
+      <div className="flex items-center gap-4">
+        <NotificationBell currentUser={user} />
+        <div className="relative" ref={menuRef}>
+          <button
+            type="button"
+            className="flex items-center gap-3 border-l pl-6 border-gray-200"
+            onClick={() => setMenuOpen((v) => !v)}
+          >
           <div className="text-right hidden sm:block">
             <p className="text-sm font-bold text-gray-800">{displayName}</p>
             <p className="text-xs text-gray-500">{ROLE_LABEL[user?.role] || ''}</p>
@@ -65,6 +68,7 @@ export function Header() {
             </button>
           </div>
         )}
+        </div>
       </div>
 
       <ChangePasswordModal open={showPassword} onClose={() => setShowPassword(false)} />
