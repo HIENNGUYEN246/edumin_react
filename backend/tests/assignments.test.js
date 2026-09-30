@@ -81,6 +81,14 @@ describe('Assignments', () => {
     expect(quiz.questions[0].options).toBeDefined();
   });
 
+  it('excludes assignments of courses the student is not enrolled in', async () => {
+    await makeQuiz();
+    const { token } = await makeStudent(3); // not enrolled in IT101
+    const res = await request(app).get('/api/assignments').set(authHeader(token));
+    expect(res.status).toBe(200);
+    expect(res.body.data).toHaveLength(0);
+  });
+
   it('serves a single assignment to an enrolled student without correctIndex', async () => {
     const quiz = await makeQuiz();
     const { token } = await enrolledStudent(1);

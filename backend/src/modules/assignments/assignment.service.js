@@ -4,7 +4,7 @@ import { Assignment, Submission } from './assignment.model.js';
 import { Course } from '../courses/course.model.js';
 import { Teacher } from '../teachers/teacher.model.js';
 import { Student } from '../students/student.model.js';
-import { canAccessCourse } from '../shared/courseAccess.js';
+import { canAccessCourse, enrolledCourseIds } from '../shared/courseAccess.js';
 
 /**
  * Public DTO for students: strips `correctIndex` from every question so the
@@ -30,7 +30,17 @@ async function requireCourseTeacher(user, courseId) {
 export async function listAssignments(query, user) {
   const filter = {};
   if (query.courseId) filter.courseId = query.courseId;
-  if (user.role === ROLES.STUDENT) filter.status = 'Công khai';
+
+  if (user.role === ROLES.STUDENT) {
+    filter.status = 'Công khai';
+    // Students only see assignments of courses they are enrolled in, so no
+    // listed item can lead to a 403 on the taking page.
+    const courseIds = await enrolledCourseIds(user);
+    if (!courseIds.length) return { data: [] };
+    filter.courseId = query.courseId && courseIds.includes(query.courseId)
+      ? query.courseId
+      : { $in: courseIds };
+  }
 
   const assignments = await Assignment.find(filter).sort({ createdAt: -1 });
   // Teachers/admins get the full document; students get the answer-stripped DTO.

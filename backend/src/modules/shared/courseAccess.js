@@ -30,3 +30,20 @@ export async function canAccessCourse(user, courseId) {
 
   return false;
 }
+
+/**
+ * The set of course.id codes a student is enrolled in (via any class).
+ * Used to scope listings (documents, assignments) to the student's courses.
+ * @param {object} user
+ * @returns {Promise<string[]>}
+ */
+export async function enrolledCourseIds(user) {
+  if (user?.role !== ROLES.STUDENT) return [];
+  const Enrollment = mongoose.model('Enrollment');
+  const CourseClass = mongoose.model('CourseClass');
+
+  const classRefs = await Enrollment.find({ student: user.student }).distinct('classRef');
+  if (!classRefs.length) return [];
+  const courseIds = await CourseClass.find({ _id: { $in: classRefs } }).distinct('courseId');
+  return courseIds.filter(Boolean);
+}
