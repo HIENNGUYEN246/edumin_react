@@ -9,15 +9,37 @@ import { loadProfile } from './profile.js';
 
 /** Authenticate credentials and issue a token. */
 export async function login({ email, password }) {
-  // passwordHash is select:false, so request it explicitly for comparison.
-  const user = await User.findOne({ email }).select('+passwordHash');
+  // passwordHash and password are select:false, so request them explicitly for comparison.
+  const user = await User.findOne({ email }).select('+passwordHash +password');
   if (!user) throw AppError.unauthorized('Email hoặc mật khẩu không chính xác');
 
-  const ok = await comparePassword(password, user.passwordHash);
+  let ok = false;
+  if (user.passwordHash) {
+    ok = await comparePassword(password, user.passwordHash);
+  }
+  // Fallback for legacy plain-text passwords
+  if (!ok && user.password) {
+    if (String(user.password) === String(password)) {
+      ok = true;
+      user.passwordHash = await hashPassword(password);
+      await user.save().catch(() => {});
+    }
+  }
+
   if (!ok) throw AppError.unauthorized('Email hoặc mật khẩu không chính xác');
 
   if (user.status === 'Locked') {
     throw AppError.locked(user.lockReason ? `Tài khoản đã bị khóa: ${user.lockReason}` : 'Tài khoản đã bị khóa');
+  }
+
+  // Ensure references are populated
+  if (!user.teacher && user.teacherId) {
+    user.teacher = user.teacherId;
+    await user.save().catch(() => {});
+  }
+  if (!user.student && user.studentId) {
+    user.student = user.studentId;
+    await user.save().catch(() => {});
   }
 
   const token = signToken(user);

@@ -29,6 +29,9 @@ export const authenticate = asyncHandler(async (req, _res, next) => {
     throw AppError.locked(user.lockReason || 'Tài khoản đã bị khóa');
   }
 
+  if (!user.teacher && user.teacherId) user.teacher = user.teacherId;
+  if (!user.student && user.studentId) user.student = user.studentId;
+
   req.user = user;
   next();
 });
