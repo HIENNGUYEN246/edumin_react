@@ -83,10 +83,12 @@ export function PersonManager({ config }) {
   const onAvatar = async (person, file) => {
     if (!file) return;
     try {
-      await mutations.uploadAvatar.mutateAsync({ id: person._id, file });
+      const res = await mutations.uploadAvatar.mutateAsync({ id: person._id, file });
       toast.success('Đã cập nhật ảnh đại diện');
+      return res;
     } catch (error) {
       toast.error(error.message);
+      throw error;
     }
   };
 
@@ -123,13 +125,20 @@ export function PersonManager({ config }) {
   const columns = config.columns({
     formatCode: config.formatCode,
     renderAvatar: (person) => (
-      <label className="cursor-pointer inline-block" title="Đổi ảnh">
+      <label className="cursor-pointer inline-block relative group" title="Bấm để đổi ảnh đại diện">
         <Avatar src={person.avatar?.url || person.avatar} name={person.hoTen} size={38} />
+        <span className="absolute inset-0 bg-black/40 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+          <i className="fas fa-camera text-xs" />
+        </span>
         <input
           type="file"
           accept="image/*"
           className="hidden"
-          onChange={(e) => onAvatar(person, e.target.files?.[0])}
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            e.target.value = '';
+            if (file) onAvatar(person, file);
+          }}
         />
       </label>
     ),
@@ -186,6 +195,7 @@ export function PersonManager({ config }) {
           departments={departments}
           onClose={() => setModal(null)}
           onSubmit={handleSubmit}
+          onAvatar={modal.initial?._id ? (file) => onAvatar(modal.initial, file) : undefined}
           saving={mutations.create.isPending || mutations.update.isPending}
         />
       )}

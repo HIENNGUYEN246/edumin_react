@@ -91,6 +91,13 @@ export async function setStudentAvatar(id, file) {
   const previous = student.avatar?.publicId;
   student.avatar = uploaded;
   await student.save();
+
+  // Also sync avatar to linked User account
+  await User.findOneAndUpdate(
+    { $or: [{ student: student._id }, { studentId: student._id }, { email: student.email }] },
+    { avatar: uploaded }
+  ).catch(() => {});
+
   if (previous && previous !== uploaded.publicId) {
     await filesService.destroy(previous, { resourceType: 'image' }).catch(() => {});
   }

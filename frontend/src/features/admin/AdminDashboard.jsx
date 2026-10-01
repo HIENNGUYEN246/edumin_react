@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import { PageHeader } from '../../components/ui/PageHeader.jsx';
+import { ProfileCard } from '../../components/account/ProfileCard.jsx';
 import { Spinner } from '../../components/ui/Spinner.jsx';
 import { useAuth } from '../../app/providers/AuthProvider.jsx';
 import { statsApi } from '../../api/statsApi.js';
@@ -47,6 +48,22 @@ export function AdminDashboard() {
           <span>Hệ thống trực tuyến</span>
         </div>
       </div>
+
+      <ProfileCard
+        user={user}
+        profile={{
+          hoTen: user?.hoTen || 'Quản trị viên',
+          email: user?.email,
+          avatar: user?.avatar,
+        }}
+        code="ADMIN-PDT"
+        fields={[
+          { label: 'Vai trò', value: 'Quản trị viên hệ thống (Admin)' },
+          { label: 'Đơn vị', value: 'Phòng Đào Tạo Edumin' },
+          { label: 'Quyền hạn', value: 'Toàn quyền quản trị & điều hành' },
+          { label: 'Trạng thái', value: 'Hoạt động' },
+        ]}
+      />
 
       {isLoading ? (
         <Spinner />

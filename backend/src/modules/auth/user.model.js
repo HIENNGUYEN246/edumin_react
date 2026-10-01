@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import { ALL_ROLES, ROLES } from '../../lib/roles.js';
+import { fileMetaSchema } from '../shared/avatar.schema.js';
 
 const { Schema } = mongoose;
 
@@ -11,6 +12,7 @@ const userSchema = new Schema(
     password: { type: String, select: false },
     role: { type: String, required: true, enum: ALL_ROLES, default: ROLES.ADMIN },
     hoTen: { type: String, default: '' },
+    avatar: { type: fileMetaSchema, default: () => ({}) },
     status: { type: String, enum: ['Active', 'Locked'], default: 'Active' },
     lockReason: { type: String, default: '' },
     // Bumped on password change / lock / reset to revoke previously issued JWTs.

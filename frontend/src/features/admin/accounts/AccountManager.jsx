@@ -93,7 +93,8 @@ export function AccountManager({ config }) {
       className: 'w-12 text-center',
       render: (a) => {
         const profile = a[config.role === 'giao-vien' ? 'teacher' : 'student'];
-        return <Avatar src={profile?.avatar?.url || profile?.avatar} name={a.hoTen} size={36} />;
+        const avatarSrc = profile?.avatar?.url || profile?.avatar || a?.avatar?.url || a?.avatar;
+        return <Avatar src={avatarSrc} name={a.hoTen} size={36} />;
       },
     },
     {

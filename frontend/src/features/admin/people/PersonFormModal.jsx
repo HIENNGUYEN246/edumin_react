@@ -7,14 +7,36 @@ import { Avatar } from '../../../components/ui/Avatar.jsx';
  * Config-driven create/edit form for a person.
  * `fields` describe inputs; `departments` populates the department select.
  */
-export function PersonFormModal({ open, mode, title, initial, fields, departments, onClose, onSubmit, saving }) {
+export function PersonFormModal({ open, mode, title, initial, fields, departments, onClose, onSubmit, onAvatar, saving }) {
   const [form, setForm] = useState(initial);
+  const [avatarPreview, setAvatarPreview] = useState(initial?.avatar?.url || initial?.avatar);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [errors, setErrors] = useState({});
 
   useEffect(() => {
     setForm(initial);
+    setAvatarPreview(initial?.avatar?.url || initial?.avatar);
     setErrors({});
   }, [initial, open]);
+
+  const handleAvatarChange = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || !onAvatar) return;
+    try {
+      setUploadingAvatar(true);
+      const res = await onAvatar(file);
+      if (res?.avatar?.url) {
+        setAvatarPreview(res.avatar.url);
+      } else {
+        setAvatarPreview(URL.createObjectURL(file));
+      }
+    } catch {
+      // toast handled in caller
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
 
   const set = (name) => (e) => {
     setForm((f) => ({ ...f, [name]: e.target.value }));
@@ -44,12 +66,44 @@ export function PersonFormModal({ open, mode, title, initial, fields, department
     <Modal open={open} onClose={onClose} title={title} size="lg">
       <form onSubmit={submit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {mode === 'edit' && (
-          <div className="md:col-span-2 flex items-center gap-3 p-3 bg-indigo-50/60 rounded-2xl border border-indigo-100">
-            <Avatar src={initial?.avatar?.url || initial?.avatar} name={initial?.hoTen || 'User'} size={46} />
-            <div>
-              <p className="font-bold text-gray-900 text-sm">{initial?.hoTen}</p>
-              <p className="text-xs text-gray-500">{initial?.email}</p>
+          <div className="md:col-span-2 flex items-center justify-between p-3.5 bg-indigo-50/60 rounded-2xl border border-indigo-100">
+            <div className="flex items-center gap-3">
+              <label className="relative group cursor-pointer inline-block" title="Bấm để đổi ảnh đại diện">
+                <Avatar src={avatarPreview} name={initial?.hoTen || 'User'} size={48} />
+                <span className="absolute inset-0 bg-black/40 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                  <i className="fas fa-camera text-xs" />
+                </span>
+                {uploadingAvatar && (
+                  <span className="absolute inset-0 bg-black/60 text-white rounded-full flex items-center justify-center">
+                    <i className="fas fa-spinner fa-spin text-xs" />
+                  </span>
+                )}
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  disabled={uploadingAvatar}
+                  onChange={handleAvatarChange}
+                />
+              </label>
+              <div>
+                <p className="font-bold text-gray-900 text-sm">{initial?.hoTen}</p>
+                <p className="text-xs text-gray-500">{initial?.email}</p>
+              </div>
             </div>
+            {onAvatar && (
+              <label className="cursor-pointer px-3 py-1.5 rounded-xl bg-white border border-indigo-200 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 transition shadow-xs flex items-center gap-1.5">
+                <i className={`fas ${uploadingAvatar ? 'fa-spinner fa-spin' : 'fa-camera'}`} />
+                <span>{uploadingAvatar ? 'Đang tải...' : 'Đổi ảnh đại diện'}</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  disabled={uploadingAvatar}
+                  onChange={handleAvatarChange}
+                />
+              </label>
+            )}
           </div>
         )}
         {fields.map((field) => (

@@ -53,9 +53,27 @@ export async function getMe(user) {
   return { user: user.toPublic(), profile };
 }
 
-/** Update the authenticated user's own avatar (teacher/student profile). */
+/** Update the authenticated user's own avatar (admin/teacher/student). */
 export async function updateMyAvatar(user, file) {
   if (!file) throw AppError.badRequest('Thiếu tệp ảnh');
+
+  const uploaded = await filesService.uploadBuffer(file.buffer, {
+    folder: 'avatars',
+    resourceType: 'image',
+    access: 'public',
+  });
+
+  if (user.role === ROLES.ADMIN) {
+    const userDoc = await User.findById(user._id);
+    if (!userDoc) throw AppError.notFound('Không tìm thấy tài khoản quản trị');
+    const previous = userDoc.avatar?.publicId;
+    userDoc.avatar = uploaded;
+    await userDoc.save();
+    if (previous && previous !== uploaded.publicId) {
+      await filesService.destroy(previous, { resourceType: 'image' }).catch(() => {});
+    }
+    return { avatar: uploaded, user: userDoc.toPublic() };
+  }
 
   const modelName =
     user.role === ROLES.TEACHER ? 'Teacher' : user.role === ROLES.STUDENT ? 'Student' : null;
@@ -63,21 +81,27 @@ export async function updateMyAvatar(user, file) {
 
   const Model = mongoose.model(modelName);
   const profileId = user.role === ROLES.TEACHER ? user.teacher : user.student;
-  const profile = await Model.findById(profileId);
-  if (!profile) throw AppError.notFound('Không tìm thấy hồ sơ');
+  let profile = profileId ? await Model.findById(profileId) : null;
+  if (!profile && user._id) {
+    profile = await Model.findOne({ userId: user._id });
+  }
+  if (!profile) throw AppError.notFound('Không tìm thấy hồ sơ người dùng');
 
-  const uploaded = await filesService.uploadBuffer(file.buffer, {
-    folder: 'avatars',
-    resourceType: 'image',
-    access: 'public',
-  });
   const previous = profile.avatar?.publicId;
   profile.avatar = uploaded;
   await profile.save();
   if (previous && previous !== uploaded.publicId) {
     await filesService.destroy(previous, { resourceType: 'image' }).catch(() => {});
   }
-  return { avatar: uploaded };
+
+  // Also sync avatar to User account so header/auth/me has it immediately
+  const userDoc = await User.findById(user._id);
+  if (userDoc) {
+    userDoc.avatar = uploaded;
+    await userDoc.save().catch(() => {});
+  }
+
+  return { avatar: uploaded, profile };
 }
 
 /** Change own password after verifying the old one; revokes old tokens. */
