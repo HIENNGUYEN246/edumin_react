@@ -99,12 +99,21 @@ export function ProfileCard({ profile, user, code, fields = [] }) {
             <p className="text-sm text-gray-500 mt-0.5">{user?.email}</p>
 
             <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-1.5 text-sm text-gray-600">
-              {fields.map((f) => (
-                <div key={f.label} className="truncate">
-                  <span className="text-gray-400">{f.label}: </span>
-                  <span className="font-medium text-gray-800">{f.value || '—'}</span>
-                </div>
-              ))}
+              {fields
+                .filter(
+                  (f) =>
+                    f &&
+                    f.value !== undefined &&
+                    f.value !== null &&
+                    String(f.value).trim() !== '' &&
+                    String(f.value).trim() !== '—'
+                )
+                .map((f) => (
+                  <div key={f.label} className="truncate">
+                    <span className="text-gray-400">{f.label}: </span>
+                    <span className="font-medium text-gray-800">{f.value}</span>
+                  </div>
+                ))}
             </div>
 
             {/* Pending request alert */}

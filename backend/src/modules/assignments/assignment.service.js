@@ -4,7 +4,7 @@ import { Assignment, Submission } from './assignment.model.js';
 import { Course } from '../courses/course.model.js';
 import { Teacher } from '../teachers/teacher.model.js';
 import { Student } from '../students/student.model.js';
-import { canAccessCourse, enrolledCourseIds } from '../shared/courseAccess.js';
+import { canAccessCourse, enrolledCourseIds, teacherAccessibleCourseIds } from '../shared/courseAccess.js';
 
 /**
  * Public DTO for students: strips `correctIndex` from every question so the
@@ -36,6 +36,13 @@ export async function listAssignments(query, user) {
     // Students only see assignments of courses they are enrolled in, so no
     // listed item can lead to a 403 on the taking page.
     const courseIds = await enrolledCourseIds(user);
+    if (!courseIds.length) return { data: [] };
+    filter.courseId = query.courseId && courseIds.includes(query.courseId)
+      ? query.courseId
+      : { $in: courseIds };
+  } else if (user.role === ROLES.TEACHER) {
+    // Teachers only see assignments of courses they teach or in their department / chuyên ngành
+    const courseIds = await teacherAccessibleCourseIds(user);
     if (!courseIds.length) return { data: [] };
     filter.courseId = query.courseId && courseIds.includes(query.courseId)
       ? query.courseId

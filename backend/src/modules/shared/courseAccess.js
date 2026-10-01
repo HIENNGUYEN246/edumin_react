@@ -17,7 +17,10 @@ export async function canAccessCourse(user, courseId) {
 
   if (user.role === ROLES.TEACHER) {
     const count = await CourseClass.countDocuments({ courseId, teacherRef: user.teacher });
-    return count > 0;
+    if (count > 0) return true;
+
+    const allowed = await teacherAccessibleCourseIds(user);
+    return allowed.includes(courseId);
   }
 
   if (user.role === ROLES.STUDENT) {
@@ -29,6 +32,33 @@ export async function canAccessCourse(user, courseId) {
   }
 
   return false;
+}
+
+/**
+ * The set of course.id codes a teacher has access to:
+ * - Courses they teach at least one class of
+ * - Courses belonging to their department / chuyên ngành
+ * @param {object} user
+ * @returns {Promise<string[]>}
+ */
+export async function teacherAccessibleCourseIds(user) {
+  if (user?.role !== ROLES.TEACHER) return [];
+  const Teacher = mongoose.model('Teacher');
+  const Course = mongoose.model('Course');
+  const CourseClass = mongoose.model('CourseClass');
+
+  const teacher = await Teacher.findById(user.teacher).lean();
+  const taughtCourseIds = await CourseClass.find({ teacherRef: user.teacher }).distinct('courseId');
+
+  let deptCourseIds = [];
+  if (teacher?.departmentRef || teacher?.department) {
+    const deptFilter = [];
+    if (teacher.departmentRef) deptFilter.push({ departmentRef: teacher.departmentRef });
+    if (teacher.department) deptFilter.push({ department: teacher.department });
+    deptCourseIds = await Course.find({ $or: deptFilter }).distinct('id');
+  }
+
+  return Array.from(new Set([...taughtCourseIds, ...deptCourseIds].filter(Boolean)));
 }
 
 /**

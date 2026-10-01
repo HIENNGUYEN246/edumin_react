@@ -19,40 +19,80 @@ export async function listDocuments(query, user) {
 
 function stripFile(doc) {
   const { file, ...rest } = doc;
-  return { ...rest, size: file?.bytes || 0, format: file?.format || '' };
+  return {
+    ...rest,
+    hasFile: Boolean(file?.publicId),
+    size: file?.bytes || 0,
+    format: file?.format || (doc.link ? 'Liên kết' : ''),
+    link: doc.link || '',
+  };
 }
 
-export async function createDocument({ courseId, name, status }, file, user) {
+export async function createDocument({ courseId, name, status, link }, files, user) {
   const course = await Course.findOne({ id: courseId });
   if (!course) throw AppError.badRequest('Học phần không tồn tại');
-  if (!file) throw AppError.badRequest('Thiếu tệp tài liệu');
 
-  // Teachers may only attach documents to courses they teach.
+  // Teachers may only attach documents to courses they teach or in their department.
   if (user.role === ROLES.TEACHER) {
     const allowed = await canAccessCourse(user, courseId);
     if (!allowed) throw AppError.forbidden('Bạn không phụ trách học phần này');
   }
 
-  const uploaded = await filesService.uploadBuffer(file.buffer, {
-    folder: 'documents',
-    resourceType: 'auto',
-    access: 'authenticated',
-  });
+  const fileList = Array.isArray(files) ? files : files ? [files] : [];
+  if (!fileList.length && !link) {
+    throw AppError.badRequest('Vui lòng chọn tệp tài liệu hoặc nhập đường link liên kết');
+  }
 
   const teacher = user.role === ROLES.TEACHER ? await Teacher.findById(user.teacher).lean() : null;
-  const doc = await Document.create({
-    courseRef: course._id,
-    courseId: course.id,
-    name: name || file.originalname,
-    file: uploaded,
-    status: status || 'Công khai',
-    uploadedByRef: teacher?._id || null,
-    uploadedBy: teacher?.hoTen || user.email,
-  });
-  return stripFile(doc.toObject());
+  const createdDocs = [];
+
+  if (fileList.length > 0) {
+    for (const file of fileList) {
+      const uploaded = await filesService.uploadBuffer(file.buffer, {
+        folder: 'documents',
+        resourceType: 'auto',
+        access: 'authenticated',
+      });
+
+      const docName = fileList.length === 1 && name ? name : file.originalname;
+      const doc = await Document.create({
+        courseRef: course._id,
+        courseId: course.id,
+        name: docName,
+        file: uploaded,
+        link: link || '',
+        status: status || 'Công khai',
+        uploadedByRef: teacher?._id || null,
+        uploadedBy: teacher?.hoTen || user.email,
+      });
+      createdDocs.push(stripFile(doc.toObject()));
+    }
+  } else {
+    // Only link provided
+    const doc = await Document.create({
+      courseRef: course._id,
+      courseId: course.id,
+      name: name || link,
+      file: {},
+      link: link || '',
+      status: status || 'Công khai',
+      uploadedByRef: teacher?._id || null,
+      uploadedBy: teacher?.hoTen || user.email,
+    });
+    createdDocs.push(stripFile(doc.toObject()));
+  }
+
+  if (createdDocs.length === 1) {
+    return createdDocs[0];
+  }
+  return {
+    ...createdDocs[0],
+    items: createdDocs,
+    totalCreated: createdDocs.length,
+  };
 }
 
-export async function updateDocument(id, { name, status }, user) {
+export async function updateDocument(id, { name, status, link }, user) {
   const doc = await Document.findById(id);
   if (!doc) throw AppError.notFound('Không tìm thấy tài liệu');
   if (user.role === ROLES.TEACHER && !(await canAccessCourse(user, doc.courseId))) {
@@ -60,6 +100,7 @@ export async function updateDocument(id, { name, status }, user) {
   }
   if (name !== undefined) doc.name = name;
   if (status !== undefined) doc.status = status;
+  if (link !== undefined) doc.link = link;
   await doc.save();
   return stripFile(doc.toObject());
 }
@@ -90,6 +131,13 @@ export async function getDownloadUrl(id, user) {
   }
   const allowed = await canAccessCourse(user, doc.courseId);
   if (!allowed) throw AppError.forbidden('Bạn không có quyền tải tài liệu này');
+
+  if (!doc.file?.publicId) {
+    if (doc.link) {
+      return { url: doc.link, name: doc.name, isExternal: true };
+    }
+    throw AppError.badRequest('Tài liệu không có tệp đính kèm');
+  }
 
   const url = filesService.signedUrl(doc.file.publicId, {
     resourceType: doc.file.resourceType || 'raw',

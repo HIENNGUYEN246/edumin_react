@@ -3,12 +3,18 @@ import { qs } from './departmentsApi.js';
 
 export const documentsApi = {
   list: (params) => http.get(`/documents${qs(params)}`),
-  create: ({ courseId, name, status, file }) => {
+  create: ({ courseId, name, status, file, files, link }) => {
     const form = new FormData();
     form.append('courseId', courseId);
     if (name) form.append('name', name);
     if (status) form.append('status', status);
-    form.append('file', file);
+    if (link) form.append('link', link);
+    if (file) form.append('file', file);
+    if (files && files.length) {
+      for (const f of files) {
+        form.append('files', f);
+      }
+    }
     return http.post('/documents', form);
   },
   update: (id, payload) => http.patch(`/documents/${id}`, payload),

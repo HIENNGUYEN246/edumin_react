@@ -367,7 +367,10 @@ export function TeacherAttendance() {
                           <div>
                             <p className="font-bold text-gray-900">{student.hoTen}</p>
                             <p className="text-xs text-gray-400 font-mono">
-                              {formatStudentCode(student.id)} • {student.className || 'Lớp'}
+                              {formatStudentCode(student.id)}
+                              {student.className && String(student.className).trim() !== ''
+                                ? ` • ${String(student.className).trim()}`
+                                : ''}
                             </p>
                           </div>
                         </div>

@@ -10,6 +10,7 @@ const documentSchema = new Schema(
     name: { type: String, required: true, trim: true },
     // Cloudinary metadata (type: authenticated). No base64 stored in Mongo.
     file: { type: fileMetaSchema, default: () => ({}) },
+    link: { type: String, trim: true, default: '' },
     status: { type: String, enum: ['Công khai', 'Ẩn'], default: 'Công khai' },
     uploadedByRef: { type: Schema.Types.ObjectId, ref: 'Teacher', default: null },
     uploadedBy: { type: String, default: '' },
