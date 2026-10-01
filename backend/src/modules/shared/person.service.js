@@ -44,7 +44,7 @@ export async function createPersonWithAccount({
   try {
     let created;
     await session.withTransaction(async () => {
-      const passwordHash = await hashPassword(password);
+      const passwordHash = await hashPassword(password || '123');
       const [user] = await User.create(
         [{ email, passwordHash, role, hoTen: profileData.hoTen || '', status: 'Active' }],
         { session }

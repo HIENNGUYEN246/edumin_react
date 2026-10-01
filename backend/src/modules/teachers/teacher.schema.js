@@ -13,7 +13,7 @@ const base = {
 
 export const createTeacherSchema = z.object({
   ...base,
-  password: z.string().min(6, 'Mật khẩu phải có ít nhất 6 ký tự').optional(),
+  password: z.string().optional().default('123'),
 });
 
 export const updateTeacherSchema = z.object({

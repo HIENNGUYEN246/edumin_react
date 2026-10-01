@@ -31,7 +31,7 @@ export async function createStudent(payload) {
     counterKey: 'studentId',
     userLink: 'student',
     profileData,
-    password: password || generateTempPassword(),
+    password: password || '123',
   });
   return Student.findById(profile._id).populate(POPULATE).lean();
 }

@@ -19,7 +19,7 @@ const studentConfig = {
     address: '',
     className: '',
     departmentId: '',
-    password: '',
+    password: '123',
   },
   fields: [
     { name: 'hoTen', label: 'Họ tên', required: true },

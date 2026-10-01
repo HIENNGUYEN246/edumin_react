@@ -54,12 +54,9 @@ export function PersonFormModal({ open, mode, title, initial, fields, department
         next[field.name] = 'Email không hợp lệ';
       }
     });
-    if (mode === 'create' && form.password && form.password.length < 6) {
-      next.password = 'Mật khẩu phải từ 6 ký tự';
-    }
     setErrors(next);
     if (Object.keys(next).length) return;
-    onSubmit(form, setErrors);
+    onSubmit({ ...form, password: form.password || '123' }, setErrors);
   };
 
   return (
@@ -133,15 +130,22 @@ export function PersonFormModal({ open, mode, title, initial, fields, department
         ))}
 
         {mode === 'create' && (
-          <FormField label="Mật khẩu" error={errors.password} hint="Để trống sẽ tạo mật khẩu ngẫu nhiên">
-            <input
-              type="text"
-              className={inputClass}
-              value={form.password || ''}
-              onChange={set('password')}
-              placeholder="Tối thiểu 6 ký tự"
-            />
-          </FormField>
+          <div className="md:col-span-2 p-3.5 bg-amber-50/80 border border-amber-200 rounded-2xl flex items-center gap-3 text-xs text-amber-900">
+            <div className="w-8 h-8 rounded-xl bg-amber-200/80 text-amber-800 flex items-center justify-center shrink-0">
+              <i className="fas fa-key text-sm" />
+            </div>
+            <div className="flex-1">
+              <p className="font-bold text-amber-950">
+                Mật khẩu khởi tạo mặc định:{' '}
+                <span className="font-mono bg-white px-2.5 py-0.5 rounded-lg border border-amber-300 font-bold text-indigo-700 text-sm">
+                  123
+                </span>
+              </p>
+              <p className="text-amber-800/90 mt-0.5">
+                Tài khoản sẽ được tạo với mật khẩu là 123. Người dùng đăng nhập lần đầu và tự đổi lại mật khẩu cá nhân.
+              </p>
+            </div>
+          </div>
         )}
 
         <div className="md:col-span-2 flex justify-end gap-3 pt-2">

@@ -37,7 +37,7 @@ export async function createTeacher(payload) {
     counterKey: 'teacherId',
     userLink: 'teacher',
     profileData,
-    password: password || generateTempPassword(),
+    password: password || '123',
   });
   return Teacher.findById(profile._id).populate(POPULATE).lean();
 }
