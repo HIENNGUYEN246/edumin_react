@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PageHeader, SearchInput } from '../../../components/ui/PageHeader.jsx';
 import { DataTable } from '../../../components/ui/DataTable.jsx';
@@ -30,8 +30,13 @@ export function ManageCourses() {
 
   const params = useMemo(() => ({ page, limit: 10, search }), [page, search]);
   const { data, isLoading } = useCourses(params);
-  const { create, update, remove, importRows } = useCourseMutations();
+  const { create, update, remove, bulkDelete, importRows } = useCourseMutations();
   const { data: deptData } = useDepartments({ limit: 100 });
+  const [selectedIds, setSelectedIds] = useState([]);
+
+  useEffect(() => {
+    setSelectedIds([]);
+  }, [page, search]);
 
   const rows = data?.data || [];
   const meta = data?.meta || { page: 1, pages: 1, total: 0 };
@@ -84,13 +89,36 @@ export function ManageCourses() {
   };
 
   const onDelete = async (course) => {
-    const ok = await confirm({ title: 'Xóa học phần', message: `Xóa học phần "${course.name}"?`, confirmText: 'Xóa' });
+    const ok = await confirm({ title: 'Xóa học phần', message: `Xóa học phần "${course.name}"?`, confirmText: 'Xóa', tone: 'danger' });
     if (!ok) return;
     try {
       await remove.mutateAsync(course._id);
+      setSelectedIds((prev) => prev.filter((id) => id !== course._id));
       toast.success('Đã xóa học phần');
     } catch (error) {
       toast.error(error.message);
+    }
+  };
+
+  const onBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    const ok = await confirm({
+      title: 'Xóa nhiều học phần đã chọn',
+      message: `Bạn có chắc muốn xóa ${selectedIds.length} học phần đã chọn? Lưu ý các học phần đang có lớp mở sẽ không thể xóa.`,
+      confirmText: `Xóa ${selectedIds.length} học phần`,
+      tone: 'danger',
+    });
+    if (!ok) return;
+    try {
+      if (bulkDelete) {
+        await bulkDelete.mutateAsync(selectedIds);
+      } else {
+        await Promise.all(selectedIds.map((id) => remove.mutateAsync(id)));
+      }
+      toast.success(`Đã xóa ${selectedIds.length} học phần`);
+      setSelectedIds([]);
+    } catch (error) {
+      toast.error(error.message || 'Lỗi khi xóa học phần');
     }
   };
 
@@ -192,6 +220,37 @@ export function ManageCourses() {
         isLoading={isLoading}
         emptyText="Chưa có học phần"
         onRowClick={(c) => navigate(`/admin/courses/${c._id}`)}
+        selectable
+        selectedKeys={selectedIds}
+        onSelectKey={(key) =>
+          setSelectedIds((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]))
+        }
+        onSelectAll={(allKeys) =>
+          setSelectedIds((prev) =>
+            allKeys.every((k) => prev.includes(k))
+              ? prev.filter((k) => !allKeys.includes(k))
+              : Array.from(new Set([...prev, ...allKeys]))
+          )
+        }
+        bulkActions={
+          <>
+            <button
+              type="button"
+              onClick={() => setSelectedIds([])}
+              className="px-3 py-1.5 text-xs font-semibold text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50"
+            >
+              Bỏ chọn
+            </button>
+            <button
+              type="button"
+              onClick={onBulkDelete}
+              className="px-3 py-1.5 text-xs font-bold text-white bg-red-600 rounded-xl hover:bg-red-700 shadow-xs flex items-center gap-1.5"
+            >
+              <i className="fas fa-trash-alt" />
+              <span>Xóa {selectedIds.length} học phần đã chọn</span>
+            </button>
+          </>
+        }
       />
       <Pagination page={meta.page} pages={meta.pages} total={meta.total} onPageChange={setPage} />
 

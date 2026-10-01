@@ -6,6 +6,7 @@ export const accountsApi = {
   updateStatus: (id, payload) => http.patch(`/accounts/${id}/status`, payload),
   resetPassword: (id) => http.post(`/accounts/${id}/reset-password`),
   remove: (id) => http.delete(`/accounts/${id}`),
+  bulkDelete: (ids) => http.post('/accounts/bulk-delete', { ids }),
 };
 
 export default accountsApi;

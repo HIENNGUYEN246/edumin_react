@@ -75,33 +75,42 @@ export async function updateMyAvatar(user, file) {
     return { avatar: uploaded, user: userDoc.toPublic() };
   }
 
-  const modelName =
-    user.role === ROLES.TEACHER ? 'Teacher' : user.role === ROLES.STUDENT ? 'Student' : null;
-  if (!modelName) throw AppError.badRequest('Vai trò không có hồ sơ ảnh đại diện');
+  // Teacher or Student: route through admin approval process
+  const { createRequest } = await import('../profileRequests/profileRequest.service.js');
+  const request = await createRequest(user, {
+    type: 'avatar',
+    requestedData: { avatar: uploaded },
+  });
 
-  const Model = mongoose.model(modelName);
-  const profileId = user.role === ROLES.TEACHER ? user.teacher : user.student;
-  let profile = profileId ? await Model.findById(profileId) : null;
-  if (!profile && user._id) {
-    profile = await Model.findOne({ userId: user._id });
+  return {
+    pending: true,
+    message: 'Yêu cầu thay đổi ảnh đại diện đã được gửi đến Quản trị viên để phê duyệt',
+    avatar: uploaded,
+    request,
+  };
+}
+
+/** Submit a profile information update request (self-service for teacher/student). */
+export async function requestProfileUpdate(user, updateData) {
+  if (user.role === ROLES.ADMIN) {
+    const userDoc = await User.findById(user._id);
+    if (!userDoc) throw AppError.notFound('Không tìm thấy tài khoản quản trị');
+    if (updateData.hoTen) userDoc.hoTen = updateData.hoTen;
+    await userDoc.save();
+    return { user: userDoc.toPublic() };
   }
-  if (!profile) throw AppError.notFound('Không tìm thấy hồ sơ người dùng');
 
-  const previous = profile.avatar?.publicId;
-  profile.avatar = uploaded;
-  await profile.save();
-  if (previous && previous !== uploaded.publicId) {
-    await filesService.destroy(previous, { resourceType: 'image' }).catch(() => {});
-  }
+  const { createRequest } = await import('../profileRequests/profileRequest.service.js');
+  const request = await createRequest(user, {
+    type: 'profile',
+    requestedData: updateData,
+  });
 
-  // Also sync avatar to User account so header/auth/me has it immediately
-  const userDoc = await User.findById(user._id);
-  if (userDoc) {
-    userDoc.avatar = uploaded;
-    await userDoc.save().catch(() => {});
-  }
-
-  return { avatar: uploaded, profile };
+  return {
+    pending: true,
+    message: 'Yêu cầu cập nhật thông tin cá nhân đã được gửi đến Quản trị viên để phê duyệt',
+    request,
+  };
 }
 
 /** Change own password after verifying the old one; revokes old tokens. */

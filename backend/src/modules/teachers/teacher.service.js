@@ -88,6 +88,22 @@ export async function deleteTeacher(id) {
   return { success: true };
 }
 
+export async function bulkDeleteTeachers(ids) {
+  if (!Array.isArray(ids) || ids.length === 0) {
+    throw AppError.badRequest('Danh sách mã giáo viên không hợp lệ');
+  }
+  let deletedCount = 0;
+  for (const id of ids) {
+    try {
+      await deleteTeacher(id);
+      deletedCount += 1;
+    } catch {
+      // Continue next
+    }
+  }
+  return { deletedCount };
+}
+
 export async function setTeacherAvatar(id, file) {
   const teacher = await Teacher.findById(id);
   if (!teacher) throw AppError.notFound('Không tìm thấy giáo viên');

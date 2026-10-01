@@ -42,9 +42,15 @@ export function Header() {
     try {
       setUploadingAvatar(true);
       toast.info('Đang tải ảnh đại diện lên...');
-      await authApi.updateAvatar(file);
+      const res = await authApi.updateAvatar(file);
       await queryClient.invalidateQueries({ queryKey: ['auth', 'me'] });
-      toast.success('Đã cập nhật ảnh đại diện');
+      await queryClient.invalidateQueries({ queryKey: ['profile-requests'] });
+      if (res?.pending) {
+        toast.info(res.message || 'Yêu cầu thay đổi ảnh đại diện đã được gửi đến Quản trị viên để phê duyệt');
+      } else {
+        toast.success('Đã cập nhật ảnh đại diện');
+      }
+      window.dispatchEvent(new CustomEvent('edumin_profile_request_updated'));
     } catch (err) {
       toast.error(err.message || 'Lỗi khi cập nhật ảnh đại diện');
     } finally {

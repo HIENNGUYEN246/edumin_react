@@ -8,6 +8,7 @@ export const teachersApi = {
   create: (payload) => http.post('/teachers', payload),
   update: (id, payload) => http.patch(`/teachers/${id}`, payload),
   remove: (id) => http.delete(`/teachers/${id}`),
+  bulkDelete: (ids) => http.post('/teachers/bulk-delete', { ids }),
   importRows: (rows) => http.post('/teachers/import', { rows }),
   uploadAvatar: (id, file) => {
     const form = new FormData();

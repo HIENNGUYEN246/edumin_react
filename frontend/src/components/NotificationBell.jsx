@@ -1,6 +1,24 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { notificationsApi } from '../api/notificationsApi.js';
+import { tokenStore } from '../api/http.js';
 import { getStoredNotifications, saveStoredNotifications } from '../services/notificationService';
+
+function formatTimeAgo(dateInput) {
+  if (!dateInput) return 'Vừa xong';
+  const date = typeof dateInput === 'string' || typeof dateInput === 'number' ? new Date(dateInput) : dateInput;
+  if (isNaN(date.getTime())) return 'Vừa xong';
+  const now = new Date();
+  const diffSec = Math.floor((now.getTime() - date.getTime()) / 1000);
+  if (diffSec < 60) return 'Vừa xong';
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin} phút trước`;
+  const diffHours = Math.floor(diffMin / 60);
+  if (diffHours < 24) return `${diffHours} giờ trước`;
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays < 7) return `${diffDays} ngày trước`;
+  return date.toLocaleDateString('vi-VN');
+}
 
 export default function NotificationBell({ currentUser, customRole }) {
   const navigate = useNavigate();
@@ -19,14 +37,55 @@ export default function NotificationBell({ currentUser, customRole }) {
 
   const role = customRole || user?.role || 'sinh-vien';
 
-  const [notifications, setNotifications] = useState(() => {
-    return getStoredNotifications(role, user);
-  });
+  const [backendItems, setBackendItems] = useState(null);
+  const [localItems, setLocalItems] = useState(() => getStoredNotifications(role, user));
 
-  // Reload when user or role changes
+  // Fetch from backend API
+  const fetchBackendNotifications = useCallback(async () => {
+    if (!tokenStore.get()) return;
+    try {
+      const res = await notificationsApi.list({ limit: 40 });
+      if (res && Array.isArray(res.items)) {
+        setBackendItems(res.items);
+      }
+    } catch {
+      // Fallback stays in place
+    }
+  }, []);
+
+  // Initial fetch and interval polling
   useEffect(() => {
-    setNotifications(getStoredNotifications(role, user));
-  }, [role, user?.email]);
+    fetchBackendNotifications();
+    const interval = setInterval(fetchBackendNotifications, 20000);
+    const onFocus = () => fetchBackendNotifications();
+    window.addEventListener('focus', onFocus);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [fetchBackendNotifications]);
+
+  // Combined notifications: prefer backendItems if available, else localItems
+  const notifications = useMemo(() => {
+    if (backendItems !== null && backendItems.length > 0) {
+      return backendItems.map((n) => ({
+        id: n._id,
+        _id: n._id,
+        fromBackend: true,
+        type: n.type || 'system',
+        title: n.title,
+        message: n.message,
+        time: formatTimeAgo(n.createdAt),
+        link: n.link,
+        isRead: Boolean(n.isRead),
+        timestamp: new Date(n.createdAt).getTime(),
+      }));
+    }
+    if (backendItems !== null && backendItems.length === 0) {
+      return [];
+    }
+    return localItems;
+  }, [backendItems, localItems]);
 
   // Unread count
   const unreadCount = useMemo(() => {
@@ -51,6 +110,7 @@ export default function NotificationBell({ currentUser, customRole }) {
   // Listen to live system events
   useEffect(() => {
     const handleFeedbackUpdate = (e) => {
+      fetchBackendNotifications();
       const fb = e?.detail;
       const newNotif = {
         id: `notif_live_fb_${Date.now()}`,
@@ -64,7 +124,7 @@ export default function NotificationBell({ currentUser, customRole }) {
         isRead: false,
         timestamp: Date.now(),
       };
-      setNotifications((prev) => {
+      setLocalItems((prev) => {
         const next = [newNotif, ...prev];
         saveStoredNotifications(role, user, next);
         return next;
@@ -72,6 +132,7 @@ export default function NotificationBell({ currentUser, customRole }) {
     };
 
     const handleAttendanceUpdate = (e) => {
+      fetchBackendNotifications();
       const att = e?.detail;
       const newNotif = {
         id: `notif_live_att_${Date.now()}`,
@@ -85,37 +146,58 @@ export default function NotificationBell({ currentUser, customRole }) {
         isRead: false,
         timestamp: Date.now(),
       };
-      setNotifications((prev) => {
+      setLocalItems((prev) => {
         const next = [newNotif, ...prev];
         saveStoredNotifications(role, user, next);
         return next;
       });
     };
 
+    const handleProfileRequestUpdate = () => {
+      fetchBackendNotifications();
+    };
+
     window.addEventListener('edumin_feedback_updated', handleFeedbackUpdate);
     window.addEventListener('edumin_attendance_updated', handleAttendanceUpdate);
+    window.addEventListener('edumin_profile_request_updated', handleProfileRequestUpdate);
+    window.addEventListener('edumin_notification_created', handleProfileRequestUpdate);
+
     return () => {
       window.removeEventListener('edumin_feedback_updated', handleFeedbackUpdate);
       window.removeEventListener('edumin_attendance_updated', handleAttendanceUpdate);
+      window.removeEventListener('edumin_profile_request_updated', handleProfileRequestUpdate);
+      window.removeEventListener('edumin_notification_created', handleProfileRequestUpdate);
     };
-  }, [role, user]);
+  }, [role, user, fetchBackendNotifications]);
 
   const toggleDropdown = () => {
     setIsOpen((prev) => !prev);
   };
 
-  const markAllAsRead = () => {
-    const updated = notifications.map((n) => ({ ...n, isRead: true }));
-    setNotifications(updated);
+  const markAllAsRead = async () => {
+    if (backendItems !== null) {
+      notificationsApi.markAllRead().catch(() => {});
+      setBackendItems((prev) => (prev || []).map((x) => ({ ...x, isRead: true })));
+    }
+    const updated = localItems.map((n) => ({ ...n, isRead: true }));
+    setLocalItems(updated);
     saveStoredNotifications(role, user, updated);
   };
 
-  const handleNotificationClick = (item) => {
-    const updated = notifications.map((n) =>
-      n.id === item.id ? { ...n, isRead: true } : n
-    );
-    setNotifications(updated);
-    saveStoredNotifications(role, user, updated);
+  const handleNotificationClick = async (item) => {
+    if (item.fromBackend && item._id) {
+      notificationsApi.markRead(item._id).catch(() => {});
+      setBackendItems((prev) =>
+        (prev || []).map((x) => (x._id === item._id ? { ...x, isRead: true } : x))
+      );
+    } else {
+      const updated = localItems.map((n) =>
+        n.id === item.id ? { ...n, isRead: true } : n
+      );
+      setLocalItems(updated);
+      saveStoredNotifications(role, user, updated);
+    }
+
     setIsOpen(false);
 
     if (item.link) {
@@ -123,15 +205,24 @@ export default function NotificationBell({ currentUser, customRole }) {
     }
   };
 
-  const handleDeleteItem = (e, id) => {
+  const handleDeleteItem = async (e, item) => {
     e.stopPropagation();
-    const updated = notifications.filter((n) => n.id !== id);
-    setNotifications(updated);
+    if (item.fromBackend && item._id) {
+      notificationsApi.remove(item._id).catch(() => {});
+      setBackendItems((prev) => (prev || []).filter((x) => x._id !== item._id));
+    }
+    const updated = localItems.filter((n) => n.id !== item.id);
+    setLocalItems(updated);
     saveStoredNotifications(role, user, updated);
   };
 
-  const handleClearAll = () => {
-    setNotifications([]);
+  const handleClearAll = async () => {
+    if (backendItems !== null && backendItems.length > 0) {
+      const ids = backendItems.map((x) => x._id);
+      notificationsApi.bulkDelete(ids).catch(() => {});
+      setBackendItems([]);
+    }
+    setLocalItems([]);
     saveStoredNotifications(role, user, []);
   };
 
@@ -144,6 +235,8 @@ export default function NotificationBell({ currentUser, customRole }) {
 
   const getTypeIcon = (type) => {
     switch (type) {
+      case 'approval':
+        return { icon: 'fa-id-card', bg: 'bg-teal-50 text-teal-600' };
       case 'feedback':
         return { icon: 'fa-comment-dots', bg: 'bg-indigo-50 text-indigo-600' };
       case 'attendance':
@@ -276,7 +369,7 @@ export default function NotificationBell({ currentUser, customRole }) {
 
                     <button
                       type="button"
-                      onClick={(e) => handleDeleteItem(e, item.id)}
+                      onClick={(e) => handleDeleteItem(e, item)}
                       className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-rose-500 p-1 rounded-lg transition"
                       title="Xóa thông báo này"
                     >

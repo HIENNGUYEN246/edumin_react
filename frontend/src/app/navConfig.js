@@ -22,6 +22,7 @@ export const NAV_BY_ROLE = {
     { to: '/admin/courses', label: 'Quản lý học phần', icon: 'fa-book' },
     { to: '/admin/attendance', label: 'Điểm danh & Chuyên cần', icon: 'fa-clipboard-user' },
     { to: '/admin/feedbacks', label: 'Ý kiến & Phản hồi', icon: 'fa-comments' },
+    { to: '/admin/profile-requests', label: 'Duyệt yêu cầu', icon: 'fa-user-check' },
   ],
   [ROLES.TEACHER]: [
     { to: '/teacher', label: 'Tổng quan', icon: 'fa-gauge-high', end: true },

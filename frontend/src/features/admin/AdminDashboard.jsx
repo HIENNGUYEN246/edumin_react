@@ -34,6 +34,7 @@ export function AdminDashboard() {
     { to: '/admin/feedbacks', label: 'Ý kiến & Phản hồi', desc: `${feedbackCount} phản hồi (⭐ ${avgRating})`, icon: 'fa-comments', color: 'bg-teal-50 text-teal-600 hover:bg-teal-100' },
     { to: '/admin/teacher-accounts', label: 'Tài khoản Giáo viên', desc: 'Bảo mật và trạng thái tài khoản', icon: 'fa-user-shield', color: 'bg-blue-50 text-blue-600 hover:bg-blue-100' },
     { to: '/admin/student-accounts', label: 'Tài khoản Sinh viên', desc: 'Cấp và quản lý mật khẩu', icon: 'fa-id-card', color: 'bg-pink-50 text-pink-600 hover:bg-pink-100' },
+    { to: '/admin/profile-requests', label: 'Duyệt yêu cầu thay đổi', desc: 'Phê duyệt ảnh đại diện & hồ sơ GV/SV', icon: 'fa-user-check', color: 'bg-rose-50 text-rose-600 hover:bg-rose-100' },
   ];
 
   return (

@@ -25,6 +25,10 @@ export const remove = asyncHandler(async (req, res) => {
   res.json(await service.deleteTeacher(req.params.id));
 });
 
+export const bulkDelete = asyncHandler(async (req, res) => {
+  res.json(await service.bulkDeleteTeachers(req.body.ids));
+});
+
 export const uploadAvatar = asyncHandler(async (req, res) => {
   res.json(await service.setTeacherAvatar(req.params.id, req.file));
 });

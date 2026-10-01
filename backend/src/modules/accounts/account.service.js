@@ -96,3 +96,20 @@ export async function deleteAccount(actor, id) {
   }
   return { success: true };
 }
+
+export async function bulkDeleteAccounts(actor, ids) {
+  if (!Array.isArray(ids) || ids.length === 0) {
+    throw AppError.badRequest('Danh sách mã tài khoản không hợp lệ');
+  }
+  let deletedCount = 0;
+  for (const id of ids) {
+    try {
+      await deleteAccount(actor, id);
+      deletedCount += 1;
+    } catch {
+      // Continue next
+    }
+  }
+  return { deletedCount };
+}
+

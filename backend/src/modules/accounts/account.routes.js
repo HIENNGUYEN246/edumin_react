@@ -13,6 +13,7 @@ router.use(authenticate, authorize(ROLES.ADMIN));
 router.get('/', validate(listAccountsSchema, 'query'), controller.list);
 router.patch('/:id/status', validate(updateStatusSchema), controller.updateStatus);
 router.post('/:id/reset-password', controller.resetPassword);
+router.post('/bulk-delete', controller.bulkDelete);
 router.delete('/:id', controller.remove);
 
 export default router;

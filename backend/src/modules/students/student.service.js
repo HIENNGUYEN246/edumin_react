@@ -78,6 +78,22 @@ export async function deleteStudent(id) {
   return { success: true };
 }
 
+export async function bulkDeleteStudents(ids) {
+  if (!Array.isArray(ids) || ids.length === 0) {
+    throw AppError.badRequest('Danh sách mã sinh viên không hợp lệ');
+  }
+  let deletedCount = 0;
+  for (const id of ids) {
+    try {
+      await deleteStudent(id);
+      deletedCount += 1;
+    } catch {
+      // Continue next
+    }
+  }
+  return { deletedCount };
+}
+
 export async function setStudentAvatar(id, file) {
   const student = await Student.findById(id);
   if (!student) throw AppError.notFound('Không tìm thấy sinh viên');

@@ -6,6 +6,7 @@ export const feedbackApi = {
   submit: (payload) => http.post('/feedbacks', payload),
   respond: (id, response) => http.post(`/feedbacks/${id}/reply`, { response }),
   remove: (id) => http.delete(`/feedbacks/${id}`),
+  bulkDelete: (ids) => http.post('/feedbacks/bulk-delete', { ids }),
 };
 
 export default feedbackApi;

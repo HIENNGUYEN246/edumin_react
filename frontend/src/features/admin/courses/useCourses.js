@@ -21,6 +21,7 @@ export function useCourseMutations() {
       onSuccess: invalidate,
     }),
     remove: useMutation({ mutationFn: coursesApi.remove, onSuccess: invalidate }),
+    bulkDelete: useMutation({ mutationFn: coursesApi.bulkDelete, onSuccess: invalidate }),
     importRows: useMutation({ mutationFn: coursesApi.importRows, onSuccess: invalidate }),
   };
 }

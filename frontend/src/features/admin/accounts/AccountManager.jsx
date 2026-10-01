@@ -29,7 +29,12 @@ export function AccountManager({ config }) {
 
   const params = useMemo(() => ({ role: config.role, page, limit: 10, search }), [config.role, page, search]);
   const { data, isLoading } = useAccounts(params);
-  const { updateStatus, resetPassword, remove } = useAccountMutations();
+  const { updateStatus, resetPassword, remove, bulkDelete } = useAccountMutations();
+  const [selectedIds, setSelectedIds] = useState([]);
+
+  useEffect(() => {
+    setSelectedIds([]);
+  }, [page, search]);
 
   const rows = data?.data || [];
   const meta = data?.meta || { page: 1, pages: 1, total: 0 };
@@ -76,13 +81,37 @@ export function AccountManager({ config }) {
       title: 'Xóa tài khoản',
       message: `Xóa tài khoản ${account.email}? Hồ sơ liên quan cũng sẽ bị xóa.`,
       confirmText: 'Xóa',
+      tone: 'danger',
     });
     if (!ok) return;
     try {
       await remove.mutateAsync(account._id);
+      setSelectedIds((prev) => prev.filter((id) => id !== account._id));
       toast.success('Đã xóa tài khoản');
     } catch (error) {
       toast.error(error.message);
+    }
+  };
+
+  const onBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    const ok = await confirm({
+      title: 'Xóa nhiều tài khoản đã chọn',
+      message: `Bạn có chắc muốn xóa ${selectedIds.length} tài khoản đã chọn? Hồ sơ liên quan cũng sẽ bị xóa.`,
+      confirmText: `Xóa ${selectedIds.length} tài khoản`,
+      tone: 'danger',
+    });
+    if (!ok) return;
+    try {
+      if (bulkDelete) {
+        await bulkDelete.mutateAsync(selectedIds);
+      } else {
+        await Promise.all(selectedIds.map((id) => remove.mutateAsync(id)));
+      }
+      toast.success(`Đã xóa ${selectedIds.length} tài khoản`);
+      setSelectedIds([]);
+    } catch (error) {
+      toast.error(error.message || 'Lỗi khi xóa tài khoản');
     }
   };
 
@@ -163,7 +192,43 @@ export function AccountManager({ config }) {
         }
       />
 
-      <DataTable columns={columns} rows={rows} isLoading={isLoading} emptyText="Chưa có tài khoản" />
+      <DataTable
+        columns={columns}
+        rows={rows}
+        isLoading={isLoading}
+        emptyText="Chưa có tài khoản"
+        selectable
+        selectedKeys={selectedIds}
+        onSelectKey={(key) =>
+          setSelectedIds((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]))
+        }
+        onSelectAll={(allKeys) =>
+          setSelectedIds((prev) =>
+            allKeys.every((k) => prev.includes(k))
+              ? prev.filter((k) => !allKeys.includes(k))
+              : Array.from(new Set([...prev, ...allKeys]))
+          )
+        }
+        bulkActions={
+          <>
+            <button
+              type="button"
+              onClick={() => setSelectedIds([])}
+              className="px-3 py-1.5 text-xs font-semibold text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50"
+            >
+              Bỏ chọn
+            </button>
+            <button
+              type="button"
+              onClick={onBulkDelete}
+              className="px-3 py-1.5 text-xs font-bold text-white bg-red-600 rounded-xl hover:bg-red-700 shadow-xs flex items-center gap-1.5"
+            >
+              <i className="fas fa-trash-alt" />
+              <span>Xóa {selectedIds.length} tài khoản đã chọn</span>
+            </button>
+          </>
+        }
+      />
       <Pagination page={meta.page} pages={meta.pages} total={meta.total} onPageChange={setPage} />
 
       <Modal open={Boolean(lockTarget)} onClose={() => setLockTarget(null)} title="Khóa tài khoản" size="sm">

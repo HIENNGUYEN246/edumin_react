@@ -21,5 +21,6 @@ export function useAccountMutations() {
     }),
     resetPassword: useMutation({ mutationFn: accountsApi.resetPassword }),
     remove: useMutation({ mutationFn: accountsApi.remove, onSuccess: invalidate }),
+    bulkDelete: useMutation({ mutationFn: accountsApi.bulkDelete, onSuccess: invalidate }),
   };
 }

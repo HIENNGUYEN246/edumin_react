@@ -19,6 +19,11 @@ export function ManageFeedbacks() {
   const [filterStatus, setFilterStatus] = useState('all');
   const [searchText, setSearchText] = useState('');
   const search = useDebounce(searchText);
+  const [selectedIds, setSelectedIds] = useState([]);
+
+  useEffect(() => {
+    setSelectedIds([]);
+  }, [filterRating, filterStatus, search]);
 
   // Reply Modal
   const [replyModal, setReplyModal] = useState({
@@ -129,10 +134,35 @@ export function ManageFeedbacks() {
 
     try {
       await feedbackApi.remove(item._id || item.id);
+      setSelectedIds((prev) => prev.filter((id) => id !== String(item._id || item.id)));
       toast.success('Đã xóa phản hồi');
       await loadData();
     } catch {
       toast.error('Không thể xóa phản hồi');
+    }
+  };
+
+  const onBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    const ok = await confirm({
+      title: 'Xóa nhiều phản hồi đã chọn',
+      message: `Bạn có chắc chắn muốn xóa ${selectedIds.length} phản hồi đã chọn khỏi hệ thống?`,
+      confirmText: `Xóa ${selectedIds.length} phản hồi`,
+      danger: true,
+    });
+    if (!ok) return;
+
+    try {
+      if (feedbackApi.bulkDelete) {
+        await feedbackApi.bulkDelete(selectedIds);
+      } else {
+        await Promise.all(selectedIds.map((id) => feedbackApi.remove(id)));
+      }
+      toast.success(`Đã xóa ${selectedIds.length} phản hồi`);
+      setSelectedIds([]);
+      await loadData();
+    } catch {
+      toast.error('Lỗi khi xóa hàng loạt phản hồi');
     }
   };
 
@@ -229,23 +259,85 @@ export function ManageFeedbacks() {
             <p className="text-xs text-gray-400 mt-1">Khi sinh viên gửi góp ý về học phần, nội dung sẽ hiển thị ở đây.</p>
           </div>
         ) : (
-          filteredList.map((item) => (
-            <div
-              key={item._id || item.id}
-              className="bg-white p-5 rounded-2xl border border-gray-100 shadow-xs hover:border-indigo-100 transition space-y-3"
-            >
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="flex items-start gap-3">
-                  <img
-                    src={
-                      item.isAnonymous
-                        ? 'https://ui-avatars.com/api/?name=An+Danh&background=6b7280&color=fff'
-                        : item.studentAvatar ||
-                          `https://ui-avatars.com/api/?name=${encodeURIComponent(item.studentName || 'SV')}&background=6366f1&color=fff`
+          <>
+            <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 bg-white border border-gray-100 rounded-2xl shadow-xs">
+              <label className="flex items-center gap-2 cursor-pointer select-none text-sm text-gray-700 font-semibold">
+                <input
+                  type="checkbox"
+                  className="w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500 cursor-pointer"
+                  checked={
+                    filteredList.length > 0 &&
+                    filteredList.every((item) => selectedIds.includes(String(item._id || item.id)))
+                  }
+                  onChange={() => {
+                    const allKeys = filteredList.map((item) => String(item._id || item.id));
+                    if (allKeys.every((k) => selectedIds.includes(k))) {
+                      setSelectedIds((prev) => prev.filter((k) => !allKeys.includes(k)));
+                    } else {
+                      setSelectedIds((prev) => Array.from(new Set([...prev, ...allKeys])));
                     }
-                    alt=""
-                    className="w-11 h-11 rounded-full object-cover border border-gray-200 mt-0.5"
-                  />
+                  }}
+                />
+                <span>Chọn tất cả ({filteredList.length})</span>
+              </label>
+
+              {selectedIds.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-lg">
+                    Đã chọn {selectedIds.length} mục
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedIds([])}
+                    className="px-3 py-1.5 text-xs font-semibold text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200"
+                  >
+                    Bỏ chọn
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onBulkDelete}
+                    className="px-3 py-1.5 text-xs font-bold text-white bg-red-600 rounded-xl hover:bg-red-700 shadow-xs flex items-center gap-1.5"
+                  >
+                    <i className="fas fa-trash-alt" />
+                    <span>Xóa {selectedIds.length} mục đã chọn</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {filteredList.map((item) => {
+              const itemId = String(item._id || item.id);
+              const isChecked = selectedIds.includes(itemId);
+              return (
+                <div
+                  key={itemId}
+                  className={`bg-white p-5 rounded-2xl border ${
+                    isChecked ? 'border-indigo-400 bg-indigo-50/20' : 'border-gray-100'
+                  } shadow-xs hover:border-indigo-100 transition space-y-3`}
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="flex items-start gap-3">
+                      <input
+                        type="checkbox"
+                        className="w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500 cursor-pointer mt-3"
+                        checked={isChecked}
+                        onChange={() =>
+                          setSelectedIds((prev) =>
+                            prev.includes(itemId) ? prev.filter((id) => id !== itemId) : [...prev, itemId]
+                          )
+                        }
+                        title="Chọn phản hồi này"
+                      />
+                      <img
+                        src={
+                          item.isAnonymous
+                            ? 'https://ui-avatars.com/api/?name=An+Danh&background=6b7280&color=fff'
+                            : item.studentAvatar ||
+                              `https://ui-avatars.com/api/?name=${encodeURIComponent(item.studentName || 'SV')}&background=6366f1&color=fff`
+                        }
+                        alt=""
+                        className="w-11 h-11 rounded-full object-cover border border-gray-200 mt-0.5"
+                      />
                   <div className="space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="font-bold text-gray-900">
@@ -384,9 +476,10 @@ export function ManageFeedbacks() {
                 </div>
               )}
             </div>
-          ))
-        )}
-      </div>
+          );
+        })}</>
+      )}
+    </div>
 
       {/* Reply Modal */}
       {replyModal.isOpen && (

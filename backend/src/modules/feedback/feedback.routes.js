@@ -246,5 +246,24 @@ router.delete('/:id', async (req, res, next) => {
   }
 });
 
+// POST /api/feedbacks/bulk-delete
+router.post('/bulk-delete', async (req, res, next) => {
+  try {
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'Danh sách mã phản hồi không hợp lệ' });
+    }
+    const result = await Feedback.deleteMany({
+      $or: [
+        { _id: { $in: ids.filter((i) => String(i).match(/^[0-9a-fA-F]{24}$/)) } },
+        { id: { $in: ids } },
+      ],
+    });
+    res.json({ success: true, deletedCount: result.deletedCount });
+  } catch (error) {
+    next(error);
+  }
+});
+
 export default router;
 

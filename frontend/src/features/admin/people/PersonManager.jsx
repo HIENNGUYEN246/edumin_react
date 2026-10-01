@@ -24,6 +24,11 @@ export function PersonManager({ config }) {
   const [searchText, setSearchText] = useState('');
   const search = useDebounce(searchText);
   const [modal, setModal] = useState(null);
+  const [selectedIds, setSelectedIds] = useState([]);
+
+  useEffect(() => {
+    setSelectedIds([]);
+  }, [page, search]);
 
   const params = useMemo(() => ({ page, limit: 10, search }), [page, search]);
   const { data, isLoading } = usePeople(config.queryKey, config.api, params);
@@ -70,13 +75,37 @@ export function PersonManager({ config }) {
       title: 'Xóa',
       message: `Xóa "${person.hoTen}"? Tài khoản đăng nhập cũng sẽ bị xóa.`,
       confirmText: 'Xóa',
+      tone: 'danger',
     });
     if (!ok) return;
     try {
       await mutations.remove.mutateAsync(person._id);
+      setSelectedIds((prev) => prev.filter((id) => id !== person._id));
       toast.success('Đã xóa');
     } catch (error) {
       toast.error(error.message);
+    }
+  };
+
+  const onBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    const ok = await confirm({
+      title: 'Xóa nhiều mục đã chọn',
+      message: `Bạn có chắc muốn xóa ${selectedIds.length} ${config.entityLabel} đã chọn? Tài khoản đăng nhập của các mục này cũng sẽ bị xóa.`,
+      confirmText: `Xóa ${selectedIds.length} mục`,
+      tone: 'danger',
+    });
+    if (!ok) return;
+    try {
+      if (mutations.bulkDelete) {
+        await mutations.bulkDelete.mutateAsync(selectedIds);
+      } else {
+        await Promise.all(selectedIds.map((id) => mutations.remove.mutateAsync(id)));
+      }
+      toast.success(`Đã xóa ${selectedIds.length} ${config.entityLabel}`);
+      setSelectedIds([]);
+    } catch (error) {
+      toast.error(error.message || 'Lỗi khi xóa nhiều mục');
     }
   };
 
@@ -182,7 +211,43 @@ export function PersonManager({ config }) {
         }
       />
 
-      <DataTable columns={columns} rows={rows} isLoading={isLoading} emptyText="Chưa có dữ liệu" />
+      <DataTable
+        columns={columns}
+        rows={rows}
+        isLoading={isLoading}
+        emptyText="Chưa có dữ liệu"
+        selectable
+        selectedKeys={selectedIds}
+        onSelectKey={(key) =>
+          setSelectedIds((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]))
+        }
+        onSelectAll={(allKeys) =>
+          setSelectedIds((prev) =>
+            allKeys.every((k) => prev.includes(k))
+              ? prev.filter((k) => !allKeys.includes(k))
+              : Array.from(new Set([...prev, ...allKeys]))
+          )
+        }
+        bulkActions={
+          <>
+            <button
+              type="button"
+              onClick={() => setSelectedIds([])}
+              className="px-3 py-1.5 text-xs font-semibold text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50"
+            >
+              Bỏ chọn
+            </button>
+            <button
+              type="button"
+              onClick={onBulkDelete}
+              className="px-3 py-1.5 text-xs font-bold text-white bg-red-600 rounded-xl hover:bg-red-700 shadow-xs flex items-center gap-1.5"
+            >
+              <i className="fas fa-trash-alt" />
+              <span>Xóa {selectedIds.length} mục đã chọn</span>
+            </button>
+          </>
+        }
+      />
       <Pagination page={meta.page} pages={meta.pages} total={meta.total} onPageChange={setPage} />
 
       {modal && (

@@ -22,6 +22,9 @@ export const authApi = {
     form.append('file', file);
     return http.put('/auth/me/avatar', form);
   },
+  updateProfile(data) {
+    return http.put('/auth/me/profile', data);
+  },
   async register(payload) {
     const result = await http.post('/auth/register', payload);
     if (result?.token) tokenStore.set(result.token);

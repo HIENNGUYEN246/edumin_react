@@ -21,6 +21,10 @@ export const remove = asyncHandler(async (req, res) => {
   res.json(await service.deleteCourse(req.params.id));
 });
 
+export const bulkDelete = asyncHandler(async (req, res) => {
+  res.json(await service.bulkDeleteCourses(req.body.ids));
+});
+
 export const importRows = asyncHandler(async (req, res) => {
   res.json(await service.importCourses(req.body.rows));
 });

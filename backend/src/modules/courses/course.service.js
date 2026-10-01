@@ -61,6 +61,22 @@ export async function deleteCourse(id) {
   return { success: true };
 }
 
+export async function bulkDeleteCourses(ids) {
+  if (!Array.isArray(ids) || ids.length === 0) {
+    throw AppError.badRequest('Danh sách mã học phần không hợp lệ');
+  }
+  let deletedCount = 0;
+  for (const id of ids) {
+    try {
+      await deleteCourse(id);
+      deletedCount += 1;
+    } catch {
+      // Continue next
+    }
+  }
+  return { deletedCount };
+}
+
 export async function importCourses(rows) {
   const results = { created: 0, failed: [] };
   for (let i = 0; i < rows.length; i += 1) {
