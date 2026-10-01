@@ -124,7 +124,7 @@ export function PersonManager({ config }) {
     formatCode: config.formatCode,
     renderAvatar: (person) => (
       <label className="cursor-pointer inline-block" title="Đổi ảnh">
-        <Avatar src={person.avatar?.url} name={person.hoTen} size={38} />
+        <Avatar src={person.avatar?.url || person.avatar} name={person.hoTen} size={38} />
         <input
           type="file"
           accept="image/*"

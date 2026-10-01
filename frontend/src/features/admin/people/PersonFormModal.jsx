@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Modal } from '../../../components/ui/Modal.jsx';
 import { FormField, inputClass } from '../../../components/ui/FormField.jsx';
+import { Avatar } from '../../../components/ui/Avatar.jsx';
 
 /**
  * Config-driven create/edit form for a person.
@@ -42,6 +43,15 @@ export function PersonFormModal({ open, mode, title, initial, fields, department
   return (
     <Modal open={open} onClose={onClose} title={title} size="lg">
       <form onSubmit={submit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {mode === 'edit' && (
+          <div className="md:col-span-2 flex items-center gap-3 p-3 bg-indigo-50/60 rounded-2xl border border-indigo-100">
+            <Avatar src={initial?.avatar?.url || initial?.avatar} name={initial?.hoTen || 'User'} size={46} />
+            <div>
+              <p className="font-bold text-gray-900 text-sm">{initial?.hoTen}</p>
+              <p className="text-xs text-gray-500">{initial?.email}</p>
+            </div>
+          </div>
+        )}
         {fields.map((field) => (
           <FormField key={field.name} label={field.label} error={errors[field.name]} required={field.required}>
             {field.type === 'select' ? (

@@ -1,6 +1,8 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { PageHeader } from '../../../components/ui/PageHeader.jsx';
 import { Spinner } from '../../../components/ui/Spinner.jsx';
+import { Avatar } from '../../../components/ui/Avatar.jsx';
+import { formatStudentCode } from '../../../lib/format.js';
 import { useToast } from '../../../app/providers/ToastProvider.jsx';
 import { useAuth } from '../../../app/providers/AuthProvider.jsx';
 import { attendanceApi } from '../../../api/attendanceApi.js';
@@ -23,9 +25,10 @@ export function StudentAttendance() {
   const [filterCourse, setFilterCourse] = useState('all');
   const [checkingIn, setCheckingIn] = useState(false);
 
-  const studentId = profile?.id || user?.id || 1;
+  const studentId = profile?.id ?? user?.studentId ?? user?.id;
 
   const loadData = useCallback(async () => {
+    if (!studentId) return;
     try {
       setLoading(true);
       const [attRes, enrRes] = await Promise.all([
@@ -110,22 +113,30 @@ export function StudentAttendance() {
         <div className="absolute right-0 top-0 translate-x-8 -translate-y-8 w-64 h-64 bg-indigo-700/20 rounded-full blur-2xl pointer-events-none" />
         
         <div className="relative z-10 flex flex-wrap items-center justify-between gap-6">
-          <div className="space-y-2">
-            <span className="text-xs uppercase font-bold tracking-wider text-indigo-300">
-              Tổng quan học kỳ
-            </span>
-            <h3 className="text-3xl font-black text-white">
-              {stats.rate}% <span className="text-base font-normal text-indigo-200">Chuyên cần</span>
-            </h3>
-            <p className="text-xs text-indigo-200">
-              {stats.absent >= 3 ? (
-                <span className="text-rose-300 font-bold">
-                  ⚠️ Cảnh báo: Bạn đã vắng {stats.absent} buổi, chú ý không vượt quá 20% số tiết quy định.
-                </span>
-              ) : (
-                'Tình trạng chuyên cần của bạn rất tốt, hãy duy trì nhé!'
-              )}
-            </p>
+          <div className="flex items-center gap-4">
+            <Avatar
+              src={profile?.avatar?.url || profile?.avatar || user?.avatar}
+              name={profile?.hoTen || user?.hoTen}
+              size={64}
+              className="border-2 border-white/20 shrink-0 shadow-lg"
+            />
+            <div className="space-y-1">
+              <span className="text-xs uppercase font-bold tracking-wider text-indigo-300">
+                {profile?.id != null ? formatStudentCode(profile.id) : 'Sinh viên'} {profile?.className ? `• Lớp ${profile.className}` : ''}
+              </span>
+              <h3 className="text-2xl font-black text-white">
+                {stats.rate}% <span className="text-base font-normal text-indigo-200">Chuyên cần</span>
+              </h3>
+              <p className="text-xs text-indigo-200">
+                {stats.absent >= 3 ? (
+                  <span className="text-rose-300 font-bold">
+                    ⚠️ Cảnh báo: Bạn đã vắng {stats.absent} buổi, chú ý không vượt quá 20% số tiết quy định.
+                  </span>
+                ) : (
+                  'Tình trạng chuyên cần của bạn rất tốt, hãy duy trì nhé!'
+                )}
+              </p>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
@@ -264,9 +275,21 @@ export function StudentAttendance() {
                     </td>
                     <td className="px-5 py-3.5">
                       {row.evaluation ? (
-                        <span className="text-xs text-gray-700 italic">
-                          "{row.evaluation}"
-                        </span>
+                        <div className="space-y-1">
+                          <p className="text-xs text-gray-800 italic leading-relaxed">
+                            "{row.evaluation}"
+                          </p>
+                          {row.teacherName && (
+                            <div className="flex items-center gap-1.5 text-[11px] text-gray-500 font-medium">
+                              <Avatar
+                                src={row.teacherAvatar || row.teacherRef?.avatar?.url || row.teacherRef?.avatar}
+                                name={row.teacherName}
+                                size={18}
+                              />
+                              <span>GV: {row.teacherName}</span>
+                            </div>
+                          )}
+                        </div>
                       ) : (
                         <span className="text-gray-300 text-xs italic">Không có nhận xét</span>
                       )}

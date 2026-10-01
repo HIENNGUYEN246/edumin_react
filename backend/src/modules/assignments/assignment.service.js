@@ -42,7 +42,9 @@ export async function listAssignments(query, user) {
       : { $in: courseIds };
   }
 
-  const assignments = await Assignment.find(filter).sort({ createdAt: -1 });
+  const assignments = await Assignment.find(filter)
+    .populate('createdByRef', 'id hoTen avatar email')
+    .sort({ createdAt: -1 });
   // Teachers/admins get the full document; students get the answer-stripped DTO.
   if (user.role === ROLES.STUDENT) {
     return { data: assignments.map(toStudentDto) };
@@ -52,7 +54,7 @@ export async function listAssignments(query, user) {
 
 /** Single assignment for the taking page. Students get the answer-stripped DTO. */
 export async function getAssignment(id, user) {
-  const assignment = await Assignment.findById(id);
+  const assignment = await Assignment.findById(id).populate('createdByRef', 'id hoTen avatar email');
   if (!assignment) throw AppError.notFound('Không tìm thấy bài tập');
 
   if (user.role === ROLES.STUDENT) {

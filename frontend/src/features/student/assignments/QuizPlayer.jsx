@@ -46,18 +46,18 @@ export function QuizPlayer({ assignment, initialResult, initialAnswers }) {
     <div className="pb-28">
       {/* Result banner */}
       {submitted && (
-        <div className="mb-6 rounded-3xl overflow-hidden border border-indigo-100 bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg">
+        <div className="mb-6 rounded-3xl overflow-hidden border border-teal-200 bg-gradient-to-br from-teal-600 via-emerald-600 to-teal-700 text-white shadow-xl">
           <div className="p-6 flex flex-col sm:flex-row items-center gap-6">
-            <div className="w-24 h-24 rounded-full bg-white/15 flex flex-col items-center justify-center">
+            <div className="w-24 h-24 rounded-full bg-white/20 flex flex-col items-center justify-center border-2 border-white/30 shadow-inner">
               <span className="text-3xl font-extrabold leading-none">{result.score}</span>
-              <span className="text-xs opacity-80">/ 10</span>
+              <span className="text-xs opacity-90 font-medium">/ 10</span>
             </div>
             <div className="text-center sm:text-left">
-              <p className="text-sm uppercase tracking-widest opacity-80">Kết quả bài làm</p>
-              <p className="text-xl font-bold mt-1">
+              <p className="text-xs uppercase tracking-widest opacity-90 font-bold">Kết quả bài làm</p>
+              <p className="text-2xl font-black mt-1">
                 Đúng {result.correctCount}/{result.total} câu
               </p>
-              <p className="text-sm opacity-80 mt-1">Xem lại đáp án đúng bên dưới.</p>
+              <p className="text-xs opacity-90 mt-1">Xem lại các câu trả lời đúng và sai bên dưới.</p>
             </div>
           </div>
         </div>
@@ -67,13 +67,13 @@ export function QuizPlayer({ assignment, initialResult, initialAnswers }) {
       {!submitted && (
         <div className="mb-6 rounded-2xl bg-white border border-gray-100 shadow-sm p-4">
           <div className="flex items-center justify-between text-sm font-semibold text-gray-600 mb-2">
-            <span>Tiến độ</span>
-            <span>
+            <span className="text-teal-800 font-bold">Tiến độ làm bài</span>
+            <span className="text-teal-700 font-bold">
               {answeredCount}/{questions.length} câu
             </span>
           </div>
           <div className="h-2.5 rounded-full bg-gray-100 overflow-hidden">
-            <div className="h-full bg-gradient-to-r from-indigo-500 to-violet-500 transition-all" style={{ width: `${progress}%` }} />
+            <div className="h-full bg-gradient-to-r from-teal-500 to-emerald-500 transition-all" style={{ width: `${progress}%` }} />
           </div>
         </div>
       )}
@@ -84,17 +84,17 @@ export function QuizPlayer({ assignment, initialResult, initialAnswers }) {
           const correctIndex = keyById.get(question.id);
           const chosen = answers[question.id];
           return (
-            <article key={question.id} className="rounded-3xl bg-white border border-gray-100 shadow-sm overflow-hidden">
+            <article key={question.id} className="rounded-3xl bg-white border border-gray-100 shadow-sm overflow-hidden hover:border-teal-100 transition">
               <div className="flex items-start gap-4 p-5 md:p-6">
-                <div className="w-11 h-11 shrink-0 rounded-2xl bg-gradient-to-br from-violet-500 to-indigo-600 text-white flex items-center justify-center text-lg font-extrabold shadow">
+                <div className="w-11 h-11 shrink-0 rounded-2xl bg-gradient-to-br from-teal-500 to-emerald-600 text-white flex items-center justify-center text-lg font-extrabold shadow-md shadow-teal-500/20">
                   {index + 1}
                 </div>
                 <div className="flex-1 pt-0.5">
-                  <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-violet-500 mb-1">Câu hỏi {index + 1}</p>
+                  <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-teal-600 mb-1">Câu hỏi {index + 1}</p>
                   <p className="text-lg font-bold text-gray-900 leading-7">{question.text}</p>
                 </div>
                 {!submitted && chosen !== undefined && (
-                  <span className="hidden sm:inline-flex items-center gap-1 text-xs font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1.5 rounded-full">
+                  <span className="hidden sm:inline-flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1.5 rounded-full">
                     <i className="fas fa-check" /> Đã chọn
                   </span>
                 )}
@@ -106,7 +106,7 @@ export function QuizPlayer({ assignment, initialResult, initialAnswers }) {
                   const isCorrect = submitted && optIdx === correctIndex;
                   const isWrongPick = submitted && selected && optIdx !== correctIndex;
 
-                  let box = 'border-gray-200 bg-white hover:border-violet-300';
+                  let box = 'border-gray-200 bg-white hover:border-teal-300';
                   let badge = 'bg-gray-100 text-gray-500';
                   if (isCorrect) {
                     box = 'border-emerald-300 bg-emerald-50';
@@ -115,8 +115,8 @@ export function QuizPlayer({ assignment, initialResult, initialAnswers }) {
                     box = 'border-red-300 bg-red-50';
                     badge = 'bg-red-500 text-white';
                   } else if (!submitted && selected) {
-                    box = 'border-violet-400 bg-violet-50 ring-2 ring-violet-200';
-                    badge = 'bg-violet-500 text-white';
+                    box = 'border-teal-500 bg-teal-50/80 ring-2 ring-teal-300 shadow-xs';
+                    badge = 'bg-teal-600 text-white';
                   }
 
                   return (
@@ -144,14 +144,14 @@ export function QuizPlayer({ assignment, initialResult, initialAnswers }) {
       {!submitted && (
         <div className="fixed bottom-0 left-0 right-0 z-30 md:pl-64">
           <div className="mx-auto max-w-5xl m-4 rounded-2xl bg-white border border-gray-200 shadow-2xl px-5 py-3 flex items-center justify-between">
-            <span className="text-sm text-gray-500">
-              {answeredCount === questions.length ? 'Đã trả lời hết, sẵn sàng nộp.' : `Còn ${questions.length - answeredCount} câu chưa trả lời.`}
+            <span className="text-sm font-medium text-gray-600">
+              {answeredCount === questions.length ? 'Đã trả lời hết, sẵn sàng nộp bài.' : `Còn ${questions.length - answeredCount} câu chưa trả lời.`}
             </span>
             <button
               type="button"
               onClick={submit}
               disabled={mutation.isPending}
-              className="px-6 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700 disabled:opacity-60"
+              className="px-6 py-2.5 rounded-xl bg-teal-600 text-white text-sm font-bold hover:bg-teal-700 shadow-lg shadow-teal-600/30 transition disabled:opacity-60"
             >
               {mutation.isPending ? 'Đang nộp...' : 'Nộp bài'}
             </button>

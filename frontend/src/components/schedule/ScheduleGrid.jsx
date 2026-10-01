@@ -1,4 +1,5 @@
 import { DAYS, SHIFTS } from '../../lib/schedule.js';
+import { Avatar } from '../ui/Avatar.jsx';
 
 /**
  * Weekly timetable grid shared by teacher and student views.
@@ -19,8 +20,17 @@ export function ScheduleGrid({ classes = [], renderCell }) {
   const defaultRender = (cls) => (
     <div className="text-xs">
       <p className="font-bold text-indigo-700">{cls.courseName || cls.courseId}</p>
-      {cls.room && <p className="text-gray-500">Phòng {cls.room}</p>}
-      {cls.teacher && <p className="text-gray-400">{cls.teacher}</p>}
+      {cls.room && <p className="text-gray-500 font-medium">Phòng {cls.room}</p>}
+      {cls.teacher && (
+        <div className="flex items-center gap-1.5 mt-1 pt-1 border-t border-indigo-100/60 text-gray-600">
+          <Avatar
+            src={cls.teacherRef?.avatar?.url || cls.teacherRef?.avatar}
+            name={cls.teacher}
+            size={18}
+          />
+          <span className="truncate font-medium">{cls.teacher}</span>
+        </div>
+      )}
     </div>
   );
   const render = renderCell || defaultRender;

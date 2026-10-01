@@ -6,6 +6,7 @@ import { useToast } from '../../../app/providers/ToastProvider.jsx';
 import { useConfirm } from '../../../app/providers/ConfirmProvider.jsx';
 import { useDebounce } from '../../../lib/useDebounce.js';
 import { formatStudentCode } from '../../../lib/format.js';
+import { Avatar } from '../../../components/ui/Avatar.jsx';
 import { attendanceApi } from '../../../api/attendanceApi.js';
 import { classesApi } from '../../../api/classesApi.js';
 import {
@@ -278,13 +279,10 @@ export function ManageAttendance() {
                   <tr key={row._id || row.id} className="hover:bg-indigo-50/20 transition">
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-3">
-                        <img
-                          src={
-                            row.studentAvatar ||
-                            `https://ui-avatars.com/api/?name=${encodeURIComponent(row.studentName || 'SV')}&background=6366f1&color=fff`
-                          }
-                          alt=""
-                          className="w-9 h-9 rounded-full object-cover border border-gray-100 shrink-0"
+                        <Avatar
+                          src={row.studentAvatar}
+                          name={row.studentName || 'SV'}
+                          size={38}
                         />
                         <div>
                           <p className="font-bold text-gray-900">{row.studentName || 'Sinh viên'}</p>
@@ -360,9 +358,29 @@ export function ManageAttendance() {
         <Modal
           open
           onClose={() => setDetailModal({ isOpen: false, record: null, status: 'Có mặt', score: '', evaluation: '', note: '' })}
-          title={`Chi tiết điểm danh - ${detailModal.record?.studentName}`}
+          title={`Chi tiết điểm danh - ${detailModal.record?.studentName || 'Sinh viên'}`}
         >
           <div className="space-y-4">
+            {detailModal.record && (
+              <div className="flex items-center gap-3 p-3 bg-indigo-50/60 rounded-2xl border border-indigo-100">
+                <Avatar
+                  src={detailModal.record.studentAvatar}
+                  name={detailModal.record.studentName || 'SV'}
+                  size={46}
+                />
+                <div>
+                  <div className="flex items-center gap-2">
+                    <p className="font-bold text-gray-900 text-sm">{detailModal.record.studentName}</p>
+                    <span className="text-[10px] font-mono font-bold bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded">
+                      {formatStudentCode(detailModal.record.studentId)}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    {detailModal.record.courseName || detailModal.record.courseId} • Lớp: <span className="font-mono text-indigo-600 font-semibold">{detailModal.record.regId}</span>
+                  </p>
+                </div>
+              </div>
+            )}
             <div>
               <label className="block text-xs font-bold text-gray-600 uppercase mb-1">
                 Trạng thái chuyên cần
