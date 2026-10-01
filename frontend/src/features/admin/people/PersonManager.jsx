@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { PageHeader, SearchInput } from '../../../components/ui/PageHeader.jsx';
 import { DataTable } from '../../../components/ui/DataTable.jsx';
 import { Pagination } from '../../../components/ui/Pagination.jsx';

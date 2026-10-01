@@ -182,3 +182,4 @@ export function EditProfileModal({ open, onClose, user, profile }) {
 }
 
 export default EditProfileModal;
+
