@@ -67,7 +67,7 @@ export async function updateDepartment(id, payload) {
 }
 
 /**
- * Delete a department and detach every reference to it in one transaction.
+ * Delete a department and detach every reference to it.
  * Teacher/Student/Course models are looked up lazily so this works before
  * those modules exist and stays correct after they do.
  */
@@ -75,31 +75,24 @@ export async function deleteDepartment(id) {
   const dept = await Department.findById(id);
   if (!dept) throw AppError.notFound('Không tìm thấy khoa');
 
-  const session = await mongoose.startSession();
-  try {
-    await session.withTransaction(async () => {
-      const models = mongoose.modelNames();
-      // Detach department references from any collection that has them.
-      if (models.includes('Teacher')) {
-        await mongoose
-          .model('Teacher')
-          .updateMany({ departmentRef: dept._id }, { $set: { departmentRef: null, department: '' } }, { session });
-      }
-      if (models.includes('Student')) {
-        await mongoose
-          .model('Student')
-          .updateMany({ departmentRef: dept._id }, { $set: { departmentRef: null, department: '' } }, { session });
-      }
-      if (models.includes('Course')) {
-        await mongoose
-          .model('Course')
-          .updateMany({ departmentRef: dept._id }, { $set: { departmentRef: null } }, { session });
-      }
-      await Department.deleteOne({ _id: dept._id }, { session });
-    });
-  } finally {
-    await session.endSession();
+  const models = mongoose.modelNames();
+  // Detach department references from any collection that has them.
+  if (models.includes('Teacher')) {
+    await mongoose
+      .model('Teacher')
+      .updateMany({ departmentRef: dept._id }, { $set: { departmentRef: null, department: '' } });
   }
+  if (models.includes('Student')) {
+    await mongoose
+      .model('Student')
+      .updateMany({ departmentRef: dept._id }, { $set: { departmentRef: null, department: '' } });
+  }
+  if (models.includes('Course')) {
+    await mongoose
+      .model('Course')
+      .updateMany({ departmentRef: dept._id }, { $set: { departmentRef: null } });
+  }
+  await Department.deleteOne({ _id: dept._id });
 
   return { success: true };
 }

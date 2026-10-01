@@ -58,19 +58,12 @@ export async function deleteStudent(id) {
   const student = await Student.findById(id);
   if (!student) throw AppError.notFound('Không tìm thấy sinh viên');
 
-  const session = await mongoose.startSession();
-  try {
-    await session.withTransaction(async () => {
-      // Remove the student's enrollments if that collection exists yet.
-      if (mongoose.modelNames().includes('Enrollment')) {
-        await mongoose.model('Enrollment').deleteMany({ student: student._id }, { session });
-      }
-      await User.deleteOne({ _id: student.userId }, { session });
-      await Student.deleteOne({ _id: student._id }, { session });
-    });
-  } finally {
-    await session.endSession();
+  // Remove the student's enrollments if that collection exists yet.
+  if (mongoose.modelNames().includes('Enrollment')) {
+    await mongoose.model('Enrollment').deleteMany({ student: student._id });
   }
+  await User.deleteOne({ _id: student.userId });
+  await Student.deleteOne({ _id: student._id });
 
   if (student.avatar?.publicId) {
     await filesService.destroy(student.avatar.publicId, { resourceType: 'image' }).catch(() => {});

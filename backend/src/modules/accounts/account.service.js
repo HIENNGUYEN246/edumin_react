@@ -53,7 +53,7 @@ export async function resetPassword(id) {
   return { tempPassword };
 }
 
-/** Delete an account plus its profile (and avatar/enrollments) in a transaction. */
+/** Delete an account plus its profile (and avatar/enrollments) sequentially. */
 export async function deleteAccount(actor, id) {
   if (String(actor._id) === String(id)) {
     throw AppError.badRequest('Bạn không thể xóa tài khoản của mình');
@@ -62,33 +62,29 @@ export async function deleteAccount(actor, id) {
   if (!user) throw AppError.notFound('Không tìm thấy tài khoản');
 
   const models = mongoose.modelNames();
-  const session = await mongoose.startSession();
   let avatarToDelete = null;
-  try {
-    await session.withTransaction(async () => {
-      if (user.teacher && models.includes('Teacher')) {
-        const teacher = await mongoose.model('Teacher').findById(user.teacher).session(session);
-        if (teacher) {
-          avatarToDelete = teacher.avatar?.publicId || null;
-          await mongoose.model('Department').updateMany({ head: teacher._id }, { $set: { head: null } }, { session });
-          await mongoose.model('Teacher').deleteOne({ _id: teacher._id }, { session });
-        }
+
+  if (user.teacher && models.includes('Teacher')) {
+    const teacher = await mongoose.model('Teacher').findById(user.teacher);
+    if (teacher) {
+      avatarToDelete = teacher.avatar?.publicId || null;
+      if (models.includes('Department')) {
+        await mongoose.model('Department').updateMany({ head: teacher._id }, { $set: { head: null } });
       }
-      if (user.student && models.includes('Student')) {
-        const student = await mongoose.model('Student').findById(user.student).session(session);
-        if (student) {
-          avatarToDelete = student.avatar?.publicId || null;
-          if (models.includes('Enrollment')) {
-            await mongoose.model('Enrollment').deleteMany({ student: student._id }, { session });
-          }
-          await mongoose.model('Student').deleteOne({ _id: student._id }, { session });
-        }
-      }
-      await User.deleteOne({ _id: user._id }, { session });
-    });
-  } finally {
-    await session.endSession();
+      await mongoose.model('Teacher').deleteOne({ _id: teacher._id });
+    }
   }
+  if (user.student && models.includes('Student')) {
+    const student = await mongoose.model('Student').findById(user.student);
+    if (student) {
+      avatarToDelete = student.avatar?.publicId || null;
+      if (models.includes('Enrollment')) {
+        await mongoose.model('Enrollment').deleteMany({ student: student._id });
+      }
+      await mongoose.model('Student').deleteOne({ _id: student._id });
+    }
+  }
+  await User.deleteOne({ _id: user._id });
 
   if (avatarToDelete) {
     const filesService = await import('../../lib/files.service.js');
