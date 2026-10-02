@@ -104,9 +104,6 @@ export function StudentDashboard() {
         profile={profile}
         code={profile?.id != null ? formatStudentCode(profile.id) : ''}
         fields={[
-          ...(profile?.className && String(profile.className).trim() !== ''
-            ? [{ label: 'Lớp', value: String(profile.className).trim() }]
-            : []),
           { label: 'Khoa', value: profile?.department },
           { label: 'Hệ đào tạo', value: profile?.education },
           { label: 'Học phần đã đăng ký', value: enrolledCount },

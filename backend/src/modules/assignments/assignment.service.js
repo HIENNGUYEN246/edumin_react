@@ -4,7 +4,7 @@ import { Assignment, Submission } from './assignment.model.js';
 import { Course } from '../courses/course.model.js';
 import { Teacher } from '../teachers/teacher.model.js';
 import { Student } from '../students/student.model.js';
-import { canAccessCourse, enrolledCourseIds, enrolledClassIds, teacherAccessibleCourseIds } from '../shared/courseAccess.js';
+import { canAccessCourse, enrolledCourseIds, teacherAccessibleCourseIds } from '../shared/courseAccess.js';
 import { CourseClass } from '../classes/courseClass.model.js';
 
 /**
@@ -41,15 +41,6 @@ export async function listAssignments(query, user) {
     filter.courseId = query.courseId && courseIds.includes(query.courseId)
       ? query.courseId
       : { $in: courseIds };
-
-    const { classRefs, classIds } = await enrolledClassIds(user);
-    filter.$or = [
-      { classId: '' },
-      { classId: null },
-      { classId: { $exists: false } },
-      { classRef: { $in: classRefs } },
-      { classId: { $in: classIds } },
-    ];
   } else if (user.role === ROLES.TEACHER) {
     // Teachers only see assignments of courses they teach or in their department / chuyên ngành
     const courseIds = await teacherAccessibleCourseIds(user);
@@ -57,7 +48,6 @@ export async function listAssignments(query, user) {
     filter.courseId = query.courseId && courseIds.includes(query.courseId)
       ? query.courseId
       : { $in: courseIds };
-    if (query.classId) filter.classId = query.classId;
   }
 
   const assignments = await Assignment.find(filter)
@@ -79,14 +69,6 @@ export async function getAssignment(id, user) {
     if (assignment.status !== 'Công khai') throw AppError.forbidden('Bài tập không khả dụng');
     const allowed = await canAccessCourse(user, assignment.courseId);
     if (!allowed) throw AppError.forbidden('Bạn chưa đăng ký học phần này');
-
-    if (assignment.classId) {
-      const { classIds, classRefs } = await enrolledClassIds(user);
-      const inClass =
-        classIds.includes(assignment.classId) ||
-        (assignment.classRef && classRefs.map(String).includes(String(assignment.classRef)));
-      if (!inClass) throw AppError.forbidden(`Bài tập này chỉ dành cho lớp ${assignment.classId}`);
-    }
     return toStudentDto(assignment);
   }
   await requireCourseTeacher(user, assignment.courseId);
@@ -191,14 +173,6 @@ export async function submitQuiz(id, answers, user) {
 
   const allowed = await canAccessCourse(user, assignment.courseId);
   if (!allowed) throw AppError.forbidden('Bạn chưa đăng ký học phần này');
-
-  if (assignment.classId) {
-    const { classIds, classRefs } = await enrolledClassIds(user);
-    const inClass =
-      classIds.includes(assignment.classId) ||
-      (assignment.classRef && classRefs.map(String).includes(String(assignment.classRef)));
-    if (!inClass) throw AppError.forbidden(`Bài quiz này chỉ dành cho lớp ${assignment.classId}`);
-  }
 
   if (isPastDue(assignment)) throw AppError.conflict('Bài quiz đã hết hạn nộp');
 

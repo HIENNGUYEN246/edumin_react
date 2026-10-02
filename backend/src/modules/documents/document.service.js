@@ -5,12 +5,11 @@ import { Document } from './document.model.js';
 import { Course } from '../courses/course.model.js';
 import { Teacher } from '../teachers/teacher.model.js';
 import { CourseClass } from '../classes/courseClass.model.js';
-import { canAccessCourse, enrolledCourseIds, enrolledClassIds, teacherAccessibleCourseIds } from '../shared/courseAccess.js';
+import { canAccessCourse, enrolledCourseIds, teacherAccessibleCourseIds } from '../shared/courseAccess.js';
 
 export async function listDocuments(query, user) {
   const filter = {};
   if (query.courseId) filter.courseId = query.courseId;
-  if (query.classId) filter.classId = query.classId;
 
   if (user.role === ROLES.STUDENT) {
     filter.status = 'Công khai';
@@ -19,15 +18,6 @@ export async function listDocuments(query, user) {
     filter.courseId = query.courseId && courseIds.includes(query.courseId)
       ? query.courseId
       : { $in: courseIds };
-
-    const { classRefs, classIds } = await enrolledClassIds(user);
-    filter.$or = [
-      { classId: '' },
-      { classId: null },
-      { classId: { $exists: false } },
-      { classRef: { $in: classRefs } },
-      { classId: { $in: classIds } },
-    ];
   } else if (user.role === ROLES.TEACHER) {
     const courseIds = await teacherAccessibleCourseIds(user);
     if (!courseIds.length) return { data: [] };
@@ -182,14 +172,6 @@ export async function getDownloadUrl(id, user) {
   }
   const allowed = await canAccessCourse(user, doc.courseId);
   if (!allowed) throw AppError.forbidden('Bạn không có quyền tải tài liệu này');
-
-  if (user.role === ROLES.STUDENT && doc.classId) {
-    const { classIds, classRefs } = await enrolledClassIds(user);
-    const inClass =
-      classIds.includes(doc.classId) ||
-      (doc.classRef && classRefs.map(String).includes(String(doc.classRef)));
-    if (!inClass) throw AppError.forbidden(`Tài liệu này chỉ dành cho lớp ${doc.classId}`);
-  }
 
   if (!doc.file?.publicId) {
     if (doc.link) {

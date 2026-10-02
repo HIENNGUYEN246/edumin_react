@@ -16,7 +16,6 @@ export const NAV_BY_ROLE = {
     { to: '/admin', label: 'Tổng quan', icon: 'fa-gauge-high', end: true },
     { to: '/admin/teachers', label: 'Quản lý giáo viên', icon: 'fa-chalkboard-user' },
     { to: '/admin/students', label: 'Quản lý sinh viên', icon: 'fa-user-graduate' },
-    { to: '/admin/classes', label: 'Quản lý lớp học', icon: 'fa-users-rectangle' },
     { to: '/admin/departments', label: 'Quản lý khoa', icon: 'fa-building-columns' },
     { to: '/admin/courses', label: 'Quản lý học phần', icon: 'fa-book' },
     { to: '/admin/attendance', label: 'Điểm danh & Chuyên cần', icon: 'fa-clipboard-user' },

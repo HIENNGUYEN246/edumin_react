@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { authApi } from '../../api/authApi.js';
 import { useToast } from '../../app/providers/ToastProvider.jsx';
 
-const EMPTY = { hoTen: '', email: '', departmentId: '', className: '', password: '', confirmPassword: '' };
+const EMPTY = { hoTen: '', email: '', departmentId: '', password: '', confirmPassword: '' };
 
 export function RegisterForm({ register, inputClass, onSuccess, onBackToLogin }) {
   const toast = useToast();
@@ -43,7 +43,6 @@ export function RegisterForm({ register, inputClass, onSuccess, onBackToLogin })
         hoTen: form.hoTen.trim(),
         email: form.email.trim(),
         departmentId: form.departmentId,
-        className: form.className.trim(),
         password: form.password,
       });
       toast.success('Tạo tài khoản thành công');
@@ -79,7 +78,6 @@ export function RegisterForm({ register, inputClass, onSuccess, onBackToLogin })
         </select>
         {errors.departmentId && <p className="text-xs text-red-600 mt-1">{errors.departmentId}</p>}
       </div>
-      <input value={form.className} onChange={set('className')} placeholder="Lớp (không bắt buộc)" className={inputClass} />
       <div>
         <input
           value={form.password}

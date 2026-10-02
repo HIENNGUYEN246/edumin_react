@@ -5,7 +5,7 @@ import { Modal } from '../../components/ui/Modal.jsx';
 import { FormField, inputClass } from '../../components/ui/FormField.jsx';
 import { useToast } from '../../app/providers/ToastProvider.jsx';
 import { useConfirm } from '../../app/providers/ConfirmProvider.jsx';
-import { useCourseOptions, useCourseClassesOptions } from '../shared/useCourseOptions.js';
+import { useCourseOptions } from '../shared/useCourseOptions.js';
 import { useDocuments, useDocumentMutations, downloadDocument } from '../shared/useDocuments.js';
 
 export function TeacherDocumentList() {
@@ -18,12 +18,9 @@ export function TeacherDocumentList() {
   const { create, update, remove } = useDocumentMutations();
 
   const [uploadModal, setUploadModal] = useState(false);
-  const [uploadForm, setUploadForm] = useState({ courseId: '', classId: '', name: '', files: [], link: '' });
+  const [uploadForm, setUploadForm] = useState({ courseId: '', name: '', files: [], link: '' });
   const [editTarget, setEditTarget] = useState(null);
-  const [editForm, setEditForm] = useState({ classId: '', name: '', link: '' });
-
-  const { classes: uploadClasses } = useCourseClassesOptions(uploadForm.courseId);
-  const { classes: editClasses } = useCourseClassesOptions(editTarget?.courseId);
+  const [editForm, setEditForm] = useState({ name: '', link: '' });
 
   const docs = data?.data || [];
 
@@ -46,7 +43,6 @@ export function TeacherDocumentList() {
     try {
       await create.mutateAsync({
         courseId: uploadForm.courseId,
-        classId: uploadForm.classId || '',
         name: uploadForm.name.trim(),
         files: uploadForm.files,
         link: uploadForm.link.trim(),
@@ -54,7 +50,7 @@ export function TeacherDocumentList() {
       const count = uploadForm.files.length;
       toast.success(count > 1 ? `Đã tải lên ${count} tài liệu thành công` : 'Đã tải lên tài liệu thành công');
       setUploadModal(false);
-      setUploadForm({ courseId: '', classId: '', name: '', files: [], link: '' });
+      setUploadForm({ courseId: '', name: '', files: [], link: '' });
       if (fileRef.current) fileRef.current.value = '';
     } catch (error) {
       toast.error(error.message);
@@ -63,7 +59,7 @@ export function TeacherDocumentList() {
 
   const openEdit = (d) => {
     setEditTarget(d);
-    setEditForm({ classId: d.classId || '', name: d.name, link: d.link || '' });
+    setEditForm({ name: d.name, link: d.link || '' });
   };
 
   const submitEdit = async (e) => {
@@ -75,7 +71,6 @@ export function TeacherDocumentList() {
     try {
       await update.mutateAsync({
         id: editTarget._id,
-        classId: editForm.classId || '',
         name: editForm.name.trim(),
         link: editForm.link.trim(),
       });
@@ -125,18 +120,6 @@ export function TeacherDocumentList() {
       ),
     },
     { key: 'courseId', header: 'Học phần' },
-    {
-      key: 'classId',
-      header: 'Lớp',
-      render: (d) =>
-        d.classId ? (
-          <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-100">
-            {d.classId}
-          </span>
-        ) : (
-          <span className="text-gray-400 text-xs">Tất cả lớp</span>
-        ),
-    },
     {
       key: 'link',
       header: 'Link cá nhân / Ngoài',
@@ -265,21 +248,6 @@ export function TeacherDocumentList() {
             </select>
           </FormField>
 
-          <FormField label="Giao cho lớp" hint="Chọn lớp cụ thể hoặc để trống để chia sẻ cho tất cả lớp học phần">
-            <select
-              className={inputClass}
-              value={uploadForm.classId}
-              onChange={(e) => setUploadForm((f) => ({ ...f, classId: e.target.value }))}
-            >
-              <option value="">Tất cả các lớp trong môn</option>
-              {uploadClasses.map((cls) => (
-                <option key={cls._id} value={cls.id}>
-                  {cls.id} {cls.room ? `(${cls.room})` : ''}
-                </option>
-              ))}
-            </select>
-          </FormField>
-
           <FormField
             label="Chọn tệp tài liệu (chọn được 2 - 3 tệp cùng lúc)"
             hint="Hỗ trợ các định dạng PDF, Word, Excel, PowerPoint, ZIP, hình ảnh..."
@@ -379,21 +347,6 @@ export function TeacherDocumentList() {
               value={editForm.name}
               onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
             />
-          </FormField>
-
-          <FormField label="Giao cho lớp">
-            <select
-              className={inputClass}
-              value={editForm.classId}
-              onChange={(e) => setEditForm((f) => ({ ...f, classId: e.target.value }))}
-            >
-              <option value="">Tất cả các lớp trong môn</option>
-              {editClasses.map((cls) => (
-                <option key={cls._id} value={cls.id}>
-                  {cls.id} {cls.room ? `(${cls.room})` : ''}
-                </option>
-              ))}
-            </select>
           </FormField>
 
           <FormField

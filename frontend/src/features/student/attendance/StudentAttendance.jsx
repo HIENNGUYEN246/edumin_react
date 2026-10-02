@@ -122,7 +122,7 @@ export function StudentAttendance() {
             />
             <div className="space-y-1">
               <span className="text-xs uppercase font-bold tracking-wider text-indigo-300">
-                {profile?.id != null ? formatStudentCode(profile.id) : 'Sinh viên'} {profile?.className ? `• Lớp ${profile.className}` : ''}
+                {profile?.id != null ? formatStudentCode(profile.id) : 'Sinh viên'}
               </span>
               <h3 className="text-2xl font-black text-white">
                 {stats.rate}% <span className="text-base font-normal text-indigo-200">Chuyên cần</span>

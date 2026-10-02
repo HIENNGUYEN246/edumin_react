@@ -43,11 +43,6 @@ function AssignmentCard({ assignment, onOpen }) {
             <span className="text-xs font-semibold bg-gray-100 text-gray-700 px-2 py-0.5 rounded-md">
               {assignment.courseId}
             </span>
-            {assignment.classId && (
-              <span className="text-xs font-semibold bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-md border border-indigo-100">
-                Lớp {assignment.classId}
-              </span>
-            )}
           </div>
           {assignment.dueDate && (
             <span
