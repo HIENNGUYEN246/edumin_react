@@ -15,9 +15,7 @@ export const NAV_BY_ROLE = {
   [ROLES.ADMIN]: [
     { to: '/admin', label: 'Tổng quan', icon: 'fa-gauge-high', end: true },
     { to: '/admin/teachers', label: 'Quản lý giáo viên', icon: 'fa-chalkboard-user' },
-    { to: '/admin/teacher-accounts', label: 'Tài khoản giáo viên', icon: 'fa-user-shield' },
     { to: '/admin/students', label: 'Quản lý sinh viên', icon: 'fa-user-graduate' },
-    { to: '/admin/student-accounts', label: 'Tài khoản sinh viên', icon: 'fa-id-card' },
     { to: '/admin/departments', label: 'Quản lý khoa', icon: 'fa-building-columns' },
     { to: '/admin/courses', label: 'Quản lý học phần', icon: 'fa-book' },
     { to: '/admin/attendance', label: 'Điểm danh & Chuyên cần', icon: 'fa-clipboard-user' },

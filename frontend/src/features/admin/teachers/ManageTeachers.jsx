@@ -51,14 +51,15 @@ const teacherConfig = {
     { name: 'education', label: 'Trình độ' },
     { name: 'address', label: 'Địa chỉ' },
   ],
-  columns: ({ formatCode, renderAvatar, actions }) => [
+  columns: ({ formatCode, renderAvatar, renderStatus, actions }) => [
     { key: 'avatar', header: '', className: 'w-14', render: renderAvatar },
     { key: 'id', header: 'Mã', className: 'font-semibold text-gray-800', render: (t) => formatCode(t.id) },
     { key: 'hoTen', header: 'Họ tên' },
     { key: 'email', header: 'Email' },
     { key: 'department', header: 'Khoa', render: (t) => t.department || <span className="text-gray-400">Chưa xác định</span> },
     { key: 'phone', header: 'SĐT' },
-    { key: 'actions', header: '', className: 'text-right w-24', render: actions },
+    { key: 'status', header: 'Tài khoản', className: 'text-center w-32', render: renderStatus },
+    { key: 'actions', header: 'Thao tác', className: 'text-right w-44', render: actions },
   ],
 };
 

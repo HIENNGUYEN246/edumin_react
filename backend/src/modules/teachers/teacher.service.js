@@ -8,7 +8,10 @@ import { Teacher } from './teacher.model.js';
 import { createPersonWithAccount, resolveDepartment } from '../shared/person.service.js';
 import { ROLES } from '../../lib/roles.js';
 
-const POPULATE = { path: 'departmentRef', select: 'id name' };
+const POPULATE = [
+  { path: 'departmentRef', select: 'id name' },
+  { path: 'userId', select: '_id status lockReason email role' },
+];
 
 export async function listTeachers(query) {
   const { page, limit, skip, sort, search } = parseListQuery(query, { defaultSort: 'id' });

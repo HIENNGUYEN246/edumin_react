@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { PageHeader, SearchInput } from '../../../components/ui/PageHeader.jsx';
 import { DataTable } from '../../../components/ui/DataTable.jsx';
 import { Pagination } from '../../../components/ui/Pagination.jsx';
+import { Modal } from '../../../components/ui/Modal.jsx';
+import { FormField, inputClass } from '../../../components/ui/FormField.jsx';
 import { Avatar } from '../../../components/ui/Avatar.jsx';
 import { useToast } from '../../../app/providers/ToastProvider.jsx';
 import { useConfirm } from '../../../app/providers/ConfirmProvider.jsx';
@@ -10,6 +13,9 @@ import { useDepartments } from '../departments/useDepartments.js';
 import { usePeople, usePeopleMutations } from './usePeople.js';
 import { PersonFormModal } from './PersonFormModal.jsx';
 import { readSheet, exportSheet } from '../../../lib/excel.js';
+import { accountsApi } from '../../../api/accountsApi.js';
+
+const LOCK_REASONS = ['Vi phạm quy định', 'Nghỉ học/nghỉ dạy', 'Yêu cầu từ quản lý', 'Khác'];
 
 /**
  * Config-driven manager shared by teachers and students.
@@ -18,6 +24,7 @@ import { readSheet, exportSheet } from '../../../lib/excel.js';
 export function PersonManager({ config }) {
   const toast = useToast();
   const confirm = useConfirm();
+  const queryClient = useQueryClient();
   const fileRef = useRef(null);
 
   const [page, setPage] = useState(1);
@@ -25,6 +32,14 @@ export function PersonManager({ config }) {
   const search = useDebounce(searchText);
   const [modal, setModal] = useState(null);
   const [selectedIds, setSelectedIds] = useState([]);
+
+  // Account management state
+  const [lockTarget, setLockTarget] = useState(null);
+  const [lockReason, setLockReason] = useState(LOCK_REASONS[0]);
+  const [customReason, setCustomReason] = useState('');
+  const [tempPassword, setTempPassword] = useState(null);
+  const [locking, setLocking] = useState(false);
+  const [resettingId, setResettingId] = useState(null);
 
   useEffect(() => {
     setSelectedIds([]);
@@ -38,6 +53,57 @@ export function PersonManager({ config }) {
   const rows = data?.data || [];
   const meta = data?.meta || { page: 1, pages: 1, total: 0 };
   const departments = deptData?.data || [];
+
+  const doUnlock = async (person) => {
+    const targetId = person.userId?._id || person.userId || person._id;
+    try {
+      await accountsApi.updateStatus(targetId, { status: 'Active' });
+      toast.success('Đã mở khóa tài khoản');
+      queryClient.invalidateQueries({ queryKey: [config.queryKey] });
+    } catch (error) {
+      toast.error(error.message || 'Lỗi khi mở khóa tài khoản');
+    }
+  };
+
+  const doLock = async () => {
+    if (!lockTarget) return;
+    const reason = lockReason === 'Khác' ? customReason.trim() : lockReason;
+    const targetId = lockTarget.userId?._id || lockTarget.userId || lockTarget._id;
+    try {
+      setLocking(true);
+      await accountsApi.updateStatus(targetId, { status: 'Locked', lockReason: reason });
+      toast.success('Đã khóa tài khoản');
+      setLockTarget(null);
+      setCustomReason('');
+      queryClient.invalidateQueries({ queryKey: [config.queryKey] });
+    } catch (error) {
+      toast.error(error.message || 'Lỗi khi khóa tài khoản');
+    } finally {
+      setLocking(false);
+    }
+  };
+
+  const doReset = async (person) => {
+    const ok = await confirm({
+      title: 'Đặt lại mật khẩu',
+      message: `Cấp mật khẩu mới ngẫu nhiên cho ${person.hoTen || person.email}? Phiên đăng nhập hiện tại của họ sẽ bị đăng xuất.`,
+      confirmText: 'Đặt lại',
+      tone: 'primary',
+    });
+    if (!ok) return;
+    const targetId = person.userId?._id || person.userId || person._id;
+    try {
+      setResettingId(targetId);
+      const result = await accountsApi.resetPassword(targetId);
+      setTempPassword({ email: person.email, password: result.tempPassword });
+      toast.success('Đã tạo mật khẩu mới');
+      queryClient.invalidateQueries({ queryKey: [config.queryKey] });
+    } catch (error) {
+      toast.error(error.message || 'Lỗi khi đặt lại mật khẩu');
+    } finally {
+      setResettingId(null);
+    }
+  };
 
   const openCreate = () => setModal({ mode: 'create', initial: { ...config.emptyForm } });
   const openEdit = (person) => {
@@ -212,21 +278,100 @@ export function PersonManager({ config }) {
     }
   };
 
+  const renderStatus = (person) => {
+    const userObj = person.userId;
+    const isLocked =
+      (typeof userObj === 'object' && userObj?.status === 'Locked') ||
+      person.accountStatus === 'Locked';
+    const lockMsg = typeof userObj === 'object' && userObj?.lockReason ? userObj.lockReason : null;
+
+    return isLocked ? (
+      <button
+        type="button"
+        className="inline-flex items-center gap-1 text-xs font-semibold text-red-600 bg-red-50 border border-red-200 px-2.5 py-1 rounded-full hover:bg-red-100 transition-colors"
+        title={lockMsg ? `Lý do: ${lockMsg} (Bấm để mở khóa)` : 'Đã khóa (Bấm để mở khóa)'}
+        onClick={() => doUnlock(person)}
+      >
+        <i className="fas fa-lock" /> Đã khóa
+      </button>
+    ) : (
+      <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full">
+        <i className="fas fa-circle-check" /> Hoạt động
+      </span>
+    );
+  };
+
   const columns = config.columns({
     formatCode: config.formatCode,
     renderAvatar: (person) => (
       <Avatar src={person.avatar?.url || person.avatar} name={person.hoTen} size={38} />
     ),
-    actions: (person) => (
-      <div className="flex justify-end gap-2">
-        <button type="button" onClick={() => openEdit(person)} className="w-8 h-8 rounded-lg text-indigo-600 hover:bg-indigo-50" aria-label="Sửa">
-          <i className="fas fa-pen" />
-        </button>
-        <button type="button" onClick={() => onDelete(person)} className="w-8 h-8 rounded-lg text-red-600 hover:bg-red-50" aria-label="Xóa">
-          <i className="fas fa-trash-alt" />
-        </button>
-      </div>
-    ),
+    renderStatus,
+    actions: (person) => {
+      const userObj = person.userId;
+      const isLocked =
+        (typeof userObj === 'object' && userObj?.status === 'Locked') ||
+        person.accountStatus === 'Locked';
+      const personId = person.userId?._id || person._id;
+
+      return (
+        <div className="flex justify-end items-center gap-1.5">
+          {isLocked ? (
+            <button
+              type="button"
+              onClick={() => doUnlock(person)}
+              className="w-8 h-8 rounded-lg text-emerald-600 hover:bg-emerald-50 transition-colors flex items-center justify-center"
+              title="Mở khóa tài khoản"
+              aria-label="Mở khóa tài khoản"
+            >
+              <i className="fas fa-unlock" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                setLockTarget(person);
+                setLockReason(LOCK_REASONS[0]);
+                setCustomReason('');
+              }}
+              className="w-8 h-8 rounded-lg text-amber-600 hover:bg-amber-50 transition-colors flex items-center justify-center"
+              title="Khóa tài khoản"
+              aria-label="Khóa tài khoản"
+            >
+              <i className="fas fa-lock" />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => doReset(person)}
+            disabled={resettingId === personId}
+            className="w-8 h-8 rounded-lg text-indigo-600 hover:bg-indigo-50 transition-colors flex items-center justify-center disabled:opacity-50"
+            title="Đặt lại mật khẩu"
+            aria-label="Đặt lại mật khẩu"
+          >
+            <i className="fas fa-key" />
+          </button>
+          <button
+            type="button"
+            onClick={() => openEdit(person)}
+            className="w-8 h-8 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors flex items-center justify-center"
+            title="Sửa thông tin"
+            aria-label="Sửa"
+          >
+            <i className="fas fa-pen" />
+          </button>
+          <button
+            type="button"
+            onClick={() => onDelete(person)}
+            className="w-8 h-8 rounded-lg text-red-600 hover:bg-red-50 transition-colors flex items-center justify-center"
+            title="Xóa"
+            aria-label="Xóa"
+          >
+            <i className="fas fa-trash-alt" />
+          </button>
+        </div>
+      );
+    },
   });
 
   return (
@@ -314,6 +459,82 @@ export function PersonManager({ config }) {
           }
         />
       )}
+
+      {/* Modal khóa tài khoản */}
+      <Modal open={Boolean(lockTarget)} onClose={() => setLockTarget(null)} title="Khóa tài khoản" size="sm">
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600">
+            Khóa tài khoản của <span className="font-semibold text-gray-900">{lockTarget?.hoTen || lockTarget?.email}</span>. Người dùng sẽ bị đăng xuất ngay lập tức.
+          </p>
+          <FormField label="Lý do khóa">
+            <select className={inputClass} value={lockReason} onChange={(e) => setLockReason(e.target.value)}>
+              {LOCK_REASONS.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
+            </select>
+          </FormField>
+          {lockReason === 'Khác' && (
+            <FormField label="Nhập lý do">
+              <input
+                className={inputClass}
+                placeholder="Nhập lý do cụ thể..."
+                value={customReason}
+                onChange={(e) => setCustomReason(e.target.value)}
+              />
+            </FormField>
+          )}
+          <div className="flex justify-end gap-3 pt-2">
+            <button
+              type="button"
+              onClick={() => setLockTarget(null)}
+              className="px-4 py-2 rounded-xl text-sm font-semibold bg-gray-100 text-gray-600 hover:bg-gray-200"
+            >
+              Hủy
+            </button>
+            <button
+              type="button"
+              onClick={doLock}
+              disabled={locking}
+              className="px-4 py-2 rounded-xl text-sm font-semibold bg-red-600 text-white hover:bg-red-700 disabled:opacity-60"
+            >
+              {locking ? 'Đang khóa...' : 'Xác nhận khóa'}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal hiển thị mật khẩu tạm thời */}
+      <Modal open={Boolean(tempPassword)} onClose={() => setTempPassword(null)} title="Mật khẩu tạm thời" size="sm">
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600">
+            Đã đặt lại mật khẩu cho <span className="font-semibold text-gray-900">{tempPassword?.email}</span>. Hãy sao chép và gửi cho người dùng — mật khẩu này chỉ hiển thị một lần.
+          </p>
+          <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-4 py-3">
+            <code className="flex-1 font-mono text-indigo-700 font-bold text-lg">{tempPassword?.password}</code>
+            <button
+              type="button"
+              onClick={() => {
+                navigator.clipboard?.writeText(tempPassword.password);
+                toast.success('Đã sao chép vào bộ nhớ tạm');
+              }}
+              className="px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 flex items-center gap-1.5"
+            >
+              <i className="fas fa-copy" /> Sao chép
+            </button>
+          </div>
+          <div className="flex justify-end pt-2">
+            <button
+              type="button"
+              onClick={() => setTempPassword(null)}
+              className="px-4 py-2 rounded-xl text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700"
+            >
+              Đóng
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

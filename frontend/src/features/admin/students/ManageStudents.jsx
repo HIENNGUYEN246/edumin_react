@@ -51,14 +51,15 @@ const studentConfig = {
     { name: 'departmentId', label: 'Khoa', type: 'select', placeholder: 'Chọn khoa' },
     { name: 'address', label: 'Địa chỉ' },
   ],
-  columns: ({ formatCode, renderAvatar, actions }) => [
+  columns: ({ formatCode, renderAvatar, renderStatus, actions }) => [
     { key: 'avatar', header: '', className: 'w-14', render: renderAvatar },
     { key: 'id', header: 'Mã', className: 'font-semibold text-gray-800', render: (s) => formatCode(s.id) },
-    { key: 'hoTen', header: 'Họ tên' },
+    { key: 'hoTen', header: 'Họ tên', className: 'font-medium text-gray-900' },
     { key: 'email', header: 'Email' },
     { key: 'className', header: 'Lớp' },
     { key: 'department', header: 'Khoa', render: (s) => s.department || <span className="text-gray-400">Chưa xác định</span> },
-    { key: 'actions', header: '', className: 'text-right w-24', render: actions },
+    { key: 'status', header: 'Tài khoản', className: 'text-center w-32', render: renderStatus },
+    { key: 'actions', header: 'Thao tác', className: 'text-right w-44', render: actions },
   ],
 };
 

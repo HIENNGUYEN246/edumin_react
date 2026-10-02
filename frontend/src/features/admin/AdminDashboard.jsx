@@ -26,14 +26,12 @@ export function AdminDashboard() {
   const revenueTotal = data?.revenueTotal ?? (studentCount > 0 ? studentCount * 3200000 : 0);
 
   const quickActions = [
-    { to: '/admin/teachers', label: 'Quản lý Giáo viên', desc: `${teacherCount} giảng viên đang công tác`, icon: 'fa-chalkboard-user', color: 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100' },
-    { to: '/admin/students', label: 'Quản lý Sinh viên', desc: `${studentCount} sinh viên đang theo học`, icon: 'fa-user-graduate', color: 'bg-orange-50 text-orange-600 hover:bg-orange-100' },
+    { to: '/admin/teachers', label: 'Quản lý Giáo viên', desc: `${teacherCount} giảng viên, hồ sơ & tài khoản`, icon: 'fa-chalkboard-user', color: 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100' },
+    { to: '/admin/students', label: 'Quản lý Sinh viên', desc: `${studentCount} sinh viên, hồ sơ & tài khoản`, icon: 'fa-user-graduate', color: 'bg-orange-50 text-orange-600 hover:bg-orange-100' },
     { to: '/admin/departments', label: 'Quản lý Khoa', desc: `${data?.departments ?? 0} khoa đào tạo`, icon: 'fa-building-columns', color: 'bg-amber-50 text-amber-600 hover:bg-amber-100' },
     { to: '/admin/courses', label: 'Quản lý Học phần', desc: `${data?.courses ?? 0} học phần trong chương trình`, icon: 'fa-book', color: 'bg-violet-50 text-violet-600 hover:bg-violet-100' },
     { to: '/admin/attendance', label: 'Điểm danh & Chuyên cần', desc: `${attendanceCount} lượt ghi nhận (${attendancePresentRate}%)`, icon: 'fa-clipboard-user', color: 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100' },
     { to: '/admin/feedbacks', label: 'Ý kiến & Phản hồi', desc: `${feedbackCount} phản hồi (⭐ ${avgRating})`, icon: 'fa-comments', color: 'bg-teal-50 text-teal-600 hover:bg-teal-100' },
-    { to: '/admin/teacher-accounts', label: 'Tài khoản Giáo viên', desc: 'Bảo mật và trạng thái tài khoản', icon: 'fa-user-shield', color: 'bg-blue-50 text-blue-600 hover:bg-blue-100' },
-    { to: '/admin/student-accounts', label: 'Tài khoản Sinh viên', desc: 'Cấp và quản lý mật khẩu', icon: 'fa-id-card', color: 'bg-pink-50 text-pink-600 hover:bg-pink-100' },
     { to: '/admin/profile-requests', label: 'Duyệt yêu cầu thay đổi', desc: 'Phê duyệt ảnh đại diện & hồ sơ GV/SV', icon: 'fa-user-check', color: 'bg-rose-50 text-rose-600 hover:bg-rose-100' },
   ];
 
