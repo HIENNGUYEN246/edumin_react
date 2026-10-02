@@ -83,10 +83,48 @@ export async function listClasses(query, requester) {
     filter.courseId = query.courseId;
   }
   if (query.status) filter.status = query.status;
+  if (query.department) filter.department = query.department;
 
   const result = await paginate(CourseClass, { filter, page, limit, skip, sort, populate: POPULATE });
   result.data = await withEnrolledCount(result.data);
   return result;
+}
+
+/** Group students by administrative class (className) for the class management overview */
+export async function listStudentClassesSummary() {
+  const Student = mongoose.model('Student');
+  const summary = await Student.aggregate([
+    {
+      $group: {
+        _id: { $ifNull: ['$className', 'Chưa phân lớp'] },
+        studentCount: { $sum: 1 },
+        departments: { $addToSet: '$department' },
+        students: {
+          $push: {
+            _id: '$_id',
+            id: '$id',
+            hoTen: '$hoTen',
+            email: '$email',
+            gender: '$gender',
+            dob: '$dob',
+            phone: '$phone',
+            avatar: '$avatar',
+            department: '$department',
+          },
+        },
+      },
+    },
+    { $sort: { _id: 1 } },
+  ]);
+
+  return {
+    data: summary.map((g) => ({
+      className: g._id === '' ? 'Chưa phân lớp' : g._id,
+      studentCount: g.studentCount,
+      department: g.departments.filter(Boolean).join(', ') || 'Chung',
+      students: g.students,
+    })),
+  };
 }
 
 /** All classes of a course (for the admin course-detail page), with counts. */

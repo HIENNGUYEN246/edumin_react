@@ -41,6 +41,18 @@ export function StudentDocumentList() {
       ),
     },
     { key: 'courseId', header: 'Học phần' },
+    {
+      key: 'classId',
+      header: 'Lớp',
+      render: (d) =>
+        d.classId ? (
+          <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-100">
+            {d.classId}
+          </span>
+        ) : (
+          <span className="text-gray-400 text-xs">Chung</span>
+        ),
+    },
     { key: 'format', header: 'Định dạng', render: (d) => d.format || (d.link ? 'Liên kết' : '—') },
     {
       key: 'link',

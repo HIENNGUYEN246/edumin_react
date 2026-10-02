@@ -44,22 +44,37 @@ export function useCourseOptions() {
   };
 
   if (isTeacher) {
-    const classCourses = uniqueCourses(teacherClasses.data?.data || []);
     const teacherDept = profile?.department || user?.department;
-    const deptCourses = teacherDept
-      ? (allCourses.data?.data || [])
-          .filter((c) => c.department === teacherDept)
-          .map((c) => ({ id: c.id, name: c.name }))
-      : [];
-    const combined = new Map();
-    [...classCourses, ...deptCourses].forEach((c) => {
-      if (c?.id && !combined.has(c.id)) combined.set(c.id, { id: c.id, name: c.name });
-    });
-    return { courses: [...combined.values()], isLoading: teacherClasses.isLoading || allCourses.isLoading };
+    let availableCourses = [];
+    if (teacherDept) {
+      // Teachers only assign courses belonging to their department
+      availableCourses = (allCourses.data?.data || [])
+        .filter((c) => !c.department || c.department === teacherDept)
+        .map((c) => ({ id: c.id, name: c.name, department: c.department }));
+    } else {
+      const classCourses = uniqueCourses(teacherClasses.data?.data || []);
+      const allC = (allCourses.data?.data || []).map((c) => ({ id: c.id, name: c.name, department: c.department }));
+      const combined = new Map();
+      [...classCourses, ...allC].forEach((c) => {
+        if (c?.id && !combined.has(c.id)) combined.set(c.id, { id: c.id, name: c.name, department: c.department });
+      });
+      availableCourses = [...combined.values()];
+    }
+    return { courses: availableCourses, isLoading: teacherClasses.isLoading || allCourses.isLoading };
   }
   if (isStudent) {
     const classes = (myEnrollments.data?.data || []).map((e) => e.class).filter(Boolean);
     return { courses: uniqueCourses(classes), isLoading: myEnrollments.isLoading };
   }
   return { courses: allCourses.data?.data || [], isLoading: allCourses.isLoading };
+}
+
+/** Classes of a selected course for class-targeted assignments/documents */
+export function useCourseClassesOptions(courseId) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['classes', 'byCourse', courseId],
+    queryFn: () => classesApi.list({ courseId, limit: 100 }),
+    enabled: Boolean(courseId),
+  });
+  return { classes: data?.data || [], isLoading };
 }

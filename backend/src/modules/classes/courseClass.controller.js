@@ -13,6 +13,10 @@ export const listByCourse = asyncHandler(async (req, res) => {
   res.json(await service.listClassesByCourse(req.params.courseId));
 });
 
+export const studentGroups = asyncHandler(async (_req, res) => {
+  res.json(await service.listStudentClassesSummary());
+});
+
 export const changeStatus = asyncHandler(async (req, res) => {
   res.json(await service.changeStatus(req.params.id, req.body.status));
 });

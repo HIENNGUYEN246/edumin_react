@@ -14,6 +14,7 @@ router.use(authenticate);
 router.get('/open', controller.listOpen);
 // All classes of a course (admin course-detail page).
 router.get('/by-course/:courseId', authorize(ROLES.ADMIN, ROLES.TEACHER), controller.listByCourse);
+router.get('/student-groups', authorize(ROLES.ADMIN, ROLES.TEACHER), controller.studentGroups);
 router.get('/', controller.list);
 router.get('/:id', controller.getOne);
 router.get('/:id/students', authorize(ROLES.ADMIN, ROLES.TEACHER), controller.students);

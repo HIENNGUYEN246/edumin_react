@@ -5,12 +5,12 @@ import { Modal } from '../../../components/ui/Modal.jsx';
 import { FormField, inputClass } from '../../../components/ui/FormField.jsx';
 import { useToast } from '../../../app/providers/ToastProvider.jsx';
 import { useConfirm } from '../../../app/providers/ConfirmProvider.jsx';
-import { useCourseOptions } from '../../shared/useCourseOptions.js';
+import { useCourseOptions, useCourseClassesOptions } from '../../shared/useCourseOptions.js';
 import { useAssignments, useAssignmentMutations } from '../../shared/useAssignments.js';
 import { QuizEditor, newQuestion } from './QuizEditor.jsx';
 import { SubmissionTable } from './SubmissionTable.jsx';
 
-const emptyForm = () => ({ courseId: '', type: 'quiz', title: '', description: '', dueDate: '', status: 'Công khai', questions: [newQuestion()] });
+const emptyForm = () => ({ courseId: '', classId: '', type: 'quiz', title: '', description: '', dueDate: '', status: 'Công khai', questions: [newQuestion()] });
 
 export function TeacherAssignmentList() {
   const toast = useToast();
@@ -24,6 +24,8 @@ export function TeacherAssignmentList() {
   const [form, setForm] = useState(emptyForm());
   const [viewing, setViewing] = useState(null); // assignment for submissions
 
+  const { classes: courseClasses } = useCourseClassesOptions(form.courseId);
+
   const assignments = data?.data || [];
 
   const openCreate = () => {
@@ -33,6 +35,7 @@ export function TeacherAssignmentList() {
   const openEdit = (a) => {
     setForm({
       courseId: a.courseId,
+      classId: a.classId || '',
       type: a.type,
       title: a.title,
       description: a.description || '',
@@ -51,6 +54,7 @@ export function TeacherAssignmentList() {
       if (editor.mode === 'create') {
         await create.mutateAsync({
           courseId: form.courseId,
+          classId: form.classId || '',
           type: form.type,
           title: form.title.trim(),
           description: form.description,
@@ -62,6 +66,7 @@ export function TeacherAssignmentList() {
       } else {
         await update.mutateAsync({
           id: editor.assignment._id,
+          classId: form.classId || '',
           title: form.title.trim(),
           description: form.description,
           dueDate: form.dueDate,
@@ -90,6 +95,18 @@ export function TeacherAssignmentList() {
   const columns = [
     { key: 'title', header: 'Tiêu đề', className: 'font-semibold text-gray-800' },
     { key: 'courseId', header: 'Học phần' },
+    {
+      key: 'classId',
+      header: 'Lớp',
+      render: (a) =>
+        a.classId ? (
+          <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-100">
+            {a.classId}
+          </span>
+        ) : (
+          <span className="text-gray-400 text-xs">Tất cả lớp</span>
+        ),
+    },
     { key: 'type', header: 'Loại', render: (a) => (a.type === 'quiz' ? 'Trắc nghiệm' : 'Tệp') },
     { key: 'dueDate', header: 'Hạn nộp', render: (a) => a.dueDate || '—' },
     { key: 'status', header: 'Trạng thái' },
@@ -152,6 +169,16 @@ export function TeacherAssignmentList() {
               </FormField>
               <FormField label="Hạn nộp">
                 <input type="date" className={inputClass} value={form.dueDate} onChange={(e) => setForm((f) => ({ ...f, dueDate: e.target.value }))} />
+              </FormField>
+              <FormField label="Giao cho lớp" hint="Để trống nếu giao cho tất cả lớp học phần">
+                <select className={inputClass} value={form.classId} onChange={(e) => setForm((f) => ({ ...f, classId: e.target.value }))}>
+                  <option value="">Tất cả các lớp trong môn</option>
+                  {courseClasses.map((cls) => (
+                    <option key={cls._id} value={cls.id}>
+                      {cls.id} {cls.room ? `(${cls.room})` : ''}
+                    </option>
+                  ))}
+                </select>
               </FormField>
               <FormField label="Trạng thái">
                 <select className={inputClass} value={form.status} onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}>

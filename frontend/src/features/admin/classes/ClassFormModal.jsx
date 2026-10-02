@@ -7,9 +7,11 @@ import { formatTeacherCode } from '../../../lib/format.js';
 import { teachersApi } from '../../../api/teachersApi.js';
 import { CLASS_STATUSES } from '../../../api/classesApi.js';
 
-const emptyForm = (courseId) => ({
+import { coursesApi } from '../../../api/coursesApi.js';
+
+const emptyForm = (courseId = '') => ({
   id: '',
-  courseId,
+  courseId: courseId || '',
   teacherId: '',
   room: '',
   capacity: 0,
@@ -20,8 +22,8 @@ const emptyForm = (courseId) => ({
 });
 
 /**
- * Create/edit a class within a course. `courseId` is fixed (the class always
- * belongs to the course whose detail page opened this modal).
+ * Create/edit a class within a course. If `courseId` is provided, it is fixed;
+ * otherwise the user can choose from available courses.
  */
 export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmit, saving }) {
   const [form, setForm] = useState(emptyForm(courseId));
@@ -34,6 +36,13 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
   });
   const teachers = teacherData?.data || [];
 
+  const { data: courseData } = useQuery({
+    queryKey: ['courses', { limit: 500 }],
+    queryFn: () => coursesApi.list({ limit: 500 }),
+    enabled: open && !courseId,
+  });
+  const courses = courseData?.data || [];
+
   useEffect(() => {
     if (open) {
       setForm(initial || emptyForm(courseId));
@@ -45,15 +54,17 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
 
   const submit = (e) => {
     e.preventDefault();
+    const targetCourseId = courseId || form.courseId;
     const next = {};
     if (mode === 'create' && !String(form.id).trim()) next.id = 'Mã lớp là bắt buộc';
+    if (!targetCourseId) next.courseId = 'Vui lòng chọn học phần';
     if (!form.schedules.length) next.schedules = 'Chọn ít nhất một buổi học';
     setErrors(next);
     if (Object.keys(next).length) return;
 
     onSubmit({
       id: String(form.id).trim(),
-      courseId,
+      courseId: targetCourseId,
       teacherId: form.teacherId ? Number(form.teacherId) : null,
       room: form.room.trim(),
       capacity: Number(form.capacity) || 0,
@@ -71,6 +82,18 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
           <FormField label="Mã lớp" error={errors.id} required>
             <input className={inputClass} value={form.id} disabled={mode === 'edit'} onChange={set('id')} placeholder="VD: IT101-01" />
           </FormField>
+          {!courseId && (
+            <FormField label="Học phần" error={errors.courseId} required>
+              <select className={inputClass} value={form.courseId} disabled={mode === 'edit'} onChange={set('courseId')}>
+                <option value="">Chọn học phần</option>
+                {courses.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.id} — {c.name}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+          )}
           <FormField label="Giáo viên">
             <select className={inputClass} value={form.teacherId} onChange={set('teacherId')}>
               <option value="">Chưa phân công</option>

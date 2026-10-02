@@ -7,6 +7,8 @@ const documentSchema = new Schema(
   {
     courseRef: { type: Schema.Types.ObjectId, ref: 'Course', required: true },
     courseId: { type: String, default: '' },
+    classRef: { type: Schema.Types.ObjectId, ref: 'CourseClass', default: null },
+    classId: { type: String, trim: true, default: '' },
     name: { type: String, required: true, trim: true },
     // Cloudinary metadata (type: authenticated). No base64 stored in Mongo.
     file: { type: fileMetaSchema, default: () => ({}) },
