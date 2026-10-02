@@ -168,32 +168,131 @@ export async function bulkApprove(ids, adminUser) {
   if (!Array.isArray(ids) || ids.length === 0) {
     throw AppError.badRequest('Danh sách mã yêu cầu không hợp lệ');
   }
-  let approvedCount = 0;
-  for (const id of ids) {
+
+  const objectIds = ids
+    .map((id) => (mongoose.Types.ObjectId.isValid(id) ? new mongoose.Types.ObjectId(id) : null))
+    .filter(Boolean);
+
+  // Find all pending requests to know which users/profiles need update
+  const pendingRequests = await ProfileRequest.find({
+    _id: { $in: objectIds.length ? objectIds : ids },
+    status: 'pending',
+  }).lean();
+
+  if (pendingRequests.length === 0) {
+    return { success: true, approvedCount: 0, message: 'Không có yêu cầu chờ duyệt nào được chọn' };
+  }
+
+  const pendingIds = pendingRequests.map((r) => r._id);
+
+  // Bulk update statuses in a single optimized updateMany query
+  const updateResult = await ProfileRequest.updateMany(
+    { _id: { $in: pendingIds }, status: 'pending' },
+    {
+      $set: {
+        status: 'approved',
+        reviewedBy: adminUser?._id || null,
+        reviewedAt: new Date(),
+      },
+    }
+  );
+
+  // Apply requested changes to the corresponding profiles and users
+  for (const req of pendingRequests) {
     try {
-      await approveOne(id, adminUser);
-      approvedCount += 1;
+      const { avatar, hoTen, phone, address, dob, gender, education } = req.requestedData || {};
+      const profileUpdate = {};
+      const userUpdate = {};
+
+      if (avatar) {
+        profileUpdate.avatar = avatar;
+        userUpdate.avatar = avatar;
+      }
+      if (hoTen) {
+        profileUpdate.hoTen = hoTen;
+        userUpdate.hoTen = hoTen;
+      }
+      if (phone !== undefined) profileUpdate.phone = phone;
+      if (address !== undefined) profileUpdate.address = address;
+      if (dob !== undefined) profileUpdate.dob = dob;
+      if (gender !== undefined) profileUpdate.gender = gender;
+      if (education !== undefined) profileUpdate.education = education;
+
+      if (req.targetModel && req.targetId && Object.keys(profileUpdate).length > 0) {
+        const Model = mongoose.model(req.targetModel);
+        await Model.updateOne({ _id: req.targetId }, { $set: profileUpdate }).catch(() => {});
+      }
+      if (req.userId && Object.keys(userUpdate).length > 0) {
+        await User.updateOne({ _id: req.userId }, { $set: userUpdate }).catch(() => {});
+      }
+
+      // Notify user
+      createNotification({
+        recipientUser: req.userId,
+        recipientRole: req.requesterRole,
+        type: 'approval',
+        title: 'Yêu cầu thay đổi đã được phê duyệt',
+        message: `Quản trị viên đã phê duyệt thay đổi ${req.type === 'avatar' ? 'ảnh đại diện' : 'thông tin'} của bạn.`,
+        link: req.requesterRole === ROLES.STUDENT ? '/student' : '/teacher',
+        metadata: { requestId: req._id },
+      }).catch(() => {});
     } catch {
       // Continue next
     }
   }
-  return { approvedCount };
+
+  const approvedCount = updateResult.modifiedCount ?? pendingRequests.length;
+  return { success: true, approvedCount, modifiedCount: approvedCount };
 }
 
 export async function bulkReject(ids, adminUser, reason = '') {
   if (!Array.isArray(ids) || ids.length === 0) {
     throw AppError.badRequest('Danh sách mã yêu cầu không hợp lệ');
   }
-  let rejectedCount = 0;
-  for (const id of ids) {
-    try {
-      await rejectOne(id, adminUser, reason);
-      rejectedCount += 1;
-    } catch {
-      // Continue next
-    }
+
+  const objectIds = ids
+    .map((id) => (mongoose.Types.ObjectId.isValid(id) ? new mongoose.Types.ObjectId(id) : null))
+    .filter(Boolean);
+
+  const pendingRequests = await ProfileRequest.find({
+    _id: { $in: objectIds.length ? objectIds : ids },
+    status: 'pending',
+  }).lean();
+
+  if (pendingRequests.length === 0) {
+    return { success: true, rejectedCount: 0, modifiedCount: 0 };
   }
-  return { rejectedCount };
+
+  const pendingIds = pendingRequests.map((r) => r._id);
+
+  // Bulk update statuses using updateMany
+  const updateResult = await ProfileRequest.updateMany(
+    { _id: { $in: pendingIds }, status: 'pending' },
+    {
+      $set: {
+        status: 'rejected',
+        adminNote: reason || '',
+        reviewedBy: adminUser?._id || null,
+        reviewedAt: new Date(),
+      },
+    }
+  );
+
+  // Send notifications
+  for (const req of pendingRequests) {
+    createNotification({
+      recipientUser: req.userId,
+      recipientRole: req.requesterRole,
+      type: 'approval',
+      title: 'Yêu cầu thay đổi bị từ chối',
+      message: `Quản trị viên đã từ chối yêu cầu thay đổi của bạn.${reason ? ` Lý do: ${reason}` : ''}`,
+      link: req.requesterRole === ROLES.STUDENT ? '/student' : '/teacher',
+      metadata: { requestId: req._id },
+    }).catch(() => {});
+  }
+
+  const rejectedCount = updateResult.modifiedCount ?? pendingRequests.length;
+  return { success: true, rejectedCount, modifiedCount: rejectedCount };
 }
 
 export async function bulkDelete(ids) {

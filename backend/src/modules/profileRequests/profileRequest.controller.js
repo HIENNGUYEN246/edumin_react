@@ -18,11 +18,13 @@ export const reject = asyncHandler(async (req, res) => {
 });
 
 export const bulkApprove = asyncHandler(async (req, res) => {
-  res.json(await service.bulkApprove(req.body.ids, req.user));
+  const ids = Array.isArray(req.body) ? req.body : req.body.ids || req.body.items || [];
+  res.json(await service.bulkApprove(ids, req.user));
 });
 
 export const bulkReject = asyncHandler(async (req, res) => {
-  res.json(await service.bulkReject(req.body.ids, req.user, req.body.reason));
+  const ids = Array.isArray(req.body) ? req.body : req.body.ids || req.body.items || [];
+  res.json(await service.bulkReject(ids, req.user, req.body.reason));
 });
 
 export const bulkDelete = asyncHandler(async (req, res) => {

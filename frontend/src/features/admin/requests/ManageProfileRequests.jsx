@@ -23,6 +23,7 @@ export function ManageProfileRequests() {
   const [searchText, setSearchText] = useState('');
   const search = useDebounce(searchText);
   const [selectedIds, setSelectedIds] = useState([]);
+  const [bulkApproveModalOpen, setBulkApproveModalOpen] = useState(false);
 
   // Reject Modal
   const [rejectModal, setRejectModal] = useState({ isOpen: false, targetId: null, isBulk: false, reason: '' });
@@ -80,6 +81,7 @@ export function ManageProfileRequests() {
       invalidate();
       toast.success(`Đã phê duyệt thành công ${res.approvedCount || selectedIds.length} yêu cầu`);
       setSelectedIds([]);
+      setBulkApproveModalOpen(false);
     },
     onError: (err) => toast.error(err.message || 'Lỗi khi phê duyệt hàng loạt'),
   });
@@ -125,16 +127,9 @@ export function ManageProfileRequests() {
     });
   };
 
-  const handleBulkApprove = async () => {
+  const handleBulkApprove = () => {
     if (selectedIds.length === 0) return;
-    const ok = await confirm({
-      title: 'Phê duyệt nhiều yêu cầu',
-      message: `Bạn có chắc muốn phê duyệt ${selectedIds.length} yêu cầu đã chọn cùng một lúc? Toàn bộ ảnh đại diện và thông tin đề xuất sẽ được áp dụng.`,
-      confirmText: `Duyệt ${selectedIds.length} yêu cầu`,
-      tone: 'primary',
-    });
-    if (!ok) return;
-    bulkApproveMutation.mutate(selectedIds);
+    setBulkApproveModalOpen(true);
   };
 
   const handleBulkRejectPrompt = () => {
@@ -532,10 +527,11 @@ export function ManageProfileRequests() {
               type="button"
               onClick={handleBulkApprove}
               disabled={bulkApproveMutation.isPending}
-              className="px-3 py-1.5 text-xs font-bold text-white bg-emerald-600 rounded-xl hover:bg-emerald-700 shadow-xs flex items-center gap-1.5"
+              className="px-3.5 py-1.5 text-xs font-bold text-white bg-emerald-600 rounded-xl hover:bg-emerald-700 shadow-xs flex items-center gap-1.5 transition"
+              title="Duyệt tất cả các mục đã chọn"
             >
               <i className="fas fa-check-double" />
-              <span>Duyệt {selectedIds.length} yêu cầu đã chọn</span>
+              <span>Duyệt tất cả (Bulk Approve)</span>
             </button>
             <button
               type="button"
@@ -544,7 +540,7 @@ export function ManageProfileRequests() {
               className="px-3 py-1.5 text-xs font-bold text-white bg-amber-600 rounded-xl hover:bg-amber-700 shadow-xs flex items-center gap-1.5"
             >
               <i className="fas fa-ban" />
-              <span>Từ chối {selectedIds.length} yêu cầu đã chọn</span>
+              <span>Từ chối {selectedIds.length} yêu cầu</span>
             </button>
             <button
               type="button"
@@ -560,6 +556,69 @@ export function ManageProfileRequests() {
       />
 
       <Pagination page={meta.page} pages={meta.pages} total={meta.total} onPageChange={setPage} />
+
+      {/* Modal Popup xác nhận Duyệt hàng loạt */}
+      {bulkApproveModalOpen && (
+        <Modal
+          open={bulkApproveModalOpen}
+          onClose={() => !bulkApproveMutation.isPending && setBulkApproveModalOpen(false)}
+          title="Xác nhận duyệt hàng loạt"
+          size="sm"
+        >
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 p-3 bg-emerald-50 rounded-2xl border border-emerald-100">
+              <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center text-lg shrink-0">
+                <i className="fas fa-check-double" />
+              </div>
+              <div>
+                <p className="font-bold text-gray-900 text-sm">
+                  Duyệt hàng loạt (Bulk Approval)
+                </p>
+                <p className="text-xs text-emerald-700 font-medium">
+                  Đã chọn {selectedIds.length} mục
+                </p>
+              </div>
+            </div>
+
+            <p className="text-sm text-gray-800 font-semibold leading-relaxed">
+              Bạn có chắc chắn muốn duyệt {selectedIds.length} mục này không?
+            </p>
+
+            <p className="text-xs text-gray-500 leading-normal">
+              Sau khi xác nhận, toàn bộ ảnh đại diện và thông tin đề xuất của các mục đã chọn sẽ được áp dụng ngay vào hệ thống và gửi thông báo đến người dùng.
+            </p>
+
+            <div className="flex justify-end gap-3 pt-2 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => setBulkApproveModalOpen(false)}
+                disabled={bulkApproveMutation.isPending}
+                className="px-4 py-2 text-sm font-semibold text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200 transition"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={() => bulkApproveMutation.mutate(selectedIds)}
+                disabled={bulkApproveMutation.isPending}
+                className="px-4 py-2 text-sm font-bold text-white bg-emerald-600 rounded-xl hover:bg-emerald-700 shadow-xs transition flex items-center gap-2"
+              >
+                {bulkApproveMutation.isPending ? (
+                  <>
+                    <i className="fas fa-spinner fa-spin" />
+                    <span>Đang duyệt...</span>
+                  </>
+                ) : (
+                  <>
+                    <i className="fas fa-check" />
+                    <span>Xác nhận duyệt</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {/* Reject Modal */}
       {rejectModal.isOpen && (
