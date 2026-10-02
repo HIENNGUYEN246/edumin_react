@@ -185,10 +185,11 @@ export function PersonFormModal({ open, mode, title, initial, fields, department
           </button>
           <button
             type="submit"
-            disabled={saving}
-            className="px-4 py-2 rounded-xl text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60"
+            disabled={saving || uploadingAvatar}
+            className="px-4 py-2 rounded-xl text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60 flex items-center gap-2"
           >
-            {saving ? 'Đang lưu...' : 'Lưu'}
+            {(saving || uploadingAvatar) && <i className="fas fa-spinner fa-spin text-xs" />}
+            <span>{saving ? 'Đang lưu...' : uploadingAvatar ? 'Đang tải ảnh...' : 'Lưu'}</span>
           </button>
         </div>
       </form>

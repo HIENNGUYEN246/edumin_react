@@ -40,16 +40,28 @@ export function PersonManager({ config }) {
   const departments = deptData?.data || [];
 
   const openCreate = () => setModal({ mode: 'create', initial: { ...config.emptyForm } });
-  const openEdit = (person) =>
+  const openEdit = (person) => {
+    const currentDeptId =
+      person.departmentRef?.id ||
+      departments.find((d) => d.id === person.department || d.name === person.department)?._id ||
+      departments.find((d) => d.id === person.department || d.name === person.department)?.id ||
+      '';
+
     setModal({
       mode: 'edit',
       person,
       initial: {
         ...config.emptyForm,
         ...person,
-        departmentId: person.departmentRef?.id || '',
+        dob: person.dob || '',
+        phone: person.phone || '',
+        address: person.address || '',
+        className: person.className || '',
+        education: person.education || '',
+        departmentId: currentDeptId,
       },
     });
+  };
 
   const handleSubmit = async (form, setErrors) => {
     try {
@@ -57,16 +69,53 @@ export function PersonManager({ config }) {
         await mutations.create.mutateAsync(form);
         toast.success('Đã thêm thành công');
       } else {
-        const { email, password, ...rest } = form;
-        void email;
-        void password;
-        await mutations.update.mutateAsync({ id: modal.person._id, ...rest });
+        const targetId =
+          modal?.person?._id ||
+          modal?.person?.id ||
+          modal?.initial?._id ||
+          modal?.initial?.id ||
+          form?._id ||
+          form?.id;
+
+        // Clean up payload: exclude internal MongoDB fields and email/password
+        const {
+          _id,
+          id,
+          userId,
+          departmentRef,
+          department,
+          avatar,
+          createdAt,
+          updatedAt,
+          __v,
+          email,
+          password,
+          ...rest
+        } = form;
+
+        // Normalize string fields, converting null or undefined to empty string
+        const cleaned = {};
+        for (const [k, v] of Object.entries(rest)) {
+          cleaned[k] = v === null || v === undefined ? '' : v;
+        }
+
+        await mutations.update.mutateAsync({ id: targetId, ...cleaned });
         toast.success('Đã cập nhật');
       }
       setModal(null);
     } catch (error) {
-      if (error.code === 'CONFLICT' || error.code === 'DUPLICATE_KEY') setErrors({ email: error.message });
-      else toast.error(error.message);
+      if (error.code === 'CONFLICT' || error.code === 'DUPLICATE_KEY') {
+        setErrors({ email: error.message });
+      } else if (error.details && Array.isArray(error.details)) {
+        const fieldErrors = {};
+        error.details.forEach((d) => {
+          if (d.path) fieldErrors[d.path] = d.message;
+        });
+        setErrors(fieldErrors);
+        toast.error(error.message || 'Dữ liệu không hợp lệ');
+      } else {
+        toast.error(error.message || 'Lỗi khi lưu dữ liệu');
+      }
     }
   };
 
@@ -166,22 +215,7 @@ export function PersonManager({ config }) {
   const columns = config.columns({
     formatCode: config.formatCode,
     renderAvatar: (person) => (
-      <label className="cursor-pointer inline-block relative group" title="Bấm để đổi ảnh đại diện">
-        <Avatar src={person.avatar?.url || person.avatar} name={person.hoTen} size={38} />
-        <span className="absolute inset-0 bg-black/40 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-          <i className="fas fa-camera text-xs" />
-        </span>
-        <input
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            e.target.value = '';
-            if (file) onAvatar(person, file);
-          }}
-        />
-      </label>
+      <Avatar src={person.avatar?.url || person.avatar} name={person.hoTen} size={38} />
     ),
     actions: (person) => (
       <div className="flex justify-end gap-2">

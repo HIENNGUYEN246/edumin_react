@@ -81,10 +81,22 @@ export async function updateStudent(rawId, payload) {
   const updateDoc = { ...rest };
 
   if (departmentId !== undefined) {
-    const dept = await resolveDepartment({ departmentId });
-    updateDoc.department = dept?.name || '';
-    updateDoc.departmentRef = dept?._id || null;
+    if (departmentId) {
+      const dept = await resolveDepartment({ departmentId });
+      updateDoc.department = dept?.name || '';
+      updateDoc.departmentRef = dept?._id || null;
+    } else {
+      updateDoc.department = '';
+      updateDoc.departmentRef = null;
+    }
   }
+
+  delete updateDoc._id;
+  delete updateDoc.id;
+  delete updateDoc.userId;
+  delete updateDoc.createdAt;
+  delete updateDoc.updatedAt;
+  delete updateDoc.__v;
 
   const updated = await Student.findByIdAndUpdate(
     studentObjectId,
