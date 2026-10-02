@@ -1,6 +1,6 @@
 import { PersonManager } from '../people/PersonManager.jsx';
 import { teachersApi } from '../../../api/teachersApi.js';
-import { formatTeacherCode } from '../../../lib/format.js';
+import { formatTeacherCode, getMaxBirthDate, formatDate } from '../../../lib/format.js';
 
 const teacherConfig = {
   queryKey: 'teachers',
@@ -25,7 +25,18 @@ const teacherConfig = {
     { name: 'hoTen', label: 'Họ tên', required: true },
     { name: 'email', label: 'Email', type: 'email', required: true },
     { name: 'phone', label: 'Số điện thoại' },
-    { name: 'dob', label: 'Ngày sinh', type: 'date' },
+    {
+      name: 'dob',
+      label: 'Ngày sinh',
+      type: 'date',
+      get max() {
+        return getMaxBirthDate(24);
+      },
+      get hint() {
+        return `Tối đa: ${formatDate(getMaxBirthDate(24))} (từ 24 tuổi trở lên)`;
+      },
+      maxError: 'Giảng viên phải từ 24 tuổi trở lên',
+    },
     {
       name: 'gender',
       label: 'Giới tính',

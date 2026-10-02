@@ -38,20 +38,37 @@ export function PersonFormModal({ open, mode, title, initial, fields, department
     }
   };
 
-  const set = (name) => (e) => {
-    setForm((f) => ({ ...f, [name]: e.target.value }));
-    setErrors((prev) => ({ ...prev, [name]: '' }));
+  const set = (field) => (e) => {
+    let value = e.target.value;
+    const maxVal = typeof field.max === 'function' ? field.max() : field.max;
+    if (field.type === 'date' && maxVal && value && value > maxVal) {
+      value = maxVal;
+    }
+    setForm((f) => ({ ...f, [field.name]: value }));
+    setErrors((prev) => ({ ...prev, [field.name]: '' }));
+  };
+
+  const handleBlur = (field) => () => {
+    const maxVal = typeof field.max === 'function' ? field.max() : field.max;
+    if (field.type === 'date' && maxVal && form[field.name] && form[field.name] > maxVal) {
+      setForm((f) => ({ ...f, [field.name]: maxVal }));
+      setErrors((prev) => ({ ...prev, [field.name]: '' }));
+    }
   };
 
   const submit = (e) => {
     e.preventDefault();
     const next = {};
     fields.forEach((field) => {
+      const maxVal = typeof field.max === 'function' ? field.max() : field.max;
       if (field.required && !String(form[field.name] || '').trim()) {
         next[field.name] = `${field.label} là bắt buộc`;
       }
       if (field.type === 'email' && form[field.name] && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form[field.name])) {
         next[field.name] = 'Email không hợp lệ';
+      }
+      if (field.type === 'date' && maxVal && form[field.name] && form[field.name] > maxVal) {
+        next[field.name] = field.maxError || `${field.label} không hợp lệ (tối đa là ngày ${maxVal})`;
       }
     });
     setErrors(next);
@@ -103,31 +120,41 @@ export function PersonFormModal({ open, mode, title, initial, fields, department
             )}
           </div>
         )}
-        {fields.map((field) => (
-          <FormField key={field.name} label={field.label} error={errors[field.name]} required={field.required}>
-            {field.type === 'select' ? (
-              <select className={inputClass} value={form[field.name] || ''} onChange={set(field.name)}>
-                <option value="">{field.placeholder || 'Chọn...'}</option>
-                {(field.name === 'departmentId' ? departments : field.options || []).map((opt) => (
-                  <option key={opt.id ?? opt.value} value={opt.id ?? opt.value}>
-                    {opt.name ?? opt.label}
-                  </option>
-                ))}
-              </select>
-            ) : field.type === 'email' && mode === 'edit' ? (
-              <input className={`${inputClass} bg-gray-50`} value={form[field.name] || ''} disabled />
-            ) : (
-              <input
-                type={field.type === 'email' ? 'email' : field.type === 'date' ? 'date' : 'text'}
-                className={inputClass}
-                value={form[field.name] || ''}
-                onChange={set(field.name)}
-                placeholder={field.placeholder}
-                {...(field.type === 'date' && field.max ? { max: field.max } : {})}
-              />
-            )}
-          </FormField>
-        ))}
+        {fields.map((field) => {
+          const maxVal = typeof field.max === 'function' ? field.max() : field.max;
+          return (
+            <FormField
+              key={field.name}
+              label={field.label}
+              error={errors[field.name]}
+              required={field.required}
+              hint={field.hint}
+            >
+              {field.type === 'select' ? (
+                <select className={inputClass} value={form[field.name] || ''} onChange={set(field)}>
+                  <option value="">{field.placeholder || 'Chọn...'}</option>
+                  {(field.name === 'departmentId' ? departments : field.options || []).map((opt) => (
+                    <option key={opt.id ?? opt.value} value={opt.id ?? opt.value}>
+                      {opt.name ?? opt.label}
+                    </option>
+                  ))}
+                </select>
+              ) : field.type === 'email' && mode === 'edit' ? (
+                <input className={`${inputClass} bg-gray-50`} value={form[field.name] || ''} disabled />
+              ) : (
+                <input
+                  type={field.type === 'email' ? 'email' : field.type === 'date' ? 'date' : 'text'}
+                  className={inputClass}
+                  value={form[field.name] || ''}
+                  onChange={set(field)}
+                  onBlur={handleBlur(field)}
+                  placeholder={field.placeholder}
+                  {...(field.type === 'date' && maxVal ? { max: maxVal } : {})}
+                />
+              )}
+            </FormField>
+          );
+        })}
 
         {mode === 'create' && (
           <div className="md:col-span-2 p-3.5 bg-amber-50/80 border border-amber-200 rounded-2xl flex items-center gap-3 text-xs text-amber-900">

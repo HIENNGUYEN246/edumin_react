@@ -4,6 +4,7 @@ import { authApi } from '../../api/authApi.js';
 import { Modal } from '../ui/Modal.jsx';
 import { FormField, inputClass } from '../ui/FormField.jsx';
 import { useToast } from '../../app/providers/ToastProvider.jsx';
+import { getMaxBirthDate, formatDate } from '../../lib/format.js';
 
 export function EditProfileModal({ open, onClose, user, profile }) {
   const toast = useToast();
@@ -50,14 +51,33 @@ export function EditProfileModal({ open, onClose, user, profile }) {
     },
   });
 
+  const isStudent = user?.role === 'sinh-vien' || user?.role === 'student';
+  const isTeacher = user?.role === 'giao-vien' || user?.role === 'teacher';
+  const maxDob = isStudent
+    ? getMaxBirthDate(17)
+    : isTeacher
+      ? getMaxBirthDate(24)
+      : undefined;
+  const dobHint = maxDob
+    ? `Tối đa: ${formatDate(maxDob)} (${isStudent ? 'từ 17 tuổi trở lên' : 'từ 24 tuổi trở lên'})`
+    : undefined;
+
   const update = (field) => (e) => {
-    setForm((prev) => ({ ...prev, [field]: e.target.value }));
+    let value = e.target.value;
+    if (field === 'dob' && maxDob && value && value > maxDob) {
+      value = maxDob;
+    }
+    setForm((prev) => ({ ...prev, [field]: value }));
   };
 
   const submit = (e) => {
     e.preventDefault();
     if (!form.hoTen.trim()) {
       toast.error('Vui lòng nhập họ và tên');
+      return;
+    }
+    if (maxDob && form.dob && form.dob > maxDob) {
+      toast.error(isStudent ? 'Sinh viên phải từ 17 tuổi trở lên' : 'Giảng viên phải từ 24 tuổi trở lên');
       return;
     }
     mutation.mutate(form);
@@ -106,12 +126,18 @@ export function EditProfileModal({ open, onClose, user, profile }) {
             />
           </FormField>
 
-          <FormField label="Ngày sinh">
+          <FormField label="Ngày sinh" hint={dobHint}>
             <input
               type="date"
               className={inputClass}
               value={form.dob}
+              max={maxDob}
               onChange={update('dob')}
+              onBlur={() => {
+                if (maxDob && form.dob && form.dob > maxDob) {
+                  setForm((prev) => ({ ...prev, dob: maxDob }));
+                }
+              }}
             />
           </FormField>
         </div>

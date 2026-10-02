@@ -1,6 +1,6 @@
 import { PersonManager } from '../people/PersonManager.jsx';
 import { studentsApi } from '../../../api/studentsApi.js';
-import { formatStudentCode } from '../../../lib/format.js';
+import { formatStudentCode, getMaxBirthDate, formatDate } from '../../../lib/format.js';
 
 const studentConfig = {
   queryKey: 'students',
@@ -25,7 +25,18 @@ const studentConfig = {
     { name: 'hoTen', label: 'Họ tên', required: true },
     { name: 'email', label: 'Email', type: 'email', required: true },
     { name: 'phone', label: 'Số điện thoại' },
-    { name: 'dob', label: 'Ngày sinh', type: 'date' },
+    {
+      name: 'dob',
+      label: 'Ngày sinh',
+      type: 'date',
+      get max() {
+        return getMaxBirthDate(17);
+      },
+      get hint() {
+        return `Tối đa: ${formatDate(getMaxBirthDate(17))} (từ 17 tuổi trở lên)`;
+      },
+      maxError: 'Sinh viên phải từ 17 tuổi trở lên',
+    },
     {
       name: 'gender',
       label: 'Giới tính',

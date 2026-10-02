@@ -18,3 +18,20 @@ export function formatDate(value) {
   if (Number.isNaN(date.valueOf())) return String(value);
   return date.toLocaleDateString('vi-VN');
 }
+
+/**
+ * Calculate the maximum allowed date of birth (YYYY-MM-DD) for a given minimum age in years.
+ * Prevents selecting dates of birth younger than `minAge` years old relative to today.
+ */
+export function getMaxBirthDate(minAge) {
+  const now = new Date();
+  const d = new Date(now.getFullYear() - minAge, now.getMonth(), now.getDate());
+  if (d.getMonth() !== now.getMonth()) {
+    d.setDate(0);
+  }
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
