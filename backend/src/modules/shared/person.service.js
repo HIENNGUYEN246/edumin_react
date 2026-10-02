@@ -6,11 +6,21 @@ import { User } from '../auth/user.model.js';
 import { Department } from '../departments/department.model.js';
 
 /** Resolve a department by id or name to its document (or null). */
-export async function resolveDepartment({ departmentId, department } = {}) {
-  if (!departmentId && !department) return null;
+export async function resolveDepartment({ departmentId, department, departmentRef } = {}) {
+  if (!departmentId && !department && !departmentRef) return null;
   const or = [];
-  if (departmentId) or.push({ id: departmentId });
-  if (department) or.push({ name: department });
+  if (departmentId) {
+    or.push({ id: departmentId });
+    if (mongoose.Types.ObjectId.isValid(departmentId)) {
+      or.push({ _id: departmentId });
+    }
+  }
+  if (departmentRef && mongoose.Types.ObjectId.isValid(departmentRef)) {
+    or.push({ _id: departmentRef });
+  }
+  if (department) {
+    or.push({ name: department }, { id: department });
+  }
   return Department.findOne({ $or: or });
 }
 

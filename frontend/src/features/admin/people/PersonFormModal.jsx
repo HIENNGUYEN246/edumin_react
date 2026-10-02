@@ -28,6 +28,7 @@ export function PersonFormModal({ open, mode, title, initial, fields, department
       const res = await onAvatar(file);
       if (res?.avatar?.url) {
         setAvatarPreview(res.avatar.url);
+        setForm((f) => ({ ...f, avatar: res.avatar }));
       } else {
         setAvatarPreview(URL.createObjectURL(file));
       }
@@ -73,7 +74,9 @@ export function PersonFormModal({ open, mode, title, initial, fields, department
     });
     setErrors(next);
     if (Object.keys(next).length) return;
-    onSubmit({ ...form, password: form.password || '123' }, setErrors);
+    if (typeof onSubmit === 'function') {
+      onSubmit({ ...form, password: form.password || '123' }, setErrors);
+    }
   };
 
   return (

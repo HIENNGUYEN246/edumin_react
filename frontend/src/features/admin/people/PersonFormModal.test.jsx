@@ -96,5 +96,42 @@ describe('PersonFormModal DOB restrictions', () => {
     fireEvent.change(dobInput, { target: { value: '2010-01-01' } });
     expect(dobInput.value).toBe(teacherMax);
   });
+
+  it('submits edit form when clicking Lưu button', () => {
+    const fields = [
+      { name: 'hoTen', label: 'Họ tên', required: true },
+      { name: 'phone', label: 'Số điện thoại' },
+    ];
+    const initial = { _id: '12345', hoTen: 'Nguyễn Văn A', phone: '0900000000' };
+    const onSubmit = vi.fn();
+
+    render(
+      <PersonFormModal
+        open={true}
+        mode="edit"
+        title="Sửa sinh viên"
+        initial={initial}
+        fields={fields}
+        departments={[]}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+        saving={false}
+      />
+    );
+
+    const saveButton = screen.getByRole('button', { name: /^Lưu$/i });
+    expect(saveButton).toBeInTheDocument();
+    expect(saveButton).not.toBeDisabled();
+
+    fireEvent.click(saveButton);
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        hoTen: 'Nguyễn Văn A',
+        phone: '0900000000',
+      }),
+      expect.any(Function)
+    );
+  });
 });
 

@@ -305,6 +305,8 @@ export function PersonManager({ config }) {
           fields={config.fields}
           departments={departments}
           onClose={() => setModal(null)}
+          onSubmit={handleSubmit}
+          saving={mutations.create.isPending || mutations.update.isPending}
           onAvatar={
             (modal.mode === 'edit' && (modal.person?._id || modal.person?.id || modal.initial?._id || modal.initial?.id))
               ? (file) => onAvatar(modal.person || modal.initial, file)
