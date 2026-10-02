@@ -112,7 +112,19 @@ export function PersonManager({ config }) {
   const onAvatar = async (person, file) => {
     if (!file) return;
     try {
-      const res = await mutations.uploadAvatar.mutateAsync({ id: person._id, file });
+      const targetId =
+        (typeof person === 'string' ? person : null) ||
+        person?._id ||
+        person?.id ||
+        modal?.person?._id ||
+        modal?.person?.id ||
+        modal?.initial?._id ||
+        modal?.initial?.id;
+      if (!targetId) {
+        toast.error('Không tìm thấy mã định danh để cập nhật ảnh đại diện');
+        return;
+      }
+      const res = await mutations.uploadAvatar.mutateAsync({ id: targetId, file });
       toast.success('Đã cập nhật ảnh đại diện');
       return res;
     } catch (error) {
@@ -259,9 +271,11 @@ export function PersonManager({ config }) {
           fields={config.fields}
           departments={departments}
           onClose={() => setModal(null)}
-          onSubmit={handleSubmit}
-          onAvatar={modal.initial?._id ? (file) => onAvatar(modal.initial, file) : undefined}
-          saving={mutations.create.isPending || mutations.update.isPending}
+          onAvatar={
+            (modal.mode === 'edit' && (modal.person?._id || modal.person?.id || modal.initial?._id || modal.initial?.id))
+              ? (file) => onAvatar(modal.person || modal.initial, file)
+              : undefined
+          }
         />
       )}
     </div>
