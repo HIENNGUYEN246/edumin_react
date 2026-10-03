@@ -29,8 +29,10 @@ export function AdminDashboard() {
     { to: '/admin/teachers', label: 'Quản lý Giáo viên', desc: `${teacherCount} giảng viên, hồ sơ & tài khoản`, icon: 'fa-chalkboard-user', color: 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100' },
     { to: '/admin/students', label: 'Quản lý Sinh viên', desc: `${studentCount} sinh viên, hồ sơ & tài khoản`, icon: 'fa-user-graduate', color: 'bg-orange-50 text-orange-600 hover:bg-orange-100' },
     { to: '/admin/departments', label: 'Quản lý Khoa', desc: `${data?.departments ?? 0} khoa đào tạo`, icon: 'fa-building-columns', color: 'bg-amber-50 text-amber-600 hover:bg-amber-100' },
-    { to: '/admin/courses', label: 'Quản lý Học phần', desc: `${data?.courses ?? 0} học phần trong chương trình`, icon: 'fa-book', color: 'bg-violet-50 text-violet-600 hover:bg-violet-100' },
+    { to: '/admin/courses', label: 'Quản lý Môn học', desc: `${data?.courses ?? 0} môn học trong danh mục`, icon: 'fa-book-bookmark', color: 'bg-violet-50 text-violet-600 hover:bg-violet-100' },
+    { to: '/admin/classes', label: 'Quản lý Lớp học phần', desc: `${data?.classes ?? 0} lớp học phần mở theo kỳ`, icon: 'fa-shapes', color: 'bg-blue-50 text-blue-600 hover:bg-blue-100' },
     { to: '/admin/attendance', label: 'Điểm danh & Chuyên cần', desc: `${attendanceCount} lượt ghi nhận (${attendancePresentRate}%)`, icon: 'fa-clipboard-user', color: 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100' },
+    { to: '/admin/tuition', label: 'Quản lý Học phí', desc: 'Theo dõi công nợ & duyệt thu tiền SV', icon: 'fa-money-bill-wave', color: 'bg-cyan-50 text-cyan-600 hover:bg-cyan-100' },
     { to: '/admin/feedbacks', label: 'Ý kiến & Phản hồi', desc: `${feedbackCount} phản hồi (⭐ ${avgRating})`, icon: 'fa-comments', color: 'bg-teal-50 text-teal-600 hover:bg-teal-100' },
     { to: '/admin/profile-requests', label: 'Duyệt yêu cầu thay đổi', desc: 'Phê duyệt ảnh đại diện & hồ sơ GV/SV', icon: 'fa-user-check', color: 'bg-rose-50 text-rose-600 hover:bg-rose-100' },
   ];
@@ -102,13 +104,13 @@ export function AdminDashboard() {
               <i className="fas fa-user-graduate absolute -right-3 -bottom-3 text-7xl opacity-15" />
             </div>
 
-            {/* 3. Lớp học mở */}
+            {/* 3. Lớp học phần mở */}
             <div
-              onClick={() => navigate('/admin/courses')}
+              onClick={() => navigate('/admin/classes')}
               className="bg-purple-600 p-5 rounded-2xl text-white shadow-lg shadow-purple-200/50 relative overflow-hidden cursor-pointer hover:scale-[1.02] hover:shadow-xl transition-all duration-200"
             >
               <div className="z-10 relative">
-                <p className="text-xs uppercase font-medium text-purple-100">Lớp học mở</p>
+                <p className="text-xs uppercase font-medium text-purple-100">Lớp học phần mở</p>
                 <h3 className="text-2xl font-black my-1">{openClassesCount.toLocaleString('vi-VN')}</h3>
                 <div className="w-full bg-purple-400/60 rounded-full h-1.5 mt-3">
                   <div
@@ -118,7 +120,7 @@ export function AdminDashboard() {
                 </div>
                 <p className="text-[11px] mt-1.5 text-purple-100 font-medium">{classesCount} lớp tổng số</p>
               </div>
-              <i className="fas fa-school absolute -right-3 -bottom-3 text-7xl opacity-15" />
+              <i className="fas fa-shapes absolute -right-3 -bottom-3 text-7xl opacity-15" />
             </div>
 
             {/* 4. Tỷ lệ chuyên cần */}

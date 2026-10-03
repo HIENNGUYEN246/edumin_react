@@ -62,8 +62,8 @@ export function ManageCourses() {
   const submit = async (e) => {
     e.preventDefault();
     const next = {};
-    if (modal.mode === 'create' && !form.id.trim()) next.id = 'Mã học phần là bắt buộc';
-    if (!form.name.trim()) next.name = 'Tên học phần là bắt buộc';
+    if (modal.mode === 'create' && !form.id.trim()) next.id = 'Mã môn học là bắt buộc';
+    if (!form.name.trim()) next.name = 'Tên môn học là bắt buộc';
     setErrors(next);
     if (Object.keys(next).length) return;
 
@@ -76,10 +76,10 @@ export function ManageCourses() {
     try {
       if (modal.mode === 'create') {
         await create.mutateAsync({ id: form.id.trim(), ...payload });
-        toast.success('Đã thêm học phần');
+        toast.success('Đã thêm môn học mới');
       } else {
         await update.mutateAsync({ id: modal.course._id, ...payload });
-        toast.success('Đã cập nhật học phần');
+        toast.success('Đã cập nhật môn học');
       }
       setModal(null);
     } catch (error) {
@@ -89,12 +89,12 @@ export function ManageCourses() {
   };
 
   const onDelete = async (course) => {
-    const ok = await confirm({ title: 'Xóa học phần', message: `Xóa học phần "${course.name}"?`, confirmText: 'Xóa', tone: 'danger' });
+    const ok = await confirm({ title: 'Xóa môn học', message: `Xóa môn học "${course.name}"?`, confirmText: 'Xóa', tone: 'danger' });
     if (!ok) return;
     try {
       await remove.mutateAsync(course._id);
       setSelectedIds((prev) => prev.filter((id) => id !== course._id));
-      toast.success('Đã xóa học phần');
+      toast.success('Đã xóa môn học');
     } catch (error) {
       toast.error(error.message);
     }
@@ -159,33 +159,39 @@ export function ManageCourses() {
   const columns = [
     {
       key: 'id',
-      header: 'Mã',
+      header: 'Mã môn',
       className: 'font-semibold text-indigo-700',
       render: (c) => (
-        <span className="inline-flex items-center gap-1.5">
+        <span className="inline-flex items-center gap-1.5 font-mono">
           {c.id}
           <i className="fas fa-arrow-up-right-from-square text-[10px] text-gray-300" />
         </span>
       ),
     },
-    { key: 'name', header: 'Tên học phần' },
-    { key: 'credits', header: 'Tín chỉ' },
-    { key: 'fee', header: 'Học phí', render: (c) => formatCurrency(c.fee) },
-    { key: 'department', header: 'Khoa', render: (c) => c.department || <span className="text-gray-400">Chưa xác định</span> },
+    { key: 'name', header: 'Tên môn học', className: 'font-bold text-gray-900' },
+    { key: 'credits', header: 'Tín chỉ', className: 'text-center font-semibold' },
+    { key: 'fee', header: 'Học phí định mức', render: (c) => formatCurrency(c.fee) },
+    { key: 'department', header: 'Khoa phụ trách', render: (c) => c.department || <span className="text-gray-400">Chưa xác định</span> },
     {
       key: 'actions',
-      header: '',
-      className: 'text-right w-32',
+      header: 'Thao tác',
+      className: 'text-right w-36',
       render: (c) => (
-        <div className="flex justify-end gap-2">
-          <button type="button" onClick={stop(() => navigate(`/admin/courses/${c._id}`))} className="w-8 h-8 rounded-lg text-gray-600 hover:bg-gray-100" aria-label="Lớp học phần" title="Lớp học phần">
-            <i className="fas fa-layer-group" />
+        <div className="flex justify-end gap-1.5">
+          <button
+            type="button"
+            onClick={stop(() => navigate(`/admin/courses/${c._id}`))}
+            className="px-2 py-1 rounded-lg text-xs font-semibold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 flex items-center gap-1 border border-indigo-200"
+            title="Xem danh sách lớp học phần của môn này"
+          >
+            <i className="fas fa-chalkboard-user text-xs" />
+            <span>Lớp HP</span>
           </button>
-          <button type="button" onClick={stop(() => openEdit(c))} className="w-8 h-8 rounded-lg text-indigo-600 hover:bg-indigo-50" aria-label="Sửa">
-            <i className="fas fa-pen" />
+          <button type="button" onClick={stop(() => openEdit(c))} className="w-8 h-8 rounded-lg text-indigo-600 hover:bg-indigo-50 flex items-center justify-center border border-gray-200" aria-label="Sửa" title="Sửa môn học">
+            <i className="fas fa-pen text-xs" />
           </button>
-          <button type="button" onClick={stop(() => onDelete(c))} className="w-8 h-8 rounded-lg text-red-600 hover:bg-red-50" aria-label="Xóa">
-            <i className="fas fa-trash-alt" />
+          <button type="button" onClick={stop(() => onDelete(c))} className="w-8 h-8 rounded-lg text-red-600 hover:bg-red-50 flex items-center justify-center border border-gray-200" aria-label="Xóa" title="Xóa môn học">
+            <i className="fas fa-trash-alt text-xs" />
           </button>
         </div>
       ),
@@ -195,19 +201,19 @@ export function ManageCourses() {
   return (
     <div>
       <PageHeader
-        title="Quản lý học phần"
-        subtitle="Thêm, sửa, xóa học phần và nhập/xuất Excel"
+        title="Quản lý Môn học"
+        subtitle="Quản lý danh mục môn học, số tín chỉ, học phí định mức và khoa đào tạo"
         actions={
           <>
             <SearchInput value={searchText} onChange={(v) => { setSearchText(v); setPage(1); }} />
             <button type="button" onClick={() => fileRef.current?.click()} className="px-3 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700">
-              <i className="fas fa-file-import mr-1.5" /> Nhập
+              <i className="fas fa-file-import mr-1.5" /> Nhập Excel
             </button>
             <button type="button" onClick={onExport} className="px-3 py-2.5 rounded-xl bg-teal-600 text-white text-sm font-semibold hover:bg-teal-700">
-              <i className="fas fa-file-export mr-1.5" /> Xuất
+              <i className="fas fa-file-export mr-1.5" /> Xuất Excel
             </button>
             <button type="button" onClick={openCreate} className="px-4 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700">
-              <i className="fas fa-plus mr-1.5" /> Thêm
+              <i className="fas fa-plus mr-1.5" /> Thêm môn học
             </button>
             <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={onImport} />
           </>
@@ -218,7 +224,7 @@ export function ManageCourses() {
         columns={columns}
         rows={rows}
         isLoading={isLoading}
-        emptyText="Chưa có học phần"
+        emptyText="Chưa có môn học nào trong danh mục"
         onRowClick={(c) => navigate(`/admin/courses/${c._id}`)}
         selectable
         selectedKeys={selectedIds}
@@ -247,21 +253,21 @@ export function ManageCourses() {
               className="px-3 py-1.5 text-xs font-bold text-white bg-red-600 rounded-xl hover:bg-red-700 shadow-xs flex items-center gap-1.5"
             >
               <i className="fas fa-trash-alt" />
-              <span>Xóa {selectedIds.length} học phần đã chọn</span>
+              <span>Xóa {selectedIds.length} môn học đã chọn</span>
             </button>
           </>
         }
       />
       <Pagination page={meta.page} pages={meta.pages} total={meta.total} onPageChange={setPage} />
 
-      <Modal open={Boolean(modal)} onClose={() => setModal(null)} title={modal?.mode === 'create' ? 'Thêm học phần' : 'Sửa học phần'}>
+      <Modal open={Boolean(modal)} onClose={() => setModal(null)} title={modal?.mode === 'create' ? 'Thêm môn học mới' : 'Sửa thông tin môn học'}>
         {modal && (
           <form onSubmit={submit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <FormField label="Mã học phần" error={errors.id} required>
+            <FormField label="Mã môn học" error={errors.id} required>
               <input className={inputClass} value={form.id} disabled={modal.mode === 'edit'} onChange={(e) => setForm((f) => ({ ...f, id: e.target.value }))} placeholder="VD: IT101" />
             </FormField>
-            <FormField label="Tên học phần" error={errors.name} required>
-              <input className={inputClass} value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
+            <FormField label="Tên môn học" error={errors.name} required>
+              <input className={inputClass} value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="VD: Lập trình Web" />
             </FormField>
             <FormField label="Số tín chỉ">
               <input type="number" min="0" className={inputClass} value={form.credits} onChange={(e) => setForm((f) => ({ ...f, credits: e.target.value }))} />

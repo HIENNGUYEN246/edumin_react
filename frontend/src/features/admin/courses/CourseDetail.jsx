@@ -171,7 +171,7 @@ export function CourseDetail() {
         onClick={() => navigate('/admin/courses')}
         className="inline-flex items-center gap-2 text-sm font-semibold text-gray-500 hover:text-indigo-600 mb-4"
       >
-        <i className="fas fa-arrow-left" /> Quản lý học phần
+        <i className="fas fa-arrow-left" /> Danh mục môn học
       </button>
 
       {/* Course info */}
@@ -188,11 +188,11 @@ export function CourseDetail() {
               <p className="text-lg font-bold text-gray-800">{course.credits}</p>
             </div>
             <div>
-              <p className="text-gray-400">Học phí</p>
+              <p className="text-gray-400">Học phí định mức</p>
               <p className="text-lg font-bold text-gray-800">{formatCurrency(course.fee)}</p>
             </div>
             <div>
-              <p className="text-gray-400">Số lớp</p>
+              <p className="text-gray-400">Số lớp học phần</p>
               <p className="text-lg font-bold text-gray-800">{classes.length}</p>
             </div>
           </div>
@@ -201,13 +201,13 @@ export function CourseDetail() {
 
       {/* Classes */}
       <div className="flex items-center justify-between mb-3">
-        <h2 className="text-lg font-bold text-gray-800">Các lớp học phần</h2>
+        <h2 className="text-lg font-bold text-gray-800">Các lớp học phần mở</h2>
         <button type="button" onClick={openCreate} className="px-4 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700">
           <i className="fas fa-plus mr-1.5" /> Thêm lớp
         </button>
       </div>
 
-      <DataTable columns={columns} rows={classes} isLoading={classesLoading} emptyText="Học phần chưa có lớp nào" />
+      <DataTable columns={columns} rows={classes} isLoading={classesLoading} emptyText="Môn học này chưa có lớp học phần nào được mở" />
 
       {formModal && (
         <ClassFormModal
