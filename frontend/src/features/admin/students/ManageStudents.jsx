@@ -10,6 +10,7 @@ const studentConfig = {
   entityLabel: 'sinh viên',
   exportName: 'sinh-vien.xlsx',
   formatCode: formatStudentCode,
+  enableClassFilter: true,
   emptyForm: {
     hoTen: '',
     email: '',
@@ -18,11 +19,13 @@ const studentConfig = {
     gender: 'Nam',
     address: '',
     departmentId: '',
+    className: '',
     password: '123',
   },
   fields: [
     { name: 'hoTen', label: 'Họ tên', required: true },
     { name: 'email', label: 'Email', type: 'email', required: true },
+    { name: 'className', label: 'Lớp sinh hoạt', placeholder: 'Ví dụ: 20DTH01' },
     { name: 'phone', label: 'Số điện thoại' },
     {
       name: 'dob',
@@ -53,6 +56,15 @@ const studentConfig = {
     { key: 'avatar', header: '', className: 'w-14', render: renderAvatar },
     { key: 'id', header: 'Mã', className: 'font-semibold text-gray-800', render: (s) => formatCode(s.id) },
     { key: 'hoTen', header: 'Họ tên', className: 'font-medium text-gray-900' },
+    { key: 'className', header: 'Lớp sinh hoạt', render: (s) => (
+      s.className ? (
+        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+          {s.className}
+        </span>
+      ) : (
+        <span className="text-gray-400 text-xs italic">Chưa phân lớp</span>
+      )
+    )},
     { key: 'email', header: 'Email' },
     { key: 'department', header: 'Khoa', render: (s) => s.department || <span className="text-gray-400">Chưa xác định</span> },
     { key: 'status', header: 'Tài khoản', className: 'text-center w-32', render: renderStatus },

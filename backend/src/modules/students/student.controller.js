@@ -17,6 +17,10 @@ export const list = asyncHandler(async (req, res) => {
   res.json(await service.listStudents(req.query));
 });
 
+export const classes = asyncHandler(async (req, res) => {
+  res.json(await service.listStudentClasses());
+});
+
 export const getOne = asyncHandler(async (req, res) => {
   const studentId = extractEntityId(req);
   res.json(await service.getStudent(studentId));

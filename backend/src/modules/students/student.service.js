@@ -17,7 +17,15 @@ const POPULATE = [
 export async function listStudents(query) {
   const { page, limit, skip, sort, search } = parseListQuery(query, { defaultSort: 'id' });
   const filter = searchFilter(search, ['hoTen', 'email', 'department', 'className', 'phone']);
+  if (query.className) {
+    filter.className = query.className;
+  }
   return paginate(Student, { filter, page, limit, skip, sort, populate: POPULATE });
+}
+
+export async function listStudentClasses() {
+  const classes = await Student.distinct('className');
+  return { data: classes.filter((c) => c && String(c).trim() !== '').sort() };
 }
 
 /**

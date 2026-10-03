@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageHeader, SearchInput } from '../../../components/ui/PageHeader.jsx';
 import { DataTable } from '../../../components/ui/DataTable.jsx';
 import { Pagination } from '../../../components/ui/Pagination.jsx';
@@ -19,7 +19,7 @@ const LOCK_REASONS = ['Vi phạm quy định', 'Nghỉ học/nghỉ dạy', 'Yê
 
 /**
  * Config-driven manager shared by teachers and students.
- * config: { queryKey, api, title, subtitle, formatCode, columns(fmt), fields, emptyForm, exportName }
+ * config: { queryKey, api, title, subtitle, formatCode, columns(fmt), fields, emptyForm, exportName, enableClassFilter }
  */
 export function PersonManager({ config }) {
   const toast = useToast();
@@ -30,6 +30,7 @@ export function PersonManager({ config }) {
   const [page, setPage] = useState(1);
   const [searchText, setSearchText] = useState('');
   const search = useDebounce(searchText);
+  const [selectedClass, setSelectedClass] = useState('');
   const [modal, setModal] = useState(null);
   const [selectedIds, setSelectedIds] = useState([]);
 
@@ -43,12 +44,24 @@ export function PersonManager({ config }) {
 
   useEffect(() => {
     setSelectedIds([]);
-  }, [page, search]);
+  }, [page, search, selectedClass]);
 
-  const params = useMemo(() => ({ page, limit: 10, search }), [page, search]);
+  const params = useMemo(
+    () => ({ page, limit: 10, search, className: selectedClass || undefined }),
+    [page, search, selectedClass]
+  );
   const { data, isLoading } = usePeople(config.queryKey, config.api, params);
   const mutations = usePeopleMutations(config.queryKey, config.api);
   const { data: deptData } = useDepartments({ limit: 100 });
+
+  const { data: classesData } = useQuery({
+    queryKey: [config.queryKey, 'classes-filter'],
+    queryFn: async () => {
+      const res = await config.api.classes?.();
+      return res?.data || [];
+    },
+    enabled: Boolean(config.enableClassFilter && config.api?.classes),
+  });
 
   const rows = data?.data || [];
   const meta = data?.meta || { page: 1, pages: 1, total: 0 };
@@ -388,6 +401,23 @@ export function PersonManager({ config }) {
                 setPage(1);
               }}
             />
+            {config.enableClassFilter && (
+              <select
+                className="bg-white border border-gray-200 text-xs font-semibold px-3 py-2.5 rounded-xl text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-400 shadow-xs"
+                value={selectedClass}
+                onChange={(e) => {
+                  setSelectedClass(e.target.value);
+                  setPage(1);
+                }}
+              >
+                <option value="">Tất cả lớp sinh hoạt</option>
+                {(classesData || []).map((cls) => (
+                  <option key={cls} value={cls}>
+                    Lớp {cls}
+                  </option>
+                ))}
+              </select>
+            )}
             <button type="button" onClick={() => fileRef.current?.click()} className="px-3 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700">
               <i className="fas fa-file-import mr-1.5" /> Nhập
             </button>

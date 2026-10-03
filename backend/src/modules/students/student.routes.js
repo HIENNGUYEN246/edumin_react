@@ -12,6 +12,7 @@ const router = Router();
 router.use(authenticate);
 
 router.get('/', authorize(ROLES.ADMIN, ROLES.TEACHER), controller.list);
+router.get('/classes', authorize(ROLES.ADMIN, ROLES.TEACHER), controller.classes);
 router.get('/:id', authorize(ROLES.ADMIN, ROLES.TEACHER), controller.getOne);
 
 router.post('/', authorize(ROLES.ADMIN), validate(createStudentSchema), controller.create);

@@ -1,11 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { PageHeader } from '../../components/ui/PageHeader.jsx';
 import { ProfileCard } from '../../components/account/ProfileCard.jsx';
 import { useAuth } from '../../app/providers/AuthProvider.jsx';
 import { useToast } from '../../app/providers/ToastProvider.jsx';
-import { formatStudentCode } from '../../lib/format.js';
+import { formatStudentCode, formatCurrency } from '../../lib/format.js';
 import { useMyEnrollments } from './useEnrollments.js';
 import { feedbackApi } from '../../api/feedbackApi.js';
+import { tuitionApi } from '../../api/tuitionApi.js';
 
 export function StudentDashboard() {
   const toast = useToast();
@@ -24,6 +27,15 @@ export function StudentDashboard() {
   const [submitting, setSubmitting] = useState(false);
 
   const studentId = profile?.id ?? user?.studentId ?? user?.id;
+
+  const { data: tuitionData } = useQuery({
+    queryKey: ['tuition', 'me'],
+    queryFn: tuitionApi.myTuition,
+  });
+  const tuitions = tuitionData?.data || [];
+  const totalDue = tuitions.reduce((sum, t) => sum + (t.amountDue || 0), 0);
+  const totalPaid = tuitions.reduce((sum, t) => sum + (t.amountPaid || 0), 0);
+  const allPaid = tuitions.length > 0 && totalDue === 0;
 
   const loadFeedbacks = useCallback(async () => {
     if (!studentId) return;
@@ -104,11 +116,48 @@ export function StudentDashboard() {
         profile={profile}
         code={profile?.id != null ? formatStudentCode(profile.id) : ''}
         fields={[
+          { label: 'Lớp sinh hoạt', value: profile?.className || 'Chưa phân lớp' },
           { label: 'Khoa', value: profile?.department },
           { label: 'Hệ đào tạo', value: profile?.education },
           { label: 'Học phần đã đăng ký', value: enrolledCount },
         ]}
       />
+
+      {/* Tuition / Financial Status Banner */}
+      <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 rounded-3xl p-6 text-white shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+        <div className="flex items-center gap-4">
+          <div className="w-14 h-14 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center shrink-0">
+            <i className="fas fa-wallet text-2xl text-white" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-xs uppercase tracking-wider font-semibold text-emerald-100">Tài chính & Học phí sinh viên</span>
+              {tuitions.length > 0 && (
+                <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${allPaid ? 'bg-white/30 text-white' : 'bg-amber-400 text-gray-900'}`}>
+                  {allPaid ? '✓ Đã hoàn thành' : `Còn nợ: ${formatCurrency(totalDue)}`}
+                </span>
+              )}
+            </div>
+            <h3 className="text-lg font-bold">
+              {tuitions.length === 0
+                ? 'Chưa phát sinh học phí học kỳ hiện tại'
+                : allPaid
+                ? 'Bạn đã hoàn tất học phí tất cả các kỳ!'
+                : `Học phí còn phải đóng: ${formatCurrency(totalDue)}`}
+            </h3>
+            <p className="text-xs text-emerald-100/90 mt-0.5">
+              Đã thanh toán: {formatCurrency(totalPaid)} • Xem chi tiết học phí, lịch sử giao dịch và tài khoản ngân hàng
+            </p>
+          </div>
+        </div>
+        <Link
+          to="/student/tuition"
+          className="px-5 py-2.5 bg-white text-emerald-700 hover:bg-emerald-50 rounded-xl font-bold text-xs shadow-xs transition-all shrink-0 flex items-center gap-2"
+        >
+          <span>Chi tiết học phí</span>
+          <i className="fas fa-arrow-right text-xs" />
+        </Link>
+      </div>
 
       {/* Feedback Section */}
       <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-xs space-y-5">

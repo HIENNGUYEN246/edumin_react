@@ -27,6 +27,7 @@ export const studentsApi = {
     }
     return http.put(`/students/${encodeURIComponent(id)}/avatar`, form);
   },
+  classes: () => http.get('/students/classes'),
 };
 
 export default studentsApi;
