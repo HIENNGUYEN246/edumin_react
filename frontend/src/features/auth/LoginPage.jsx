@@ -120,54 +120,6 @@ export function LoginPage() {
                   Đăng ký ngay
                 </button>
               </p>
-
-              <div className="pt-2 border-t border-slate-200/60">
-                <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider text-center mb-2">
-                  Tài khoản dùng thử nhanh:
-                </p>
-                <div className="grid grid-cols-2 gap-1.5 text-xs">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEmail('ketoan@edu.vn');
-                      setPassword('Edu@123456');
-                    }}
-                    className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-lg font-semibold text-center transition border border-emerald-200"
-                  >
-                    💰 Kế toán
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEmail('admin@edu.vn');
-                      setPassword('Edu@123456');
-                    }}
-                    className="p-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 rounded-lg font-semibold text-center transition border border-indigo-200"
-                  >
-                    ⚙️ Quản trị viên
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEmail('anh.nguyen@edu.vn');
-                      setPassword('Edu@123456');
-                    }}
-                    className="p-1.5 bg-blue-50 hover:bg-blue-100 text-blue-800 rounded-lg font-semibold text-center transition border border-blue-200"
-                  >
-                    👨‍🏫 Giảng viên
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEmail('an.nguyen@edu.vn');
-                      setPassword('Edu@123456');
-                    }}
-                    className="p-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 rounded-lg font-semibold text-center transition border border-amber-200"
-                  >
-                    🎓 Sinh viên
-                  </button>
-                </div>
-              </div>
             </form>
           ) : (
             <RegisterForm
