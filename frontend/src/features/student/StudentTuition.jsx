@@ -27,6 +27,17 @@ export function StudentTuition() {
   const totalDue = tuitions.reduce((sum, t) => sum + (t.amountDue || 0), 0);
   const isAllSettled = tuitions.length > 0 && totalDue === 0;
 
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const unpaidTuitions = tuitions.filter((t) => t.status !== 'Đã đóng' && (t.amountDue > 0 || !t.status));
+  const overdueTuitions = unpaidTuitions.filter((t) => {
+    if (!t.dueDate) return false;
+    const d = new Date(t.dueDate);
+    return !isNaN(d.getTime()) && d < today;
+  });
+  const hasOverdue = overdueTuitions.length > 0;
+
   const transferSyntax = `${studentCode} - ${studentName} - Hoc phi`;
 
   const copyToClipboard = (text) => {
@@ -88,6 +99,28 @@ export function StudentTuition() {
           </button>
         }
       />
+
+      {/* Overdue Alert Banner */}
+      {hasOverdue && (
+        <div className="bg-rose-50 border-2 border-rose-300 rounded-3xl p-5 shadow-xs flex items-start gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-rose-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+            <i className="fas fa-exclamation-triangle text-xl animate-bounce" />
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-black uppercase tracking-wider text-rose-700 bg-rose-200/80 px-2.5 py-0.5 rounded-full">
+                Thông báo quá hạn nộp học phí
+              </span>
+              <span className="text-xs text-rose-600 font-bold">
+                Bạn có {overdueTuitions.length} khoản học phí đã quá hạn thanh toán
+              </span>
+            </div>
+            <p className="text-xs text-rose-800 mt-1 leading-relaxed">
+              Vui lòng chuyển khoản học phí ngay theo thông tin số tài khoản bên dưới và ghi đúng cú pháp để hệ thống cập nhật gỡ bỏ cảnh báo, tránh bị hủy kết quả đăng ký môn học và cấm thi.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Summary KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -206,73 +239,88 @@ export function StudentTuition() {
             </p>
           </div>
         ) : (
-          tuitions.map((t) => (
-            <div
-              key={t._id || t.id}
-              className="bg-white rounded-3xl border border-gray-100 shadow-xs overflow-hidden transition-all hover:border-indigo-100"
-            >
-              {/* Card Header */}
-              <div className="p-5 border-b border-gray-50 flex flex-wrap items-center justify-between gap-4 bg-gray-50/50">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center font-bold text-sm">
-                    <i className="fas fa-graduation-cap" />
+          tuitions.map((t) => {
+            const isOverdue = t.status !== 'Đã đóng' && t.dueDate && new Date(t.dueDate) < today;
+            return (
+              <div
+                key={t._id || t.id}
+                className={`bg-white rounded-3xl border shadow-xs overflow-hidden transition-all ${
+                  isOverdue ? 'border-rose-300 ring-2 ring-rose-100' : 'border-gray-100 hover:border-indigo-100'
+                }`}
+              >
+                {/* Card Header */}
+                <div className="p-5 border-b border-gray-50 flex flex-wrap items-center justify-between gap-4 bg-gray-50/50">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-2xl text-white flex items-center justify-center font-bold text-sm ${isOverdue ? 'bg-rose-600' : 'bg-indigo-600'}`}>
+                      <i className="fas fa-graduation-cap" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-sm font-extrabold text-gray-900">{t.semester}</h4>
+                        {t.className && (
+                          <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                            Lớp: {t.className}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-gray-400 mt-0.5">
+                        Cập nhật lần cuối: {t.updatedAt ? formatDate(t.updatedAt) : 'Mới cập nhật'}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {isOverdue && (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-700 border border-rose-300 animate-pulse">
+                        <i className="fas fa-exclamation-triangle text-xs" />
+                        Quá hạn
+                      </span>
+                    )}
+                    {getStatusBadge(t.status)}
+                  </div>
+                </div>
+
+                {/* Financial Metrics Row */}
+                <div className="p-5 grid grid-cols-2 md:grid-cols-4 gap-4 bg-white text-xs">
+                  <div>
+                    <span className="text-gray-400 block font-medium">Học phí gốc</span>
+                    <span className="text-sm font-bold text-gray-800">{formatCurrency(t.amount)}</span>
                   </div>
                   <div>
-                    <div className="flex items-center gap-2">
-                      <h4 className="text-sm font-extrabold text-gray-900">{t.semester}</h4>
-                      {t.className && (
-                        <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-                          Lớp: {t.className}
+                    <span className="text-gray-400 block font-medium">Miễn giảm / Học bổng</span>
+                    <span className="text-sm font-bold text-emerald-600">{formatCurrency(t.discount || 0)}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-400 block font-medium">Đã thanh toán</span>
+                    <span className="text-sm font-bold text-indigo-600">{formatCurrency(t.amountPaid || 0)}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-400 block font-medium">Còn lại phải nộp</span>
+                    <span className={`text-sm font-bold ${t.amountDue > 0 ? 'text-rose-600 font-extrabold' : 'text-gray-600'}`}>
+                      {formatCurrency(t.amountDue || 0)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Transactions History Sub-table */}
+                <div className="px-5 pb-5 pt-2">
+                  <div className="bg-gray-50/75 rounded-2xl p-4 border border-gray-100 space-y-2">
+                    <div className="text-xs font-bold text-gray-700 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">
+                        <i className="fas fa-history text-indigo-500" />
+                        <span>Lịch sử nộp tiền & biên lai ({t.transactions?.length || 0} giao dịch)</span>
+                      </span>
+                      {t.dueDate && (
+                        <span className="text-[11px] font-normal text-gray-500">
+                          Hạn đóng: <strong className={isOverdue ? 'text-rose-600 font-extrabold' : 'text-gray-700'}>{formatDate(t.dueDate)}</strong>
+                          {isOverdue ? (
+                            <span className="text-rose-600 font-bold ml-1">(ĐÃ QUÁ HẠN)</span>
+                          ) : t.status !== 'Đã đóng' ? (
+                            <span className="text-amber-600 font-medium ml-1">(Chưa nộp)</span>
+                          ) : null}
                         </span>
                       )}
                     </div>
-                    <div className="text-xs text-gray-400 mt-0.5">
-                      Cập nhật lần cuối: {t.updatedAt ? formatDate(t.updatedAt) : 'Mới cập nhật'}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  {getStatusBadge(t.status)}
-                </div>
-              </div>
-
-              {/* Financial Metrics Row */}
-              <div className="p-5 grid grid-cols-2 md:grid-cols-4 gap-4 bg-white text-xs">
-                <div>
-                  <span className="text-gray-400 block font-medium">Học phí gốc</span>
-                  <span className="text-sm font-bold text-gray-800">{formatCurrency(t.amount)}</span>
-                </div>
-                <div>
-                  <span className="text-gray-400 block font-medium">Miễn giảm / Học bổng</span>
-                  <span className="text-sm font-bold text-emerald-600">{formatCurrency(t.discount || 0)}</span>
-                </div>
-                <div>
-                  <span className="text-gray-400 block font-medium">Đã thanh toán</span>
-                  <span className="text-sm font-bold text-indigo-600">{formatCurrency(t.amountPaid || 0)}</span>
-                </div>
-                <div>
-                  <span className="text-gray-400 block font-medium">Còn lại phải nộp</span>
-                  <span className={`text-sm font-bold ${t.amountDue > 0 ? 'text-rose-600 font-extrabold' : 'text-gray-600'}`}>
-                    {formatCurrency(t.amountDue || 0)}
-                  </span>
-                </div>
-              </div>
-
-              {/* Transactions History Sub-table */}
-              <div className="px-5 pb-5 pt-2">
-                <div className="bg-gray-50/75 rounded-2xl p-4 border border-gray-100 space-y-2">
-                  <div className="text-xs font-bold text-gray-700 flex items-center justify-between">
-                    <span className="flex items-center gap-1.5">
-                      <i className="fas fa-history text-indigo-500" />
-                      <span>Lịch sử nộp tiền & biên lai ({t.transactions?.length || 0} giao dịch)</span>
-                    </span>
-                    {t.dueDate && (
-                      <span className="text-[11px] font-normal text-gray-500">
-                        Hạn đóng: <strong className="text-rose-600">{formatDate(t.dueDate)}</strong>
-                      </span>
-                    )}
-                  </div>
 
                   {!t.transactions || t.transactions.length === 0 ? (
                     <p className="text-xs text-gray-400 italic py-2">Chưa ghi nhận phiếu thu hoặc giao dịch nào cho học kỳ này.</p>
@@ -311,8 +359,9 @@ export function StudentTuition() {
                 </div>
               </div>
             </div>
-          ))
-        )}
+          );
+        })
+      )}
       </div>
     </div>
   );

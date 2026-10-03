@@ -385,14 +385,51 @@ export async function syncStudentTuitionFromEnrollments(student, semester = CURR
   return created.toObject();
 }
 
-export async function autoGenerateTuitionsForActiveStudents(semester = CURRENT_SEMESTER) {
+export async function autoGenerateTuitionsForActiveStudents(options = CURRENT_SEMESTER) {
+  const semester = (typeof options === 'string' ? options : options?.semester) || CURRENT_SEMESTER;
+  const standardFee = (typeof options === 'object' && Number(options?.amount)) ? Number(options.amount) : 4500000;
+  const targetDueDate = (typeof options === 'object' && options?.dueDate) ? String(options.dueDate).trim() : '2026-11-30';
+
   const students = await Student.find({}).lean();
   let generated = 0;
 
   for (const s of students) {
     const found = await Tuition.findOne({ student: s._id, semester });
     if (!found) {
-      await syncStudentTuitionFromEnrollments(s, semester);
+      const enrollments = await Enrollment.find({ student: s._id }).populate({
+        path: 'classRef',
+        select: 'fee credits courseId courseName',
+      });
+
+      let totalCredits = 0;
+      let totalFee = 0;
+
+      enrollments.forEach((e) => {
+        if (e.classRef) {
+          totalCredits += e.classRef.credits || 0;
+          totalFee += e.classRef.fee || 0;
+        }
+      });
+
+      const amount = totalFee > 0 ? totalFee : standardFee;
+
+      await Tuition.create({
+        student: s._id,
+        studentId: s.id,
+        studentName: s.hoTen,
+        studentEmail: s.email,
+        className: s.className || '',
+        department: s.department || '',
+        semester,
+        academicYear: CURRENT_ACADEMIC_YEAR,
+        totalCredits,
+        amount,
+        discount: 0,
+        amountPaid: 0,
+        amountDue: amount,
+        status: 'Chưa đóng',
+        dueDate: targetDueDate,
+      });
       generated++;
     }
   }

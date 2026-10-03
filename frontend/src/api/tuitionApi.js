@@ -10,7 +10,7 @@ export const tuitionApi = {
   recordPayment: (id, payload) => http.post(`/tuition/${encodeURIComponent(id)}/pay`, payload),
   bulkStatus: (payload) => http.post('/tuition/bulk-status', payload),
   importRows: (rows) => http.post('/tuition/import', { rows }),
-  generate: (semester) => http.post('/tuition/generate', { semester }),
+  generate: (payload) => http.post('/tuition/generate', typeof payload === 'string' ? { semester: payload } : payload),
   myTuition: () => http.get('/tuition/me'),
 };
 

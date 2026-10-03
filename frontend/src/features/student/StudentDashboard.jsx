@@ -5,7 +5,7 @@ import { PageHeader } from '../../components/ui/PageHeader.jsx';
 import { ProfileCard } from '../../components/account/ProfileCard.jsx';
 import { useAuth } from '../../app/providers/AuthProvider.jsx';
 import { useToast } from '../../app/providers/ToastProvider.jsx';
-import { formatStudentCode, formatCurrency } from '../../lib/format.js';
+import { formatStudentCode, formatCurrency, formatDate } from '../../lib/format.js';
 import { useMyEnrollments } from './useEnrollments.js';
 import { feedbackApi } from '../../api/feedbackApi.js';
 import { tuitionApi } from '../../api/tuitionApi.js';
@@ -36,6 +36,26 @@ export function StudentDashboard() {
   const totalDue = tuitions.reduce((sum, t) => sum + (t.amountDue || 0), 0);
   const totalPaid = tuitions.reduce((sum, t) => sum + (t.amountPaid || 0), 0);
   const allPaid = tuitions.length > 0 && totalDue === 0;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const unpaidTuitions = tuitions.filter((t) => t.status !== 'Đã đóng' && (t.amountDue > 0 || !t.status));
+  const overdueTuitions = unpaidTuitions.filter((t) => {
+    if (!t.dueDate) return false;
+    const d = new Date(t.dueDate);
+    return !isNaN(d.getTime()) && d < today;
+  });
+  const hasOverdue = overdueTuitions.length > 0;
+
+  const upcomingTuitions = unpaidTuitions
+    .filter((t) => {
+      if (!t.dueDate) return false;
+      const d = new Date(t.dueDate);
+      return !isNaN(d.getTime()) && d >= today;
+    })
+    .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+  const nextDue = upcomingTuitions[0];
 
   const loadFeedbacks = useCallback(async () => {
     if (!studentId) return;
@@ -123,18 +143,108 @@ export function StudentDashboard() {
         ]}
       />
 
+      {/* Overdue Tuition Warning */}
+      {hasOverdue && (
+        <div className="bg-rose-50 border-2 border-rose-300 rounded-3xl p-5 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="flex items-start gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-rose-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+              <i className="fas fa-exclamation-triangle text-xl animate-bounce" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-black uppercase tracking-wider text-rose-700 bg-rose-200/80 px-2.5 py-0.5 rounded-full">
+                  Cảnh báo quá hạn nộp học phí
+                </span>
+                <span className="text-xs text-rose-600 font-bold">
+                  {overdueTuitions.length} khoản nợ đã quá hạn
+                </span>
+              </div>
+              <h4 className="text-base font-extrabold text-rose-950 mt-1">
+                Bạn có khoản học phí quá hạn cần thanh toán ngay!
+              </h4>
+              <p className="text-xs text-rose-700 mt-1 leading-relaxed">
+                Học kỳ quá hạn:{' '}
+                <strong>
+                  {overdueTuitions
+                    .map((t) => `${t.semester} (Hạn: ${formatDate(t.dueDate)})`)
+                    .join(', ')}
+                </strong>
+                . Vui lòng thanh toán học phí sớm để tránh bị khóa tài khoản đăng ký tín chỉ và đình chỉ thi.
+              </p>
+            </div>
+          </div>
+          <Link
+            to="/student/tuition"
+            className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold text-xs shadow-xs transition-all shrink-0 flex items-center gap-2"
+          >
+            <i className="fas fa-credit-card text-xs" />
+            <span>Nộp học phí ngay</span>
+          </Link>
+        </div>
+      )}
+
+      {/* Upcoming Due Date Reminder */}
+      {!hasOverdue && nextDue && (
+        <div className="bg-amber-50 border border-amber-200 rounded-3xl p-4 shadow-2xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-amber-500 text-white flex items-center justify-center shrink-0">
+              <i className="fas fa-calendar-alt text-base" />
+            </div>
+            <div>
+              <div className="text-xs font-bold text-amber-900 flex items-center gap-2">
+                <span>Nhắc nhở hạn nộp học phí: {nextDue.semester}</span>
+                <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-200 text-amber-800">
+                  Hạn nộp: {formatDate(nextDue.dueDate)}
+                </span>
+              </div>
+              <div className="text-xs text-amber-700 mt-0.5">
+                Số tiền cần nộp: <strong>{formatCurrency(nextDue.amountDue || nextDue.amount)}</strong>. Vui lòng hoàn tất thanh toán trước hạn chót.
+              </div>
+            </div>
+          </div>
+          <Link
+            to="/student/tuition"
+            className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold text-xs transition shrink-0"
+          >
+            Xem thông tin nộp
+          </Link>
+        </div>
+      )}
+
       {/* Tuition / Financial Status Banner */}
-      <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 rounded-3xl p-6 text-white shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+      <div
+        className={`rounded-3xl p-6 text-white shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-6 transition-all ${
+          hasOverdue
+            ? 'bg-gradient-to-r from-rose-700 via-rose-600 to-amber-600'
+            : totalDue > 0
+            ? 'bg-gradient-to-r from-indigo-700 via-blue-600 to-teal-600'
+            : 'bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600'
+        }`}
+      >
         <div className="flex items-center gap-4">
           <div className="w-14 h-14 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center shrink-0">
-            <i className="fas fa-wallet text-2xl text-white" />
+            <i className={`fas ${hasOverdue ? 'fa-exclamation-triangle' : 'fa-wallet'} text-2xl text-white`} />
           </div>
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <span className="text-xs uppercase tracking-wider font-semibold text-emerald-100">Tài chính & Học phí sinh viên</span>
+              <span className="text-xs uppercase tracking-wider font-semibold text-white/90">
+                Tài chính & Học phí sinh viên
+              </span>
               {tuitions.length > 0 && (
-                <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${allPaid ? 'bg-white/30 text-white' : 'bg-amber-400 text-gray-900'}`}>
-                  {allPaid ? '✓ Đã hoàn thành' : `Còn nợ: ${formatCurrency(totalDue)}`}
+                <span
+                  className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+                    allPaid
+                      ? 'bg-white/30 text-white'
+                      : hasOverdue
+                      ? 'bg-rose-200 text-rose-900 font-extrabold'
+                      : 'bg-amber-400 text-gray-900'
+                  }`}
+                >
+                  {allPaid
+                    ? '✓ Đã hoàn thành'
+                    : hasOverdue
+                    ? `Quá hạn: ${formatCurrency(totalDue)}`
+                    : `Còn nợ: ${formatCurrency(totalDue)}`}
                 </span>
               )}
             </div>
@@ -145,14 +255,14 @@ export function StudentDashboard() {
                 ? 'Bạn đã hoàn tất học phí tất cả các kỳ!'
                 : `Học phí còn phải đóng: ${formatCurrency(totalDue)}`}
             </h3>
-            <p className="text-xs text-emerald-100/90 mt-0.5">
-              Đã thanh toán: {formatCurrency(totalPaid)} • Xem chi tiết học phí, lịch sử giao dịch và tài khoản ngân hàng
+            <p className="text-xs text-white/80 mt-0.5">
+              Đã thanh toán: {formatCurrency(totalPaid)} • Xem chi tiết học phí, lịch sử giao dịch và số tài khoản ngân hàng
             </p>
           </div>
         </div>
         <Link
           to="/student/tuition"
-          className="px-5 py-2.5 bg-white text-emerald-700 hover:bg-emerald-50 rounded-xl font-bold text-xs shadow-xs transition-all shrink-0 flex items-center gap-2"
+          className="px-5 py-2.5 bg-white text-gray-800 hover:bg-gray-100 rounded-xl font-bold text-xs shadow-xs transition-all shrink-0 flex items-center gap-2"
         >
           <span>Chi tiết học phí</span>
           <i className="fas fa-arrow-right text-xs" />

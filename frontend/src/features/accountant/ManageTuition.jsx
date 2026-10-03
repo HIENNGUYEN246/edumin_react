@@ -41,7 +41,9 @@ export function ManageTuition() {
   const [historyModal, setHistoryModal] = useState(null); // tuition object
 
   const [generateModalOpen, setGenerateModalOpen] = useState(false);
-  const [generateSemester, setGenerateSemester] = useState('HK2-2025-2026');
+  const [generateSemester, setGenerateSemester] = useState('HK1 (2026-2027)');
+  const [generateAmount, setGenerateAmount] = useState('4500000');
+  const [generateDueDate, setGenerateDueDate] = useState('2026-11-30');
   const [isGenerating, setIsGenerating] = useState(false);
 
   // Clear selections when filters change
@@ -185,10 +187,18 @@ export function ManageTuition() {
       toast.error('Vui lòng nhập tên học kỳ');
       return;
     }
+    if (!generateDueDate) {
+      toast.error('Vui lòng chọn hạn chót nộp học phí');
+      return;
+    }
 
     try {
       setIsGenerating(true);
-      const res = await tuitionApi.generate(generateSemester.trim());
+      const res = await tuitionApi.generate({
+        semester: generateSemester.trim(),
+        amount: Number(generateAmount) || 4500000,
+        dueDate: generateDueDate,
+      });
       toast.success(res?.message || `Đã sinh học phí cho học kỳ ${generateSemester}!`);
       setGenerateModalOpen(false);
       queryClient.invalidateQueries({ queryKey: ['tuition'] });
@@ -356,6 +366,28 @@ export function ManageTuition() {
           {t.status}
         </span>
       ),
+    },
+    {
+      key: 'dueDate',
+      header: 'Hạn nộp (Due Date)',
+      className: 'text-center',
+      render: (t) => {
+        if (!t.dueDate) return <span className="text-gray-400 text-xs italic">Chưa đặt</span>;
+        const isOverdue = t.status !== 'Đã đóng' && new Date(t.dueDate) < new Date(new Date().toDateString());
+        return (
+          <div className="space-y-0.5 text-center">
+            <span className={`text-xs font-semibold ${isOverdue ? 'text-rose-600 font-bold' : 'text-gray-700'}`}>
+              {formatDate(t.dueDate)}
+            </span>
+            {isOverdue && (
+              <span className="block text-[10px] text-rose-600 font-bold bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200">
+                <i className="fas fa-triangle-exclamation text-[9px] mr-1" />
+                Quá hạn
+              </span>
+            )}
+          </div>
+        );
+      },
     },
     {
       key: 'actions',
@@ -834,9 +866,39 @@ export function ManageTuition() {
               required
               value={generateSemester}
               onChange={(e) => setGenerateSemester(e.target.value)}
-              placeholder="Ví dụ: HK2-2025-2026"
+              placeholder="Ví dụ: HK1 (2026-2027)"
               className="w-full border border-gray-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-400"
             />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-gray-600 uppercase mb-1">
+                Định mức học phí (VNĐ) *
+              </label>
+              <input
+                type="number"
+                required
+                min="0"
+                step="50000"
+                value={generateAmount}
+                onChange={(e) => setGenerateAmount(e.target.value)}
+                placeholder="4500000"
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-gray-600 uppercase mb-1">
+                Hạn chót nộp (Due Date) *
+              </label>
+              <input
+                type="date"
+                required
+                value={generateDueDate}
+                onChange={(e) => setGenerateDueDate(e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              />
+            </div>
           </div>
 
           <div className="flex items-center justify-end gap-3 pt-3 border-t border-gray-100">

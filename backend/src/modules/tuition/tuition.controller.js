@@ -30,7 +30,7 @@ export const importRows = asyncHandler(async (req, res) => {
 });
 
 export const generate = asyncHandler(async (req, res) => {
-  res.json(await service.autoGenerateTuitionsForActiveStudents(req.body?.semester));
+  res.json(await service.autoGenerateTuitionsForActiveStudents(req.body));
 });
 
 export const classes = asyncHandler(async (req, res) => {
