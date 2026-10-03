@@ -43,14 +43,25 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
     queryFn: () => teachersApi.list({ limit: 500 }),
     enabled: open,
   });
-  const teachers = teacherData?.data || [];
+  const allTeachers = teacherData?.data || [];
 
   const { data: courseData } = useQuery({
     queryKey: ['courses', { limit: 500 }],
     queryFn: () => coursesApi.list({ limit: 500 }),
-    enabled: open && !courseId,
+    enabled: open,
   });
   const courses = courseData?.data || [];
+
+  // Find the selected course and its department
+  const selectedCourse = courses.find((c) => c.id === targetCourseId);
+  const courseDepartment = selectedCourse?.department || '';
+
+  // Filter teachers strictly by the course's department
+  const teachers = allTeachers.filter((t) => {
+    if (!courseDepartment) return true;
+    if (!t.department) return true;
+    return t.department.trim().toLowerCase() === courseDepartment.trim().toLowerCase();
+  });
 
   useEffect(() => {
     if (open) {
@@ -65,6 +76,19 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
       setForm((f) => ({ ...f, id: nextClassCode }));
     }
   }, [mode, nextClassCode]);
+
+  // Auto-reset teacher if selected teacher does not belong to the course's department
+  useEffect(() => {
+    if (form.teacherId && courseDepartment) {
+      const currentTeacher = allTeachers.find((t) => t.id === Number(form.teacherId));
+      if (
+        currentTeacher?.department &&
+        currentTeacher.department.trim().toLowerCase() !== courseDepartment.trim().toLowerCase()
+      ) {
+        setForm((f) => ({ ...f, teacherId: '' }));
+      }
+    }
+  }, [targetCourseId, courseDepartment, allTeachers, form.teacherId]);
 
   const set = (name) => (e) => {
     const val = e.target.value;
@@ -156,14 +180,39 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
               </select>
             </FormField>
           )}
-          <FormField label="Giáo viên">
-            <select className={inputClass} value={form.teacherId} onChange={set('teacherId')}>
-              <option value="">Chưa phân công</option>
-              {teachers.map((t) => (
-                <option key={t._id} value={t.id}>
-                  {t.hoTen} ({formatTeacherCode(t.id)})
-                </option>
-              ))}
+          <FormField
+            label="Giáo viên phụ trách"
+            hint={
+              !targetCourseId
+                ? 'Vui lòng chọn học phần trước để lọc giảng viên theo khoa'
+                : courseDepartment
+                ? `Giảng viên thuộc khoa: ${courseDepartment} (${teachers.length})`
+                : 'Giảng viên giảng dạy học phần'
+            }
+          >
+            <select
+              className={inputClass}
+              value={form.teacherId}
+              disabled={!targetCourseId}
+              onChange={set('teacherId')}
+            >
+              {!targetCourseId ? (
+                <option value="">-- Vui lòng chọn học phần trước --</option>
+              ) : (
+                <>
+                  <option value="">Chưa phân công</option>
+                  {teachers.map((t) => (
+                    <option key={t._id} value={t.id}>
+                      {t.hoTen} ({formatTeacherCode(t.id)}){t.department ? ` - Khoa ${t.department}` : ''}
+                    </option>
+                  ))}
+                  {teachers.length === 0 && (
+                    <option value="" disabled>
+                      Khoa {courseDepartment} hiện chưa có giảng viên
+                    </option>
+                  )}
+                </>
+              )}
             </select>
           </FormField>
           <FormField label="Phòng học">

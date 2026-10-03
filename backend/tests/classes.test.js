@@ -4,6 +4,8 @@ import { app } from './helpers/testApp.js';
 import { createUser, authHeader } from './helpers/factories.js';
 import { ROLES } from '../src/lib/roles.js';
 import { Course } from '../src/modules/courses/course.model.js';
+import { Teacher } from '../src/modules/teachers/teacher.model.js';
+import { User } from '../src/modules/auth/user.model.js';
 
 let adminToken;
 beforeEach(async () => {
@@ -129,5 +131,30 @@ describe('Course classes', () => {
       .set(authHeader(adminToken))
       .send(baseClass({ studyStart: '2026-01-01', studyEnd: '2026-02-01' }));
     expect(res.status).toBe(400);
+  });
+
+  it('rejects assigning a teacher from a different department to the course class', async () => {
+    // IT101 has department: 'CNTT'
+    const user = await User.create({ email: 'gv.kinhte@edu.vn', passwordHash: 'x', role: ROLES.TEACHER, hoTen: 'GV Kinh Tế' });
+    const teacher = await Teacher.create({ userId: user._id, id: 99, email: 'gv.kinhte@edu.vn', hoTen: 'GV Kinh Tế', department: 'Kinh tế' });
+
+    const res = await request(app)
+      .post('/api/classes')
+      .set(authHeader(adminToken))
+      .send(baseClass({ teacherId: teacher.id }));
+    expect(res.status).toBe(400);
+    expect(res.body.error.message).toMatch(/không thuộc khoa/);
+  });
+
+  it('allows assigning a teacher from the same department', async () => {
+    const user = await User.create({ email: 'gv.cntt@edu.vn', passwordHash: 'x', role: ROLES.TEACHER, hoTen: 'GV CNTT' });
+    const teacher = await Teacher.create({ userId: user._id, id: 98, email: 'gv.cntt@edu.vn', hoTen: 'GV CNTT', department: 'CNTT' });
+
+    const res = await request(app)
+      .post('/api/classes')
+      .set(authHeader(adminToken))
+      .send(baseClass({ teacherId: teacher.id }));
+    expect(res.status).toBe(201);
+    expect(res.body.teacher).toBe('GV CNTT');
   });
 });

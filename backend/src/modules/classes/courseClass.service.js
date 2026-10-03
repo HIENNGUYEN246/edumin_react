@@ -24,6 +24,17 @@ async function buildClassFields(payload) {
   if (payload.teacherId != null) {
     teacher = await Teacher.findOne({ id: Number(payload.teacherId) });
     if (!teacher) throw AppError.badRequest('Giáo viên không tồn tại');
+
+    // Ensure teacher belongs to the same department as the course
+    if (course.department && teacher.department) {
+      const courseDept = course.department.trim().toLowerCase();
+      const teacherDept = teacher.department.trim().toLowerCase();
+      if (courseDept !== teacherDept) {
+        throw AppError.badRequest(
+          `Giảng viên "${teacher.hoTen}" thuộc khoa "${teacher.department}", không thuộc khoa "${course.department}" của học phần này`
+        );
+      }
+    }
   }
 
   if (!validateSchedules(payload.schedules)) {
