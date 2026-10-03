@@ -21,6 +21,11 @@ export const changeStatus = asyncHandler(async (req, res) => {
   res.json(await service.changeStatus(req.params.id, req.body.status));
 });
 
+export const getNextCode = asyncHandler(async (req, res) => {
+  const code = await service.generateClassId(req.query.courseId);
+  res.json({ data: { nextCode: code } });
+});
+
 export const getOne = asyncHandler(async (req, res) => {
   res.json(await service.getClass(req.params.id));
 });

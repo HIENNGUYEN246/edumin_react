@@ -157,18 +157,85 @@ export async function changeStatus(id, status) {
   return withEnrolledCount(await CourseClass.findById(cls._id).populate(POPULATE).lean());
 }
 
+export function validate15Weeks(studyStart, studyEnd) {
+  if (!studyStart || !studyEnd) return;
+  const [sy, sm, sd] = studyStart.split('-').map(Number);
+  const [ey, em, ed] = studyEnd.split('-').map(Number);
+  if (!sy || !sm || !sd || !ey || !em || !ed) return;
+
+  const minEndDate = new Date(sy, sm - 1, sd);
+  minEndDate.setDate(minEndDate.getDate() + 15 * 7);
+  const endDate = new Date(ey, em - 1, ed);
+
+  if (endDate < minEndDate) {
+    const formattedMin = `${String(minEndDate.getDate()).padStart(2, '0')}/${String(minEndDate.getMonth() + 1).padStart(2, '0')}/${minEndDate.getFullYear()}`;
+    throw AppError.badRequest(
+      `Ngày kết thúc học phần bắt buộc phải diễn ra sau ít nhất 15 tuần kể từ ngày bắt đầu (tối thiểu từ ngày ${formattedMin})`
+    );
+  }
+}
+
+export async function generateClassId(courseId) {
+  if (!courseId) {
+    const total = await CourseClass.countDocuments();
+    return `LHP-${String(total + 1).padStart(2, '0')}`;
+  }
+  const cleanCourseId = String(courseId).trim().toUpperCase();
+  const existingClasses = await CourseClass.find({
+    $or: [
+      { courseId: cleanCourseId },
+      { id: { $regex: `^${cleanCourseId}-\\d+`, $options: 'i' } },
+    ],
+  }).select('id').lean();
+
+  let maxNum = 0;
+  const regex = new RegExp(`^${cleanCourseId}-(\\d+)$`, 'i');
+  for (const c of existingClasses) {
+    const match = c.id?.match(regex);
+    if (match) {
+      const num = parseInt(match[1], 10);
+      if (num > maxNum) maxNum = num;
+    }
+  }
+
+  const nextNum = maxNum + 1;
+  let candidate = `${cleanCourseId}-${String(nextNum).padStart(2, '0')}`;
+
+  let counter = nextNum;
+  while (await CourseClass.exists({ id: candidate })) {
+    counter += 1;
+    candidate = `${cleanCourseId}-${String(counter).padStart(2, '0')}`;
+  }
+  return candidate;
+}
+
 export async function createClass(payload) {
-  const exists = await CourseClass.findOne({ id: payload.id });
+  let classId = payload.id?.trim();
+  if (!classId) {
+    classId = await generateClassId(payload.courseId);
+  }
+  const exists = await CourseClass.findOne({ id: classId });
   if (exists) throw AppError.conflict('Mã lớp đã tồn tại');
-  const fields = await buildClassFields(payload);
+
+  if (payload.studyStart && payload.studyEnd) {
+    validate15Weeks(payload.studyStart, payload.studyEnd);
+  }
+
+  const fields = await buildClassFields({ ...payload, id: classId });
   await assertNoConflict(fields);
-  const created = await CourseClass.create({ id: payload.id, ...fields });
+  const created = await CourseClass.create({ id: classId, ...fields });
   return withEnrolledCount(await CourseClass.findById(created._id).populate(POPULATE).lean());
 }
 
 export async function updateClass(id, payload) {
   const cls = await CourseClass.findById(id);
   if (!cls) throw AppError.notFound('Không tìm thấy lớp học phần');
+
+  const start = payload.studyStart !== undefined ? payload.studyStart : cls.studyStart;
+  const end = payload.studyEnd !== undefined ? payload.studyEnd : cls.studyEnd;
+  if (start && end) {
+    validate15Weeks(start, end);
+  }
 
   // Merge existing values so a partial update still passes the conflict check.
   const merged = {

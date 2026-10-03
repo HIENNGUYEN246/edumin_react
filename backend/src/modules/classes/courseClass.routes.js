@@ -16,6 +16,7 @@ router.get('/open', controller.listOpen);
 router.get('/by-course/:courseId', authorize(ROLES.ADMIN, ROLES.TEACHER), controller.listByCourse);
 router.get('/student-groups', authorize(ROLES.ADMIN, ROLES.TEACHER), controller.studentGroups);
 router.get('/', controller.list);
+router.get('/next-code', authorize(ROLES.ADMIN, ROLES.TEACHER), controller.getNextCode);
 router.get('/:id', controller.getOne);
 router.get('/:id/students', authorize(ROLES.ADMIN, ROLES.TEACHER), controller.students);
 

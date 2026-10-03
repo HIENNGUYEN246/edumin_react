@@ -12,6 +12,7 @@ export const classesApi = {
   remove: (id) => http.delete(`/classes/${id}`),
   students: (id) => http.get(`/classes/${id}/students`),
   studentGroups: () => http.get('/classes/student-groups'),
+  nextCode: (courseId) => http.get(`/classes/next-code${courseId ? `?courseId=${encodeURIComponent(courseId)}` : ''}`),
 };
 
 export const CLASS_STATUSES = ['Nháp', 'Đang mở', 'Đã đóng', 'Đã hủy'];
