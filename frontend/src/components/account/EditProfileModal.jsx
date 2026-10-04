@@ -204,8 +204,8 @@ export function EditProfileModal({ open, onClose, user, profile }) {
             </select>
           </FormField>
 
-          <FormField label={user?.role === 'teacher' ? 'Trình độ học vị' : 'Hệ đào tạo'}>
-            {user?.role === 'teacher' ? (
+          <FormField label={isTeacher ? 'Trình độ học vị' : 'Hệ đào tạo'}>
+            {isTeacher ? (
               <select
                 className={inputClass}
                 value={form.education}

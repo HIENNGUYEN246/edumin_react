@@ -13,7 +13,11 @@ export function ProfileCard({ profile, user, code, fields = [] }) {
   const fileRef = useRef(null);
   const [editOpen, setEditOpen] = useState(false);
 
-  const isSelfService = user?.role === 'teacher' || user?.role === 'student';
+  const isSelfService =
+    user?.role === 'giao-vien' ||
+    user?.role === 'teacher' ||
+    user?.role === 'sinh-vien' ||
+    user?.role === 'student';
 
   // Fetch the latest profile request for teacher/student
   const { data: latestRequest } = useQuery({
