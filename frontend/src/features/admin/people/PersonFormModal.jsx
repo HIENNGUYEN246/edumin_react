@@ -134,14 +134,25 @@ export function PersonFormModal({ open, mode, title, initial, fields, department
               hint={field.hint}
             >
               {field.type === 'select' ? (
-                <select className={inputClass} value={form[field.name] || ''} onChange={set(field)}>
-                  <option value="">{field.placeholder || 'Chọn...'}</option>
-                  {(field.name === 'departmentId' ? departments : field.options || []).map((opt) => (
-                    <option key={opt.id ?? opt.value} value={opt.id ?? opt.value}>
-                      {opt.name ?? opt.label}
-                    </option>
-                  ))}
-                </select>
+                (() => {
+                  const opts = field.name === 'departmentId' ? departments : field.options || [];
+                  const currentValue = form[field.name] || '';
+                  const hasCurrent = !currentValue || opts.some((opt) => String(opt.id ?? opt.value) === String(currentValue));
+
+                  return (
+                    <select className={inputClass} value={currentValue} onChange={set(field)}>
+                      <option value="">{field.placeholder || 'Chọn...'}</option>
+                      {!hasCurrent && (
+                        <option value={currentValue}>{currentValue} (Hiện tại)</option>
+                      )}
+                      {opts.map((opt) => (
+                        <option key={opt.id ?? opt.value} value={opt.id ?? opt.value}>
+                          {opt.name ?? opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  );
+                })()
               ) : field.type === 'email' && mode === 'edit' ? (
                 <input className={`${inputClass} bg-gray-50`} value={form[field.name] || ''} disabled />
               ) : (

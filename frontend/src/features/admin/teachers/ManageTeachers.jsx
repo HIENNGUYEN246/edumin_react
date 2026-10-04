@@ -1,5 +1,5 @@
 import { PersonManager } from '../people/PersonManager.jsx';
-import { teachersApi } from '../../../api/teachersApi.js';
+import { teachersApi, TEACHER_EDUCATION_LEVELS } from '../../../api/teachersApi.js';
 import { formatTeacherCode, getMaxBirthDate, formatDate } from '../../../lib/format.js';
 
 const teacherConfig = {
@@ -48,13 +48,35 @@ const teacherConfig = {
       ],
     },
     { name: 'departmentId', label: 'Khoa', type: 'select', placeholder: 'Chọn khoa' },
-    { name: 'education', label: 'Trình độ' },
+    {
+      name: 'education',
+      label: 'Trình độ',
+      type: 'select',
+      placeholder: '-- Chọn trình độ học vị --',
+      options: TEACHER_EDUCATION_LEVELS,
+    },
     { name: 'address', label: 'Địa chỉ' },
   ],
   columns: ({ formatCode, renderAvatar, renderStatus, actions }) => [
     { key: 'avatar', header: '', className: 'w-14', render: renderAvatar },
     { key: 'id', header: 'Mã', className: 'font-semibold text-gray-800', render: (t) => formatCode(t.id) },
-    { key: 'hoTen', header: 'Họ tên' },
+    {
+      key: 'hoTen',
+      header: 'Họ tên & Trình độ',
+      render: (t) => (
+        <div>
+          <div className="font-bold text-gray-900">{t.hoTen}</div>
+          {t.education ? (
+            <span className="inline-flex items-center gap-1 mt-0.5 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-150 shadow-2xs">
+              <i className="fas fa-graduation-cap text-[10px] text-indigo-500" />
+              <span>{t.education}</span>
+            </span>
+          ) : (
+            <span className="text-gray-400 text-[11px] italic">Chưa cập nhật trình độ</span>
+          )}
+        </div>
+      ),
+    },
     { key: 'email', header: 'Email' },
     { key: 'department', header: 'Khoa', render: (t) => t.department || <span className="text-gray-400">Chưa xác định</span> },
     { key: 'phone', header: 'SĐT' },

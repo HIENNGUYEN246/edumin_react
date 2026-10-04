@@ -5,6 +5,7 @@ import { Modal } from '../ui/Modal.jsx';
 import { FormField, inputClass } from '../ui/FormField.jsx';
 import { useToast } from '../../app/providers/ToastProvider.jsx';
 import { getMaxBirthDate, formatDate } from '../../lib/format.js';
+import { TEACHER_EDUCATION_LEVELS } from '../../api/teachersApi.js';
 
 export function EditProfileModal({ open, onClose, user, profile }) {
   const toast = useToast();
@@ -155,14 +156,32 @@ export function EditProfileModal({ open, onClose, user, profile }) {
             </select>
           </FormField>
 
-          <FormField label="Trình độ / Hệ đào tạo">
-            <input
-              type="text"
-              className={inputClass}
-              value={form.education}
-              onChange={update('education')}
-              placeholder="VD: Chính quy / Thạc sĩ / Tiến sĩ..."
-            />
+          <FormField label={user?.role === 'teacher' ? 'Trình độ học vị' : 'Trình độ / Hệ đào tạo'}>
+            {user?.role === 'teacher' ? (
+              <select
+                className={inputClass}
+                value={form.education}
+                onChange={update('education')}
+              >
+                <option value="">-- Chọn trình độ học vị --</option>
+                {form.education && !TEACHER_EDUCATION_LEVELS.some((opt) => opt.value === form.education) && (
+                  <option value={form.education}>{form.education} (Hiện tại)</option>
+                )}
+                {TEACHER_EDUCATION_LEVELS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                type="text"
+                className={inputClass}
+                value={form.education}
+                onChange={update('education')}
+                placeholder="VD: Chính quy / Chất lượng cao / Liên thông..."
+              />
+            )}
           </FormField>
         </div>
 

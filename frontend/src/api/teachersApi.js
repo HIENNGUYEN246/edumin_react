@@ -1,6 +1,17 @@
 import { http } from './http.js';
 import { qs } from './departmentsApi.js';
 
+export const TEACHER_EDUCATION_LEVELS = [
+  { value: 'Thạc sĩ', label: 'Thạc sĩ (ThS)' },
+  { value: 'Tiến sĩ', label: 'Tiến sĩ (TS / Ph.D)' },
+  { value: 'Phó Giáo sư - Tiến sĩ', label: 'Phó Giáo sư - Tiến sĩ (PGS.TS)' },
+  { value: 'Giáo sư - Tiến sĩ', label: 'Giáo sư - Tiến sĩ (GS.TS)' },
+  { value: 'Tiến sĩ Khoa học', label: 'Tiến sĩ Khoa học (TSKH)' },
+  { value: 'Cử nhân', label: 'Cử nhân (Đại học)' },
+  { value: 'Kỹ sư', label: 'Kỹ sư (Đại học)' },
+  { value: 'Bác sĩ chuyên khoa', label: 'Bác sĩ chuyên khoa (BS.CK)' },
+];
+
 function extractId(idOrEntity) {
   if (!idOrEntity) return '';
   if (typeof idOrEntity === 'object') {
