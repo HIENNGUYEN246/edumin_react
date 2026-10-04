@@ -202,7 +202,10 @@ export async function importTeachers(rows) {
   for (let i = 0; i < rows.length; i += 1) {
     const row = rows[i];
     const hoTen = String(row.hoTen || row.name || row['Họ tên'] || '').trim();
-    const email = String(row.email || row.Email || '').trim().toLowerCase();
+    let email = String(row.email || row.Email || '').trim().toLowerCase();
+    if (email && !email.includes('@')) {
+      email = `${email}@university.edu.vn`;
+    }
     try {
       if (hoTen.length < 2) throw AppError.badRequest('Họ tên không hợp lệ');
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw AppError.badRequest('Email không hợp lệ');

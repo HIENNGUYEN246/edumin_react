@@ -25,7 +25,7 @@ const studentConfig = {
   },
   fields: [
     { name: 'hoTen', label: 'Họ tên', required: true },
-    { name: 'email', label: 'Email', type: 'email', required: true },
+    { name: 'email', label: 'Email', type: 'email', required: true, emailDomain: '@student.edu.vn', placeholder: 'VD: 2011001 hoặc nguyenvana' },
     { name: 'className', label: 'Lớp sinh hoạt', placeholder: 'Ví dụ: 20DTH01' },
     { name: 'phone', label: 'Số điện thoại' },
     {

@@ -155,6 +155,31 @@ export function PersonFormModal({ open, mode, title, initial, fields, department
                 })()
               ) : field.type === 'email' && mode === 'edit' ? (
                 <input className={`${inputClass} bg-gray-50`} value={form[field.name] || ''} disabled />
+              ) : field.type === 'email' && field.emailDomain && mode === 'create' ? (
+                <div className="flex rounded-xl overflow-hidden border border-gray-200 focus-within:ring-2 focus-within:ring-indigo-400 focus-within:border-transparent bg-white shadow-2xs">
+                  <input
+                    type="text"
+                    className="flex-1 px-4 py-2.5 outline-none text-sm text-gray-800 bg-transparent min-w-0"
+                    value={
+                      (form[field.name] || '').endsWith(field.emailDomain)
+                        ? form[field.name].slice(0, -field.emailDomain.length)
+                        : form[field.name] || ''
+                    }
+                    onChange={(e) => {
+                      const raw = e.target.value.trim().toLowerCase();
+                      const clean = raw.endsWith(field.emailDomain)
+                        ? raw.slice(0, -field.emailDomain.length)
+                        : raw.replace(/@.*$/, '');
+                      const full = clean ? `${clean}${field.emailDomain}` : '';
+                      setForm((f) => ({ ...f, [field.name]: full }));
+                      setErrors((prev) => ({ ...prev, [field.name]: '' }));
+                    }}
+                    placeholder={field.placeholder || 'Nhập tên tài khoản...'}
+                  />
+                  <span className="inline-flex items-center px-3.5 bg-indigo-50/70 text-indigo-700 font-bold text-xs border-l border-gray-200 select-none shrink-0 font-mono">
+                    {field.emailDomain}
+                  </span>
+                </div>
               ) : (
                 <input
                   type={field.type === 'email' ? 'email' : field.type === 'date' ? 'date' : 'text'}

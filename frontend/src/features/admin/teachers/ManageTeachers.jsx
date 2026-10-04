@@ -23,7 +23,7 @@ const teacherConfig = {
   },
   fields: [
     { name: 'hoTen', label: 'Họ tên', required: true },
-    { name: 'email', label: 'Email', type: 'email', required: true },
+    { name: 'email', label: 'Email', type: 'email', required: true, emailDomain: '@university.edu.vn', placeholder: 'VD: nguyenvana' },
     { name: 'phone', label: 'Số điện thoại' },
     {
       name: 'dob',
