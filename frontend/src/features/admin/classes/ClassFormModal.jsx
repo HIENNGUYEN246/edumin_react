@@ -305,10 +305,6 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
           </FormField>
         </div>
 
-        <FormField label="Lịch học" error={errors.schedules} required>
-          <SchedulePicker value={form.schedules} onChange={(schedules) => setForm((f) => ({ ...f, schedules }))} />
-        </FormField>
-
         <div className="flex justify-end gap-3 pt-2">
           <button type="button" onClick={onClose} className="px-4 py-2 rounded-xl text-sm font-semibold bg-gray-100 text-gray-600 hover:bg-gray-200">
             Hủy

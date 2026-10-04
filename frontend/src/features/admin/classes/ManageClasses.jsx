@@ -191,19 +191,19 @@ export function ManageClasses() {
       headerClassName: 'min-w-[220px] text-left',
       cellClassName: 'min-w-[220px] align-middle',
       render: (cls) => (
-        <div className="space-y-1 py-0.5">
-          <div className="font-bold text-gray-900 text-sm leading-snug">
+        <div className="space-y-1 py-0.5 max-w-[240px]">
+          <div className="font-bold text-gray-900 text-sm leading-snug truncate" title={cls.courseName || cls.courseId}>
             {cls.courseName || cls.courseId}
           </div>
           <div className="flex flex-wrap items-center gap-1.5 text-xs text-gray-500">
-            <span className="font-mono text-[11px] font-semibold text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded">
+            <span className="font-mono text-[11px] font-semibold text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded shrink-0">
               {cls.courseId}
             </span>
-            <span className="text-[11px] font-semibold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100/70">
+            <span className="text-[11px] font-semibold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100/70 shrink-0">
               {cls.credits} tín chỉ
             </span>
             {cls.department && (
-              <span className="text-[11px] text-gray-500 truncate max-w-[150px]" title={cls.department}>
+              <span className="text-[11px] text-gray-500 truncate max-w-[120px]" title={cls.department}>
                 • {cls.department}
               </span>
             )}
@@ -229,9 +229,13 @@ export function ManageClasses() {
         return (
           <div className="flex items-center gap-2.5 py-0.5">
             <Avatar src={teacher?.avatar?.url || teacher?.avatar} name={cls.teacher || teacher?.hoTen || 'GV'} size={34} />
-            <div className="min-w-0">
-              <div className="font-semibold text-xs text-gray-900 truncate">{cls.teacher || teacher?.hoTen}</div>
-              <div className="text-[11px] text-gray-400 truncate">{teacher?.email || teacher?.department || ''}</div>
+            <div className="min-w-0 max-w-[150px]">
+              <div className="font-semibold text-xs text-gray-900 truncate" title={cls.teacher || teacher?.hoTen}>
+                {cls.teacher || teacher?.hoTen}
+              </div>
+              <div className="text-[11px] text-gray-400 truncate" title={teacher?.email || teacher?.department || ''}>
+                {teacher?.email || teacher?.department || ''}
+              </div>
             </div>
           </div>
         );
@@ -415,9 +419,10 @@ export function ManageClasses() {
       </div>
 
       {/* Filter toolbar */}
-      <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-2xs flex flex-wrap items-center justify-between gap-3">
-        <div className="relative flex-1 min-w-[260px]">
+      <div className="bg-white p-3.5 rounded-2xl border border-gray-100 shadow-2xs flex flex-wrap items-center justify-between gap-3">
+        <div className="flex-1 min-w-[260px] max-w-lg">
           <SearchInput
+            className="w-full"
             value={searchText}
             onChange={(v) => {
               setSearchText(v);
@@ -427,7 +432,7 @@ export function ManageClasses() {
           />
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2">
           {/* Course filter */}
           <select
             value={selectedCourse}
@@ -435,15 +440,18 @@ export function ManageClasses() {
               setSelectedCourse(e.target.value);
               setPage(1);
             }}
-            className="border border-gray-200 rounded-xl px-3 py-2 text-xs font-medium bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400 max-w-[200px]"
+            className="border border-gray-200 rounded-xl px-3 py-2 text-xs font-medium bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400 max-w-[220px]"
             title="Lọc theo môn học"
           >
             <option value="">-- Tất cả môn học --</option>
-            {courses.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.id} — {c.name}
-              </option>
-            ))}
+            {courses.map((c) => {
+              const shortName = c.name.length > 20 ? `${c.name.slice(0, 18)}...` : c.name;
+              return (
+                <option key={c.id} value={c.id} title={`${c.id} — ${c.name}`}>
+                  {c.id} — {shortName}
+                </option>
+              );
+            })}
           </select>
 
           {/* Department filter */}
@@ -457,11 +465,14 @@ export function ManageClasses() {
             title="Lọc theo khoa"
           >
             <option value="">-- Tất cả khoa --</option>
-            {departments.map((d) => (
-              <option key={d.id} value={d.name}>
-                {d.name}
-              </option>
-            ))}
+            {departments.map((d) => {
+              const shortName = d.name.length > 20 ? `${d.name.slice(0, 18)}...` : d.name;
+              return (
+                <option key={d.id} value={d.name} title={d.name}>
+                  {shortName}
+                </option>
+              );
+            })}
           </select>
 
           {/* Status filter */}

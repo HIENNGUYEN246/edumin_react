@@ -161,7 +161,7 @@ export function CourseDetail() {
               </option>
             ))}
           </select>
-          <button type="button" onClick={() => setStudentsOf(c)} className="w-8 h-8 rounded-lg text-gray-600 hover:bg-gray-100" title="Sinh viên">
+          <button type="button" onClick={() => setStudentsOf({ id: c.id, name: `${course.name} (${c.id})` })} className="w-8 h-8 rounded-lg text-gray-600 hover:bg-gray-100" title="Sinh viên">
             <i className="fas fa-users" />
           </button>
           <button type="button" onClick={() => openEdit(c)} className="w-8 h-8 rounded-lg text-indigo-600 hover:bg-indigo-50" title="Sửa">
@@ -233,7 +233,7 @@ export function CourseDetail() {
       )}
 
       {studentsOf && (
-        <ClassStudentsModal classId={studentsOf._id} className={studentsOf.id} onClose={() => setStudentsOf(null)} />
+        <ClassStudentsModal classId={studentsOf.id} className={studentsOf.name} onClose={() => setStudentsOf(null)} />
       )}
     </div>
   );

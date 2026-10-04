@@ -11,16 +11,26 @@ export function PageHeader({ title, subtitle, actions }) {
   );
 }
 
-export function SearchInput({ value, onChange, placeholder = 'Tìm kiếm...' }) {
+export function SearchInput({ value, onChange, placeholder = 'Tìm kiếm...', className = '' }) {
   return (
-    <div className="relative">
-      <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm" />
+    <div className={`relative ${className ? className : 'w-64'}`}>
+      <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none" />
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="pl-9 pr-4 py-2.5 w-64 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+        className="pl-9 pr-8 py-2 w-full border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-xs bg-white text-gray-800 placeholder-gray-400 transition"
       />
+      {value && (
+        <button
+          type="button"
+          onClick={() => onChange('')}
+          className="absolute right-2.5 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 flex items-center justify-center text-[10px]"
+          title="Xóa tìm kiếm"
+        >
+          <i className="fas fa-times" />
+        </button>
+      )}
     </div>
   );
 }

@@ -47,8 +47,16 @@ export function TeacherClassList() {
   const classes = data?.data || [];
 
   const columns = [
-    { key: 'id', header: 'Mã lớp', className: 'font-semibold text-gray-800' },
-    { key: 'courseName', header: 'Học phần' },
+    { key: 'id', header: 'Mã lớp', className: 'font-semibold text-gray-800 w-28' },
+    {
+      key: 'courseName',
+      header: 'Học phần',
+      render: (c) => (
+        <span className="font-bold text-gray-900 truncate max-w-[240px] block" title={c.courseName}>
+          {c.courseName}
+        </span>
+      ),
+    },
     {
       key: 'schedules',
       header: 'Lịch học & Phòng',
@@ -90,7 +98,13 @@ export function TeacherClassList() {
     <div>
       <PageHeader title="Lớp học phần" subtitle="Danh sách lớp bạn phụ trách" />
       <DataTable columns={columns} rows={classes} emptyText="Bạn chưa được phân công lớp nào" />
-      {selected && <StudentsModal classId={selected._id} className={selected.id} onClose={() => setSelected(null)} />}
+      {selected && (
+        <StudentsModal
+          classId={selected.id}
+          className={selected.courseName ? `${selected.courseName} (${selected.id})` : selected.id}
+          onClose={() => setSelected(null)}
+        />
+      )}
     </div>
   );
 }

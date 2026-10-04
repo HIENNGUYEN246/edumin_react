@@ -271,7 +271,9 @@ export async function updateClass(id, payload) {
  * teach; admins may view any.
  */
 export async function listClassStudents(classId, requester) {
-  const cls = await CourseClass.findById(classId);
+  const cls = mongoose.isValidObjectId(classId)
+    ? await CourseClass.findById(classId)
+    : await CourseClass.findOne({ id: classId });
   if (!cls) throw AppError.notFound('Không tìm thấy lớp học phần');
 
   if (requester.role === ROLES.TEACHER) {

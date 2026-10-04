@@ -64,8 +64,8 @@ const teacherConfig = {
       key: 'hoTen',
       header: 'Họ tên & Trình độ',
       render: (t) => (
-        <div>
-          <div className="font-bold text-gray-900">{t.hoTen}</div>
+        <div className="max-w-[200px]">
+          <div className="font-bold text-gray-900 truncate" title={t.hoTen}>{t.hoTen}</div>
           {t.education ? (
             <span className="inline-flex items-center gap-1 mt-0.5 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-150 shadow-2xs">
               <i className="fas fa-graduation-cap text-[10px] text-indigo-500" />
@@ -77,8 +77,8 @@ const teacherConfig = {
         </div>
       ),
     },
-    { key: 'email', header: 'Email' },
-    { key: 'department', header: 'Khoa', render: (t) => t.department || <span className="text-gray-400">Chưa xác định</span> },
+    { key: 'email', header: 'Email', render: (t) => <span className="truncate max-w-[180px] block text-xs" title={t.email}>{t.email}</span> },
+    { key: 'department', header: 'Khoa', render: (t) => t.department ? <span className="truncate max-w-[180px] block text-xs" title={t.department}>{t.department}</span> : <span className="text-gray-400 text-xs">Chưa xác định</span> },
     { key: 'phone', header: 'SĐT' },
     { key: 'status', header: 'Tài khoản', className: 'text-center w-32', render: renderStatus },
     { key: 'actions', header: 'Thao tác', className: 'text-right w-44', render: actions },

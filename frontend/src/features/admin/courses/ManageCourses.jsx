@@ -168,10 +168,10 @@ export function ManageCourses() {
         </span>
       ),
     },
-    { key: 'name', header: 'Tên môn học', className: 'font-bold text-gray-900' },
+    { key: 'name', header: 'Tên môn học', className: 'font-bold text-gray-900', render: (c) => <span className="truncate max-w-[280px] block" title={c.name}>{c.name}</span> },
     { key: 'credits', header: 'Tín chỉ', className: 'text-center font-semibold' },
     { key: 'fee', header: 'Học phí định mức', render: (c) => formatCurrency(c.fee) },
-    { key: 'department', header: 'Khoa phụ trách', render: (c) => c.department || <span className="text-gray-400">Chưa xác định</span> },
+    { key: 'department', header: 'Khoa phụ trách', render: (c) => c.department ? <span className="truncate max-w-[200px] block" title={c.department}>{c.department}</span> : <span className="text-gray-400">Chưa xác định</span> },
     {
       key: 'actions',
       header: 'Thao tác',

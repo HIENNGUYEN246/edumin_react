@@ -55,7 +55,7 @@ const studentConfig = {
   columns: ({ formatCode, renderAvatar, renderStatus, actions }) => [
     { key: 'avatar', header: '', className: 'w-14', render: renderAvatar },
     { key: 'id', header: 'Mã', className: 'font-semibold text-gray-800', render: (s) => formatCode(s.id) },
-    { key: 'hoTen', header: 'Họ tên', className: 'font-medium text-gray-900' },
+    { key: 'hoTen', header: 'Họ tên', className: 'font-medium text-gray-900', render: (s) => <span className="truncate max-w-[180px] block" title={s.hoTen}>{s.hoTen}</span> },
     { key: 'className', header: 'Lớp sinh hoạt', render: (s) => (
       s.className ? (
         <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
@@ -65,8 +65,8 @@ const studentConfig = {
         <span className="text-gray-400 text-xs italic">Chưa phân lớp</span>
       )
     )},
-    { key: 'email', header: 'Email' },
-    { key: 'department', header: 'Khoa', render: (s) => s.department || <span className="text-gray-400">Chưa xác định</span> },
+    { key: 'email', header: 'Email', render: (s) => <span className="truncate max-w-[180px] block text-xs" title={s.email}>{s.email}</span> },
+    { key: 'department', header: 'Khoa', render: (s) => s.department ? <span className="truncate max-w-[180px] block text-xs" title={s.department}>{s.department}</span> : <span className="text-gray-400 text-xs">Chưa xác định</span> },
     { key: 'status', header: 'Tài khoản', className: 'text-center w-32', render: renderStatus },
     { key: 'actions', header: 'Thao tác', className: 'text-right w-44', render: actions },
   ],

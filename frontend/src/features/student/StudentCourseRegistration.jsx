@@ -57,9 +57,9 @@ function ClassRow({ cls, state, onEnroll, pending }) {
       <span className="font-mono font-bold text-indigo-700 text-xs w-24 px-2 py-1 rounded-lg bg-indigo-50 border border-indigo-100/80 text-center">
         {cls.id}
       </span>
-      <span className="text-sm text-gray-700 min-w-[150px] flex items-center gap-2">
+      <span className="text-sm text-gray-700 min-w-[150px] max-w-[180px] flex items-center gap-2">
         <Avatar src={cls.teacherRef?.avatar?.url || cls.teacherRef?.avatar} name={cls.teacher || 'GV'} size={24} />
-        <span className="font-semibold text-xs text-gray-800">{cls.teacher || 'Chưa phân công'}</span>
+        <span className="font-semibold text-xs text-gray-800 truncate" title={cls.teacher}>{cls.teacher || 'Chưa phân công'}</span>
       </span>
       <div className="flex-1 min-w-[260px]">
         <ScheduleRoomBadge schedules={cls.schedules} room={cls.room} layout="inline" compact />
@@ -114,16 +114,24 @@ export function StudentCourseRegistration() {
   };
 
   const enrolledColumns = [
-    { key: 'classId', header: 'Mã lớp', className: 'font-semibold text-gray-800' },
-    { key: 'courseName', header: 'Học phần', render: (e) => e.class?.courseName || '—' },
+    { key: 'classId', header: 'Mã lớp', className: 'font-semibold text-gray-800 w-28' },
+    {
+      key: 'courseName',
+      header: 'Học phần',
+      render: (e) => (
+        <span className="font-semibold text-gray-900 truncate max-w-[220px] block" title={e.class?.courseName}>
+          {e.class?.courseName || '—'}
+        </span>
+      ),
+    },
     {
       key: 'teacher',
       header: 'Giảng viên',
       render: (e) =>
         e.class?.teacher ? (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 max-w-[160px]">
             <Avatar src={e.class?.teacherRef?.avatar?.url || e.class?.teacherRef?.avatar} name={e.class.teacher} size={24} />
-            <span className="text-xs font-semibold text-gray-800">{e.class.teacher}</span>
+            <span className="text-xs font-semibold text-gray-800 truncate" title={e.class.teacher}>{e.class.teacher}</span>
           </div>
         ) : (
           <span className="text-gray-400 text-xs italic">Chưa phân công</span>
