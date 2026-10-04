@@ -50,7 +50,15 @@ export function Header() {
       } else {
         toast.success('Đã cập nhật ảnh đại diện');
       }
-      window.dispatchEvent(new CustomEvent('edumin_profile_request_updated'));
+      window.dispatchEvent(
+        new CustomEvent('edumin_profile_request_updated', {
+          detail: {
+            roleName: user?.role === 'giao-vien' ? 'Giảng viên' : 'Sinh viên',
+            name: displayName || user?.hoTen || '',
+            changedSummary: 'Ảnh đại diện',
+          },
+        })
+      );
     } catch (err) {
       toast.error(err.message || 'Lỗi khi cập nhật ảnh đại diện');
     } finally {

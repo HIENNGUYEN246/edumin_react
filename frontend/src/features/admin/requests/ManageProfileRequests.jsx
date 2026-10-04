@@ -234,9 +234,12 @@ export function ManageProfileRequests() {
       render: (r) => {
         const reqAvt = r.requestedData?.avatar?.url || r.requestedData?.avatar;
         const curAvt = r.currentData?.avatar?.url || r.currentData?.avatar;
-        const reqFields = Object.entries(r.requestedData || {}).filter(
-          ([k, v]) => k !== 'avatar' && v !== undefined && v !== ''
-        );
+        // Chỉ hiển thị đúng những thông tin có thay đổi thực sự so với dữ liệu hiện tại
+        const reqFields = Object.entries(r.requestedData || {}).filter(([k, v]) => {
+          if (k === 'avatar' || v === undefined || v === null || v === '') return false;
+          const oldVal = r.currentData?.[k] ?? '';
+          return String(v).trim() !== String(oldVal).trim();
+        });
 
         return (
           <div className="space-y-2 py-1">
@@ -258,7 +261,7 @@ export function ManageProfileRequests() {
               </div>
             )}
 
-            {reqFields.length > 0 && (
+            {reqFields.length > 0 ? (
               <div className="text-xs space-y-1">
                 {reqFields.map(([k, val]) => {
                   const labels = {
@@ -280,7 +283,9 @@ export function ManageProfileRequests() {
                   );
                 })}
               </div>
-            )}
+            ) : !reqAvt ? (
+              <span className="text-xs text-gray-400 italic">Không có thay đổi thông tin</span>
+            ) : null}
           </div>
         );
       },

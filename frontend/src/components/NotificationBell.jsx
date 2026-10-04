@@ -45,8 +45,9 @@ export default function NotificationBell({ currentUser, customRole }) {
     if (!tokenStore.get()) return;
     try {
       const res = await notificationsApi.list({ limit: 40 });
-      if (res && Array.isArray(res.items)) {
-        setBackendItems(res.items);
+      const items = res?.data || res?.items;
+      if (Array.isArray(items)) {
+        setBackendItems(items);
       }
     } catch {
       // Fallback stays in place
@@ -153,8 +154,26 @@ export default function NotificationBell({ currentUser, customRole }) {
       });
     };
 
-    const handleProfileRequestUpdate = () => {
+    const handleProfileRequestUpdate = (e) => {
       fetchBackendNotifications();
+      const req = e?.detail;
+      if (role === 'dao-tao' && req) {
+        const newNotif = {
+          id: `notif_live_req_${Date.now()}`,
+          type: 'approval',
+          title: 'Yêu cầu duyệt thông tin mới',
+          message: `${req.roleName || 'Người dùng'} ${req.name || ''} vừa gửi yêu cầu đổi: ${req.changedSummary || 'thông tin'}.`,
+          time: 'Vừa xong',
+          link: '/admin/profile-requests',
+          isRead: false,
+          timestamp: Date.now(),
+        };
+        setLocalItems((prev) => {
+          const next = [newNotif, ...prev];
+          saveStoredNotifications(role, user, next);
+          return next;
+        });
+      }
     };
 
     window.addEventListener('edumin_feedback_updated', handleFeedbackUpdate);

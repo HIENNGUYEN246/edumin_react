@@ -34,12 +34,36 @@ export function EditProfileModal({ open, onClose, user, profile }) {
     }
   }, [open, profile, user]);
 
+  const isStudent = user?.role === 'sinh-vien' || user?.role === 'student';
+  const isTeacher = user?.role === 'giao-vien' || user?.role === 'teacher';
+  const isSelfService = isTeacher || isStudent;
+
   const mutation = useMutation({
     mutationFn: (data) => authApi.updateProfile(data),
-    onSuccess: (res) => {
+    onSuccess: (res, variables) => {
       queryClient.invalidateQueries({ queryKey: ['auth', 'me'] });
       queryClient.invalidateQueries({ queryKey: ['profile-requests'] });
-      window.dispatchEvent(new CustomEvent('edumin_profile_request_updated'));
+
+      const changedKeys = Object.keys(variables || {});
+      const fieldLabels = {
+        hoTen: 'Họ tên',
+        phone: 'SĐT',
+        address: 'Địa chỉ',
+        dob: 'Ngày sinh',
+        gender: 'Giới tính',
+        education: isStudent ? 'Hệ đào tạo' : 'Trình độ',
+      };
+      const changedSummary = changedKeys.map((k) => fieldLabels[k] || k).join(', ');
+
+      window.dispatchEvent(
+        new CustomEvent('edumin_profile_request_updated', {
+          detail: {
+            roleName: isStudent ? 'Sinh viên' : 'Giảng viên',
+            name: form.hoTen || user?.hoTen || '',
+            changedSummary: changedSummary || 'thông tin cá nhân',
+          },
+        })
+      );
 
       if (res?.pending) {
         toast.info(res.message || 'Yêu cầu cập nhật thông tin đã được gửi đến Quản trị viên để phê duyệt');
@@ -53,8 +77,6 @@ export function EditProfileModal({ open, onClose, user, profile }) {
     },
   });
 
-  const isStudent = user?.role === 'sinh-vien' || user?.role === 'student';
-  const isTeacher = user?.role === 'giao-vien' || user?.role === 'teacher';
   const maxDob = isStudent
     ? getMaxBirthDate(17)
     : isTeacher
@@ -82,10 +104,35 @@ export function EditProfileModal({ open, onClose, user, profile }) {
       toast.error(isStudent ? 'Sinh viên phải từ 17 tuổi trở lên' : 'Giảng viên phải từ 24 tuổi trở lên');
       return;
     }
+
+    if (isSelfService) {
+      const original = {
+        hoTen: profile?.hoTen || user?.hoTen || '',
+        phone: profile?.phone || '',
+        address: profile?.address || '',
+        dob: profile?.dob || '',
+        gender: profile?.gender || 'Nam',
+        education: profile?.education || (isStudent ? 'Chính quy' : ''),
+      };
+
+      const diff = {};
+      for (const [key, val] of Object.entries(form)) {
+        if (String(val ?? '').trim() !== String(original[key] ?? '').trim()) {
+          diff[key] = val;
+        }
+      }
+
+      if (Object.keys(diff).length === 0) {
+        toast.info('Bạn chưa thay đổi thông tin nào so với hiện tại');
+        return;
+      }
+
+      mutation.mutate(diff);
+      return;
+    }
+
     mutation.mutate(form);
   };
-
-  const isSelfService = user?.role === 'teacher' || user?.role === 'student';
 
   return (
     <Modal

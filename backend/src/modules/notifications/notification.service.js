@@ -15,14 +15,27 @@ export async function createNotification(payload) {
   return notif;
 }
 
-export async function listMyNotifications(user, query = {}) {
-  const { page, limit, skip, sort } = parseListQuery(query, { defaultSort: '-createdAt' });
-  const filter = {
+function getRoleFilters(role) {
+  const roles = [role];
+  if (role === 'dao-tao') roles.push('admin');
+  if (role === 'admin') roles.push('dao-tao');
+  return roles;
+}
+
+function buildRecipientFilter(user) {
+  const roles = getRoleFilters(user.role);
+  return {
     $or: [
       { recipientUser: user._id },
-      { recipientRole: user.role, recipientUser: null },
+      { recipientRole: { $in: roles }, recipientUser: null },
+      { recipientRole: { $in: roles }, recipientUser: { $exists: false } },
     ],
   };
+}
+
+export async function listMyNotifications(user, query = {}) {
+  const { page, limit, skip, sort } = parseListQuery(query, { defaultSort: '-createdAt' });
+  const filter = buildRecipientFilter(user);
 
   if (query.unreadOnly === 'true' || query.unreadOnly === true) {
     filter.isRead = false;
@@ -34,14 +47,15 @@ export async function listMyNotifications(user, query = {}) {
     isRead: false,
   });
 
-  return { ...result, unreadCount };
+  return { ...result, items: result.data, unreadCount };
 }
 
 export async function markNotificationRead(id, user) {
+  const recipientFilter = buildRecipientFilter(user);
   const notif = await Notification.findOneAndUpdate(
     {
       _id: id,
-      $or: [{ recipientUser: user._id }, { recipientRole: user.role, recipientUser: null }],
+      ...recipientFilter,
     },
     { isRead: true },
     { new: true }
@@ -51,9 +65,10 @@ export async function markNotificationRead(id, user) {
 }
 
 export async function markAllMyNotificationsRead(user) {
+  const recipientFilter = buildRecipientFilter(user);
   await Notification.updateMany(
     {
-      $or: [{ recipientUser: user._id }, { recipientRole: user.role, recipientUser: null }],
+      ...recipientFilter,
       isRead: false,
     },
     { isRead: true }
@@ -62,9 +77,10 @@ export async function markAllMyNotificationsRead(user) {
 }
 
 export async function deleteNotification(id, user) {
+  const recipientFilter = buildRecipientFilter(user);
   const res = await Notification.findOneAndDelete({
     _id: id,
-    $or: [{ recipientUser: user._id }, { recipientRole: user.role, recipientUser: null }],
+    ...recipientFilter,
   });
   if (!res) throw AppError.notFound('Không tìm thấy thông báo');
   return { success: true };
@@ -74,9 +90,10 @@ export async function bulkDeleteNotifications(ids, user) {
   if (!Array.isArray(ids) || ids.length === 0) {
     throw AppError.badRequest('Danh sách mã thông báo không hợp lệ');
   }
+  const recipientFilter = buildRecipientFilter(user);
   const result = await Notification.deleteMany({
     _id: { $in: ids },
-    $or: [{ recipientUser: user._id }, { recipientRole: user.role, recipientUser: null }],
+    ...recipientFilter,
   });
   return { deletedCount: result.deletedCount };
 }

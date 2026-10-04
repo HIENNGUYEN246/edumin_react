@@ -29,6 +29,29 @@ export async function createRequest(user, { type = 'avatar', requestedData = {} 
     education: profile.education || '',
   };
 
+  // Filter out fields that are identical to currentData
+  let cleanRequestedData = { ...requestedData };
+  if (type === 'profile' || type === 'both') {
+    const diff = {};
+    for (const [k, v] of Object.entries(requestedData)) {
+      if (k === 'avatar') {
+        diff[k] = v;
+        continue;
+      }
+      const cur = currentData[k] ?? '';
+      if (v !== undefined && v !== null && String(v).trim() !== String(cur).trim()) {
+        diff[k] = v;
+      }
+    }
+    if (Object.keys(diff).length > 0 || !cleanRequestedData.avatar) {
+      cleanRequestedData = diff;
+    }
+  }
+
+  const hasAvatar = Boolean(cleanRequestedData.avatar);
+  const fieldKeys = Object.keys(cleanRequestedData).filter((k) => k !== 'avatar');
+  const effectiveType = hasAvatar && fieldKeys.length > 0 ? 'both' : hasAvatar ? 'avatar' : 'profile';
+
   const reqDoc = await ProfileRequest.create({
     userId: user._id,
     targetModel: modelName,
@@ -37,20 +60,31 @@ export async function createRequest(user, { type = 'avatar', requestedData = {} 
     requesterName: profile.hoTen || user.hoTen || '',
     requesterEmail: user.email || '',
     requesterCode: profile.id || '',
-    type,
+    type: effectiveType,
     status: 'pending',
     currentData,
-    requestedData,
+    requestedData: cleanRequestedData,
   });
 
   // Notify admin
   const roleName = user.role === ROLES.TEACHER ? 'Giảng viên' : 'Sinh viên';
-  const actionName = type === 'avatar' ? 'ảnh đại diện' : type === 'profile' ? 'thông tin cá nhân' : 'thông tin và ảnh đại diện';
+  const fieldLabels = {
+    hoTen: 'Họ tên',
+    phone: 'Số điện thoại',
+    address: 'Địa chỉ',
+    dob: 'Ngày sinh',
+    gender: 'Giới tính',
+    education: user.role === ROLES.TEACHER ? 'Trình độ học vị' : 'Hệ đào tạo',
+  };
+  const changedNames = fieldKeys.map((k) => fieldLabels[k] || k);
+  if (hasAvatar) changedNames.unshift('ảnh đại diện');
+  const changeSummary = changedNames.length > 0 ? changedNames.join(', ') : 'thông tin cá nhân';
+
   await createNotification({
     recipientRole: ROLES.ADMIN,
     type: 'approval',
     title: 'Yêu cầu duyệt thông tin mới',
-    message: `${roleName} ${profile.hoTen || user.email} vừa gửi yêu cầu đổi ${actionName}.`,
+    message: `${roleName} ${profile.hoTen || user.email} vừa gửi yêu cầu đổi: ${changeSummary}.`,
     link: '/admin/profile-requests',
     metadata: { requestId: reqDoc._id },
   }).catch(() => {});
