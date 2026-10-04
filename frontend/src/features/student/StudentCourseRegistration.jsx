@@ -8,6 +8,7 @@ import { useConfirm } from '../../app/providers/ConfirmProvider.jsx';
 import { describeSchedules } from '../../lib/schedule.js';
 import { formatCurrency } from '../../lib/format.js';
 import { useOpenClasses, useMyEnrollments, useEnrollmentMutations } from './useEnrollments.js';
+import { ScheduleRoomBadge } from '../../components/schedule/ScheduleBadge.jsx';
 
 /** Group a flat class list into [{ courseId, courseName, credits, classes }]. */
 function groupByCourse(classes) {
@@ -52,21 +53,18 @@ function ClassRow({ cls, state, onEnroll, pending }) {
   }
 
   return (
-    <div className={`flex flex-wrap items-center gap-x-6 gap-y-1 px-4 py-3 rounded-xl border ${state.enrolledThisClass ? 'border-emerald-200 bg-emerald-50/40' : 'border-gray-100 bg-white'}`}>
-      <span className="font-semibold text-gray-800 w-24">{cls.id}</span>
-      <span className="text-sm text-gray-600 flex-1 min-w-[150px] flex items-center gap-2">
+    <div className={`flex flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3 rounded-2xl border transition-all ${state.enrolledThisClass ? 'border-emerald-300 bg-emerald-50/50 shadow-2xs' : 'border-gray-200/80 bg-white hover:border-indigo-200 hover:shadow-xs'}`}>
+      <span className="font-mono font-bold text-indigo-700 text-xs w-24 px-2 py-1 rounded-lg bg-indigo-50 border border-indigo-100/80 text-center">
+        {cls.id}
+      </span>
+      <span className="text-sm text-gray-700 min-w-[150px] flex items-center gap-2">
         <Avatar src={cls.teacherRef?.avatar?.url || cls.teacherRef?.avatar} name={cls.teacher || 'GV'} size={24} />
-        <span className="font-medium text-gray-800">{cls.teacher || 'Chưa phân công'}</span>
+        <span className="font-semibold text-xs text-gray-800">{cls.teacher || 'Chưa phân công'}</span>
       </span>
-      <span className="text-xs text-gray-500 min-w-[180px]">
-        <i className="far fa-clock text-gray-300 mr-1.5" />
-        {describeSchedules(cls.schedules)}
-      </span>
-      <span className="text-xs text-gray-500 w-20">
-        <i className="fas fa-door-open text-gray-300 mr-1.5" />
-        {cls.room || '—'}
-      </span>
-      <span className={`text-xs font-semibold w-16 ${full ? 'text-red-500' : 'text-gray-600'}`}>
+      <div className="flex-1 min-w-[260px]">
+        <ScheduleRoomBadge schedules={cls.schedules} room={cls.room} layout="inline" compact />
+      </div>
+      <span className={`text-xs font-semibold w-16 text-center ${full ? 'text-red-500 font-bold' : 'text-gray-600'}`}>
         {cls.enrolledCount}
         {cls.capacity > 0 ? `/${cls.capacity}` : ''}
       </span>
@@ -131,7 +129,18 @@ export function StudentCourseRegistration() {
           <span className="text-gray-400 text-xs italic">Chưa phân công</span>
         ),
     },
-    { key: 'schedules', header: 'Lịch học', render: (e) => <span className="text-xs">{describeSchedules(e.class?.schedules)}</span> },
+    {
+      key: 'schedules',
+      header: 'Lịch học & Phòng',
+      render: (e) => (
+        <ScheduleRoomBadge
+          schedules={e.class?.schedules}
+          room={e.class?.room}
+          studyStart={e.class?.studyStart}
+          studyEnd={e.class?.studyEnd}
+        />
+      ),
+    },
     { key: 'fee', header: 'Học phí', render: (e) => formatCurrency(e.class?.fee) },
     {
       key: 'action',

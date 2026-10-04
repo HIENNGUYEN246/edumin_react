@@ -14,6 +14,7 @@ import { ClassStatusBadge } from '../classes/ClassStatusBadge.jsx';
 import { ClassFormModal } from '../classes/ClassFormModal.jsx';
 import { ClassStudentsModal } from '../classes/ClassStudentsModal.jsx';
 import { Avatar } from '../../../components/ui/Avatar.jsx';
+import { ScheduleRoomBadge } from '../../../components/schedule/ScheduleBadge.jsx';
 
 export function CourseDetail() {
   const { id } = useParams();
@@ -119,8 +120,18 @@ export function CourseDetail() {
           <span className="text-gray-400 text-xs italic">Chưa phân công</span>
         ),
     },
-    { key: 'schedules', header: 'Lịch học', render: (c) => <span className="text-xs">{describeSchedules(c.schedules)}</span> },
-    { key: 'room', header: 'Phòng' },
+    {
+      key: 'schedules',
+      header: 'Lịch học & Phòng',
+      render: (c) => (
+        <ScheduleRoomBadge
+          schedules={c.schedules}
+          room={c.room}
+          studyStart={c.studyStart}
+          studyEnd={c.studyEnd}
+        />
+      ),
+    },
     {
       key: 'capacity',
       header: 'Sĩ số',

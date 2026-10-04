@@ -5,9 +5,9 @@ import { DataTable } from '../../components/ui/DataTable.jsx';
 import { Spinner } from '../../components/ui/Spinner.jsx';
 import { Modal } from '../../components/ui/Modal.jsx';
 import { Avatar } from '../../components/ui/Avatar.jsx';
-import { describeSchedules } from '../../lib/schedule.js';
 import { formatStudentCode } from '../../lib/format.js';
 import { useMyTeacherClasses, useClassStudents } from './useTeacherClasses.js';
+import { ScheduleRoomBadge } from '../../components/schedule/ScheduleBadge.jsx';
 
 function StudentsModal({ classId, className, onClose }) {
   const { data, isLoading } = useClassStudents(classId);
@@ -49,8 +49,18 @@ export function TeacherClassList() {
   const columns = [
     { key: 'id', header: 'Mã lớp', className: 'font-semibold text-gray-800' },
     { key: 'courseName', header: 'Học phần' },
-    { key: 'schedules', header: 'Lịch học', render: (c) => <span className="text-xs">{describeSchedules(c.schedules)}</span> },
-    { key: 'room', header: 'Phòng' },
+    {
+      key: 'schedules',
+      header: 'Lịch học & Phòng',
+      render: (c) => (
+        <ScheduleRoomBadge
+          schedules={c.schedules}
+          room={c.room}
+          studyStart={c.studyStart}
+          studyEnd={c.studyEnd}
+        />
+      ),
+    },
     {
       key: 'action',
       header: '',

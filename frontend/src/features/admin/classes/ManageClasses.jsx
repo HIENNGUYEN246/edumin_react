@@ -17,6 +17,7 @@ import { useClasses, useClassMutations } from './useClasses.js';
 import { ClassStatusBadge } from './ClassStatusBadge.jsx';
 import { ClassFormModal } from './ClassFormModal.jsx';
 import { ClassStudentsModal } from './ClassStudentsModal.jsx';
+import { ScheduleRoomBadge } from '../../../components/schedule/ScheduleBadge.jsx';
 
 export function ManageClasses() {
   const toast = useToast();
@@ -183,23 +184,14 @@ export function ManageClasses() {
     {
       key: 'schedule',
       header: 'Lịch học & Phòng',
-      render: (cls) => {
-        const scheduleText = describeSchedules(cls.schedules || []);
-        return (
-          <div className="space-y-1">
-            <div className="text-xs font-medium text-gray-800 flex items-center gap-1.5">
-              <i className="fas fa-calendar-alt text-indigo-500 text-xs" />
-              <span>{scheduleText || 'Chưa xếp lịch'}</span>
-            </div>
-            {cls.room && (
-              <div className="text-[11px] text-gray-500 flex items-center gap-1">
-                <i className="fas fa-location-dot text-rose-500 text-[10px]" />
-                <span>Phòng {cls.room}</span>
-              </div>
-            )}
-          </div>
-        );
-      },
+      render: (cls) => (
+        <ScheduleRoomBadge
+          schedules={cls.schedules}
+          room={cls.room}
+          studyStart={cls.studyStart}
+          studyEnd={cls.studyEnd}
+        />
+      ),
     },
     {
       key: 'enrollment',
