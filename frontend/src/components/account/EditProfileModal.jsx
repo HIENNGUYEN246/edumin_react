@@ -6,6 +6,7 @@ import { FormField, inputClass } from '../ui/FormField.jsx';
 import { useToast } from '../../app/providers/ToastProvider.jsx';
 import { getMaxBirthDate, formatDate } from '../../lib/format.js';
 import { TEACHER_EDUCATION_LEVELS } from '../../api/teachersApi.js';
+import { STUDENT_EDUCATION_LEVELS } from '../../api/studentsApi.js';
 
 export function EditProfileModal({ open, onClose, user, profile }) {
   const toast = useToast();
@@ -156,7 +157,7 @@ export function EditProfileModal({ open, onClose, user, profile }) {
             </select>
           </FormField>
 
-          <FormField label={user?.role === 'teacher' ? 'Trình độ học vị' : 'Trình độ / Hệ đào tạo'}>
+          <FormField label={user?.role === 'teacher' ? 'Trình độ học vị' : 'Hệ đào tạo'}>
             {user?.role === 'teacher' ? (
               <select
                 className={inputClass}
@@ -174,13 +175,21 @@ export function EditProfileModal({ open, onClose, user, profile }) {
                 ))}
               </select>
             ) : (
-              <input
-                type="text"
+              <select
                 className={inputClass}
-                value={form.education}
+                value={form.education || 'Chính quy'}
                 onChange={update('education')}
-                placeholder="VD: Chính quy / Chất lượng cao / Liên thông..."
-              />
+              >
+                <option value="">-- Chọn hệ đào tạo --</option>
+                {form.education && !STUDENT_EDUCATION_LEVELS.some((opt) => opt.value === form.education) && (
+                  <option value={form.education}>{form.education} (Hiện tại)</option>
+                )}
+                {STUDENT_EDUCATION_LEVELS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
             )}
           </FormField>
         </div>

@@ -1,6 +1,16 @@
 import { http } from './http.js';
 import { qs } from './departmentsApi.js';
 
+export const STUDENT_EDUCATION_LEVELS = [
+  { value: 'Chính quy', label: 'Đại học Chính quy' },
+  { value: 'Chất lượng cao', label: 'Chương trình Chất lượng cao' },
+  { value: 'Liên thông', label: 'Liên thông Đại học' },
+  { value: 'Vừa làm vừa học', label: 'Vừa làm vừa học (Tại chức)' },
+  { value: 'Đào tạo từ xa', label: 'Đào tạo từ xa (E-Learning)' },
+  { value: 'Văn bằng 2', label: 'Văn bằng 2 Chính quy' },
+  { value: 'Liên kết quốc tế', label: 'Chương trình Quốc tế / Liên kết' },
+];
+
 function extractId(idOrEntity) {
   if (!idOrEntity) return '';
   if (typeof idOrEntity === 'object') {

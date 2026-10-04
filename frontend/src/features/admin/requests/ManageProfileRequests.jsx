@@ -267,7 +267,7 @@ export function ManageProfileRequests() {
                     address: 'Địa chỉ',
                     dob: 'Ngày sinh',
                     gender: 'Giới tính',
-                    education: 'Trình độ',
+                    education: r.requesterRole === 'giao-vien' ? 'Trình độ học vị' : 'Hệ đào tạo',
                   };
                   const oldVal = r.currentData?.[k] || '—';
                   return (
