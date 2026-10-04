@@ -41,7 +41,7 @@ export function ScheduleSlotBadge({ slot, compact = false }) {
 export function RoomBadge({ room, compact = false }) {
   if (!room) {
     return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] text-gray-400 italic bg-gray-50 border border-gray-200/70">
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] text-gray-400 italic bg-gray-50 border border-gray-200/70 whitespace-nowrap">
         <i className="fas fa-door-closed text-gray-300 text-[10px]" />
         <span>Chưa xếp phòng</span>
       </span>
@@ -50,7 +50,7 @@ export function RoomBadge({ room, compact = false }) {
 
   return (
     <span
-      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-xl text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200/90 shadow-2xs ${
+      className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-xl text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200/90 shadow-2xs whitespace-nowrap ${
         compact ? 'text-[11px] py-0.5' : ''
       }`}
       title={`Phòng học: ${room}`}
@@ -75,9 +75,9 @@ export function ScheduleRoomBadge({
 }) {
   const hasSchedules = Array.isArray(schedules) && schedules.length > 0;
 
-  if (!hasSchedules && !room) {
+  if (!hasSchedules && !room && !studyStart && !studyEnd) {
     return (
-      <span className="text-gray-400 text-xs italic flex items-center gap-1">
+      <span className="text-gray-400 text-xs italic flex items-center gap-1.5">
         <i className="far fa-calendar-times text-gray-300" />
         <span>Chưa xếp lịch & phòng</span>
       </span>
@@ -117,8 +117,8 @@ export function ScheduleRoomBadge({
         <RoomBadge room={room} compact={compact} />
 
         {studyStart && studyEnd && (
-          <span className="text-[10px] text-gray-500 font-medium flex items-center gap-1" title="Thời gian học phần">
-            <i className="far fa-calendar text-gray-400 text-[9px]" />
+          <span className="text-[11px] text-gray-500 font-medium inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-gray-50 border border-gray-200/70 whitespace-nowrap shadow-2xs" title="Thời gian học phần">
+            <i className="far fa-calendar text-indigo-400 text-[10px]" />
             <span>
               {formatDate(studyStart)} - {formatDate(studyEnd)}
             </span>
@@ -130,3 +130,4 @@ export function ScheduleRoomBadge({
 }
 
 export default ScheduleRoomBadge;
+

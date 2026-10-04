@@ -66,7 +66,9 @@ export function DataTable({
               {columns.map((col) => (
                 <th
                   key={col.key}
-                  className={`px-4 py-3 font-semibold uppercase text-xs tracking-wider ${col.className || ''}`}
+                  className={`px-4 py-3.5 font-semibold uppercase text-xs tracking-wider text-gray-500 ${
+                    col.headerClassName || col.className || ''
+                  }`}
                 >
                   {col.header}
                 </th>
@@ -94,7 +96,7 @@ export function DataTable({
                   >
                     {selectable && (
                       <td
-                        className="w-12 px-4 py-3 text-center"
+                        className="w-12 px-4 py-3.5 text-center align-middle"
                         onClick={(e) => e.stopPropagation()}
                       >
                         <input
@@ -107,7 +109,12 @@ export function DataTable({
                       </td>
                     )}
                     {columns.map((col) => (
-                      <td key={col.key} className={`px-4 py-3 text-gray-700 ${col.className || ''}`}>
+                      <td
+                        key={col.key}
+                        className={`px-4 py-3.5 text-gray-700 align-middle ${
+                          col.cellClassName || col.className || ''
+                        }`}
+                      >
                         {col.render ? col.render(row) : row[col.key]}
                       </td>
                     ))}

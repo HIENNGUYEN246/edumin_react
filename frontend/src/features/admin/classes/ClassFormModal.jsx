@@ -144,124 +144,164 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
   };
 
   return (
-    <Modal open={open} onClose={onClose} title={mode === 'create' ? 'Thêm lớp học phần' : 'Sửa lớp học phần'} size="lg">
-      <form onSubmit={submit} className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <FormField
-            label="Mã lớp học phần"
-            error={errors.id}
-            hint={mode === 'create' ? 'Hệ thống tự động sinh theo mã môn' : undefined}
-          >
-            <div className="relative">
-              <input
-                className={`${inputClass} bg-gray-50 text-gray-700 font-mono font-bold cursor-not-allowed`}
-                value={
-                  mode === 'create'
-                    ? form.id || (nextCodeLoading ? 'Đang tạo mã...' : targetCourseId ? 'Đang sinh mã...' : 'Tự động tạo khi chọn môn')
-                    : form.id
-                }
-                disabled
-                readOnly
-              />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-700 border border-indigo-200">
-                {mode === 'create' ? 'Tự động sinh' : 'Cố định'}
-              </span>
-            </div>
-          </FormField>
-          {!courseId && (
-            <FormField label="Học phần" error={errors.courseId} required>
-              <select className={inputClass} value={form.courseId} disabled={mode === 'edit'} onChange={set('courseId')}>
-                <option value="">Chọn học phần</option>
-                {courses.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.id} — {c.name}
+    <Modal open={open} onClose={onClose} title={mode === 'create' ? 'Mở lớp học phần mới' : 'Chỉnh sửa thông tin lớp học phần'} size="xl">
+      <form onSubmit={submit} className="space-y-5">
+        <div className="bg-slate-50/60 p-4 rounded-2xl border border-gray-100">
+          <div className="text-xs font-bold uppercase tracking-wider text-indigo-700 mb-3 flex items-center gap-1.5">
+            <i className="fas fa-circle-info text-indigo-500" />
+            <span>Thông tin lớp học phần</span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <FormField
+              label="Mã lớp học phần"
+              error={errors.id}
+              hint={mode === 'create' ? 'Hệ thống tự động sinh theo mã môn' : undefined}
+            >
+              <div className="relative">
+                <input
+                  className={`${inputClass} bg-white text-gray-700 font-mono font-bold cursor-not-allowed`}
+                  value={
+                    mode === 'create'
+                      ? form.id || (nextCodeLoading ? 'Đang tạo mã...' : targetCourseId ? 'Đang sinh mã...' : 'Tự động tạo khi chọn môn')
+                      : form.id
+                  }
+                  disabled
+                  readOnly
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-700 border border-indigo-200">
+                  {mode === 'create' ? 'Tự động sinh' : 'Cố định'}
+                </span>
+              </div>
+            </FormField>
+
+            {courseId ? (
+              <FormField label="Học phần">
+                <input
+                  className={`${inputClass} bg-white text-gray-700 font-medium cursor-not-allowed`}
+                  value={`${selectedCourse?.name || courseId} (${courseId})`}
+                  disabled
+                  readOnly
+                />
+              </FormField>
+            ) : (
+              <FormField label="Học phần" error={errors.courseId} required>
+                <select className={inputClass} value={form.courseId} disabled={mode === 'edit'} onChange={set('courseId')}>
+                  <option value="">-- Chọn học phần --</option>
+                  {courses.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.id} — {c.name} ({c.credits} TC)
+                    </option>
+                  ))}
+                </select>
+              </FormField>
+            )}
+
+            <FormField
+              label="Giáo viên phụ trách"
+              hint={
+                !targetCourseId
+                  ? 'Vui lòng chọn học phần trước để lọc giảng viên theo khoa'
+                  : courseDepartment
+                  ? `Lọc theo khoa: ${courseDepartment} (${teachers.length} GV)`
+                  : 'Giảng viên giảng dạy'
+              }
+            >
+              <select
+                className={inputClass}
+                value={form.teacherId}
+                disabled={!targetCourseId}
+                onChange={set('teacherId')}
+              >
+                {!targetCourseId ? (
+                  <option value="">-- Vui lòng chọn học phần trước --</option>
+                ) : (
+                  <>
+                    <option value="">Chưa phân công</option>
+                    {teachers.map((t) => (
+                      <option key={t._id} value={t.id}>
+                        {t.hoTen} ({formatTeacherCode(t.id)}){t.department ? ` - ${t.department}` : ''}
+                      </option>
+                    ))}
+                    {teachers.length === 0 && (
+                      <option value="" disabled>
+                        Khoa {courseDepartment} hiện chưa có giảng viên
+                      </option>
+                    )}
+                  </>
+                )}
+              </select>
+            </FormField>
+
+            <FormField label="Phòng học">
+              <input className={inputClass} value={form.room} onChange={set('room')} placeholder="VD: A101, B204..." />
+            </FormField>
+
+            <FormField label="Sĩ số tối đa" hint="0 = Không giới hạn sĩ số">
+              <input type="number" min="0" className={inputClass} value={form.capacity} onChange={set('capacity')} />
+            </FormField>
+
+            <FormField label="Trạng thái" hint="Chọn 'Đang mở' để sinh viên thấy và đăng ký">
+              <select className={inputClass} value={form.status} onChange={set('status')}>
+                {CLASS_STATUSES.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
                   </option>
                 ))}
               </select>
             </FormField>
-          )}
-          <FormField
-            label="Giáo viên phụ trách"
-            hint={
-              !targetCourseId
-                ? 'Vui lòng chọn học phần trước để lọc giảng viên theo khoa'
-                : courseDepartment
-                ? `Giảng viên thuộc khoa: ${courseDepartment} (${teachers.length})`
-                : 'Giảng viên giảng dạy học phần'
-            }
-          >
-            <select
-              className={inputClass}
-              value={form.teacherId}
-              disabled={!targetCourseId}
-              onChange={set('teacherId')}
+          </div>
+        </div>
+
+        <div className="bg-slate-50/60 p-4 rounded-2xl border border-gray-100">
+          <div className="text-xs font-bold uppercase tracking-wider text-indigo-700 mb-3 flex items-center gap-1.5">
+            <i className="far fa-calendar text-indigo-500" />
+            <span>Thời gian đào tạo (Tối thiểu 15 tuần)</span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <FormField
+              label="Bắt đầu học"
+              error={errors.studyStart}
+              required
+              hint="Ngày học buổi đầu tiên"
             >
-              {!targetCourseId ? (
-                <option value="">-- Vui lòng chọn học phần trước --</option>
-              ) : (
-                <>
-                  <option value="">Chưa phân công</option>
-                  {teachers.map((t) => (
-                    <option key={t._id} value={t.id}>
-                      {t.hoTen} ({formatTeacherCode(t.id)}){t.department ? ` - Khoa ${t.department}` : ''}
-                    </option>
-                  ))}
-                  {teachers.length === 0 && (
-                    <option value="" disabled>
-                      Khoa {courseDepartment} hiện chưa có giảng viên
-                    </option>
-                  )}
-                </>
-              )}
-            </select>
-          </FormField>
-          <FormField label="Phòng học">
-            <input className={inputClass} value={form.room} onChange={set('room')} placeholder="VD: A101" />
-          </FormField>
-          <FormField label="Sĩ số tối đa" hint="0 = không giới hạn">
-            <input type="number" min="0" className={inputClass} value={form.capacity} onChange={set('capacity')} />
-          </FormField>
-          <FormField
-            label="Bắt đầu học"
-            error={errors.studyStart}
-            required
-            hint="Ngày bắt đầu học phần"
-          >
-            <input
-              type="date"
+              <input
+                type="date"
+                required
+                className={inputClass}
+                value={form.studyStart}
+                onChange={handleStudyStartChange}
+              />
+            </FormField>
+
+            <FormField
+              label="Kết thúc học"
+              error={errors.studyEnd}
               required
-              className={inputClass}
-              value={form.studyStart}
-              onChange={handleStudyStartChange}
-            />
-          </FormField>
-          <FormField
-            label="Kết thúc học"
-            error={errors.studyEnd}
-            required
-            hint={
-              form.studyStart
-                ? `Tối thiểu 15 tuần (từ ${formatDate(addWeeksToDate(form.studyStart, 15))})`
-                : 'Bắt buộc sau ít nhất 15 tuần kể từ ngày bắt đầu'
-            }
-          >
-            <input
-              type="date"
-              required
-              min={form.studyStart ? addWeeksToDate(form.studyStart, 15) : undefined}
-              className={inputClass}
-              value={form.studyEnd}
-              onChange={set('studyEnd')}
-            />
-          </FormField>
-          <FormField label="Trạng thái" hint="Chọn 'Đang mở' để sinh viên thấy và đăng ký">
-            <select className={inputClass} value={form.status} onChange={set('status')}>
-              {CLASS_STATUSES.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
+              hint={
+                form.studyStart
+                  ? `Tối thiểu 15 tuần (từ ${formatDate(addWeeksToDate(form.studyStart, 15))})`
+                  : 'Bắt buộc sau ít nhất 15 tuần kể từ ngày bắt đầu'
+              }
+            >
+              <input
+                type="date"
+                required
+                min={form.studyStart ? addWeeksToDate(form.studyStart, 15) : undefined}
+                className={inputClass}
+                value={form.studyEnd}
+                onChange={set('studyEnd')}
+              />
+            </FormField>
+          </div>
+        </div>
+
+        <div className="bg-slate-50/60 p-4 rounded-2xl border border-gray-100">
+          <div className="text-xs font-bold uppercase tracking-wider text-indigo-700 mb-3 flex items-center gap-1.5">
+            <i className="far fa-clock text-indigo-500" />
+            <span>Xếp lịch học trong tuần</span>
+          </div>
+          <FormField error={errors.schedules} required>
+            <SchedulePicker value={form.schedules} onChange={(schedules) => setForm((f) => ({ ...f, schedules }))} />
           </FormField>
         </div>
 

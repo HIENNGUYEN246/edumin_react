@@ -127,13 +127,60 @@ export function ManageClasses() {
     }
   };
 
+  // Calculate quick KPI statistics
+  const stats = useMemo(() => {
+    const total = meta.total || rows.length;
+    let openCount = 0;
+    let studyingCount = 0;
+    let totalEnrolled = 0;
+    rows.forEach((r) => {
+      if (r.status === 'Đang mở') openCount++;
+      if (r.status === 'Đang học') studyingCount++;
+      totalEnrolled += r.enrolledCount || 0;
+    });
+    return { total, openCount, studyingCount, totalEnrolled };
+  }, [meta.total, rows]);
+
+  const hasActiveFilters = Boolean(searchText || selectedCourse || selectedDept || selectedStatus);
+  const resetFilters = () => {
+    setSearchText('');
+    setSelectedCourse('');
+    setSelectedDept('');
+    setSelectedStatus('');
+    setPage(1);
+  };
+
+  const STATUS_CONFIG = {
+    'Đang mở': {
+      badge: 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100',
+      icon: 'fa-lock-open text-emerald-600',
+    },
+    'Đang học': {
+      badge: 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100',
+      icon: 'fa-graduation-cap text-blue-600',
+    },
+    'Đã đóng': {
+      badge: 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100',
+      icon: 'fa-lock text-amber-600',
+    },
+    'Đã hủy': {
+      badge: 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100',
+      icon: 'fa-ban text-rose-600',
+    },
+    Nháp: {
+      badge: 'bg-gray-100 text-gray-700 border-gray-200 hover:bg-gray-200',
+      icon: 'fa-pen-ruler text-gray-500',
+    },
+  };
+
   const columns = [
     {
       key: 'id',
       header: 'Mã lớp HP',
-      className: 'font-mono font-bold text-indigo-700 w-32',
+      headerClassName: 'w-28 text-left',
+      cellClassName: 'w-28 align-middle',
       render: (cls) => (
-        <span className="inline-flex items-center px-2 py-1 rounded-lg bg-indigo-50 text-indigo-700 text-xs font-bold border border-indigo-100">
+        <span className="inline-flex items-center px-2.5 py-1 rounded-xl bg-indigo-50/90 text-indigo-700 text-xs font-mono font-bold border border-indigo-150 shadow-2xs">
           {cls.id}
         </span>
       ),
@@ -141,22 +188,24 @@ export function ManageClasses() {
     {
       key: 'course',
       header: 'Môn học & Tín chỉ',
+      headerClassName: 'min-w-[220px] text-left',
+      cellClassName: 'min-w-[220px] align-middle',
       render: (cls) => (
-        <div>
-          <div className="font-bold text-gray-900 leading-tight">
+        <div className="space-y-1 py-0.5">
+          <div className="font-bold text-gray-900 text-sm leading-snug">
             {cls.courseName || cls.courseId}
           </div>
-          <div className="text-xs text-gray-500 mt-0.5 flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-1.5 text-xs text-gray-500">
             <span className="font-mono text-[11px] font-semibold text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded">
               {cls.courseId}
             </span>
-            <span>•</span>
-            <span className="text-indigo-600 font-semibold">{cls.credits} tín chỉ</span>
+            <span className="text-[11px] font-semibold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100/70">
+              {cls.credits} tín chỉ
+            </span>
             {cls.department && (
-              <>
-                <span>•</span>
-                <span className="text-gray-400 truncate max-w-[140px]">{cls.department}</span>
-              </>
+              <span className="text-[11px] text-gray-500 truncate max-w-[150px]" title={cls.department}>
+                • {cls.department}
+              </span>
             )}
           </div>
         </div>
@@ -165,17 +214,24 @@ export function ManageClasses() {
     {
       key: 'teacher',
       header: 'Giảng viên phụ trách',
+      headerClassName: 'min-w-[190px] text-left',
+      cellClassName: 'min-w-[190px] align-middle',
       render: (cls) => {
         const teacher = cls.teacherRef;
         if (!cls.teacher && !teacher) {
-          return <span className="text-xs text-gray-400 italic">Chưa phân công</span>;
+          return (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200/60">
+              <i className="far fa-user text-amber-500 text-[10px]" />
+              <span>Chưa phân công</span>
+            </span>
+          );
         }
         return (
-          <div className="flex items-center gap-2.5">
-            <Avatar src={teacher?.avatar?.url || teacher?.avatar} name={cls.teacher || 'GV'} size={32} />
-            <div>
-              <div className="font-medium text-xs text-gray-900">{cls.teacher || teacher?.hoTen}</div>
-              <div className="text-[11px] text-gray-400">{teacher?.email || ''}</div>
+          <div className="flex items-center gap-2.5 py-0.5">
+            <Avatar src={teacher?.avatar?.url || teacher?.avatar} name={cls.teacher || teacher?.hoTen || 'GV'} size={34} />
+            <div className="min-w-0">
+              <div className="font-semibold text-xs text-gray-900 truncate">{cls.teacher || teacher?.hoTen}</div>
+              <div className="text-[11px] text-gray-400 truncate">{teacher?.email || teacher?.department || ''}</div>
             </div>
           </div>
         );
@@ -183,7 +239,9 @@ export function ManageClasses() {
     },
     {
       key: 'schedule',
-      header: 'Lịch học & Phòng',
+      header: 'Lịch học & Địa điểm',
+      headerClassName: 'min-w-[260px] text-left',
+      cellClassName: 'min-w-[260px] align-middle',
       render: (cls) => (
         <ScheduleRoomBadge
           schedules={cls.schedules}
@@ -196,7 +254,8 @@ export function ManageClasses() {
     {
       key: 'enrollment',
       header: 'Sĩ số SV',
-      className: 'w-36',
+      headerClassName: 'w-36 text-left',
+      cellClassName: 'w-36 align-middle',
       render: (cls) => {
         const enrolled = cls.enrolledCount || 0;
         const capacity = cls.capacity || 0;
@@ -204,15 +263,15 @@ export function ManageClasses() {
         const isFull = capacity > 0 && enrolled >= capacity;
 
         return (
-          <div className="space-y-1">
+          <div className="space-y-1.5 py-0.5">
             <div className="flex items-center justify-between text-xs">
               <span className="font-bold text-gray-900">
-                {enrolled} <span className="text-gray-400 font-normal">/ {capacity || '∞'}</span>
+                {enrolled} <span className="text-gray-400 font-normal">/ {capacity || '∞'} SV</span>
               </span>
               <button
                 type="button"
                 onClick={() => setStudentsOf({ id: cls.id, name: `${cls.courseName} (${cls.id})` })}
-                className="text-[11px] text-indigo-600 hover:text-indigo-800 font-semibold hover:underline"
+                className="text-[11px] text-indigo-600 hover:text-indigo-800 font-bold hover:underline"
                 title="Xem danh sách sinh viên"
               >
                 Xem DSSV
@@ -233,51 +292,43 @@ export function ManageClasses() {
       },
     },
     {
-      key: 'dates',
-      header: 'Thời gian học',
-      render: (cls) => (
-        cls.studyStart || cls.studyEnd ? (
-          <div className="text-xs text-gray-600">
-            <div>Từ: {formatDate(cls.studyStart) || '-'}</div>
-            <div>Đến: {formatDate(cls.studyEnd) || '-'}</div>
-          </div>
-        ) : (
-          <span className="text-xs text-gray-400 italic">Theo học kỳ</span>
-        )
-      ),
-    },
-    {
       key: 'status',
       header: 'Trạng thái',
-      className: 'text-center w-36',
-      render: (cls) => (
-        <div className="flex items-center justify-center gap-1.5">
-          <ClassStatusBadge status={cls.status} />
-          <select
-            value={cls.status}
-            onChange={(e) => handleChangeStatus(cls, e.target.value)}
-            className="text-[11px] border border-gray-200 rounded-lg px-1.5 py-0.5 bg-white text-gray-600 focus:outline-none focus:ring-1 focus:ring-indigo-400"
-            title="Đổi nhanh trạng thái"
-          >
-            {CLASS_STATUSES.map((st) => (
-              <option key={st} value={st}>
-                {st}
-              </option>
-            ))}
-          </select>
-        </div>
-      ),
+      headerClassName: 'w-36 text-center',
+      cellClassName: 'w-36 text-center align-middle',
+      render: (cls) => {
+        const config = STATUS_CONFIG[cls.status] || STATUS_CONFIG.Nháp;
+        return (
+          <div className="relative inline-flex items-center justify-center">
+            <select
+              value={cls.status}
+              onChange={(e) => handleChangeStatus(cls, e.target.value)}
+              className={`appearance-none text-xs font-bold pl-7 pr-6 py-1.5 rounded-xl cursor-pointer transition border shadow-2xs focus:outline-none focus:ring-2 focus:ring-indigo-300 ${config.badge}`}
+              title="Nhấp để chuyển trạng thái lớp học phần"
+            >
+              {CLASS_STATUSES.map((st) => (
+                <option key={st} value={st} className="bg-white text-gray-800 font-medium">
+                  {st}
+                </option>
+              ))}
+            </select>
+            <i className={`fas ${config.icon} absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] pointer-events-none`} />
+            <i className="fas fa-chevron-down absolute right-2.5 top-1/2 -translate-y-1/2 text-[9px] pointer-events-none opacity-50" />
+          </div>
+        );
+      },
     },
     {
       key: 'actions',
       header: 'Thao tác',
-      className: 'text-right w-28',
+      headerClassName: 'w-28 text-right',
+      cellClassName: 'w-28 text-right align-middle',
       render: (cls) => (
-        <div className="flex items-center justify-end gap-1.5">
+        <div className="flex items-center justify-end gap-1.5 py-0.5">
           <button
             type="button"
             onClick={() => setStudentsOf({ id: cls.id, name: `${cls.courseName} (${cls.id})` })}
-            className="w-8 h-8 rounded-lg bg-gray-50 text-indigo-600 hover:bg-indigo-50 flex items-center justify-center text-xs transition border border-gray-200"
+            className="w-8 h-8 rounded-xl bg-gray-50 text-indigo-600 hover:bg-indigo-50 hover:border-indigo-200 flex items-center justify-center text-xs transition border border-gray-200/80 shadow-2xs"
             title="Xem danh sách sinh viên đã đăng ký"
           >
             <i className="fas fa-users" />
@@ -285,7 +336,7 @@ export function ManageClasses() {
           <button
             type="button"
             onClick={() => openEdit(cls)}
-            className="w-8 h-8 rounded-lg bg-gray-50 text-gray-700 hover:bg-gray-100 flex items-center justify-center text-xs transition border border-gray-200"
+            className="w-8 h-8 rounded-xl bg-gray-50 text-blue-600 hover:bg-blue-50 hover:border-blue-200 flex items-center justify-center text-xs transition border border-gray-200/80 shadow-2xs"
             title="Chỉnh sửa lớp học phần"
           >
             <i className="fas fa-pen" />
@@ -293,7 +344,7 @@ export function ManageClasses() {
           <button
             type="button"
             onClick={() => handleDelete(cls)}
-            className="w-8 h-8 rounded-lg bg-gray-50 text-rose-600 hover:bg-rose-50 flex items-center justify-center text-xs transition border border-gray-200"
+            className="w-8 h-8 rounded-xl bg-gray-50 text-rose-600 hover:bg-rose-50 hover:border-rose-200 flex items-center justify-center text-xs transition border border-gray-200/80 shadow-2xs"
             title="Xóa lớp học phần"
           >
             <i className="fas fa-trash-alt" />
@@ -323,9 +374,49 @@ export function ManageClasses() {
         }
       />
 
+      {/* Quick KPI stats */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-2xs flex items-center gap-3.5">
+          <div className="w-11 h-11 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-lg shrink-0">
+            <i className="fas fa-chalkboard-user" />
+          </div>
+          <div>
+            <div className="text-xl font-bold text-gray-900">{stats.total}</div>
+            <div className="text-xs text-gray-400 font-medium">Tổng lớp học phần</div>
+          </div>
+        </div>
+        <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-2xs flex items-center gap-3.5">
+          <div className="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-lg shrink-0">
+            <i className="fas fa-door-open" />
+          </div>
+          <div>
+            <div className="text-xl font-bold text-emerald-600">{stats.openCount}</div>
+            <div className="text-xs text-gray-400 font-medium">Đang mở đăng ký</div>
+          </div>
+        </div>
+        <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-2xs flex items-center gap-3.5">
+          <div className="w-11 h-11 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-lg shrink-0">
+            <i className="fas fa-graduation-cap" />
+          </div>
+          <div>
+            <div className="text-xl font-bold text-blue-600">{stats.studyingCount}</div>
+            <div className="text-xs text-gray-400 font-medium">Đang giảng dạy</div>
+          </div>
+        </div>
+        <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-2xs flex items-center gap-3.5">
+          <div className="w-11 h-11 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center text-lg shrink-0">
+            <i className="fas fa-user-check" />
+          </div>
+          <div>
+            <div className="text-xl font-bold text-purple-600">{stats.totalEnrolled}</div>
+            <div className="text-xs text-gray-400 font-medium">Lượt SV đăng ký</div>
+          </div>
+        </div>
+      </div>
+
       {/* Filter toolbar */}
-      <div className="bg-white p-4 rounded-3xl border border-gray-100 shadow-xs flex flex-wrap items-center justify-between gap-3">
-        <div className="relative flex-1 min-w-[240px]">
+      <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-2xs flex flex-wrap items-center justify-between gap-3">
+        <div className="relative flex-1 min-w-[260px]">
           <SearchInput
             value={searchText}
             onChange={(v) => {
@@ -344,7 +435,8 @@ export function ManageClasses() {
               setSelectedCourse(e.target.value);
               setPage(1);
             }}
-            className="border border-gray-200 rounded-xl px-3 py-2 text-xs font-medium bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400"
+            className="border border-gray-200 rounded-xl px-3 py-2 text-xs font-medium bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400 max-w-[200px]"
+            title="Lọc theo môn học"
           >
             <option value="">-- Tất cả môn học --</option>
             {courses.map((c) => (
@@ -361,7 +453,8 @@ export function ManageClasses() {
               setSelectedDept(e.target.value);
               setPage(1);
             }}
-            className="border border-gray-200 rounded-xl px-3 py-2 text-xs font-medium bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400"
+            className="border border-gray-200 rounded-xl px-3 py-2 text-xs font-medium bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400 max-w-[180px]"
+            title="Lọc theo khoa"
           >
             <option value="">-- Tất cả khoa --</option>
             {departments.map((d) => (
@@ -379,6 +472,7 @@ export function ManageClasses() {
               setPage(1);
             }}
             className="border border-gray-200 rounded-xl px-3 py-2 text-xs font-medium bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400"
+            title="Lọc theo trạng thái"
           >
             <option value="">-- Tất cả trạng thái --</option>
             {CLASS_STATUSES.map((st) => (
@@ -387,6 +481,18 @@ export function ManageClasses() {
               </option>
             ))}
           </select>
+
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="px-3 py-2 rounded-xl text-xs font-semibold bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200/80 transition flex items-center gap-1.5"
+              title="Xóa bộ lọc"
+            >
+              <i className="fas fa-rotate-left text-[11px]" />
+              <span>Đặt lại</span>
+            </button>
+          )}
         </div>
       </div>
 
