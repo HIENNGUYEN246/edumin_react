@@ -1,4 +1,4 @@
-import bcrypt from 'bcryptjs';
+import bcrypt from 'bcrypt';
 import crypto from 'node:crypto';
 
 const SALT_ROUNDS = 10;

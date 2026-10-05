@@ -10,6 +10,7 @@ export function ManageStudentAccounts() {
         title: 'Tài khoản sinh viên',
         subtitle: 'Khóa/mở khóa, đặt lại mật khẩu và xóa tài khoản',
         formatCode: formatStudentCode,
+        showSerialNumber: true,
       }}
     />
   );

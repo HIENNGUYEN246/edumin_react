@@ -30,7 +30,15 @@ describe('counter self-heal', () => {
     const res = await request(app)
       .post('/api/teachers')
       .set(authHeader(adminToken))
-      .send({ hoTen: 'Người Mới', email: 'moi@edu.vn' });
+      .send({
+        hoTen: 'Người Mới',
+        email: 'moi@edu.vn',
+        dob: '1980-01-01',
+        phone: '0900000000',
+        address: 'Ha Noi',
+        education: 'Thac si',
+        departmentId: 'CNTT',
+      });
 
     expect(res.status).toBe(201);
     expect(res.body.id).toBe(6); // reconciled to max(5)+1, not a duplicate

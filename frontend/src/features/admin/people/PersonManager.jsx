@@ -33,6 +33,9 @@ export function PersonManager({ config }) {
   const rows = data?.data || [];
   const meta = data?.meta || { page: 1, pages: 1, total: 0 };
   const departments = deptData?.data || [];
+  const tableRows = config.showSerialNumber
+    ? rows.map((person, index) => ({ ...person, serialNumber: (meta.page - 1) * params.limit + index + 1 }))
+    : rows;
 
   const openCreate = () => setModal({ mode: 'create', initial: { ...config.emptyForm } });
   const openEdit = (person) =>
@@ -43,21 +46,37 @@ export function PersonManager({ config }) {
         ...config.emptyForm,
         ...person,
         departmentId: person.departmentRef?.id || '',
+        avatarPreview: person.avatar?.url || '',
       },
     });
 
   const handleSubmit = async (form, setErrors) => {
     try {
+      const avatarFile = form.avatarFile;
+      const allowedFields = config.fields.map((field) => field.name);
+      if (modal.mode === 'create') allowedFields.push('password');
+      const payload = Object.fromEntries(
+        allowedFields.filter((key) => Object.hasOwn(form, key)).map((key) => [key, form[key]])
+      );
+      let person;
       if (modal.mode === 'create') {
-        await mutations.create.mutateAsync(form);
-        toast.success('Đã thêm thành công');
+        person = await mutations.create.mutateAsync(payload);
       } else {
-        const { email, password, ...rest } = form;
+        const { email, password, ...rest } = payload;
         void email;
         void password;
-        await mutations.update.mutateAsync({ id: modal.person._id, ...rest });
-        toast.success('Đã cập nhật');
+        person = await mutations.update.mutateAsync({ id: modal.person._id, ...rest });
       }
+      if (avatarFile) {
+        try {
+          await mutations.uploadAvatar.mutateAsync({ id: person._id, file: avatarFile });
+        } catch (error) {
+          setModal(null);
+          toast.error(`Đã lưu hồ sơ nhưng tải ảnh thất bại: ${error.message}`, 5000);
+          return;
+        }
+      }
+      toast.success(modal.mode === 'create' ? 'Đã thêm thành công' : 'Đã cập nhật');
       setModal(null);
     } catch (error) {
       if (error.code === 'CONFLICT' || error.code === 'DUPLICATE_KEY') setErrors({ email: error.message });
@@ -98,7 +117,12 @@ export function PersonManager({ config }) {
       const sheetRows = await readSheet(file);
       const result = await mutations.importRows.mutateAsync(sheetRows);
       const failed = result.failed?.length || 0;
-      toast.success(`Đã nhập ${result.created} bản ghi${failed ? `, ${failed} lỗi` : ''}`, failed ? 5000 : 3000);
+      if (failed) {
+        const details = result.failed.slice(0, 3).map((item) => `Dòng ${item.row}: ${item.message}`).join(' · ');
+        toast.error(`Đã nhập ${result.created} bản ghi, ${failed} lỗi. ${details}`, 8000);
+      } else {
+        toast.success(`Đã nhập ${result.created} bản ghi`);
+      }
     } catch (error) {
       toast.error(error.message || 'Không đọc được tệp Excel');
     }
@@ -107,14 +131,16 @@ export function PersonManager({ config }) {
   const onExport = async () => {
     try {
       const all = await config.api.list({ page: 1, limit: 1000 });
-      const exportRows = (all.data || []).map((p) => ({
-        Ma: config.formatCode(p.id),
-        HoTen: p.hoTen,
-        Email: p.email,
-        Khoa: p.department || '',
-        SoDienThoai: p.phone || '',
-      }));
-      await exportSheet(exportRows, { fileName: config.exportName });
+      const exportRows = config.exportRows
+        ? config.exportRows(all.data || [])
+        : (all.data || []).map((p) => ({
+          Ma: config.formatCode(p.id),
+          HoTen: p.hoTen,
+          Email: p.email,
+          Khoa: p.department || '',
+          SoDienThoai: p.phone || '',
+        }));
+      await exportSheet(exportRows, { fileName: config.exportName, sheetName: config.exportSheetName });
     } catch (error) {
       toast.error(error.message || 'Không xuất được Excel');
     }
@@ -123,13 +149,20 @@ export function PersonManager({ config }) {
   const columns = config.columns({
     formatCode: config.formatCode,
     renderAvatar: (person) => (
-      <label className="cursor-pointer inline-block" title="Đổi ảnh">
-        <Avatar src={person.avatar?.url} name={person.hoTen} size={38} />
+      <label className="group relative inline-flex cursor-pointer" title="Tải ảnh lên Cloudinary">
+        <Avatar src={person.avatar?.url} name={person.hoTen} size={42} />
+        <span className="absolute -bottom-1 -right-1 grid h-5 w-5 place-items-center rounded-full border-2 border-white bg-indigo-600 text-[9px] text-white">
+          <i className="fas fa-camera" />
+        </span>
         <input
           type="file"
           accept="image/*"
           className="hidden"
-          onChange={(e) => onAvatar(person, e.target.files?.[0])}
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            e.target.value = '';
+            onAvatar(person, file);
+          }}
         />
       </label>
     ),
@@ -173,20 +206,26 @@ export function PersonManager({ config }) {
         }
       />
 
-      <DataTable columns={columns} rows={rows} isLoading={isLoading} emptyText="Chưa có dữ liệu" />
+      <DataTable columns={columns} rows={tableRows} isLoading={isLoading} emptyText="Chưa có dữ liệu" />
       <Pagination page={meta.page} pages={meta.pages} total={meta.total} onPageChange={setPage} />
 
       {modal && (
         <PersonFormModal
           open
           mode={modal.mode}
-          title={modal.mode === 'create' ? `Thêm ${config.entityLabel}` : `Sửa ${config.entityLabel}`}
+          title={modal.mode === 'create' ? config.createTitle || `Thêm ${config.entityLabel}` : config.editTitle || `Sửa ${config.entityLabel}`}
           initial={modal.initial}
           fields={config.fields}
           departments={departments}
+          profilePanel={config.profilePanel}
+          formatCode={config.formatCode}
+          entityLabel={config.entityLabel}
+          profileCodeLabel={config.profileCodeLabel}
+          profileDetailField={config.profileDetailField}
+          profileDetailFallback={config.profileDetailFallback}
           onClose={() => setModal(null)}
           onSubmit={handleSubmit}
-          saving={mutations.create.isPending || mutations.update.isPending}
+          saving={mutations.create.isPending || mutations.update.isPending || mutations.uploadAvatar.isPending}
         />
       )}
     </div>

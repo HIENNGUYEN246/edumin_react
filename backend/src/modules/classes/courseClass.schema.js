@@ -24,3 +24,16 @@ export const updateClassSchema = createClassSchema.partial().omit({ id: true });
 export const changeStatusSchema = z.object({
   status: z.enum(CLASS_STATUS),
 });
+
+const manualGrade = z.coerce.number().min(0).max(10).nullable().optional();
+
+export const updateStudentGradesSchema = z.object({
+  grades: z.object({
+    attendance: manualGrade,
+    midterm: manualGrade,
+    assignment: manualGrade,
+    presentation: manualGrade,
+    practical: manualGrade,
+    final: manualGrade,
+  }).strict().refine((grades) => Object.keys(grades).length > 0, 'Nhập ít nhất một điểm'),
+});

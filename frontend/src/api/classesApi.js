@@ -11,6 +11,8 @@ export const classesApi = {
   changeStatus: (id, status) => http.patch(`/classes/${id}/status`, { status }),
   remove: (id) => http.delete(`/classes/${id}`),
   students: (id) => http.get(`/classes/${id}/students`),
+  updateStudentGrades: (classId, studentId, grades) =>
+    http.patch(`/classes/${classId}/students/${studentId}/grades`, { grades }),
 };
 
 export const CLASS_STATUSES = ['Nháp', 'Đang mở', 'Đã đóng', 'Đã hủy'];

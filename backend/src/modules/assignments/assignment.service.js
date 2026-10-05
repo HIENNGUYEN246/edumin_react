@@ -45,7 +45,25 @@ export async function listAssignments(query, user) {
   const assignments = await Assignment.find(filter).sort({ createdAt: -1 });
   // Teachers/admins get the full document; students get the answer-stripped DTO.
   if (user.role === ROLES.STUDENT) {
-    return { data: assignments.map(toStudentDto) };
+    const student = await Student.findById(user.student).select('_id').lean();
+    const submissions = student && assignments.length
+      ? await Submission.find({ assignmentRef: { $in: assignments.map((a) => a._id) }, student: student._id })
+        .select('assignmentRef score')
+        .lean()
+      : [];
+    const submissionsByAssignment = new Map(
+      submissions.map((submission) => [String(submission.assignmentRef), submission])
+    );
+
+    return {
+      data: assignments.map((assignment) => {
+        const submission = submissionsByAssignment.get(String(assignment._id));
+        return {
+          ...toStudentDto(assignment),
+          mySubmission: submission ? { score: submission.score } : null,
+        };
+      }),
+    };
   }
   return { data: assignments.map((a) => a.toObject()) };
 }

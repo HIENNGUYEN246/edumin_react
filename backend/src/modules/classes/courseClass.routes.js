@@ -3,7 +3,7 @@ import { authenticate } from '../../middleware/authenticate.js';
 import { authorize } from '../../middleware/authorize.js';
 import { validate } from '../../middleware/validate.js';
 import { ROLES } from '../../lib/roles.js';
-import { createClassSchema, updateClassSchema, changeStatusSchema } from './courseClass.schema.js';
+import { createClassSchema, updateClassSchema, changeStatusSchema, updateStudentGradesSchema } from './courseClass.schema.js';
 import * as controller from './courseClass.controller.js';
 
 const router = Router();
@@ -16,6 +16,7 @@ router.get('/open', controller.listOpen);
 router.get('/by-course/:courseId', authorize(ROLES.ADMIN, ROLES.TEACHER), controller.listByCourse);
 router.get('/', controller.list);
 router.get('/:id', controller.getOne);
+router.patch('/:id/students/:studentId/grades', authorize(ROLES.TEACHER), validate(updateStudentGradesSchema), controller.updateStudentGrades);
 router.get('/:id/students', authorize(ROLES.ADMIN, ROLES.TEACHER), controller.students);
 
 router.post('/', authorize(ROLES.ADMIN), validate(createClassSchema), controller.create);

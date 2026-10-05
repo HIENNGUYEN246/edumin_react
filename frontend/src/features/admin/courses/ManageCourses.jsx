@@ -101,7 +101,12 @@ export function ManageCourses() {
     try {
       const sheetRows = await readSheet(file);
       const result = await importRows.mutateAsync(sheetRows);
-      toast.success(`Đã nhập ${result.created} học phần${result.failed?.length ? `, ${result.failed.length} lỗi` : ''}`);
+      if (result.failed?.length) {
+        const details = result.failed.slice(0, 3).map((item) => `Dòng ${item.row}: ${item.message}`).join(' · ');
+        toast.error(`Đã nhập ${result.created} học phần, ${result.failed.length} lỗi. ${details}`, 8000);
+      } else {
+        toast.success(`Đã nhập ${result.created} học phần`);
+      }
     } catch (error) {
       toast.error(error.message || 'Không đọc được tệp Excel');
     }

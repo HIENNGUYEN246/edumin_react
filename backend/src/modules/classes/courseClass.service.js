@@ -6,11 +6,19 @@ import { ROLES } from '../../lib/roles.js';
 import { CourseClass } from './courseClass.model.js';
 import { Course } from '../courses/course.model.js';
 import { Teacher } from '../teachers/teacher.model.js';
+import { Enrollment } from '../enrollments/enrollment.model.js';
+import { Assignment, Submission } from '../assignments/assignment.model.js';
 
 const POPULATE = [
   { path: 'courseRef', select: 'id name credits fee department' },
   { path: 'teacherRef', select: 'id hoTen' },
 ];
+
+function isPastDue(assignment, now = new Date()) {
+  if (!assignment.dueDate) return false;
+  const deadline = new Date(`${assignment.dueDate}T23:59:59`);
+  return !Number.isNaN(deadline.valueOf()) && now > deadline;
+}
 
 /**
  * Resolve the course and teacher for a class and build the denormalized
@@ -165,12 +173,66 @@ export async function listClassStudents(classId, requester) {
     }
   }
 
-  const Enrollment = mongoose.model('Enrollment');
   const enrollments = await Enrollment.find({ classRef: cls._id })
     .populate({ path: 'student', select: 'id hoTen email className department' })
     .lean();
-  const students = enrollments.map((e) => e.student).filter(Boolean);
-  return { class: { ...cls.toObject(), enrolledCount: students.length }, students };
+  const students = enrollments.map((enrollment) => enrollment.student).filter(Boolean);
+  const quizAssignments = await Assignment.find({
+    courseId: cls.courseId,
+    type: 'quiz',
+    createdByRef: cls.teacherRef,
+  }).select('_id dueDate').lean();
+  const quizAssignmentIds = quizAssignments.map((assignment) => assignment._id);
+  const expiredQuizIds = quizAssignments.filter((assignment) => isPastDue(assignment)).map((assignment) => String(assignment._id));
+  const submissions = quizAssignmentIds.length && students.length
+    ? await Submission.find({
+      assignmentRef: { $in: quizAssignmentIds },
+      student: { $in: students.map((student) => student._id) },
+    }).select('student assignmentRef score').lean()
+    : [];
+  const gradesByStudent = new Map();
+  for (const submission of submissions) {
+    const key = String(submission.student);
+    const grade = gradesByStudent.get(key) || { scores: [], submittedAssignmentIds: new Set() };
+    grade.submittedAssignmentIds.add(String(submission.assignmentRef));
+    if (submission.score != null) grade.scores.push(submission.score);
+    gradesByStudent.set(key, grade);
+  }
+  const studentsWithGrades = enrollments
+    .filter((enrollment) => enrollment.student)
+    .map((enrollment) => {
+      const grade = gradesByStudent.get(String(enrollment.student._id)) || { scores: [], submittedAssignmentIds: new Set() };
+      const missedQuizCount = expiredQuizIds.filter((assignmentId) => !grade.submittedAssignmentIds.has(assignmentId)).length;
+      const homeworkQuizCount = grade.scores.length + missedQuizCount;
+      const homeworkGrade = homeworkQuizCount
+        ? Number((grade.scores.reduce((sum, score) => sum + score, 0) / homeworkQuizCount).toFixed(1))
+        : null;
+      return {
+        ...enrollment.student,
+        manualGrades: enrollment.manualGrades || {},
+        homeworkGrade,
+        homeworkQuizCount,
+        homeworkQuizTotal: quizAssignments.length,
+      };
+    });
+  return { class: { ...cls.toObject(), enrolledCount: studentsWithGrades.length }, students: studentsWithGrades };
+}
+
+export async function updateStudentGrades(classId, studentId, grades, requester) {
+  const cls = await CourseClass.findById(classId);
+  if (!cls) throw AppError.notFound('Không tìm thấy lớp học phần');
+  const teacher = await Teacher.findById(requester.teacher);
+  if (!teacher || String(cls.teacherRef) !== String(teacher._id)) {
+    throw AppError.forbidden('Bạn không phụ trách lớp này');
+  }
+
+  const enrollment = await Enrollment.findOne({ classRef: cls._id, student: studentId });
+  if (!enrollment) throw AppError.notFound('Sinh viên không thuộc lớp học phần này');
+  for (const [key, value] of Object.entries(grades)) {
+    enrollment.set(`manualGrades.${key}`, value);
+  }
+  await enrollment.save();
+  return { manualGrades: enrollment.manualGrades.toObject() };
 }
 
 export async function deleteClass(id) {

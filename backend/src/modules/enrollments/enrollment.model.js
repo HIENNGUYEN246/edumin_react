@@ -8,6 +8,14 @@ const enrollmentSchema = new Schema(
     classRef: { type: Schema.Types.ObjectId, ref: 'CourseClass', required: true },
     // Denormalized class code so enrollments stay meaningful even if a class is removed.
     classId: { type: String, required: true },
+    manualGrades: {
+      attendance: { type: Number, min: 0, max: 10, default: null },
+      midterm: { type: Number, min: 0, max: 10, default: null },
+      assignment: { type: Number, min: 0, max: 10, default: null },
+      presentation: { type: Number, min: 0, max: 10, default: null },
+      practical: { type: Number, min: 0, max: 10, default: null },
+      final: { type: Number, min: 0, max: 10, default: null },
+    },
   },
   { timestamps: true }
 );

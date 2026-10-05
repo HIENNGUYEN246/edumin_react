@@ -3,6 +3,8 @@ import request from 'supertest';
 import { app } from './helpers/testApp.js';
 import { createUser, authHeader } from './helpers/factories.js';
 import { ROLES } from '../src/lib/roles.js';
+import { Teacher } from '../src/modules/teachers/teacher.model.js';
+import { Student } from '../src/modules/students/student.model.js';
 
 vi.mock('../src/lib/files.service.js', () => ({
   uploadBuffer: vi.fn(async () => ({ publicId: 'p', url: 'u', resourceType: 'image', bytes: 1, format: 'png', access: 'public' })),
@@ -25,6 +27,40 @@ describe('Accounts', () => {
     expect(res.status).toBe(200);
     expect(res.body.data.every((u) => u.role === ROLES.STUDENT)).toBe(true);
     expect(res.body.data[0].passwordHash).toBeUndefined();
+  });
+
+  it('sorts teacher accounts by teacher code before pagination', async () => {
+    for (const id of [4, 2, 3, 1]) {
+      const { user } = await createUser({ role: ROLES.TEACHER, email: `teacher${id}@edu.vn` });
+      const teacher = await Teacher.create({ userId: user._id, id, email: user.email, hoTen: `GV ${id}` });
+      user.teacher = teacher._id;
+      await user.save();
+    }
+
+    const res = await request(app)
+      .get('/api/accounts?role=giao-vien&page=1&limit=3')
+      .set(authHeader(adminToken));
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.map((account) => account.teacher.id)).toEqual([1, 2, 3]);
+    expect(res.body.meta.total).toBe(4);
+  });
+
+  it('sorts student accounts by student code before pagination', async () => {
+    for (const id of [4, 2, 3, 1]) {
+      const { user } = await createUser({ role: ROLES.STUDENT, email: `student${id}@edu.vn` });
+      const student = await Student.create({ userId: user._id, id, email: user.email, hoTen: `SV ${id}` });
+      user.student = student._id;
+      await user.save();
+    }
+
+    const res = await request(app)
+      .get('/api/accounts?role=sinh-vien&page=1&limit=3')
+      .set(authHeader(adminToken));
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.map((account) => account.student.id)).toEqual([1, 2, 3]);
+    expect(res.body.meta.total).toBe(4);
   });
 
   it('forbids non-admins', async () => {
@@ -73,7 +109,15 @@ describe('Accounts', () => {
     const created = await request(app)
       .post('/api/students')
       .set(authHeader(adminToken))
-      .send({ hoTen: 'SV Xóa', email: 'svdel@edu.vn', departmentId: 'CNTT' });
+      .send({
+        hoTen: 'SV Xóa',
+        email: 'svdel@edu.vn',
+        departmentId: 'CNTT',
+        className: 'CNTT-K18',
+        dob: '2005-06-15',
+        phone: '0901234567',
+        address: 'Quận 3, TP.HCM',
+      });
     const { User } = await import('../src/modules/auth/user.model.js');
     const account = await User.findOne({ email: 'svdel@edu.vn' });
 

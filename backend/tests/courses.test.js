@@ -60,4 +60,31 @@ describe('Courses', () => {
     expect(res.body.created).toBe(1);
     expect(res.body.failed).toHaveLength(1);
   });
+
+  it('imports the MaHP/TenHP/TinChi/HocPhi course template', async () => {
+    await Department.create({ id: 'CNTT-01', name: 'Khoa Công Nghệ Thông Tin' });
+    const res = await request(app)
+      .post('/api/courses/import')
+      .set(authHeader(adminToken))
+      .send({ rows: [
+        {
+          MaHP: 'CTDLGT1',
+          TenHP: 'Cấu trúc dữ liệu và giải thuật 1',
+          TinChi: 3,
+          HocPhi: 3000000,
+          Khoa: 'Khoa Công Nghệ Thông Tin',
+        },
+      ] });
+
+    expect(res.status).toBe(200);
+    expect(res.body.created).toBe(1);
+    expect(res.body.failed).toHaveLength(0);
+    const course = await Course.findOne({ id: 'CTDLGT1' });
+    expect(course).toMatchObject({
+      name: 'Cấu trúc dữ liệu và giải thuật 1',
+      credits: 3,
+      fee: 3000000,
+      department: 'Khoa Công Nghệ Thông Tin',
+    });
+  });
 });

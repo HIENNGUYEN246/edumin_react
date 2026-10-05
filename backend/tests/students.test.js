@@ -24,10 +24,70 @@ describe('Students CRUD', () => {
     const res = await request(app)
       .post('/api/students')
       .set(authHeader(adminToken))
-      .send({ hoTen: 'Trần B', email: 'sv1@edu.vn', departmentId: 'CNTT', className: 'K18' });
+      .send({
+        hoTen: 'Trần B',
+        email: 'sv1@edu.vn',
+        departmentId: 'CNTT',
+        className: 'CNTT-K18',
+        dob: '2005-06-15',
+        phone: '0901234567',
+        address: 'Quận 3, TP.HCM',
+      });
     expect(res.status).toBe(201);
     expect(res.body.id).toBe(1);
-    expect(res.body.className).toBe('K18');
+    expect(res.body.className).toBe('CNTT-K18');
+  });
+
+  it('rejects invalid student fields', async () => {
+    await Department.create({ id: 'CNTT', name: 'CNTT' });
+    const res = await request(app)
+      .post('/api/students')
+      .set(authHeader(adminToken))
+      .send({
+        hoTen: 'Sinh  Viên',
+        email: 'student@gmail.com',
+        dob: '2030-01-01',
+        phone: '1234567890',
+        address: 'Quận 3, TP.HCM',
+        className: 'CNTT-K18',
+        departmentId: 'CNTT',
+      });
+    expect(res.status).toBe(400);
+    expect(await Student.countDocuments()).toBe(0);
+  });
+
+  it('imports the MaSV/HoTen/NgaySinh student template', async () => {
+    await Department.create({ id: 'CNTT', name: 'Khoa Công Nghệ Thông Tin' });
+    const res = await request(app)
+      .post('/api/students/import')
+      .set(authHeader(adminToken))
+      .send({ rows: [
+        {
+          MaSV: 4,
+          HoTen: 'Hoàng Anh Dũng',
+          NgaySinh: '05/12/2003',
+          GioiTinh: 'Nam',
+          SDT: 983445566,
+          Email: 'dung@student.edu.vn',
+          DiaChi: 'Hải Phòng',
+          Khoa: 'Khoa Công Nghệ Thông Tin',
+          Lop: '12DHTH13',
+        },
+      ] });
+
+    expect(res.status).toBe(200);
+    expect(res.body.created).toBe(1);
+    expect(res.body.failed).toHaveLength(0);
+    const student = await Student.findOne({ email: 'dung@student.edu.vn' });
+    expect(student).toMatchObject({
+      id: 4,
+      hoTen: 'Hoàng Anh Dũng',
+      dob: '2003-12-05',
+      phone: '0983445566',
+      address: 'Hải Phòng',
+      department: 'Khoa Công Nghệ Thông Tin',
+      className: '12DHTH13',
+    });
   });
 
   it('lets a teacher read but not create students', async () => {

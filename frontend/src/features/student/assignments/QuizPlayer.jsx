@@ -30,7 +30,7 @@ export function QuizPlayer({ assignment, initialResult, initialAnswers }) {
     mutationFn: () => assignmentsApi.submit(assignment._id, answers),
     onSuccess: (data) => {
       setResult(data);
-      queryClient.invalidateQueries({ queryKey: ['assignments', assignment._id, 'my-submission'] });
+      queryClient.invalidateQueries({ queryKey: ['assignments'] });
       toast.success(`Điểm của bạn: ${data.score}/10`);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     },

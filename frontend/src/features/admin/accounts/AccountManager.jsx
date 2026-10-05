@@ -32,6 +32,9 @@ export function AccountManager({ config }) {
 
   const rows = data?.data || [];
   const meta = data?.meta || { page: 1, pages: 1, total: 0 };
+  const tableRows = config.showSerialNumber
+    ? rows.map((account, index) => ({ ...account, serialNumber: (meta.page - 1) * meta.limit + index + 1 }))
+    : rows;
 
   const doLock = async () => {
     const reason = lockReason === 'Khác' ? customReason.trim() : lockReason;
@@ -86,6 +89,7 @@ export function AccountManager({ config }) {
   };
 
   const columns = [
+    ...(config.showSerialNumber ? [{ key: 'serialNumber', header: 'STT', className: 'w-16 text-center' }] : []),
     {
       key: 'code',
       header: 'Mã',
@@ -152,7 +156,7 @@ export function AccountManager({ config }) {
         }
       />
 
-      <DataTable columns={columns} rows={rows} isLoading={isLoading} emptyText="Chưa có tài khoản" />
+      <DataTable columns={columns} rows={tableRows} isLoading={isLoading} emptyText="Chưa có tài khoản" />
       <Pagination page={meta.page} pages={meta.pages} total={meta.total} onPageChange={setPage} />
 
       <Modal open={Boolean(lockTarget)} onClose={() => setLockTarget(null)} title="Khóa tài khoản" size="sm">

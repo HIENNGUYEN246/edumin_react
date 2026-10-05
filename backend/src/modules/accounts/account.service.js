@@ -17,6 +17,47 @@ export async function listAccounts(query) {
   const filter = { ...searchFilter(search, ['email', 'hoTen']) };
   if (query.role) filter.role = query.role;
 
+  if (query.role === ROLES.TEACHER || query.role === ROLES.STUDENT) {
+    const profileField = query.role === ROLES.TEACHER ? 'teacher' : 'student';
+    const profileCollection = query.role === ROLES.TEACHER ? 'teachers' : 'students';
+    const [result] = await User.aggregate([
+      { $match: filter },
+      {
+        $lookup: {
+          from: profileCollection,
+          localField: profileField,
+          foreignField: '_id',
+          as: 'accountProfile',
+        },
+      },
+      { $unwind: { path: '$accountProfile', preserveNullAndEmptyArrays: true } },
+      { $sort: { 'accountProfile.id': 1, email: 1, _id: 1 } },
+      {
+        $facet: {
+          data: [
+            { $skip: skip },
+            { $limit: limit },
+            {
+              $set: {
+                [profileField]: {
+                  $cond: [
+                    { $ifNull: ['$accountProfile._id', false] },
+                    { _id: '$accountProfile._id', id: '$accountProfile.id', hoTen: '$accountProfile.hoTen' },
+                    null,
+                  ],
+                },
+              },
+            },
+            { $project: { passwordHash: 0, accountProfile: 0 } },
+          ],
+          total: [{ $count: 'count' }],
+        },
+      },
+    ]);
+    const total = result?.total[0]?.count || 0;
+    return { data: result?.data || [], meta: { page, limit, total, pages: Math.ceil(total / limit) || 0 } };
+  }
+
   const path = profilePath(query.role);
   const populate = path && mongoose.modelNames().includes(path === 'teacher' ? 'Teacher' : 'Student')
     ? { path, select: 'id hoTen department className avatar' }

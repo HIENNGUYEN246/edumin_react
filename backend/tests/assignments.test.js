@@ -115,6 +115,10 @@ describe('Assignments', () => {
     expect(res.status).toBe(201);
     expect(res.body.score).toBe(5);
     expect(res.body.answerKey).toHaveLength(2);
+
+    const list = await request(app).get('/api/assignments?courseId=IT101').set(authHeader(token));
+    expect(list.body.data[0].mySubmission).toEqual({ score: 5 });
+    expect(list.body.data[0].mySubmission.answers).toBeUndefined();
   });
 
   it('re-submitting overwrites the previous submission', async () => {

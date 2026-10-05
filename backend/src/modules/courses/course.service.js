@@ -3,6 +3,7 @@ import { AppError } from '../../lib/AppError.js';
 import { parseListQuery, paginate, searchFilter } from '../../lib/pagination.js';
 import { Course } from './course.model.js';
 import { resolveDepartment } from '../shared/person.service.js';
+import { createCourseSchema } from './course.schema.js';
 
 const POPULATE = { path: 'departmentRef', select: 'id name' };
 
@@ -19,7 +20,9 @@ export async function getCourse(id) {
 }
 
 async function applyDepartment(target, departmentId) {
-  const dept = await resolveDepartment({ departmentId });
+  const value = String(departmentId || '').trim();
+  const dept = value ? await resolveDepartment({ departmentId: value, department: value }) : null;
+  if (value && !dept) throw AppError.badRequest('Khoa không tồn tại');
   target.department = dept?.name || '';
   target.departmentRef = dept?._id || null;
 }
@@ -61,22 +64,58 @@ export async function deleteCourse(id) {
   return { success: true };
 }
 
+function normalizeImportHeader(value) {
+  return String(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/đ/g, 'd')
+    .replace(/[^a-z0-9]/g, '');
+}
+
+function importNumber(value) {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : NaN;
+  const text = String(value ?? '').trim().replace(/\s/g, '');
+  if (!text) return 0;
+  if (/^-?\d{1,3}(?:[.,]\d{3})+$/.test(text)) return Number(text.replace(/[.,]/g, ''));
+  const normalized = text.replace(',', '.');
+  return Number(normalized);
+}
+
+function courseImportPayload(row) {
+  const values = new Map(Object.entries(row).map(([key, value]) => [normalizeImportHeader(key), value]));
+  const get = (...keys) => {
+    for (const key of keys) {
+      const value = values.get(key);
+      if (value !== undefined && value !== null && String(value) !== '') return value;
+    }
+    return '';
+  };
+  return {
+    id: String(get('mahp', 'id', 'ma')),
+    name: String(get('tenhp', 'name', 'ten')),
+    credits: importNumber(get('tinchi', 'credits', 'sotinchi')),
+    fee: importNumber(get('hocphi', 'fee', 'tuitionfee')),
+    departmentId: String(get('khoa', 'department', 'departmentname')),
+  };
+}
+
 export async function importCourses(rows) {
   const results = { created: 0, failed: [] };
   for (let i = 0; i < rows.length; i += 1) {
-    const row = rows[i];
-    const id = String(row.id || row.Ma || row['Mã'] || '').trim();
-    const name = String(row.name || row.Ten || row['Tên'] || '').trim();
+    const imported = courseImportPayload(rows[i]);
+    const id = imported.id.trim();
     try {
-      if (!id) throw AppError.badRequest('Thiếu mã học phần');
-      if (!name) throw AppError.badRequest('Thiếu tên học phần');
-      await createCourse({
-        id,
-        name,
-        credits: Number(row.credits || row.SoTinChi || 0) || 0,
-        fee: Number(row.fee || row.HocPhi || 0) || 0,
-        departmentId: String(row.departmentId || row.Khoa || '').trim(),
+      const department = imported.departmentId.trim()
+        ? await resolveDepartment({ departmentId: imported.departmentId.trim(), department: imported.departmentId.trim() })
+        : null;
+      if (imported.departmentId.trim() && !department) throw AppError.badRequest('Khoa không tồn tại');
+      const parsed = createCourseSchema.safeParse({
+        ...imported,
+        departmentId: department?.id || '',
       });
+      if (!parsed.success) throw AppError.badRequest(parsed.error.issues[0].message);
+      await createCourse(parsed.data);
       results.created += 1;
     } catch (error) {
       results.failed.push({ row: i + 1, id, message: error.message });

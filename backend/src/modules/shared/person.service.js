@@ -33,6 +33,8 @@ export async function createPersonWithAccount({
   userLink,
   profileData,
   password,
+  precomputedPasswordHash,
+  profileId,
 }) {
   const email = String(profileData.email || '').trim().toLowerCase();
   if (!email) throw AppError.badRequest('Email là bắt buộc');
@@ -44,7 +46,7 @@ export async function createPersonWithAccount({
   try {
     let created;
     await session.withTransaction(async () => {
-      const passwordHash = await hashPassword(password);
+      const passwordHash = precomputedPasswordHash || await hashPassword(password);
       const [user] = await User.create(
         [{ email, passwordHash, role, hoTen: profileData.hoTen || '', status: 'Active' }],
         { session }
@@ -58,7 +60,7 @@ export async function createPersonWithAccount({
           {
             ...profileData,
             email,
-            id: nextId,
+            id: profileId ?? nextId,
             userId: user._id,
             department: dept?.name || profileData.department || '',
             departmentRef: dept?._id || null,

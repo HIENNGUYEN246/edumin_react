@@ -14,7 +14,9 @@ function isPastDue(dueDate) {
 
 function AssignmentCard({ assignment, onOpen }) {
   const quiz = assignment.type === 'quiz';
+  const submission = assignment.mySubmission;
   const overdue = isPastDue(assignment.dueDate);
+  const missed = quiz && overdue && !submission;
   const count = assignment.questions?.length || 0;
 
   return (
@@ -43,16 +45,32 @@ function AssignmentCard({ assignment, onOpen }) {
         )}
 
         <div className="mt-4 flex items-center justify-between">
-          <span className="text-xs text-gray-400">{quiz ? `${count} câu hỏi` : 'Tài liệu đính kèm'}</span>
+          {submission ? (
+            <div>
+              <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700">
+                <i className="fas fa-circle-check" /> Hoàn thành
+              </span>
+              <p className="mt-1 text-xs text-gray-500">Kết quả: <strong className="text-gray-700">{submission.score}/10</strong></p>
+            </div>
+          ) : missed ? (
+            <div>
+              <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-600">
+                <i className="fas fa-circle-xmark" /> Chưa nộp
+              </span>
+              <p className="mt-1 text-xs text-gray-500">Kết quả: <strong className="text-red-600">0/10</strong></p>
+            </div>
+          ) : (
+            <span className="text-xs text-gray-400">{quiz ? `${count} câu hỏi` : 'Tài liệu đính kèm'}</span>
+          )}
           {quiz ? (
             <button
               type="button"
               onClick={() => onOpen(assignment)}
-              disabled={overdue}
+              disabled={overdue && !submission}
               className="px-4 py-2 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {overdue ? 'Đã đóng' : 'Làm bài'}
-              {!overdue && <i className="fas fa-arrow-right ml-2" />}
+              {submission ? 'Xem kết quả' : overdue ? 'Đã đóng' : 'Làm bài'}
+              {(!overdue || submission) && <i className="fas fa-arrow-right ml-2" />}
             </button>
           ) : (
             <span className="text-xs text-gray-400">Xem ở mục Tài liệu</span>

@@ -17,6 +17,8 @@ const CourseDetail = lazy(() => import('../features/admin/courses/CourseDetail.j
 const TeacherDashboard = lazy(() => import('../features/teacher/TeacherDashboard.jsx'));
 const TeacherSchedule = lazy(() => import('../features/teacher/TeacherSchedule.jsx'));
 const TeacherClassList = lazy(() => import('../features/teacher/TeacherClassList.jsx'));
+const TeacherClassGradebook = lazy(() => import('../features/teacher/TeacherClassGradebook.jsx'));
+const TeacherClassStudents = lazy(() => import('../features/teacher/TeacherClassStudents.jsx'));
 const TeacherDocumentList = lazy(() => import('../features/teacher/TeacherDocumentList.jsx'));
 const TeacherAssignmentList = lazy(() => import('../features/teacher/assignments/TeacherAssignmentList.jsx'));
 const StudentDashboard = lazy(() => import('../features/student/StudentDashboard.jsx'));
@@ -58,6 +60,8 @@ export function AppRouter() {
         <Route path="/teacher" element={<TeacherDashboard />} />
         <Route path="/teacher/schedule" element={<TeacherSchedule />} />
         <Route path="/teacher/classes" element={<TeacherClassList />} />
+        <Route path="/teacher/classes/:id/students" element={<TeacherClassStudents />} />
+        <Route path="/teacher/classes/:id/grades" element={<TeacherClassGradebook />} />
         <Route path="/teacher/documents" element={<TeacherDocumentList />} />
         <Route path="/teacher/assignments" element={<TeacherAssignmentList />} />
       </Route>
