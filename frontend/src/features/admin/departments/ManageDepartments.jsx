@@ -167,9 +167,9 @@ export function ManageDepartments() {
             <button
               type="button"
               onClick={openCreate}
-              className="px-4 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 whitespace-nowrap"
+              className="px-4 py-2.5 rounded-xl bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 shadow-xs hover:shadow transition active:scale-[0.98] whitespace-nowrap"
             >
-              <i className="fas fa-plus mr-2" /> Thêm khoa
+              <i className="fas fa-plus mr-1.5" /> Thêm khoa
             </button>
           </>
         }
@@ -233,14 +233,14 @@ export function ManageDepartments() {
               <button
                 type="button"
                 onClick={() => setModal(null)}
-                className="px-4 py-2 rounded-xl text-sm font-semibold bg-gray-100 text-gray-600 hover:bg-gray-200"
+                className="px-4 py-2 rounded-xl text-sm font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 transition"
               >
                 Hủy
               </button>
               <button
                 type="submit"
                 disabled={create.isPending || update.isPending}
-                className="px-4 py-2 rounded-xl text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60"
+                className="px-5 py-2 rounded-xl text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 shadow-xs hover:shadow disabled:opacity-60 transition active:scale-[0.98]"
               >
                 {create.isPending || update.isPending ? 'Đang lưu...' : 'Lưu'}
               </button>

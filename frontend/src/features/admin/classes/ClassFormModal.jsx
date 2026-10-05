@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Modal } from '../../../components/ui/Modal.jsx';
 import { FormField, inputClass } from '../../../components/ui/FormField.jsx';
 import { SchedulePicker } from '../../../components/schedule/SchedulePicker.jsx';
-import { formatTeacherCode, formatDate, addWeeksToDate } from '../../../lib/format.js';
+import { formatTeacherCode, formatDate, addWeeksToDate, getTodayDate } from '../../../lib/format.js';
 import { teachersApi } from '../../../api/teachersApi.js';
 import { classesApi, CLASS_STATUSES } from '../../../api/classesApi.js';
 import { coursesApi } from '../../../api/coursesApi.js';
@@ -29,6 +29,7 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
   const [errors, setErrors] = useState({});
 
   const targetCourseId = courseId || form.courseId;
+  const todayStr = getTodayDate();
 
   // Auto-generate class code for create mode
   const { data: nextCodeData, isLoading: nextCodeLoading } = useQuery({
@@ -114,12 +115,18 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
     if (!targetCourseId) next.courseId = 'Vui lòng chọn học phần';
     if (!form.schedules.length) next.schedules = 'Chọn ít nhất một buổi học';
     
-    // Validate 15 weeks minimum
+    const todayStr = getTodayDate();
+    // Validate 15 weeks minimum and strictly non-past
     if (!form.studyStart) {
       next.studyStart = 'Vui lòng chọn ngày bắt đầu học phần';
+    } else if (mode === 'create' && form.studyStart < todayStr) {
+      next.studyStart = 'Ngày bắt đầu học phần phải từ hôm nay trở về sau';
     }
+
     if (!form.studyEnd) {
       next.studyEnd = 'Vui lòng chọn ngày kết thúc học phần';
+    } else if (form.studyEnd < todayStr) {
+      next.studyEnd = 'Ngày kết thúc học phần không được ở quá khứ';
     } else if (form.studyStart) {
       const minEnd = addWeeksToDate(form.studyStart, 15);
       if (form.studyEnd < minEnd) {
@@ -267,6 +274,7 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
               <input
                 type="date"
                 required
+                min={mode === 'create' ? todayStr : undefined}
                 className={inputClass}
                 value={form.studyStart}
                 onChange={handleStudyStartChange}
@@ -286,7 +294,7 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
               <input
                 type="date"
                 required
-                min={form.studyStart ? addWeeksToDate(form.studyStart, 15) : undefined}
+                min={form.studyStart ? addWeeksToDate(form.studyStart, 15) : todayStr}
                 className={inputClass}
                 value={form.studyEnd}
                 onChange={set('studyEnd')}
@@ -306,10 +314,10 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
         </div>
 
         <div className="flex justify-end gap-3 pt-2">
-          <button type="button" onClick={onClose} className="px-4 py-2 rounded-xl text-sm font-semibold bg-gray-100 text-gray-600 hover:bg-gray-200">
+          <button type="button" onClick={onClose} className="px-4 py-2 rounded-xl text-sm font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 transition">
             Hủy
           </button>
-          <button type="submit" disabled={saving} className="px-4 py-2 rounded-xl text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60">
+          <button type="submit" disabled={saving} className="px-5 py-2 rounded-xl text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 shadow-xs hover:shadow disabled:opacity-60 transition active:scale-[0.98]">
             {saving ? 'Đang lưu...' : 'Lưu'}
           </button>
         </div>

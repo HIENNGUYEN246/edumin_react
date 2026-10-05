@@ -206,13 +206,13 @@ export function ManageCourses() {
         actions={
           <>
             <SearchInput value={searchText} onChange={(v) => { setSearchText(v); setPage(1); }} />
-            <button type="button" onClick={() => fileRef.current?.click()} className="px-3 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700">
+            <button type="button" onClick={() => fileRef.current?.click()} className="px-3.5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 shadow-xs hover:shadow transition active:scale-[0.98]">
               <i className="fas fa-file-import mr-1.5" /> Nhập Excel
             </button>
-            <button type="button" onClick={onExport} className="px-3 py-2.5 rounded-xl bg-teal-600 text-white text-sm font-semibold hover:bg-teal-700">
+            <button type="button" onClick={onExport} className="px-3.5 py-2 rounded-xl bg-teal-600 text-white text-xs font-semibold hover:bg-teal-700 shadow-xs hover:shadow transition active:scale-[0.98]">
               <i className="fas fa-file-export mr-1.5" /> Xuất Excel
             </button>
-            <button type="button" onClick={openCreate} className="px-4 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700">
+            <button type="button" onClick={openCreate} className="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 shadow-xs hover:shadow transition active:scale-[0.98] whitespace-nowrap">
               <i className="fas fa-plus mr-1.5" /> Thêm môn học
             </button>
             <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={onImport} />

@@ -162,34 +162,34 @@ export function ManageAttendance() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-        <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-xs">
-          <p className="text-xs font-semibold text-gray-400 uppercase">Tổng lượt</p>
-          <p className="text-2xl font-bold text-gray-800 mt-1">{stats.total}</p>
+        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs">
+          <p className="text-xs font-semibold text-slate-400 uppercase">Tổng lượt</p>
+          <p className="text-2xl font-bold text-slate-800 mt-1">{stats.total}</p>
         </div>
-        <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-xs">
+        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs">
           <p className="text-xs font-semibold text-emerald-600 uppercase">Có mặt</p>
           <p className="text-2xl font-bold text-emerald-600 mt-1">{stats.present}</p>
         </div>
-        <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-xs">
+        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs">
           <p className="text-xs font-semibold text-amber-600 uppercase">Đi muộn</p>
           <p className="text-2xl font-bold text-amber-600 mt-1">{stats.late}</p>
         </div>
-        <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-xs">
+        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs">
           <p className="text-xs font-semibold text-blue-600 uppercase">Có phép</p>
           <p className="text-2xl font-bold text-blue-600 mt-1">{stats.excused}</p>
         </div>
-        <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-xs">
+        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs">
           <p className="text-xs font-semibold text-rose-600 uppercase">Vắng mặt</p>
           <p className="text-2xl font-bold text-rose-600 mt-1">{stats.absent}</p>
         </div>
-        <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-xs">
+        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs">
           <p className="text-xs font-semibold text-indigo-600 uppercase">Tỷ lệ chuyên cần</p>
           <p className="text-2xl font-bold text-indigo-600 mt-1">{stats.rate}%</p>
         </div>
       </div>
 
       {/* Filter toolbar */}
-      <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-xs flex flex-wrap items-center justify-between gap-4">
+      <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs flex flex-wrap items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-3">
           <select
             value={filterClass}

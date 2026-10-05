@@ -85,8 +85,8 @@ export function AccountantDashboard() {
       />
 
       {/* Filter Bar */}
-      <div className="bg-white p-4 rounded-3xl border border-gray-100 shadow-xs flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2 text-xs font-bold text-gray-700">
+      <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
           <i className="fas fa-filter text-indigo-500" />
           <span>Bộ lọc thống kê tài chính:</span>
         </div>
@@ -95,7 +95,7 @@ export function AccountantDashboard() {
           <select
             value={selectedSemester}
             onChange={(e) => setSelectedSemester(e.target.value)}
-            className="border border-gray-200 rounded-xl px-3 py-1.5 text-xs font-medium bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400"
+            className="border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-medium bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400"
           >
             <option value="">-- Tất cả học kỳ --</option>
             {semesters.map((s) => (
@@ -106,7 +106,7 @@ export function AccountantDashboard() {
           <select
             value={selectedClass}
             onChange={(e) => setSelectedClass(e.target.value)}
-            className="border border-gray-200 rounded-xl px-3 py-1.5 text-xs font-medium bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400"
+            className="border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-medium bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400"
           >
             <option value="">-- Tất cả lớp sinh hoạt --</option>
             {classes.map((c) => (
@@ -117,7 +117,7 @@ export function AccountantDashboard() {
           <button
             type="button"
             onClick={() => refetch()}
-            className="px-3.5 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-semibold transition flex items-center gap-1.5"
+            className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition flex items-center gap-1.5"
           >
             <i className="fas fa-redo text-xs" />
             <span>Làm mới</span>
@@ -132,48 +132,48 @@ export function AccountantDashboard() {
           {/* Main 4 KPI Stat Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Total Revenue */}
-            <div className="bg-gradient-to-br from-indigo-500 to-indigo-700 p-5 rounded-3xl text-white shadow-md">
+            <div className="bg-gradient-to-br from-indigo-500 to-indigo-700 p-5 rounded-2xl text-white shadow-sm shadow-indigo-200/40 hover:-translate-y-0.5 hover:shadow-md transition-all duration-200">
               <div className="flex items-center justify-between opacity-80 mb-2">
                 <span className="text-xs uppercase font-bold tracking-wider">Tổng học phí dự thu</span>
                 <i className="fas fa-file-invoice-dollar text-xl" />
               </div>
-              <div className="text-2xl font-black">{formatCurrency(stats.totalRevenue)}</div>
+              <div className="text-2xl font-extrabold tracking-tight">{formatCurrency(stats.totalRevenue)}</div>
               <div className="text-xs opacity-90 mt-1">
                 Ghi nhận trên {stats.totalRecords} bản ghi học phí
               </div>
             </div>
 
             {/* Total Paid */}
-            <div className="bg-gradient-to-br from-emerald-500 to-teal-700 p-5 rounded-3xl text-white shadow-md">
+            <div className="bg-gradient-to-br from-emerald-500 to-teal-700 p-5 rounded-2xl text-white shadow-sm shadow-emerald-200/40 hover:-translate-y-0.5 hover:shadow-md transition-all duration-200">
               <div className="flex items-center justify-between opacity-80 mb-2">
                 <span className="text-xs uppercase font-bold tracking-wider">Đã thực thu</span>
                 <i className="fas fa-check-circle text-xl" />
               </div>
-              <div className="text-2xl font-black">{formatCurrency(stats.totalPaid)}</div>
+              <div className="text-2xl font-extrabold tracking-tight">{formatCurrency(stats.totalPaid)}</div>
               <div className="text-xs opacity-90 mt-1">
                 {stats.paidCount} sinh viên đã hoàn thành
               </div>
             </div>
 
             {/* Total Debt */}
-            <div className="bg-gradient-to-br from-rose-500 to-red-700 p-5 rounded-3xl text-white shadow-md">
+            <div className="bg-gradient-to-br from-rose-500 to-red-700 p-5 rounded-2xl text-white shadow-sm shadow-rose-200/40 hover:-translate-y-0.5 hover:shadow-md transition-all duration-200">
               <div className="flex items-center justify-between opacity-80 mb-2">
                 <span className="text-xs uppercase font-bold tracking-wider">Dư nợ còn phải thu</span>
                 <i className="fas fa-clock text-xl" />
               </div>
-              <div className="text-2xl font-black">{formatCurrency(stats.totalDebt)}</div>
+              <div className="text-2xl font-extrabold tracking-tight">{formatCurrency(stats.totalDebt)}</div>
               <div className="text-xs opacity-90 mt-1">
                 {stats.debtCount + stats.unpaidCount} sinh viên còn dư nợ
               </div>
             </div>
 
             {/* Collection Rate */}
-            <div className="bg-gradient-to-br from-violet-600 to-purple-700 p-5 rounded-3xl text-white shadow-md">
+            <div className="bg-gradient-to-br from-violet-600 to-purple-700 p-5 rounded-2xl text-white shadow-sm shadow-purple-200/40 hover:-translate-y-0.5 hover:shadow-md transition-all duration-200">
               <div className="flex items-center justify-between opacity-80 mb-2">
                 <span className="text-xs uppercase font-bold tracking-wider">Tỷ lệ hoàn thành thu</span>
                 <i className="fas fa-chart-pie text-xl" />
               </div>
-              <div className="text-2xl font-black">{stats.collectionRate}%</div>
+              <div className="text-2xl font-extrabold tracking-tight">{stats.collectionRate}%</div>
               <div className="w-full bg-white/20 rounded-full h-2 mt-2 overflow-hidden">
                 <div
                   className="bg-white h-2 rounded-full transition-all duration-500"
@@ -186,8 +186,8 @@ export function AccountantDashboard() {
           {/* Quick Actions & Status Distribution */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Quick Actions */}
-            <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-xs space-y-4">
-              <h3 className="text-sm font-bold text-gray-800 flex items-center gap-2">
+            <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-2xs space-y-4">
+              <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
                 <i className="fas fa-bolt text-amber-500" />
                 <span>Thao tác nhanh kế toán</span>
               </h3>
@@ -228,8 +228,8 @@ export function AccountantDashboard() {
             </div>
 
             {/* Status Distribution */}
-            <div className="lg:col-span-2 bg-white p-6 rounded-3xl border border-gray-100 shadow-xs space-y-4">
-              <h3 className="text-sm font-bold text-gray-800 flex items-center justify-between">
+            <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-2xs space-y-4">
+              <h3 className="text-sm font-bold text-slate-800 flex items-center justify-between">
                 <span className="flex items-center gap-2">
                   <i className="fas fa-users-cog text-indigo-600" />
                   <span>Phân bổ tình trạng sinh viên</span>
@@ -292,9 +292,9 @@ export function AccountantDashboard() {
           </div>
 
           {/* Recent tuition records */}
-          <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-xs space-y-4">
+          <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-2xs space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-gray-800 flex items-center gap-2">
+              <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
                 <i className="fas fa-list-check text-indigo-600" />
                 <span>Danh sách học phí cập nhật gần đây</span>
               </h3>

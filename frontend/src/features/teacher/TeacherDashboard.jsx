@@ -105,14 +105,14 @@ export function TeacherDashboard() {
       />
 
       {/* Student Feedback & Evaluation Section */}
-      <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-xs space-y-5">
+      <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-2xs space-y-5">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600">
+            <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600">
               <i className="fas fa-comment-dots text-lg" />
             </div>
             <div>
-              <h4 className="text-base font-bold text-gray-800">
+              <h4 className="text-base font-bold text-slate-800">
                 Ý kiến & Đánh giá từ Sinh viên
               </h4>
               <p className="text-xs text-gray-400">

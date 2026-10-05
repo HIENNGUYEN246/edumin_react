@@ -242,7 +242,7 @@ export function TeacherAttendance() {
       />
 
       {/* Select class and session */}
-      <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-xs grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-2xs grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
           <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
             Chọn lớp học phần
@@ -319,7 +319,7 @@ export function TeacherAttendance() {
       </div>
 
       {/* Students list for attendance */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-xs overflow-hidden">
+      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden">
         {studentsLoading || loadingRecords ? (
           <div className="p-12">
             <Spinner />

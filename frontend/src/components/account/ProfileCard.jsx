@@ -53,7 +53,7 @@ export function ProfileCard({ profile, user, code, fields = [] }) {
 
   return (
     <>
-      <div className="rounded-3xl bg-white border border-gray-100 shadow-sm p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+      <div className="rounded-2xl bg-white border border-slate-200/80 shadow-2xs p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
         <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 w-full md:w-auto">
           <button
             type="button"

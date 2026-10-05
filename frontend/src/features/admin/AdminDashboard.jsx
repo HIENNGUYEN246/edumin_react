@@ -75,44 +75,44 @@ export function AdminDashboard() {
             {/* 1. Tổng Giáo Viên */}
             <div
               onClick={() => navigate('/admin/teachers')}
-              className="bg-indigo-600 p-5 rounded-2xl text-white shadow-lg shadow-indigo-200/50 relative overflow-hidden cursor-pointer hover:scale-[1.02] hover:shadow-xl transition-all duration-200"
+              className="bg-gradient-to-br from-indigo-500 to-indigo-600 p-5 rounded-2xl text-white shadow-sm shadow-indigo-200/40 relative overflow-hidden cursor-pointer hover:-translate-y-0.5 hover:shadow-md transition-all duration-200"
             >
               <div className="z-10 relative">
-                <p className="text-xs uppercase font-medium text-indigo-100">Tổng Giáo Viên</p>
-                <h3 className="text-2xl font-black my-1">{teacherCount.toLocaleString('vi-VN')}</h3>
-                <div className="w-full bg-indigo-400/60 rounded-full h-1.5 mt-3">
+                <p className="text-[11px] uppercase tracking-wider font-semibold text-indigo-100">Tổng Giáo Viên</p>
+                <h3 className="text-2xl font-extrabold tracking-tight my-1">{teacherCount.toLocaleString('vi-VN')}</h3>
+                <div className="w-full bg-black/15 rounded-full h-1.5 mt-3 overflow-hidden">
                   <div className="bg-white h-1.5 rounded-full" style={{ width: '85%' }} />
                 </div>
                 <p className="text-[11px] mt-1.5 text-indigo-100 font-medium">85% Đang hoạt động</p>
               </div>
-              <i className="fas fa-user-tie absolute -right-3 -bottom-3 text-7xl opacity-15" />
+              <i className="fas fa-user-tie absolute -right-3 -bottom-3 text-7xl opacity-15 pointer-events-none" />
             </div>
 
             {/* 2. Tổng Sinh Viên */}
             <div
               onClick={() => navigate('/admin/students')}
-              className="bg-orange-500 p-5 rounded-2xl text-white shadow-lg shadow-orange-200/50 relative overflow-hidden cursor-pointer hover:scale-[1.02] hover:shadow-xl transition-all duration-200"
+              className="bg-gradient-to-br from-amber-500 to-orange-500 p-5 rounded-2xl text-white shadow-sm shadow-orange-200/40 relative overflow-hidden cursor-pointer hover:-translate-y-0.5 hover:shadow-md transition-all duration-200"
             >
               <div className="z-10 relative">
-                <p className="text-xs uppercase font-medium text-orange-100">Tổng Sinh Viên</p>
-                <h3 className="text-2xl font-black my-1">{studentCount.toLocaleString('vi-VN')}</h3>
-                <div className="w-full bg-orange-400/60 rounded-full h-1.5 mt-3">
+                <p className="text-[11px] uppercase tracking-wider font-semibold text-orange-100">Tổng Sinh Viên</p>
+                <h3 className="text-2xl font-extrabold tracking-tight my-1">{studentCount.toLocaleString('vi-VN')}</h3>
+                <div className="w-full bg-black/15 rounded-full h-1.5 mt-3 overflow-hidden">
                   <div className="bg-white h-1.5 rounded-full" style={{ width: '65%' }} />
                 </div>
                 <p className="text-[11px] mt-1.5 text-orange-100 font-medium">Đang theo học</p>
               </div>
-              <i className="fas fa-user-graduate absolute -right-3 -bottom-3 text-7xl opacity-15" />
+              <i className="fas fa-user-graduate absolute -right-3 -bottom-3 text-7xl opacity-15 pointer-events-none" />
             </div>
 
             {/* 3. Lớp học phần mở */}
             <div
               onClick={() => navigate('/admin/classes')}
-              className="bg-purple-600 p-5 rounded-2xl text-white shadow-lg shadow-purple-200/50 relative overflow-hidden cursor-pointer hover:scale-[1.02] hover:shadow-xl transition-all duration-200"
+              className="bg-gradient-to-br from-violet-500 to-purple-600 p-5 rounded-2xl text-white shadow-sm shadow-purple-200/40 relative overflow-hidden cursor-pointer hover:-translate-y-0.5 hover:shadow-md transition-all duration-200"
             >
               <div className="z-10 relative">
-                <p className="text-xs uppercase font-medium text-purple-100">Lớp học phần mở</p>
-                <h3 className="text-2xl font-black my-1">{openClassesCount.toLocaleString('vi-VN')}</h3>
-                <div className="w-full bg-purple-400/60 rounded-full h-1.5 mt-3">
+                <p className="text-[11px] uppercase tracking-wider font-semibold text-purple-100">Lớp học phần mở</p>
+                <h3 className="text-2xl font-extrabold tracking-tight my-1">{openClassesCount.toLocaleString('vi-VN')}</h3>
+                <div className="w-full bg-black/15 rounded-full h-1.5 mt-3 overflow-hidden">
                   <div
                     className="bg-white h-1.5 rounded-full"
                     style={{ width: `${classesCount > 0 ? Math.min(100, Math.round((openClassesCount / classesCount) * 100)) : 80}%` }}
@@ -120,49 +120,49 @@ export function AdminDashboard() {
                 </div>
                 <p className="text-[11px] mt-1.5 text-purple-100 font-medium">{classesCount} lớp tổng số</p>
               </div>
-              <i className="fas fa-shapes absolute -right-3 -bottom-3 text-7xl opacity-15" />
+              <i className="fas fa-shapes absolute -right-3 -bottom-3 text-7xl opacity-15 pointer-events-none" />
             </div>
 
             {/* 4. Tỷ lệ chuyên cần */}
             <div
               onClick={() => navigate('/admin/attendance')}
-              className="bg-emerald-600 p-5 rounded-2xl text-white shadow-lg shadow-emerald-200/50 relative overflow-hidden cursor-pointer hover:scale-[1.02] hover:shadow-xl transition-all duration-200"
+              className="bg-gradient-to-br from-emerald-500 to-teal-600 p-5 rounded-2xl text-white shadow-sm shadow-emerald-200/40 relative overflow-hidden cursor-pointer hover:-translate-y-0.5 hover:shadow-md transition-all duration-200"
             >
               <div className="z-10 relative">
-                <p className="text-xs uppercase font-medium text-emerald-100">Tỷ lệ chuyên cần</p>
-                <h3 className="text-2xl font-black my-1">{attendancePresentRate}%</h3>
-                <div className="w-full bg-emerald-400/60 rounded-full h-1.5 mt-3">
+                <p className="text-[11px] uppercase tracking-wider font-semibold text-emerald-100">Tỷ lệ chuyên cần</p>
+                <h3 className="text-2xl font-extrabold tracking-tight my-1">{attendancePresentRate}%</h3>
+                <div className="w-full bg-black/15 rounded-full h-1.5 mt-3 overflow-hidden">
                   <div className="bg-white h-1.5 rounded-full" style={{ width: `${attendancePresentRate}%` }} />
                 </div>
                 <p className="text-[11px] mt-1.5 text-emerald-100 font-medium">{attendanceCount} lượt ghi nhận</p>
               </div>
-              <i className="fas fa-clipboard-check absolute -right-3 -bottom-3 text-7xl opacity-15" />
+              <i className="fas fa-clipboard-check absolute -right-3 -bottom-3 text-7xl opacity-15 pointer-events-none" />
             </div>
 
             {/* 5. Học phí thu */}
-            <div className="bg-rose-500 p-5 rounded-2xl text-white shadow-lg shadow-rose-200/50 relative overflow-hidden">
+            <div className="bg-gradient-to-br from-rose-500 to-pink-600 p-5 rounded-2xl text-white shadow-sm shadow-rose-200/40 relative overflow-hidden hover:-translate-y-0.5 hover:shadow-md transition-all duration-200">
               <div className="z-10 relative">
-                <p className="text-xs uppercase font-medium text-rose-100">Học phí thu</p>
-                <h3 className="text-2xl font-black my-1">
+                <p className="text-[11px] uppercase tracking-wider font-semibold text-rose-100">Học phí thu</p>
+                <h3 className="text-2xl font-extrabold tracking-tight my-1">
                   {new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 0 }).format(revenueTotal)}đ
                 </h3>
-                <div className="w-full bg-rose-400/60 rounded-full h-1.5 mt-3">
+                <div className="w-full bg-black/15 rounded-full h-1.5 mt-3 overflow-hidden">
                   <div className="bg-white h-1.5 rounded-full" style={{ width: '75%' }} />
                 </div>
                 <p className="text-[11px] mt-1.5 text-rose-100 font-medium">Doanh thu học phần</p>
               </div>
-              <i className="fas fa-dollar-sign absolute -right-3 -bottom-3 text-7xl opacity-15" />
+              <i className="fas fa-dollar-sign absolute -right-3 -bottom-3 text-7xl opacity-15 pointer-events-none" />
             </div>
 
             {/* 6. Ý kiến phản hồi */}
             <div
               onClick={() => navigate('/admin/feedbacks')}
-              className="bg-teal-600 p-5 rounded-2xl text-white shadow-lg shadow-teal-200/50 relative overflow-hidden cursor-pointer hover:scale-[1.02] hover:shadow-xl transition-all duration-200"
+              className="bg-gradient-to-br from-teal-500 to-cyan-600 p-5 rounded-2xl text-white shadow-sm shadow-teal-200/40 relative overflow-hidden cursor-pointer hover:-translate-y-0.5 hover:shadow-md transition-all duration-200"
             >
               <div className="z-10 relative">
-                <p className="text-xs uppercase font-medium text-teal-100">Ý kiến phản hồi</p>
-                <h3 className="text-2xl font-black my-1">{feedbackCount} lượt</h3>
-                <div className="w-full bg-teal-400/60 rounded-full h-1.5 mt-3">
+                <p className="text-[11px] uppercase tracking-wider font-semibold text-teal-100">Ý kiến phản hồi</p>
+                <h3 className="text-2xl font-extrabold tracking-tight my-1">{feedbackCount} lượt</h3>
+                <div className="w-full bg-black/15 rounded-full h-1.5 mt-3 overflow-hidden">
                   <div
                     className="bg-white h-1.5 rounded-full"
                     style={{ width: `${Math.min(100, (Number(avgRating) / 5) * 100)}%` }}
@@ -170,7 +170,7 @@ export function AdminDashboard() {
                 </div>
                 <p className="text-[11px] mt-1.5 text-teal-100 font-medium">⭐ {avgRating} / 5.0 hài lòng</p>
               </div>
-              <i className="fas fa-comment-dots absolute -right-3 -bottom-3 text-7xl opacity-15" />
+              <i className="fas fa-comment-dots absolute -right-3 -bottom-3 text-7xl opacity-15 pointer-events-none" />
             </div>
           </div>
 
@@ -292,29 +292,29 @@ export function AdminDashboard() {
           </div>
 
           {/* Quick Access Menu */}
-          <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4">
+          <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-2xs space-y-4">
             <div className="flex justify-between items-center">
               <div>
-                <h4 className="font-bold text-gray-800 text-base">Truy cập nhanh chức năng Quản trị</h4>
-                <p className="text-xs text-gray-400 mt-0.5">Các phân hệ quản lý chính của Phòng Đào Tạo</p>
+                <h4 className="font-bold text-slate-800 text-base">Truy cập nhanh chức năng Quản trị</h4>
+                <p className="text-xs text-slate-400 mt-0.5">Các phân hệ quản lý chính của Phòng Đào Tạo</p>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5">
               {quickActions.map((action) => (
                 <Link
                   key={action.to}
                   to={action.to}
-                  className="p-4 rounded-xl border border-gray-100 hover:border-indigo-200 hover:shadow-md transition-all group flex items-start gap-3.5 bg-gray-50/50 hover:bg-white"
+                  className="p-3.5 rounded-xl border border-slate-200/70 hover:border-indigo-300 hover:shadow-xs transition-all duration-200 group flex items-start gap-3.5 bg-white hover:bg-slate-50/60"
                 >
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-110 ${action.color}`}>
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-transform duration-200 group-hover:scale-105 shadow-2xs ${action.color}`}>
                     <i className={`fas ${action.icon} text-base`} />
                   </div>
-                  <div className="min-w-0">
-                    <p className="font-bold text-gray-800 text-sm group-hover:text-indigo-600 transition truncate">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-slate-800 text-xs sm:text-sm group-hover:text-indigo-600 transition truncate">
                       {action.label}
                     </p>
-                    <p className="text-xs text-gray-400 mt-0.5 line-clamp-1">{action.desc}</p>
+                    <p className="text-xs text-slate-400 mt-0.5 line-clamp-1">{action.desc}</p>
                   </div>
                 </Link>
               ))}

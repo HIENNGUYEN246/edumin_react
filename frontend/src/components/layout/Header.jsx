@@ -67,12 +67,12 @@ export function Header() {
   };
 
   return (
-    <header className="w-full bg-white shadow-sm z-40 flex items-center justify-between px-6 py-3 border-b border-gray-200 flex-shrink-0">
+    <header className="w-full bg-white/95 backdrop-blur-md z-40 flex items-center justify-between px-6 py-3 border-b border-slate-200/80 shadow-2xs flex-shrink-0">
       <div className="flex items-center gap-3">
-        <div className="bg-indigo-600 p-2 rounded-lg">
-          <i className="fas fa-graduation-cap text-white text-xl" />
+        <div className="bg-gradient-to-tr from-indigo-600 to-indigo-700 p-2 rounded-xl shadow-xs shadow-indigo-500/20 text-white flex items-center justify-center">
+          <i className="fas fa-graduation-cap text-lg" />
         </div>
-        <span className="text-2xl font-bold text-indigo-900 uppercase tracking-tight">EDUMIN</span>
+        <span className="text-xl font-extrabold text-slate-900 uppercase tracking-tight">EDUMIN</span>
       </div>
 
       <div className="flex items-center gap-4">
@@ -80,12 +80,12 @@ export function Header() {
         <div className="relative" ref={menuRef}>
           <button
             type="button"
-            className="flex items-center gap-3 border-l pl-6 border-gray-200"
+            className="flex items-center gap-3 border-l pl-5 border-slate-200 hover:opacity-90 transition group"
             onClick={() => setMenuOpen((v) => !v)}
           >
             <div className="text-right hidden sm:block">
-              <p className="text-sm font-bold text-gray-800">{displayName}</p>
-              <p className="text-xs text-gray-500">{ROLE_LABEL[user?.role] || ''}</p>
+              <p className="text-sm font-bold text-slate-800 group-hover:text-indigo-600 transition">{displayName}</p>
+              <p className="text-xs text-slate-400 font-medium">{ROLE_LABEL[user?.role] || ''}</p>
             </div>
             <div className="relative">
               <Avatar src={avatar} name={displayName} size={40} />
@@ -98,7 +98,7 @@ export function Header() {
           </button>
 
           {menuOpen && (
-            <div className="absolute right-0 mt-2 w-52 bg-white border border-gray-200 rounded-xl shadow-xl py-2 z-50">
+            <div className="absolute right-0 mt-2.5 w-56 bg-white border border-slate-200/80 rounded-2xl shadow-xl p-1.5 z-50 animate-in fade-in zoom-in-95 duration-100">
               <button
                 type="button"
                 onClick={() => {
@@ -106,9 +106,9 @@ export function Header() {
                   setMenuOpen(false);
                 }}
                 disabled={uploadingAvatar}
-                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 flex items-center"
+                className="w-full text-left px-3.5 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-indigo-600 flex items-center rounded-xl transition"
               >
-                <i className="fas fa-camera mr-2.5 text-indigo-500" />
+                <i className="fas fa-camera mr-2.5 text-indigo-500 text-sm" />
                 <span>Đổi ảnh đại diện</span>
               </button>
               <button
@@ -117,18 +117,18 @@ export function Header() {
                   setShowPassword(true);
                   setMenuOpen(false);
                 }}
-                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 flex items-center"
+                className="w-full text-left px-3.5 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-indigo-600 flex items-center rounded-xl transition"
               >
-                <i className="fas fa-key mr-2.5 text-amber-500" />
+                <i className="fas fa-key mr-2.5 text-amber-500 text-sm" />
                 <span>Đổi mật khẩu</span>
               </button>
-              <div className="my-1 border-t border-gray-100" />
+              <div className="my-1 border-t border-slate-100" />
               <button
                 type="button"
                 onClick={logout}
-                className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center"
+                className="w-full text-left px-3.5 py-2.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 flex items-center rounded-xl transition"
               >
-                <i className="fas fa-sign-out-alt mr-2.5 text-red-500" />
+                <i className="fas fa-sign-out-alt mr-2.5 text-rose-500 text-sm" />
                 <span>Đăng xuất</span>
               </button>
             </div>

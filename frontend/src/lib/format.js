@@ -50,3 +50,14 @@ export function addWeeksToDate(dateStr, weeks = 15) {
   return `${y}-${m}-${dt}`;
 }
 
+/**
+ * Return current local date string (YYYY-MM-DD).
+ * Uses local calendar date components to prevent UTC timezone shifting.
+ */
+export function getTodayDate() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const dt = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${dt}`;
+}

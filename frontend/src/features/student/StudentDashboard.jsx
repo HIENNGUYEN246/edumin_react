@@ -145,9 +145,9 @@ export function StudentDashboard() {
 
       {/* Overdue Tuition Warning */}
       {hasOverdue && (
-        <div className="bg-rose-50 border-2 border-rose-300 rounded-3xl p-5 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div className="bg-rose-50 border-2 border-rose-300 rounded-2xl p-5 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="flex items-start gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-rose-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+            <div className="w-12 h-12 rounded-xl bg-rose-600 text-white flex items-center justify-center shrink-0 shadow-xs">
               <i className="fas fa-exclamation-triangle text-xl animate-bounce" />
             </div>
             <div>
@@ -185,9 +185,9 @@ export function StudentDashboard() {
 
       {/* Upcoming Due Date Reminder */}
       {!hasOverdue && nextDue && (
-        <div className="bg-amber-50 border border-amber-200 rounded-3xl p-4 shadow-2xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 shadow-2xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-amber-500 text-white flex items-center justify-center shrink-0">
+            <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0">
               <i className="fas fa-calendar-alt text-base" />
             </div>
             <div>
@@ -213,7 +213,7 @@ export function StudentDashboard() {
 
       {/* Tuition / Financial Status Banner */}
       <div
-        className={`rounded-3xl p-6 text-white shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-6 transition-all ${
+        className={`rounded-2xl p-6 text-white shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-6 transition-all ${
           hasOverdue
             ? 'bg-gradient-to-r from-rose-700 via-rose-600 to-amber-600'
             : totalDue > 0
@@ -270,7 +270,7 @@ export function StudentDashboard() {
       </div>
 
       {/* Feedback Section */}
-      <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-xs space-y-5">
+      <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-2xs space-y-5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600">

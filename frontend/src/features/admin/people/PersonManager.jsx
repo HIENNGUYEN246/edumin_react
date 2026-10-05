@@ -403,7 +403,7 @@ export function PersonManager({ config }) {
             />
             {config.enableClassFilter && (
               <select
-                className="bg-white border border-gray-200 text-xs font-semibold px-3 py-2.5 rounded-xl text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-400 shadow-xs"
+                className="bg-white border border-slate-200 text-xs font-semibold px-3 py-2 rounded-xl text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-400 shadow-2xs hover:border-slate-300 transition"
                 value={selectedClass}
                 onChange={(e) => {
                   setSelectedClass(e.target.value);
@@ -418,14 +418,14 @@ export function PersonManager({ config }) {
                 ))}
               </select>
             )}
-            <button type="button" onClick={() => fileRef.current?.click()} className="px-3 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700">
+            <button type="button" onClick={() => fileRef.current?.click()} className="px-3.5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 shadow-xs hover:shadow transition active:scale-[0.98]">
               <i className="fas fa-file-import mr-1.5" /> Nhập
             </button>
-            <button type="button" onClick={onExport} className="px-3 py-2.5 rounded-xl bg-teal-600 text-white text-sm font-semibold hover:bg-teal-700">
+            <button type="button" onClick={onExport} className="px-3.5 py-2 rounded-xl bg-teal-600 text-white text-xs font-semibold hover:bg-teal-700 shadow-xs hover:shadow transition active:scale-[0.98]">
               <i className="fas fa-file-export mr-1.5" /> Xuất
             </button>
-            <button type="button" onClick={openCreate} className="px-4 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 whitespace-nowrap">
-              <i className="fas fa-plus mr-1.5" /> Thêm
+            <button type="button" onClick={openCreate} className="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 shadow-xs hover:shadow transition active:scale-[0.98] whitespace-nowrap">
+              <i className="fas fa-plus mr-1.5" /> Thêm {config.entityLabel || ''}
             </button>
             <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={onImport} />
           </>

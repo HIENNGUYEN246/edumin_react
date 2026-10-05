@@ -10,7 +10,16 @@ import { useConfirm } from '../../app/providers/ConfirmProvider.jsx';
 import { useDebounce } from '../../lib/useDebounce.js';
 import { tuitionApi } from '../../api/tuitionApi.js';
 import { readSheet, exportSheet } from '../../lib/excel.js';
-import { formatCurrency, formatDate, formatStudentCode } from '../../lib/format.js';
+import { formatCurrency, formatDate, formatStudentCode, getTodayDate } from '../../lib/format.js';
+
+const getDefaultDueDate = () => {
+  const d = new Date();
+  d.setDate(d.getDate() + 30);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const dt = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${dt}`;
+};
 
 export function ManageTuition() {
   const toast = useToast();
@@ -43,7 +52,7 @@ export function ManageTuition() {
   const [generateModalOpen, setGenerateModalOpen] = useState(false);
   const [generateSemester, setGenerateSemester] = useState('HK1 (2026-2027)');
   const [generateAmount, setGenerateAmount] = useState('4500000');
-  const [generateDueDate, setGenerateDueDate] = useState('2026-11-30');
+  const [generateDueDate, setGenerateDueDate] = useState(getDefaultDueDate());
   const [isGenerating, setIsGenerating] = useState(false);
 
   // Clear selections when filters change
@@ -189,6 +198,11 @@ export function ManageTuition() {
     }
     if (!generateDueDate) {
       toast.error('Vui lòng chọn hạn chót nộp học phí');
+      return;
+    }
+    const todayStr = getTodayDate();
+    if (generateDueDate < todayStr) {
+      toast.error('Hạn chót nộp học phí phải từ thời điểm hiện tại trở về sau');
       return;
     }
 
@@ -467,10 +481,10 @@ export function ManageTuition() {
       />
 
       {/* Filters & Search Toolbar */}
-      <div className="bg-white p-4 rounded-3xl border border-gray-100 shadow-xs flex flex-wrap items-center justify-between gap-3">
+      <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs flex flex-wrap items-center justify-between gap-3">
         {/* Search */}
         <div className="relative flex-1 min-w-[240px]">
-          <i className="fas fa-search absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs" />
+          <i className="fas fa-search absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs" />
           <input
             type="text"
             value={searchText}
@@ -479,7 +493,7 @@ export function ManageTuition() {
               setPage(1);
             }}
             placeholder="Tìm theo tên sinh viên hoặc mã SV..."
-            className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
+            className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
           />
         </div>
 
@@ -894,6 +908,7 @@ export function ManageTuition() {
               <input
                 type="date"
                 required
+                min={getTodayDate()}
                 value={generateDueDate}
                 onChange={(e) => setGenerateDueDate(e.target.value)}
                 className="w-full border border-gray-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-400"

@@ -380,46 +380,46 @@ export function ManageClasses() {
 
       {/* Quick KPI stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-2xs flex items-center gap-3.5">
+        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs flex items-center gap-3.5">
           <div className="w-11 h-11 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-lg shrink-0">
             <i className="fas fa-chalkboard-user" />
           </div>
           <div>
-            <div className="text-xl font-bold text-gray-900">{stats.total}</div>
-            <div className="text-xs text-gray-400 font-medium">Tổng lớp học phần</div>
+            <div className="text-xl font-bold text-slate-900">{stats.total}</div>
+            <div className="text-xs text-slate-400 font-medium">Tổng lớp học phần</div>
           </div>
         </div>
-        <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-2xs flex items-center gap-3.5">
+        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs flex items-center gap-3.5">
           <div className="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-lg shrink-0">
             <i className="fas fa-door-open" />
           </div>
           <div>
             <div className="text-xl font-bold text-emerald-600">{stats.openCount}</div>
-            <div className="text-xs text-gray-400 font-medium">Đang mở đăng ký</div>
+            <div className="text-xs text-slate-400 font-medium">Đang mở đăng ký</div>
           </div>
         </div>
-        <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-2xs flex items-center gap-3.5">
+        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs flex items-center gap-3.5">
           <div className="w-11 h-11 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-lg shrink-0">
             <i className="fas fa-graduation-cap" />
           </div>
           <div>
             <div className="text-xl font-bold text-blue-600">{stats.studyingCount}</div>
-            <div className="text-xs text-gray-400 font-medium">Đang giảng dạy</div>
+            <div className="text-xs text-slate-400 font-medium">Đang giảng dạy</div>
           </div>
         </div>
-        <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-2xs flex items-center gap-3.5">
+        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs flex items-center gap-3.5">
           <div className="w-11 h-11 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center text-lg shrink-0">
             <i className="fas fa-user-check" />
           </div>
           <div>
             <div className="text-xl font-bold text-purple-600">{stats.totalEnrolled}</div>
-            <div className="text-xs text-gray-400 font-medium">Lượt SV đăng ký</div>
+            <div className="text-xs text-slate-400 font-medium">Lượt SV đăng ký</div>
           </div>
         </div>
       </div>
 
       {/* Filter toolbar */}
-      <div className="bg-white p-3.5 rounded-2xl border border-gray-100 shadow-2xs flex flex-wrap items-center justify-between gap-3">
+      <div className="bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-2xs flex flex-wrap items-center justify-between gap-3">
         <div className="flex-1 min-w-[260px] max-w-lg">
           <SearchInput
             className="w-full"

@@ -16,8 +16,8 @@ export function Sidebar({ role }) {
   const pendingCount = reqData?.pendingCount ?? 0;
 
   return (
-    <aside className="w-64 bg-white border-r border-gray-200 flex-shrink-0 hidden md:flex flex-col overflow-y-auto custom-scrollbar">
-      <nav className="p-3 space-y-1">
+    <aside className="w-64 bg-white border-r border-slate-200/80 flex-shrink-0 hidden md:flex flex-col overflow-y-auto custom-scrollbar shadow-2xs">
+      <nav className="p-3.5 space-y-1">
         {items.map((item) => {
           const isApproval = item.to === '/admin/profile-requests';
           return (
@@ -26,17 +26,17 @@ export function Sidebar({ role }) {
               to={item.to}
               end={item.end}
               className={({ isActive }) =>
-                `flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition ${
+                `flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition duration-150 ${
                   isActive
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'text-gray-600 hover:bg-indigo-50 hover:text-indigo-600'
+                    ? 'bg-indigo-600 text-white shadow-xs shadow-indigo-600/25'
+                    : 'text-slate-600 hover:bg-slate-50 hover:text-indigo-600'
                 }`
               }
             >
-              <i className={`fas ${item.icon} w-5 text-center`} />
+              <i className={`fas ${item.icon} w-5 text-center text-sm`} />
               <span className="flex-1">{item.label}</span>
               {isApproval && pendingCount > 0 && (
-                <span className="px-2 py-0.5 text-[11px] font-bold rounded-full bg-rose-500 text-white animate-pulse">
+                <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-rose-500 text-white animate-pulse">
                   {pendingCount > 99 ? '99+' : pendingCount}
                 </span>
               )}

@@ -218,14 +218,14 @@ export function PersonFormModal({ open, mode, title, initial, fields, department
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 rounded-xl text-sm font-semibold bg-gray-100 text-gray-600 hover:bg-gray-200"
+            className="px-4 py-2 rounded-xl text-sm font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 transition"
           >
             Hủy
           </button>
           <button
             type="submit"
             disabled={saving || uploadingAvatar}
-            className="px-4 py-2 rounded-xl text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60 flex items-center gap-2"
+            className="px-5 py-2 rounded-xl text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 shadow-xs hover:shadow disabled:opacity-60 flex items-center gap-2 transition active:scale-[0.98]"
           >
             {(saving || uploadingAvatar) && <i className="fas fa-spinner fa-spin text-xs" />}
             <span>{saving ? 'Đang lưu...' : uploadingAvatar ? 'Đang tải ảnh...' : 'Lưu'}</span>

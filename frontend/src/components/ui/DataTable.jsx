@@ -45,15 +45,15 @@ export function DataTable({
         </div>
       )}
 
-      <div className="overflow-x-auto custom-scrollbar rounded-2xl border border-gray-100 bg-white shadow-sm">
+      <div className="overflow-x-auto custom-scrollbar rounded-2xl border border-slate-200/80 bg-white shadow-2xs">
         <table className="min-w-full text-sm">
           <thead>
-            <tr className="bg-gray-50 text-gray-500 text-left">
+            <tr className="bg-slate-50/80 text-slate-600 text-left border-b border-slate-200/70">
               {selectable && (
-                <th className="w-12 px-4 py-3 text-center">
+                <th className="w-12 px-4 py-3.5 text-center">
                   <input
                     type="checkbox"
-                    className="w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500 cursor-pointer"
+                    className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer transition"
                     checked={allSelected}
                     ref={(el) => {
                       if (el) el.indeterminate = partiallySelected;
@@ -66,7 +66,7 @@ export function DataTable({
               {columns.map((col) => (
                 <th
                   key={col.key}
-                  className={`px-4 py-3.5 font-semibold uppercase text-xs tracking-wider text-gray-500 ${
+                  className={`px-4 py-3.5 font-semibold uppercase text-[11px] tracking-wider text-slate-500 ${
                     col.headerClassName || col.className || ''
                   }`}
                 >
@@ -75,11 +75,14 @@ export function DataTable({
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-slate-100">
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={totalCols} className="px-4 py-10 text-center text-gray-400">
-                  {emptyText}
+                <td colSpan={totalCols} className="px-4 py-12 text-center text-slate-400">
+                  <div className="flex flex-col items-center justify-center gap-2">
+                    <i className="far fa-folder-open text-3xl text-slate-300 mb-1" />
+                    <span className="text-sm font-medium">{emptyText}</span>
+                  </div>
                 </td>
               </tr>
             ) : (
@@ -90,7 +93,7 @@ export function DataTable({
                   <tr
                     key={key}
                     onClick={onRowClick ? () => onRowClick(row) : undefined}
-                    className={`transition ${checked ? 'bg-indigo-50/50' : 'hover:bg-indigo-50/40'} ${
+                    className={`transition-colors duration-150 ${checked ? 'bg-indigo-50/60' : 'hover:bg-slate-50/80'} ${
                       onRowClick ? 'cursor-pointer' : ''
                     }`}
                   >
@@ -101,7 +104,7 @@ export function DataTable({
                       >
                         <input
                           type="checkbox"
-                          className="w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500 cursor-pointer"
+                          className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer transition"
                           checked={checked}
                           onChange={() => onSelectKey && onSelectKey(key, row)}
                           title="Chọn mục này"
@@ -111,7 +114,7 @@ export function DataTable({
                     {columns.map((col) => (
                       <td
                         key={col.key}
-                        className={`px-4 py-3.5 text-gray-700 align-middle ${
+                        className={`px-4 py-3.5 text-slate-700 align-middle ${
                           col.cellClassName || col.className || ''
                         }`}
                       >
