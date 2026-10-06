@@ -29,24 +29,24 @@ export function Modal({ open, onClose, title, children, size = 'md' }) {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => onClose?.()} />
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 sm:p-6">
+      <div className="absolute inset-0 bg-slate-950/45 backdrop-blur-xs transition-opacity" onClick={() => onClose?.()} />
       <div
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={`relative w-full ${SIZES[size]} bg-white rounded-3xl shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar`}
+        className={`relative w-full ${SIZES[size]} bg-white rounded-2xl shadow-2xl border border-slate-100 max-h-[90vh] overflow-y-auto custom-scrollbar transition-all transform duration-200`}
       >
         {title && (
-          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-            <h3 className="text-lg font-bold text-gray-800">{title}</h3>
+          <div className="flex items-center justify-between px-6 py-4.5 border-b border-slate-100 bg-white/90 backdrop-blur-xs sticky top-0 z-20">
+            <h3 className="text-base sm:text-lg font-bold text-slate-800 tracking-tight">{title}</h3>
             <button
               type="button"
               onClick={() => onClose?.()}
-              className="w-9 h-9 rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+              className="w-8 h-8 rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-600 flex items-center justify-center transition"
               aria-label="Đóng"
             >
-              <i className="fas fa-times" />
+              <i className="fas fa-times text-sm" />
             </button>
           </div>
         )}

@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { authApi } from '../../api/authApi.js';
 import { useToast } from '../../app/providers/ToastProvider.jsx';
 
-const EMPTY = { hoTen: '', email: '', departmentId: '', className: '', password: '', confirmPassword: '' };
+const EMPTY = { hoTen: '', emailPrefix: '', departmentId: '', password: '', confirmPassword: '' };
 
 export function RegisterForm({ register, inputClass, onSuccess, onBackToLogin }) {
   const toast = useToast();
@@ -23,10 +23,18 @@ export function RegisterForm({ register, inputClass, onSuccess, onBackToLogin })
     setErrors((prev) => ({ ...prev, [field]: '' }));
   };
 
+  const getFullEmail = () => {
+    const p = form.emailPrefix.trim().toLowerCase();
+    if (!p) return '';
+    return p.endsWith('@student.edu.vn') ? p : `${p.replace(/@.*$/, '')}@student.edu.vn`;
+  };
+
   const validate = () => {
     const next = {};
     if (form.hoTen.trim().length < 2) next.hoTen = 'Vui lòng nhập họ tên đầy đủ';
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) next.email = 'Email không hợp lệ';
+    const email = getFullEmail();
+    if (!form.emailPrefix.trim()) next.email = 'Vui lòng nhập tên tài khoản hoặc mã sinh viên';
+    else if (!/^[a-zA-Z0-9._-]+@student\.edu\.vn$/.test(email)) next.email = 'Tên tài khoản không hợp lệ (chỉ gồm chữ, số, dấu chấm/gạch)';
     if (!form.departmentId) next.departmentId = 'Vui lòng chọn khoa';
     if (form.password.length < 6) next.password = 'Mật khẩu phải có ít nhất 6 ký tự';
     if (form.confirmPassword !== form.password) next.confirmPassword = 'Mật khẩu xác nhận không khớp';
@@ -39,11 +47,11 @@ export function RegisterForm({ register, inputClass, onSuccess, onBackToLogin })
     if (submitting || !validate()) return;
     setSubmitting(true);
     try {
+      const email = getFullEmail();
       const result = await register({
         hoTen: form.hoTen.trim(),
-        email: form.email.trim(),
+        email,
         departmentId: form.departmentId,
-        className: form.className.trim(),
         password: form.password,
       });
       toast.success('Tạo tài khoản thành công');
@@ -65,7 +73,24 @@ export function RegisterForm({ register, inputClass, onSuccess, onBackToLogin })
         {errors.hoTen && <p className="text-xs text-red-600 mt-1">{errors.hoTen}</p>}
       </div>
       <div>
-        <input value={form.email} onChange={set('email')} type="email" placeholder="Email sinh viên" className={cls('email')} />
+        <div className={`flex rounded-xl overflow-hidden border bg-white/90 shadow-xs focus-within:ring-2 focus-within:ring-indigo-400 focus-within:bg-white ${errors.email ? 'border-red-400' : 'border-slate-200'}`}>
+          <input
+            value={form.emailPrefix}
+            onChange={(e) => {
+              const raw = e.target.value.trim().toLowerCase();
+              const clean = raw.endsWith('@student.edu.vn')
+                ? raw.slice(0, -'@student.edu.vn'.length)
+                : raw.replace(/@.*$/, '');
+              setForm((f) => ({ ...f, emailPrefix: clean }));
+              setErrors((p) => ({ ...p, email: '' }));
+            }}
+            placeholder="Mã SV hoặc tên đăng ký"
+            className="flex-1 py-2.5 px-4 outline-none text-slate-800 bg-transparent text-sm min-w-0"
+          />
+          <span className="inline-flex items-center px-3.5 bg-slate-100/90 text-indigo-700 font-bold text-xs border-l border-slate-200 select-none shrink-0 font-mono">
+            @student.edu.vn
+          </span>
+        </div>
         {errors.email && <p className="text-xs text-red-600 mt-1">{errors.email}</p>}
       </div>
       <div>
@@ -79,7 +104,6 @@ export function RegisterForm({ register, inputClass, onSuccess, onBackToLogin })
         </select>
         {errors.departmentId && <p className="text-xs text-red-600 mt-1">{errors.departmentId}</p>}
       </div>
-      <input value={form.className} onChange={set('className')} placeholder="Lớp (không bắt buộc)" className={inputClass} />
       <div>
         <input
           value={form.password}

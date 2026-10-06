@@ -16,3 +16,8 @@ export const resetPassword = asyncHandler(async (req, res) => {
 export const remove = asyncHandler(async (req, res) => {
   res.json(await service.deleteAccount(req.user, req.params.id));
 });
+
+export const bulkDelete = asyncHandler(async (req, res) => {
+  res.json(await service.bulkDeleteAccounts(req.user, req.body.ids));
+});
+

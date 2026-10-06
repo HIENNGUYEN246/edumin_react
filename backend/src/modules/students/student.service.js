@@ -10,16 +10,59 @@ import { createPersonWithAccount, resolveDepartment } from '../shared/person.ser
 import { ROLES } from '../../lib/roles.js';
 import { createStudentSchema } from './student.schema.js';
 
-const POPULATE = { path: 'departmentRef', select: 'id name' };
+const POPULATE = [
+  { path: 'departmentRef', select: 'id name' },
+  { path: 'userId', select: '_id status lockReason email role' },
+];
 
 export async function listStudents(query) {
   const { page, limit, skip, sort, search } = parseListQuery(query, { defaultSort: 'id' });
   const filter = searchFilter(search, ['hoTen', 'email', 'department', 'className', 'phone']);
+  if (query.className) {
+    filter.className = query.className;
+  }
   return paginate(Student, { filter, page, limit, skip, sort, populate: POPULATE });
 }
 
-export async function getStudent(id) {
-  const student = await Student.findById(id).populate(POPULATE).lean();
+export async function listStudentClasses() {
+  const classes = await Student.distinct('className');
+  return { data: classes.filter((c) => c && String(c).trim() !== '').sort() };
+}
+
+/**
+ * Resolves a given raw ID (ObjectId string or numeric student code)
+ * to a verified ObjectId string of an existing Student document.
+ * Validates with mongoose.Types.ObjectId.isValid before database operations.
+ */
+async function resolveStudentObjectId(rawId) {
+  const id = typeof rawId === 'object' && rawId !== null ? (rawId._id || rawId.id) : rawId;
+  const idStr = String(id ?? '').trim();
+
+  if (!idStr || idStr === 'undefined' || idStr === 'null') {
+    throw AppError.badRequest('Mã sinh viên không được để trống hoặc sai định dạng');
+  }
+
+  // 1. If it's already a valid ObjectId
+  if (mongoose.Types.ObjectId.isValid(idStr)) {
+    return idStr;
+  }
+
+  // 2. Fallback: try finding by numeric student code (e.g. 1, 2, "SV-001")
+  const numericCode = Number(idStr.replace(/\D/g, ''));
+  if (!isNaN(numericCode) && numericCode > 0) {
+    const found = await Student.findOne({ id: numericCode }).select('_id').lean();
+    if (found?._id && mongoose.Types.ObjectId.isValid(found._id)) {
+      return String(found._id);
+    }
+  }
+
+  // If not valid and cannot resolve to an ObjectId
+  throw AppError.badRequest(`Giá trị không hợp lệ cho trường _id: ${idStr}`);
+}
+
+export async function getStudent(rawId) {
+  const studentObjectId = await resolveStudentObjectId(rawId);
+  const student = await Student.findById(studentObjectId).populate(POPULATE).lean();
   if (!student) throw AppError.notFound('Không tìm thấy sinh viên');
   return student;
 }
@@ -35,49 +78,67 @@ export async function createStudent(payload) {
     counterKey: 'studentId',
     userLink: 'student',
     profileData,
-    password: password || generateTempPassword(),
+    password: password || '123',
     precomputedPasswordHash: passwordHash,
     profileId: id,
   });
   return Student.findById(profile._id).populate(POPULATE).lean();
 }
 
-export async function updateStudent(id, payload) {
-  const student = await Student.findById(id);
-  if (!student) throw AppError.notFound('Không tìm thấy sinh viên');
+export async function updateStudent(rawId, payload) {
+  const studentObjectId = await resolveStudentObjectId(rawId);
+  if (!mongoose.Types.ObjectId.isValid(studentObjectId)) {
+    throw AppError.badRequest(`Giá trị không hợp lệ cho trường _id: ${studentObjectId}`);
+  }
+
+  const existing = await Student.findById(studentObjectId);
+  if (!existing) throw AppError.notFound('Không tìm thấy sinh viên');
 
   const { departmentId, ...rest } = payload;
-  Object.assign(student, rest);
+  const updateDoc = { ...rest };
 
   if (departmentId !== undefined) {
-    const dept = await resolveDepartment({ departmentId });
-    if (!dept) throw AppError.badRequest('Khoa không hợp lệ');
-    student.department = dept?.name || '';
-    student.departmentRef = dept?._id || null;
+    if (departmentId) {
+      const dept = await resolveDepartment({ departmentId });
+      if (!dept) throw AppError.badRequest('Khoa không hợp lệ');
+      updateDoc.department = dept?.name || '';
+      updateDoc.departmentRef = dept?._id || null;
+    } else {
+      updateDoc.department = '';
+      updateDoc.departmentRef = null;
+    }
   }
 
-  await student.save();
-  if (rest.hoTen) await User.updateOne({ _id: student.userId }, { $set: { hoTen: rest.hoTen } });
-  return Student.findById(student._id).populate(POPULATE).lean();
+  delete updateDoc._id;
+  delete updateDoc.id;
+  delete updateDoc.userId;
+  delete updateDoc.createdAt;
+  delete updateDoc.updatedAt;
+  delete updateDoc.__v;
+
+  const updated = await Student.findByIdAndUpdate(
+    studentObjectId,
+    { $set: updateDoc },
+    { new: true }
+  ).populate(POPULATE).lean();
+
+  if (rest.hoTen) {
+    await User.updateOne({ _id: existing.userId }, { $set: { hoTen: rest.hoTen } });
+  }
+  return updated;
 }
 
-export async function deleteStudent(id) {
-  const student = await Student.findById(id);
+export async function deleteStudent(rawId) {
+  const studentObjectId = await resolveStudentObjectId(rawId);
+  const student = await Student.findById(studentObjectId);
   if (!student) throw AppError.notFound('Không tìm thấy sinh viên');
 
-  const session = await mongoose.startSession();
-  try {
-    await session.withTransaction(async () => {
-      // Remove the student's enrollments if that collection exists yet.
-      if (mongoose.modelNames().includes('Enrollment')) {
-        await mongoose.model('Enrollment').deleteMany({ student: student._id }, { session });
-      }
-      await User.deleteOne({ _id: student.userId }, { session });
-      await Student.deleteOne({ _id: student._id }, { session });
-    });
-  } finally {
-    await session.endSession();
+  // Remove the student's enrollments if that collection exists yet.
+  if (mongoose.modelNames().includes('Enrollment')) {
+    await mongoose.model('Enrollment').deleteMany({ student: student._id });
   }
+  await User.deleteOne({ _id: student.userId });
+  await Student.deleteOne({ _id: student._id });
 
   if (student.avatar?.publicId) {
     await filesService.destroy(student.avatar.publicId, { resourceType: 'image' }).catch(() => {});
@@ -85,9 +146,31 @@ export async function deleteStudent(id) {
   return { success: true };
 }
 
-export async function setStudentAvatar(id, file) {
-  const student = await Student.findById(id);
-  if (!student) throw AppError.notFound('Không tìm thấy sinh viên');
+export async function bulkDeleteStudents(ids) {
+  if (!Array.isArray(ids) || ids.length === 0) {
+    throw AppError.badRequest('Danh sách mã sinh viên không hợp lệ');
+  }
+  let deletedCount = 0;
+  for (const id of ids) {
+    try {
+      await deleteStudent(id);
+      deletedCount += 1;
+    } catch {
+      // Continue next
+    }
+  }
+  return { deletedCount };
+}
+
+export async function setStudentAvatar(rawId, file) {
+  const studentObjectId = await resolveStudentObjectId(rawId);
+
+  if (!mongoose.Types.ObjectId.isValid(studentObjectId)) {
+    throw AppError.badRequest(`Giá trị không hợp lệ cho trường _id: ${studentObjectId}`);
+  }
+
+  const existing = await Student.findById(studentObjectId);
+  if (!existing) throw AppError.notFound('Không tìm thấy sinh viên');
   if (!file) throw AppError.badRequest('Thiếu tệp ảnh');
 
   const uploaded = await filesService.uploadBuffer(file.buffer, {
@@ -95,13 +178,25 @@ export async function setStudentAvatar(id, file) {
     resourceType: 'image',
     access: 'public',
   });
-  const previous = student.avatar?.publicId;
-  student.avatar = uploaded;
-  await student.save();
+  const previous = existing.avatar?.publicId;
+
+  // Use findByIdAndUpdate on database
+  const updatedStudent = await Student.findByIdAndUpdate(
+    studentObjectId,
+    { $set: { avatar: uploaded } },
+    { new: true }
+  ).populate(POPULATE).lean();
+
+  // Also sync avatar to linked User account
+  await User.findOneAndUpdate(
+    { $or: [{ student: existing._id }, { studentId: existing._id }, { email: existing.email }, { _id: existing.userId }] },
+    { $set: { avatar: uploaded } }
+  ).catch(() => {});
+
   if (previous && previous !== uploaded.publicId) {
     await filesService.destroy(previous, { resourceType: 'image' }).catch(() => {});
   }
-  return Student.findById(student._id).populate(POPULATE).lean();
+  return updatedStudent;
 }
 
 function normalizeImportHeader(value) {
@@ -174,7 +269,11 @@ export async function importStudents(rows) {
   const results = { created: 0, failed: [] };
   const preparedRows = await mapWithConcurrency(rows, 8, async (row, index) => {
     const imported = studentImportPayload(row);
-    const email = imported.email;
+    let email = String(imported.email || '').trim().toLowerCase();
+    if (email && !email.includes('@')) {
+      email = `${email}@student.edu.vn`;
+    }
+    imported.email = email;
     try {
       let importedId;
       if (imported.id !== '') {

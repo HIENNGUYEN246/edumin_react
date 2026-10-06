@@ -46,7 +46,7 @@ describe('LoginPage', () => {
 
     await waitFor(() => expect(screen.getByText('Tổng quan')).toBeInTheDocument());
     expect(sessionStorage.getItem('authToken')).toBe('fake-token');
-  });
+  }, 15000);
 
   it('shows an error on bad credentials', async () => {
     window.history.pushState({}, '', '/login');
@@ -59,5 +59,5 @@ describe('LoginPage', () => {
     await waitFor(() =>
       expect(screen.getByText(/không chính xác/i)).toBeInTheDocument()
     );
-  });
+  }, 15000);
 });

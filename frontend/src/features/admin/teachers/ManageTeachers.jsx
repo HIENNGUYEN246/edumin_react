@@ -1,6 +1,6 @@
 import { PersonManager } from '../people/PersonManager.jsx';
-import { teachersApi } from '../../../api/teachersApi.js';
-import { formatTeacherCode } from '../../../lib/format.js';
+import { teachersApi, TEACHER_EDUCATION_LEVELS } from '../../../api/teachersApi.js';
+import { formatTeacherCode, getMaxBirthDate, formatDate } from '../../../lib/format.js';
 
 const teacherConfig = {
   queryKey: 'teachers',
@@ -35,36 +35,69 @@ const teacherConfig = {
     address: '',
     education: '',
     departmentId: '',
-    password: '',
+    password: '123',
   },
   fields: [
-    { name: 'hoTen', label: 'Họ và tên', required: true, validation: 'name', maxLength: 100, section: 'personal' },
-    { name: 'dob', label: 'Ngày sinh', type: 'date', required: true, validation: 'birthDate', section: 'personal' },
-    { name: 'phone', label: 'Số điện thoại', type: 'tel', required: true, validation: 'phone', maxLength: 10, section: 'personal' },
+    { name: 'hoTen', label: 'Họ tên', required: true },
+    { name: 'email', label: 'Email', type: 'email', required: true, emailDomain: '@university.edu.vn', placeholder: 'VD: nguyenvana' },
+    { name: 'phone', label: 'Số điện thoại' },
+    {
+      name: 'dob',
+      label: 'Ngày sinh',
+      type: 'date',
+      get max() {
+        return getMaxBirthDate(24);
+      },
+      get hint() {
+        return `Tối đa: ${formatDate(getMaxBirthDate(24))} (từ 24 tuổi trở lên)`;
+      },
+      maxError: 'Giảng viên phải từ 24 tuổi trở lên',
+    },
     {
       name: 'gender',
       label: 'Giới tính',
       type: 'select',
-      section: 'personal',
       options: [
         { value: 'Nam', label: 'Nam' },
         { value: 'Nữ', label: 'Nữ' },
         { value: 'Khác', label: 'Khác' },
       ],
     },
-    { name: 'address', label: 'Địa chỉ cư trú', required: true, validation: 'address', maxLength: 200, section: 'personal', fullWidth: true },
-    { name: 'email', label: 'Email nội bộ', type: 'email', required: true, validation: 'eduEmail', maxLength: 254, section: 'work' },
-    { name: 'education', label: 'Trình độ', required: true, validation: 'education', maxLength: 80, section: 'work' },
-    { name: 'departmentId', label: 'Khoa', type: 'select', required: true, validation: 'department', placeholder: 'Chọn khoa công tác', section: 'work', fullWidth: true },
+    { name: 'departmentId', label: 'Khoa', type: 'select', placeholder: 'Chọn khoa' },
+    {
+      name: 'education',
+      label: 'Trình độ',
+      type: 'select',
+      placeholder: '-- Chọn trình độ học vị --',
+      options: TEACHER_EDUCATION_LEVELS,
+    },
+    { name: 'address', label: 'Địa chỉ' },
   ],
-  columns: ({ formatCode, actions }) => [
-    { key: 'serialNumber', header: 'STT', className: 'w-16 text-center' },
+  columns: ({ formatCode, renderAvatar, renderStatus, actions }) => [
+    { key: 'avatar', header: '', className: 'w-14', render: renderAvatar },
     { key: 'id', header: 'Mã', className: 'font-semibold text-gray-800', render: (t) => formatCode(t.id) },
-    { key: 'hoTen', header: 'Họ tên' },
-    { key: 'email', header: 'Email' },
-    { key: 'department', header: 'Khoa', render: (t) => t.department || <span className="text-gray-400">Chưa xác định</span> },
+    {
+      key: 'hoTen',
+      header: 'Họ tên & Trình độ',
+      render: (t) => (
+        <div className="max-w-[200px]">
+          <div className="font-bold text-gray-900 truncate" title={t.hoTen}>{t.hoTen}</div>
+          {t.education ? (
+            <span className="inline-flex items-center gap-1 mt-0.5 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-150 shadow-2xs">
+              <i className="fas fa-graduation-cap text-[10px] text-indigo-500" />
+              <span>{t.education}</span>
+            </span>
+          ) : (
+            <span className="text-gray-400 text-[11px] italic">Chưa cập nhật trình độ</span>
+          )}
+        </div>
+      ),
+    },
+    { key: 'email', header: 'Email', render: (t) => <span className="truncate max-w-[180px] block text-xs" title={t.email}>{t.email}</span> },
+    { key: 'department', header: 'Khoa', render: (t) => t.department ? <span className="truncate max-w-[180px] block text-xs" title={t.department}>{t.department}</span> : <span className="text-gray-400 text-xs">Chưa xác định</span> },
     { key: 'phone', header: 'SĐT' },
-    { key: 'actions', header: '', className: 'text-right w-24', render: actions },
+    { key: 'status', header: 'Tài khoản', className: 'text-center w-32', render: renderStatus },
+    { key: 'actions', header: 'Thao tác', className: 'text-right w-44', render: actions },
   ],
 };
 

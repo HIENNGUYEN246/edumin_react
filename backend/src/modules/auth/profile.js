@@ -7,13 +7,28 @@ import { ROLES } from '../../lib/roles.js';
  */
 export async function loadProfile(user) {
   if (!user) return null;
-  if (user.role === ROLES.TEACHER && user.teacher) {
+  const teacherRef = user.teacher || user.teacherId;
+  const studentRef = user.student || user.studentId;
+
+  if (user.role === ROLES.TEACHER) {
     const { Teacher } = await import('../teachers/teacher.model.js').catch(() => ({}));
-    if (Teacher) return Teacher.findById(user.teacher).populate('departmentRef', 'id name').lean();
+    if (Teacher) {
+      let t = teacherRef ? await Teacher.findById(teacherRef).populate('departmentRef', 'id name').lean() : null;
+      if (!t && user._id) {
+        t = await Teacher.findOne({ userId: user._id }).populate('departmentRef', 'id name').lean();
+      }
+      return t;
+    }
   }
-  if (user.role === ROLES.STUDENT && user.student) {
+  if (user.role === ROLES.STUDENT) {
     const { Student } = await import('../students/student.model.js').catch(() => ({}));
-    if (Student) return Student.findById(user.student).populate('departmentRef', 'id name').lean();
+    if (Student) {
+      let s = studentRef ? await Student.findById(studentRef).populate('departmentRef', 'id name').lean() : null;
+      if (!s && user._id) {
+        s = await Student.findOne({ userId: user._id }).populate('departmentRef', 'id name').lean();
+      }
+      return s;
+    }
   }
   return null;
 }

@@ -12,10 +12,12 @@ const router = Router();
 router.use(authenticate);
 
 router.get('/', authorize(ROLES.ADMIN, ROLES.TEACHER), controller.list);
+router.get('/classes', authorize(ROLES.ADMIN, ROLES.TEACHER), controller.classes);
 router.get('/:id', authorize(ROLES.ADMIN, ROLES.TEACHER), controller.getOne);
 
 router.post('/', authorize(ROLES.ADMIN), validate(createStudentSchema), controller.create);
 router.post('/import', authorize(ROLES.ADMIN), validate(importStudentsSchema), controller.importRows);
+router.post('/bulk-delete', authorize(ROLES.ADMIN), controller.bulkDelete);
 router.patch('/:id', authorize(ROLES.ADMIN), validate(updateStudentSchema), controller.update);
 router.put('/:id/avatar', authorize(ROLES.ADMIN), uploadImage, controller.uploadAvatar);
 router.delete('/:id', authorize(ROLES.ADMIN), controller.remove);

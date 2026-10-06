@@ -11,6 +11,7 @@ import { CourseClass } from '../modules/classes/courseClass.model.js';
 import { Enrollment } from '../modules/enrollments/enrollment.model.js';
 import { createTeacher } from '../modules/teachers/teacher.service.js';
 import { createStudent } from '../modules/students/student.service.js';
+import { Tuition } from '../modules/tuition/tuition.model.js';
 
 const DEFAULT_DEPARTMENTS = [
   { id: 'CNTT', name: 'Khoa Công Nghệ Thông Tin' },
@@ -54,10 +55,18 @@ export async function seed({ withSamples = true } = {}) {
     status: 'Active',
   });
 
+  const accountant = await User.create({
+    email: 'ketoan@edu.vn',
+    passwordHash: await hashPassword(SEED_PASSWORD),
+    role: ROLES.ACCOUNTANT,
+    hoTen: 'Võ Thị Kế Toán',
+    status: 'Active',
+  });
+
   await Department.insertMany(DEFAULT_DEPARTMENTS);
 
   if (!withSamples) {
-    return { adminEmail: admin.email, departments: DEFAULT_DEPARTMENTS.length };
+    return { adminEmail: admin.email, accountantEmail: accountant.email, departments: DEFAULT_DEPARTMENTS.length };
   }
 
   const teachers = [];
@@ -114,6 +123,82 @@ export async function seed({ withSamples = true } = {}) {
   // Enroll the first student into IT101-01.
   const student1 = students[0];
   await Enrollment.create({ student: student1._id, classRef: classes[0]._id, classId: classes[0].id });
+
+  // Seed sample tuitions
+  await Tuition.create([
+    {
+      student: students[0]._id,
+      studentId: students[0].id,
+      studentName: students[0].hoTen,
+      studentEmail: students[0].email,
+      className: students[0].className,
+      department: students[0].department,
+      semester: 'HK1 (2026-2027)',
+      academicYear: '2026-2027',
+      totalCredits: 3,
+      amount: 4500000,
+      discount: 500000,
+      amountPaid: 4000000,
+      amountDue: 0,
+      status: 'Đã đóng',
+      paidAt: new Date('2026-02-10'),
+      paymentMethod: 'Chuyển khoản',
+      transactions: [
+        {
+          transactionCode: 'VCB-20260210-001',
+          amount: 4000000,
+          paymentMethod: 'Chuyển khoản',
+          paidAt: new Date('2026-02-10'),
+          recordedBy: 'Võ Thị Kế Toán',
+          note: 'Chuyển khoản VCB học phí HK1',
+        },
+      ],
+    },
+    {
+      student: students[1]._id,
+      studentId: students[1].id,
+      studentName: students[1].hoTen,
+      studentEmail: students[1].email,
+      className: students[1].className,
+      department: students[1].department,
+      semester: 'HK1 (2026-2027)',
+      academicYear: '2026-2027',
+      totalCredits: 4,
+      amount: 4500000,
+      discount: 0,
+      amountPaid: 2000000,
+      amountDue: 2500000,
+      status: 'Đang nợ',
+      paidAt: new Date('2026-02-15'),
+      paymentMethod: 'Chuyển khoản',
+      transactions: [
+        {
+          transactionCode: 'TCB-20260215-089',
+          amount: 2000000,
+          paymentMethod: 'Chuyển khoản',
+          paidAt: new Date('2026-02-15'),
+          recordedBy: 'Võ Thị Kế Toán',
+          note: 'Đóng đợt 1',
+        },
+      ],
+    },
+    {
+      student: students[2]._id,
+      studentId: students[2].id,
+      studentName: students[2].hoTen,
+      studentEmail: students[2].email,
+      className: students[2].className,
+      department: students[2].department,
+      semester: 'HK1 (2026-2027)',
+      academicYear: '2026-2027',
+      totalCredits: 2,
+      amount: 3500000,
+      discount: 0,
+      amountPaid: 0,
+      amountDue: 3500000,
+      status: 'Chưa đóng',
+    },
+  ]);
 
   return {
     adminEmail: admin.email,

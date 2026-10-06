@@ -138,3 +138,84 @@ describe('Student self-registration', () => {
     expect(res.status).toBe(400);
   });
 });
+
+describe('Student avatar update & ID validation', () => {
+  it('updates avatar with valid ObjectId', async () => {
+    await Department.create({ id: 'CNTT', name: 'CNTT' });
+    const createRes = await request(app)
+      .post('/api/students')
+      .set(authHeader(adminToken))
+      .send({ hoTen: 'Student Avatar', email: 'avatar@edu.vn', departmentId: 'CNTT' });
+    expect(createRes.status).toBe(201);
+    const studentObjectId = createRes.body._id;
+
+    const res = await request(app)
+      .put(`/api/students/${studentObjectId}/avatar`)
+      .set(authHeader(adminToken))
+      .attach('file', Buffer.from('fake-bytes'), 'avatar.png');
+
+    expect(res.status).toBe(200);
+    expect(res.body.avatar?.url).toBe('u');
+  });
+
+  it('updates avatar with numeric student code (fallback resolution)', async () => {
+    await Department.create({ id: 'CNTT', name: 'CNTT' });
+    const createRes = await request(app)
+      .post('/api/students')
+      .set(authHeader(adminToken))
+      .send({ hoTen: 'Student Avatar 2', email: 'avatar2@edu.vn', departmentId: 'CNTT' });
+    expect(createRes.status).toBe(201);
+    const numericCode = createRes.body.id;
+
+    const res = await request(app)
+      .put(`/api/students/${numericCode}/avatar`)
+      .set(authHeader(adminToken))
+      .attach('file', Buffer.from('fake-bytes'), 'avatar.png');
+
+    expect(res.status).toBe(200);
+    expect(res.body.avatar?.url).toBe('u');
+  });
+
+  it('rejects avatar update with invalid format _id', async () => {
+    const res = await request(app)
+      .put('/api/students/invalid-non-numeric-id/avatar')
+      .set(authHeader(adminToken))
+      .attach('file', Buffer.from('fake-bytes'), 'avatar.png');
+
+    expect(res.status).toBe(400);
+    expect(res.body.error?.message).toMatch(/không hợp lệ/i);
+  });
+
+  it('updates all student profile info via PATCH and keeps User name in sync', async () => {
+    await Department.create({ id: 'CNTT', name: 'Khoa Công Nghệ Thông Tin' });
+    const createRes = await request(app)
+      .post('/api/students')
+      .set(authHeader(adminToken))
+      .send({ hoTen: 'Sinh Viên Gốc', email: 'allinfo@edu.vn', departmentId: 'CNTT' });
+    expect(createRes.status).toBe(201);
+    const id = createRes.body._id;
+
+    const updateRes = await request(app)
+      .patch(`/api/students/${id}`)
+      .set(authHeader(adminToken))
+      .send({
+        hoTen: 'Sinh Viên Đã Sửa',
+        phone: '0912345678',
+        dob: '2004-05-15',
+        gender: 'Nữ',
+        address: 'Hà Nội',
+        className: 'CNTT-K18A',
+        education: 'Chất lượng cao',
+        departmentId: 'CNTT',
+      });
+
+    expect(updateRes.status).toBe(200);
+    expect(updateRes.body.hoTen).toBe('Sinh Viên Đã Sửa');
+    expect(updateRes.body.phone).toBe('0912345678');
+    expect(updateRes.body.dob).toBe('2004-05-15');
+    expect(updateRes.body.gender).toBe('Nữ');
+    expect(updateRes.body.address).toBe('Hà Nội');
+    expect(updateRes.body.className).toBe('CNTT-K18A');
+    expect(updateRes.body.education).toBe('Chất lượng cao');
+  });
+});

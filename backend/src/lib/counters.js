@@ -10,25 +10,27 @@ import { Counter } from '../modules/shared/counter.model.js';
  * `counters` collection), preventing duplicate-key errors on the numeric id.
  *
  * @param {string} key
- * @param {import('mongoose').ClientSession} [session]
+ * @param {import('mongoose').ClientSession|null} [_session]  Deprecated/ignored, kept for signature compatibility
  * @param {{ model: import('mongoose').Model, field?: string }} [syncFrom]
  */
-export async function nextSequence(key, session, syncFrom) {
-  if (syncFrom?.model) {
-    const field = syncFrom.field || 'id';
-    const top = await syncFrom.model
+export async function nextSequence(key, _session, syncFrom) {
+  // Support both nextSequence(key, syncFrom) and nextSequence(key, session, syncFrom)
+  const syncOptions = syncFrom || (_session && typeof _session === 'object' && _session.model ? _session : null);
+
+  if (syncOptions?.model) {
+    const field = syncOptions.field || 'id';
+    const top = await syncOptions.model
       .findOne({}, { [field]: 1 })
       .sort({ [field]: -1 })
-      .session(session || null)
       .lean();
     const maxId = Number(top?.[field]) || 0;
 
-    const current = await Counter.findById(key).session(session || null).lean();
+    const current = await Counter.findById(key).lean();
     if (!current || (current.value ?? 0) < maxId) {
       await Counter.findByIdAndUpdate(
         key,
         { $set: { value: maxId } },
-        { upsert: true, session }
+        { upsert: true }
       );
     }
   }
@@ -36,7 +38,7 @@ export async function nextSequence(key, session, syncFrom) {
   const doc = await Counter.findByIdAndUpdate(
     key,
     { $inc: { value: 1 } },
-    { new: true, upsert: true, session }
+    { new: true, upsert: true }
   );
   return doc.value;
 }

@@ -12,7 +12,7 @@ import { ROLES } from '../../app/navConfig.js';
  * - Admin: all courses.
  */
 export function useCourseOptions() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const isTeacher = user?.role === ROLES.TEACHER;
   const isStudent = user?.role === ROLES.STUDENT;
 
@@ -31,7 +31,7 @@ export function useCourseOptions() {
   const allCourses = useQuery({
     queryKey: ['courses', { limit: 500 }],
     queryFn: () => coursesApi.list({ limit: 500 }),
-    enabled: !isTeacher && !isStudent,
+    enabled: isTeacher || (!isTeacher && !isStudent),
   });
 
   // Reduce a list of class-like objects to unique {id, name} course options.
@@ -44,11 +44,37 @@ export function useCourseOptions() {
   };
 
   if (isTeacher) {
-    return { courses: uniqueCourses(teacherClasses.data?.data || []), isLoading: teacherClasses.isLoading };
+    const teacherDept = profile?.department || user?.department;
+    let availableCourses = [];
+    if (teacherDept) {
+      // Teachers only assign courses belonging to their department
+      availableCourses = (allCourses.data?.data || [])
+        .filter((c) => !c.department || c.department === teacherDept)
+        .map((c) => ({ id: c.id, name: c.name, department: c.department }));
+    } else {
+      const classCourses = uniqueCourses(teacherClasses.data?.data || []);
+      const allC = (allCourses.data?.data || []).map((c) => ({ id: c.id, name: c.name, department: c.department }));
+      const combined = new Map();
+      [...classCourses, ...allC].forEach((c) => {
+        if (c?.id && !combined.has(c.id)) combined.set(c.id, { id: c.id, name: c.name, department: c.department });
+      });
+      availableCourses = [...combined.values()];
+    }
+    return { courses: availableCourses, isLoading: teacherClasses.isLoading || allCourses.isLoading };
   }
   if (isStudent) {
     const classes = (myEnrollments.data?.data || []).map((e) => e.class).filter(Boolean);
     return { courses: uniqueCourses(classes), isLoading: myEnrollments.isLoading };
   }
   return { courses: allCourses.data?.data || [], isLoading: allCourses.isLoading };
+}
+
+/** Classes of a selected course for class-targeted assignments/documents */
+export function useCourseClassesOptions(courseId) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['classes', 'byCourse', courseId],
+    queryFn: () => classesApi.list({ courseId, limit: 100 }),
+    enabled: Boolean(courseId),
+  });
+  return { classes: data?.data || [], isLoading };
 }

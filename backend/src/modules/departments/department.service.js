@@ -12,7 +12,9 @@ function normalizeHead(head) {
 
 /** Populate `head` only once the Teacher model exists (added in a later module). */
 const headPopulate = () =>
-  mongoose.modelNames().includes('Teacher') ? { path: 'head', select: 'id hoTen' } : undefined;
+  mongoose.modelNames().includes('Teacher')
+    ? { path: 'head', select: 'id hoTen avatar email department' }
+    : undefined;
 
 export async function listDepartments(query) {
   const { page, limit, skip, sort, search } = parseListQuery(query, { defaultSort: 'name' });
@@ -43,7 +45,18 @@ export async function createDepartment(payload) {
 export async function updateDepartment(id, payload) {
   const update = {};
   if (payload.name !== undefined) update.name = payload.name;
-  if (payload.head !== undefined) update.head = normalizeHead(payload.head);
+  if (payload.head !== undefined) {
+    update.head = normalizeHead(payload.head);
+    if (update.head && mongoose.modelNames().includes('Teacher')) {
+      const currentDept = await Department.findById(id);
+      if (currentDept) {
+        await mongoose.model('Teacher').updateOne(
+          { _id: update.head },
+          { $set: { department: currentDept.name, departmentRef: currentDept._id } }
+        );
+      }
+    }
+  }
 
   let queryBuilder = Department.findByIdAndUpdate(id, update, { new: true, runValidators: true });
   const populate = headPopulate();
@@ -54,7 +67,7 @@ export async function updateDepartment(id, payload) {
 }
 
 /**
- * Delete a department and detach every reference to it in one transaction.
+ * Delete a department and detach every reference to it.
  * Teacher/Student/Course models are looked up lazily so this works before
  * those modules exist and stays correct after they do.
  */
@@ -62,31 +75,24 @@ export async function deleteDepartment(id) {
   const dept = await Department.findById(id);
   if (!dept) throw AppError.notFound('Không tìm thấy khoa');
 
-  const session = await mongoose.startSession();
-  try {
-    await session.withTransaction(async () => {
-      const models = mongoose.modelNames();
-      // Detach department references from any collection that has them.
-      if (models.includes('Teacher')) {
-        await mongoose
-          .model('Teacher')
-          .updateMany({ departmentRef: dept._id }, { $set: { departmentRef: null, department: '' } }, { session });
-      }
-      if (models.includes('Student')) {
-        await mongoose
-          .model('Student')
-          .updateMany({ departmentRef: dept._id }, { $set: { departmentRef: null, department: '' } }, { session });
-      }
-      if (models.includes('Course')) {
-        await mongoose
-          .model('Course')
-          .updateMany({ departmentRef: dept._id }, { $set: { departmentRef: null } }, { session });
-      }
-      await Department.deleteOne({ _id: dept._id }, { session });
-    });
-  } finally {
-    await session.endSession();
+  const models = mongoose.modelNames();
+  // Detach department references from any collection that has them.
+  if (models.includes('Teacher')) {
+    await mongoose
+      .model('Teacher')
+      .updateMany({ departmentRef: dept._id }, { $set: { departmentRef: null, department: '' } });
   }
+  if (models.includes('Student')) {
+    await mongoose
+      .model('Student')
+      .updateMany({ departmentRef: dept._id }, { $set: { departmentRef: null, department: '' } });
+  }
+  if (models.includes('Course')) {
+    await mongoose
+      .model('Course')
+      .updateMany({ departmentRef: dept._id }, { $set: { departmentRef: null } });
+  }
+  await Department.deleteOne({ _id: dept._id });
 
   return { success: true };
 }

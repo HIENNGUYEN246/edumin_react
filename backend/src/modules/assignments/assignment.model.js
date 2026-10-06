@@ -18,6 +18,8 @@ const assignmentSchema = new Schema(
   {
     courseRef: { type: Schema.Types.ObjectId, ref: 'Course', required: true },
     courseId: { type: String, default: '' },
+    classRef: { type: Schema.Types.ObjectId, ref: 'CourseClass', default: null },
+    classId: { type: String, trim: true, default: '' },
     type: { type: String, enum: ['file', 'quiz'], default: 'file' },
     title: { type: String, required: true, trim: true },
     description: { type: String, default: '' },

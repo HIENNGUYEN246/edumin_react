@@ -9,11 +9,11 @@ import { Spinner } from '../ui/Spinner.jsx';
 export function AppLayout() {
   const { user } = useAuth();
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-gray-50">
+    <div className="flex flex-col h-screen overflow-hidden bg-slate-50/60">
       <Header />
       <div className="flex flex-1 overflow-hidden">
         <Sidebar role={user?.role} />
-        <main className="flex-1 overflow-y-auto custom-scrollbar p-6">
+        <main className="flex-1 overflow-y-auto custom-scrollbar p-5 md:p-7">
           <Suspense fallback={<Spinner />}>
             <Outlet />
           </Suspense>

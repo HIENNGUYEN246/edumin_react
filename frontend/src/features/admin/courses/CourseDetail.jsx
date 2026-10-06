@@ -13,6 +13,8 @@ import { useCourseClasses, useClassMutations } from '../classes/useClasses.js';
 import { ClassStatusBadge } from '../classes/ClassStatusBadge.jsx';
 import { ClassFormModal } from '../classes/ClassFormModal.jsx';
 import { ClassStudentsModal } from '../classes/ClassStudentsModal.jsx';
+import { Avatar } from '../../../components/ui/Avatar.jsx';
+import { ScheduleRoomBadge } from '../../../components/schedule/ScheduleBadge.jsx';
 
 export function CourseDetail() {
   const { id } = useParams();
@@ -105,9 +107,31 @@ export function CourseDetail() {
 
   const columns = [
     { key: 'id', header: 'Mã lớp', className: 'font-semibold text-gray-800' },
-    { key: 'teacher', header: 'Giáo viên', render: (c) => c.teacher || <span className="text-gray-400">Chưa phân công</span> },
-    { key: 'schedules', header: 'Lịch học', render: (c) => <span className="text-xs">{describeSchedules(c.schedules)}</span> },
-    { key: 'room', header: 'Phòng' },
+    {
+      key: 'teacher',
+      header: 'Giáo viên',
+      render: (c) =>
+        c.teacher ? (
+          <div className="flex items-center gap-2">
+            <Avatar src={c.teacherRef?.avatar?.url || c.teacherRef?.avatar} name={c.teacher} size={28} />
+            <span className="font-semibold text-gray-800 text-xs">{c.teacher}</span>
+          </div>
+        ) : (
+          <span className="text-gray-400 text-xs italic">Chưa phân công</span>
+        ),
+    },
+    {
+      key: 'schedules',
+      header: 'Lịch học & Phòng',
+      render: (c) => (
+        <ScheduleRoomBadge
+          schedules={c.schedules}
+          room={c.room}
+          studyStart={c.studyStart}
+          studyEnd={c.studyEnd}
+        />
+      ),
+    },
     {
       key: 'capacity',
       header: 'Sĩ số',
@@ -137,7 +161,7 @@ export function CourseDetail() {
               </option>
             ))}
           </select>
-          <button type="button" onClick={() => setStudentsOf(c)} className="w-8 h-8 rounded-lg text-gray-600 hover:bg-gray-100" title="Sinh viên">
+          <button type="button" onClick={() => setStudentsOf({ id: c.id, name: `${course.name} (${c.id})` })} className="w-8 h-8 rounded-lg text-gray-600 hover:bg-gray-100" title="Sinh viên">
             <i className="fas fa-users" />
           </button>
           <button type="button" onClick={() => openEdit(c)} className="w-8 h-8 rounded-lg text-indigo-600 hover:bg-indigo-50" title="Sửa">
@@ -158,7 +182,7 @@ export function CourseDetail() {
         onClick={() => navigate('/admin/courses')}
         className="inline-flex items-center gap-2 text-sm font-semibold text-gray-500 hover:text-indigo-600 mb-4"
       >
-        <i className="fas fa-arrow-left" /> Quản lý học phần
+        <i className="fas fa-arrow-left" /> Danh mục môn học
       </button>
 
       {/* Course info */}
@@ -175,11 +199,11 @@ export function CourseDetail() {
               <p className="text-lg font-bold text-gray-800">{course.credits}</p>
             </div>
             <div>
-              <p className="text-gray-400">Học phí</p>
+              <p className="text-gray-400">Học phí định mức</p>
               <p className="text-lg font-bold text-gray-800">{formatCurrency(course.fee)}</p>
             </div>
             <div>
-              <p className="text-gray-400">Số lớp</p>
+              <p className="text-gray-400">Số lớp học phần</p>
               <p className="text-lg font-bold text-gray-800">{classes.length}</p>
             </div>
           </div>
@@ -188,13 +212,13 @@ export function CourseDetail() {
 
       {/* Classes */}
       <div className="flex items-center justify-between mb-3">
-        <h2 className="text-lg font-bold text-gray-800">Các lớp học phần</h2>
+        <h2 className="text-lg font-bold text-gray-800">Các lớp học phần mở</h2>
         <button type="button" onClick={openCreate} className="px-4 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700">
           <i className="fas fa-plus mr-1.5" /> Thêm lớp
         </button>
       </div>
 
-      <DataTable columns={columns} rows={classes} isLoading={classesLoading} emptyText="Học phần chưa có lớp nào" />
+      <DataTable columns={columns} rows={classes} isLoading={classesLoading} emptyText="Môn học này chưa có lớp học phần nào được mở" />
 
       {formModal && (
         <ClassFormModal
@@ -209,7 +233,7 @@ export function CourseDetail() {
       )}
 
       {studentsOf && (
-        <ClassStudentsModal classId={studentsOf._id} className={studentsOf.id} onClose={() => setStudentsOf(null)} />
+        <ClassStudentsModal classId={studentsOf.id} className={studentsOf.name} onClose={() => setStudentsOf(null)} />
       )}
     </div>
   );

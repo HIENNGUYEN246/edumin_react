@@ -29,3 +29,7 @@ export const changePassword = asyncHandler(async (req, res) => {
 export const updateAvatar = asyncHandler(async (req, res) => {
   res.json(await authService.updateMyAvatar(req.user, req.file));
 });
+
+export const updateProfile = asyncHandler(async (req, res) => {
+  res.json(await authService.requestProfileUpdate(req.user, req.body));
+});
