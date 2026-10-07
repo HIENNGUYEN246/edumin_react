@@ -72,19 +72,12 @@ export async function deleteTeacher(id) {
   const teacher = await Teacher.findById(id);
   if (!teacher) throw AppError.notFound('Không tìm thấy giáo viên');
 
-  const session = await mongoose.startSession();
-  try {
-    await session.withTransaction(async () => {
-      // A teacher removed from the system must not remain a department head.
-      await mongoose
-        .model('Department')
-        .updateMany({ head: teacher._id }, { $set: { head: null } }, { session });
-      await User.deleteOne({ _id: teacher.userId }, { session });
-      await Teacher.deleteOne({ _id: teacher._id }, { session });
-    });
-  } finally {
-    await session.endSession();
-  }
+  // A teacher removed from the system must not remain a department head.
+  await mongoose
+    .model('Department')
+    .updateMany({ head: teacher._id }, { $set: { head: null } });
+  await User.deleteOne({ _id: teacher.userId });
+  await Teacher.deleteOne({ _id: teacher._id });
 
   // Best-effort avatar cleanup outside the transaction.
   if (teacher.avatar?.publicId) {

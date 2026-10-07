@@ -239,16 +239,9 @@ export async function deleteClass(id) {
   const cls = await CourseClass.findById(id);
   if (!cls) throw AppError.notFound('Không tìm thấy lớp học phần');
 
-  const session = await mongoose.startSession();
-  try {
-    await session.withTransaction(async () => {
-      if (mongoose.modelNames().includes('Enrollment')) {
-        await mongoose.model('Enrollment').deleteMany({ classRef: cls._id }, { session });
-      }
-      await CourseClass.deleteOne({ _id: cls._id }, { session });
-    });
-  } finally {
-    await session.endSession();
+  if (mongoose.modelNames().includes('Enrollment')) {
+    await mongoose.model('Enrollment').deleteMany({ classRef: cls._id });
   }
+  await CourseClass.deleteOne({ _id: cls._id });
   return { success: true };
 }
