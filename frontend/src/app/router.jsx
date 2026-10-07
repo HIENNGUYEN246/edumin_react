@@ -14,14 +14,10 @@ const ManageTeacherAccounts = lazy(() => import('../features/admin/accounts/Mana
 const ManageStudentAccounts = lazy(() => import('../features/admin/accounts/ManageStudentAccounts.jsx'));
 const ManageCourses = lazy(() => import('../features/admin/courses/ManageCourses.jsx'));
 const CourseDetail = lazy(() => import('../features/admin/courses/CourseDetail.jsx'));
-<<<<<<< HEAD
-const ManageAttendance = lazy(() => import('../features/admin/attendance/ManageAttendance.jsx'));
-=======
 const ManageClasses = lazy(() => import('../features/admin/classes/ManageClasses.jsx'));
 const ManageAttendance = lazy(() => import('../features/admin/attendance/ManageAttendance.jsx'));
 const ManageFeedbacks = lazy(() => import('../features/admin/feedback/ManageFeedbacks.jsx'));
 const ManageProfileRequests = lazy(() => import('../features/admin/requests/ManageProfileRequests.jsx'));
->>>>>>> 4e8ffb5c0a056164b568d493668162ccf16b4bd5
 const TeacherDashboard = lazy(() => import('../features/teacher/TeacherDashboard.jsx'));
 const TeacherSchedule = lazy(() => import('../features/teacher/TeacherSchedule.jsx'));
 const TeacherClassList = lazy(() => import('../features/teacher/TeacherClassList.jsx'));
@@ -61,9 +57,6 @@ export function AppRouter() {
         <Route path="/admin/departments" element={<ManageDepartments />} />
         <Route path="/admin/courses" element={<ManageCourses />} />
         <Route path="/admin/courses/:id" element={<CourseDetail />} />
-<<<<<<< HEAD
-        <Route path="/admin/attendance" element={<ManageAttendance />} />
-=======
         <Route path="/admin/classes" element={<ManageClasses />} />
         <Route path="/admin/attendance" element={<ManageAttendance />} />
         <Route path="/admin/feedbacks" element={<ManageFeedbacks />} />
@@ -80,7 +73,6 @@ export function AppRouter() {
       >
         <Route path="/accountant" element={<AccountantDashboard />} />
         <Route path="/accountant/tuition" element={<ManageTuition />} />
->>>>>>> 4e8ffb5c0a056164b568d493668162ccf16b4bd5
       </Route>
 
       <Route

@@ -19,10 +19,6 @@ export const NAV_BY_ROLE = {
     { to: '/admin/teachers', label: 'Quản lý giáo viên', icon: 'fa-chalkboard-user' },
     { to: '/admin/students', label: 'Quản lý sinh viên', icon: 'fa-user-graduate' },
     { to: '/admin/departments', label: 'Quản lý khoa', icon: 'fa-building-columns' },
-<<<<<<< HEAD
-    { to: '/admin/courses', label: 'Quản lý học phần', icon: 'fa-book' },
-    { to: '/admin/attendance', label: 'Điểm danh & Chuyên cần', icon: 'fa-clipboard-user' },
-=======
     { to: '/admin/courses', label: 'Quản lý môn học', icon: 'fa-book-bookmark' },
     { to: '/admin/classes', label: 'Quản lý lớp học phần', icon: 'fa-shapes' },
     { to: '/admin/attendance', label: 'Điểm danh & Chuyên cần', icon: 'fa-clipboard-user' },
@@ -33,7 +29,6 @@ export const NAV_BY_ROLE = {
   [ROLES.ACCOUNTANT]: [
     { to: '/accountant', label: 'Tổng quan tài chính', icon: 'fa-chart-pie', end: true },
     { to: '/accountant/tuition', label: 'Quản lý học phí', icon: 'fa-money-bill-wave' },
->>>>>>> 4e8ffb5c0a056164b568d493668162ccf16b4bd5
   ],
   [ROLES.TEACHER]: [
     { to: '/teacher', label: 'Tổng quan', icon: 'fa-gauge-high', end: true },

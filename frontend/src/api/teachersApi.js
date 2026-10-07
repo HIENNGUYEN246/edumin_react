@@ -25,15 +25,10 @@ export const teachersApi = {
   me: () => http.get('/teachers/me'),
   get: (id) => http.get(`/teachers/${encodeURIComponent(extractId(id))}`),
   create: (payload) => http.post('/teachers', payload),
-<<<<<<< HEAD
-  update: (id, payload) => http.patch(`/teachers/${id}`, payload),
-  remove: (id) => http.delete(`/teachers/${id}`),
-  bulkRemove: (ids) => http.post('/teachers/bulk-delete', { ids }),
-=======
   update: (id, payload) => http.patch(`/teachers/${encodeURIComponent(extractId(id))}`, payload),
   remove: (id) => http.delete(`/teachers/${encodeURIComponent(extractId(id))}`),
+  bulkRemove: (ids) => http.post('/teachers/bulk-delete', { ids }),
   bulkDelete: (ids) => http.post('/teachers/bulk-delete', { ids }),
->>>>>>> 4e8ffb5c0a056164b568d493668162ccf16b4bd5
   importRows: (rows) => http.post('/teachers/import', { rows }),
   uploadAvatar: (idOrEntity, file) => {
     const id = extractId(idOrEntity);

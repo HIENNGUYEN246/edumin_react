@@ -69,22 +69,18 @@ const studentConfig = {
         { value: 'Khác', label: 'Khác' },
       ],
     },
-<<<<<<< HEAD
     { name: 'address', label: 'Địa chỉ cư trú', required: true, validation: 'address', maxLength: 200, section: 'personal', fullWidth: true },
     { name: 'email', label: 'Email sinh viên', type: 'email', required: true, validation: 'studentEmail', placeholder: 'VD: sv.an@student.edu.vn', maxLength: 254, section: 'work' },
     { name: 'className', label: 'Lớp', required: true, validation: 'studentClass', maxLength: 40, section: 'work' },
     { name: 'departmentId', label: 'Khoa', type: 'select', required: true, validation: 'department', placeholder: 'Chọn khoa', section: 'work', fullWidth: true },
-=======
-    { name: 'departmentId', label: 'Khoa', type: 'select', placeholder: 'Chọn khoa' },
     {
       name: 'education',
       label: 'Hệ đào tạo',
       type: 'select',
       placeholder: '-- Chọn hệ đào tạo --',
       options: STUDENT_EDUCATION_LEVELS,
+      section: 'work',
     },
-    { name: 'address', label: 'Địa chỉ' },
->>>>>>> 4e8ffb5c0a056164b568d493668162ccf16b4bd5
   ],
   columns: ({ formatCode, renderAvatar, renderStatus, actions }) => [
     { key: 'avatar', header: '', className: 'w-14', render: renderAvatar },

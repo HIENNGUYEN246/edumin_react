@@ -219,7 +219,6 @@ describe('Teachers', () => {
     expect(after.head).toBeNull();
   });
 
-<<<<<<< HEAD
   it('bulk deletes teachers and clears department head', async () => {
     const t1 = await request(app)
       .post('/api/teachers')
@@ -247,7 +246,8 @@ describe('Teachers', () => {
     expect(await User.countDocuments({ email: { $in: ['gv1@university.edu.vn', 'gv2@university.edu.vn'] } })).toBe(0);
     const after = await Department.findById(dept._id);
     expect(after.head).toBeNull();
-=======
+  });
+
   it('updates all teacher profile info via PATCH and keeps User name in sync', async () => {
     await Department.create({ id: 'NNA', name: 'Khoa Ngôn Ngữ Anh' });
     const createRes = await request(app)
@@ -278,6 +278,5 @@ describe('Teachers', () => {
     expect(updateRes.body.address).toBe('Đà Nẵng');
     expect(updateRes.body.education).toBe('Tiến sĩ');
     expect(updateRes.body.department).toBe('Khoa Ngôn Ngữ Anh');
->>>>>>> 4e8ffb5c0a056164b568d493668162ccf16b4bd5
   });
 });

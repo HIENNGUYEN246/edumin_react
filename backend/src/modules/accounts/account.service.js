@@ -134,13 +134,9 @@ export async function deleteAccount(actor, id) {
     const teacher = await mongoose.model('Teacher').findById(user.teacher);
     if (teacher) {
       avatarToDelete = teacher.avatar?.publicId || null;
-<<<<<<< HEAD
-      await mongoose.model('Department').updateMany({ head: teacher._id }, { $set: { head: null } });
-=======
       if (models.includes('Department')) {
         await mongoose.model('Department').updateMany({ head: teacher._id }, { $set: { head: null } });
       }
->>>>>>> 4e8ffb5c0a056164b568d493668162ccf16b4bd5
       await mongoose.model('Teacher').deleteOne({ _id: teacher._id });
     }
   }

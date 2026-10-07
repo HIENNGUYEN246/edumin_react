@@ -66,8 +66,6 @@ describe('Attendance API', () => {
     expect(res.body.length).toBeGreaterThan(0);
     expect(res.body[0].studentId).toBe(1);
   });
-<<<<<<< HEAD
-
   it('rejects attendance check-in for future dates', async () => {
     const res = await request(app)
       .post('/api/attendance/check-in')
@@ -82,7 +80,5 @@ describe('Attendance API', () => {
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/tương lai/);
   });
-=======
->>>>>>> 4e8ffb5c0a056164b568d493668162ccf16b4bd5
 });
 

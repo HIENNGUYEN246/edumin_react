@@ -20,7 +20,6 @@ export function formatDate(value) {
 }
 
 /**
-<<<<<<< HEAD
  * Return current local date string (YYYY-MM-DD).
  * Uses local calendar date components to prevent UTC timezone shifting.
  */
@@ -33,8 +32,6 @@ export function getTodayDate() {
 }
 
 /**
-=======
->>>>>>> 4e8ffb5c0a056164b568d493668162ccf16b4bd5
  * Calculate the maximum allowed date of birth (YYYY-MM-DD) for a given minimum age in years.
  * Prevents selecting dates of birth younger than `minAge` years old relative to today.
  */
@@ -51,15 +48,9 @@ export function getMaxBirthDate(minAge) {
 }
 
 /**
-<<<<<<< HEAD
  * Add specified number of weeks (default 13 weeks = 91 days) to a date string (YYYY-MM-DD).
  */
 export function addWeeksToDate(dateStr, weeks = 13) {
-=======
- * Add specified number of weeks (default 15 weeks = 105 days) to a date string (YYYY-MM-DD).
- */
-export function addWeeksToDate(dateStr, weeks = 15) {
->>>>>>> 4e8ffb5c0a056164b568d493668162ccf16b4bd5
   if (!dateStr) return '';
   const [year, month, day] = String(dateStr).split('-').map(Number);
   if (!year || !month || !day) return '';
@@ -70,18 +61,4 @@ export function addWeeksToDate(dateStr, weeks = 15) {
   const dt = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${dt}`;
 }
-<<<<<<< HEAD
-=======
 
-/**
- * Return current local date string (YYYY-MM-DD).
- * Uses local calendar date components to prevent UTC timezone shifting.
- */
-export function getTodayDate() {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const dt = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${dt}`;
-}
->>>>>>> 4e8ffb5c0a056164b568d493668162ccf16b4bd5

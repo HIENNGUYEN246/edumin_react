@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import { AppError } from '../../lib/AppError.js';
 import { hashPassword } from '../../lib/password.js';
 import { nextSequence } from '../../lib/counters.js';
@@ -5,13 +6,6 @@ import { User } from '../auth/user.model.js';
 import { Department } from '../departments/department.model.js';
 
 /** Resolve a department by id or name to its document (or null). */
-<<<<<<< HEAD
-export async function resolveDepartment({ departmentId, department } = {}) {
-  if (!departmentId && !department) return null;
-  const or = [];
-  if (departmentId) or.push({ id: departmentId });
-  if (department) or.push({ name: department });
-=======
 export async function resolveDepartment({ departmentId, department, departmentRef } = {}) {
   if (!departmentId && !department && !departmentRef) return null;
   const or = [];
@@ -27,18 +21,12 @@ export async function resolveDepartment({ departmentId, department, departmentRe
   if (department) {
     or.push({ name: department }, { id: department });
   }
->>>>>>> 4e8ffb5c0a056164b568d493668162ccf16b4bd5
   return Department.findOne({ $or: or });
 }
 
 /**
-<<<<<<< HEAD
- * Create a User account plus its role profile (Teacher/Student) atomically.
- * On any failure, cleans up any created user account so no orphan remains.
-=======
  * Create a User account plus its role profile (Teacher/Student) sequentially.
- * On any failure after user creation, the user is deleted so no orphan account remains.
->>>>>>> 4e8ffb5c0a056164b568d493668162ccf16b4bd5
+ * On any failure after user creation, cleans up any created user account so no orphan remains.
  *
  * @param {object} params
  * @param {'giao-vien'|'sinh-vien'} params.role
@@ -64,10 +52,9 @@ export async function createPersonWithAccount({
   const existing = await User.findOne({ email });
   if (existing) throw AppError.conflict('Email đã được sử dụng');
 
-<<<<<<< HEAD
   let user = null;
   try {
-    const passwordHash = precomputedPasswordHash || (await hashPassword(password));
+    const passwordHash = precomputedPasswordHash || (await hashPassword(password || '123'));
     user = await User.create({
       email,
       passwordHash,
@@ -96,36 +83,6 @@ export async function createPersonWithAccount({
     if (user?._id) {
       await User.deleteOne({ _id: user._id }).catch(() => {});
     }
-=======
-  const passwordHash = await hashPassword(password || '123');
-  const user = await User.create({
-    email,
-    passwordHash,
-    role,
-    hoTen: profileData.hoTen || '',
-    status: 'Active',
-  });
-
-  try {
-    const nextId = await nextSequence(counterKey, null, { model: ProfileModel, field: 'id' });
-    const dept = await resolveDepartment(profileData);
-
-    const profile = await ProfileModel.create({
-      ...profileData,
-      email,
-      id: profileId ?? nextId,
-      userId: user._id,
-      department: dept?.name || profileData.department || '',
-      departmentRef: dept?._id || null,
-    });
-
-    user[userLink] = profile._id;
-    await user.save();
-    return { user, profile };
-  } catch (err) {
-    // Manual rollback: delete the created user so no orphan account remains
-    await User.deleteOne({ _id: user._id }).catch(() => {});
->>>>>>> 4e8ffb5c0a056164b568d493668162ccf16b4bd5
     throw err;
   }
 }

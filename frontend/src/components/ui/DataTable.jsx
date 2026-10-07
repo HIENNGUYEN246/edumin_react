@@ -3,11 +3,8 @@ import { Spinner } from './Spinner.jsx';
 
 /**
  * Presentational table driven by a `columns` config with optional multi-selection.
- * columns: [{ key, header, render?, className? }]
+ * columns: [{ key, header, render?, className?, headerClassName?, cellClassName? }]
  */
-<<<<<<< HEAD
-export function DataTable({ columns, rows, rowKey = (r) => r._id, isLoading, emptyText = 'Không có dữ liệu', onRowClick, rowClassName }) {
-=======
 export function DataTable({
   columns,
   rows = [],
@@ -15,13 +12,13 @@ export function DataTable({
   isLoading,
   emptyText = 'Không có dữ liệu',
   onRowClick,
+  rowClassName,
   selectable = false,
   selectedKeys = [],
   onSelectKey,
   onSelectAll,
   bulkActions,
 }) {
->>>>>>> 4e8ffb5c0a056164b568d493668162ccf16b4bd5
   if (isLoading) return <Spinner />;
 
   const isSelected = (row) => selectedKeys.includes(String(rowKey(row)));
@@ -78,20 +75,6 @@ export function DataTable({
                 </th>
               ))}
             </tr>
-<<<<<<< HEAD
-          ) : (
-            rows.map((row, rowIndex) => (
-              <tr
-                key={rowKey(row)}
-                onClick={onRowClick ? () => onRowClick(row) : undefined}
-                className={`hover:bg-indigo-50/40 transition ${onRowClick ? 'cursor-pointer' : ''} ${rowClassName ? rowClassName(row, rowIndex) : ''}`}
-              >
-                {columns.map((col) => (
-                  <td key={col.key} className={`px-4 py-3 text-gray-700 ${col.className || ''}`}>
-                    {col.render ? col.render(row, rowIndex) : row[col.key]}
-                  </td>
-                ))}
-=======
           </thead>
           <tbody className="divide-y divide-slate-100">
             {rows.length === 0 ? (
@@ -102,19 +85,19 @@ export function DataTable({
                     <span className="text-sm font-medium">{emptyText}</span>
                   </div>
                 </td>
->>>>>>> 4e8ffb5c0a056164b568d493668162ccf16b4bd5
               </tr>
             ) : (
-              rows.map((row) => {
+              rows.map((row, rowIndex) => {
                 const key = String(rowKey(row));
-                const checked = selectedKeys.includes(key);
+                const checked = isSelected(row);
+                const customRowClass = rowClassName ? rowClassName(row, rowIndex) : '';
                 return (
                   <tr
                     key={key}
                     onClick={onRowClick ? () => onRowClick(row) : undefined}
                     className={`transition-colors duration-150 ${checked ? 'bg-indigo-50/60' : 'hover:bg-slate-50/80'} ${
                       onRowClick ? 'cursor-pointer' : ''
-                    }`}
+                    } ${customRowClass}`}
                   >
                     {selectable && (
                       <td
@@ -137,7 +120,7 @@ export function DataTable({
                           col.cellClassName || col.className || ''
                         }`}
                       >
-                        {col.render ? col.render(row) : row[col.key]}
+                        {col.render ? col.render(row, rowIndex) : row[col.key]}
                       </td>
                     ))}
                   </tr>
@@ -152,4 +135,3 @@ export function DataTable({
 }
 
 export default DataTable;
-

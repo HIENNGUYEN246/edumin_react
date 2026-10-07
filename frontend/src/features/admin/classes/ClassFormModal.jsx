@@ -3,11 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Modal } from '../../../components/ui/Modal.jsx';
 import { FormField, inputClass } from '../../../components/ui/FormField.jsx';
 import { SchedulePicker } from '../../../components/schedule/SchedulePicker.jsx';
-<<<<<<< HEAD
 import { formatTeacherCode, getTodayDate, addWeeksToDate } from '../../../lib/format.js';
-=======
-import { formatTeacherCode, formatDate, addWeeksToDate, getTodayDate } from '../../../lib/format.js';
->>>>>>> 4e8ffb5c0a056164b568d493668162ccf16b4bd5
 import { teachersApi } from '../../../api/teachersApi.js';
 import { classesApi, CLASS_STATUSES } from '../../../api/classesApi.js';
 import { coursesApi } from '../../../api/coursesApi.js';
@@ -102,18 +98,6 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
   };
 
   const handleStudyStartChange = (e) => {
-    const newStart = e.target.value;
-    const suggestedEnd = addWeeksToDate(newStart, 15);
-    setForm((f) => ({
-      ...f,
-      studyStart: newStart,
-      studyEnd: !f.studyEnd || f.studyEnd < suggestedEnd ? suggestedEnd : f.studyEnd,
-    }));
-    if (errors.studyStart) setErrors((prev) => ({ ...prev, studyStart: null }));
-    if (errors.studyEnd) setErrors((prev) => ({ ...prev, studyEnd: null }));
-  };
-
-  const handleStudyStartChange = (e) => {
     const val = e.target.value;
     setForm((f) => ({
       ...f,
@@ -128,7 +112,6 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
     const next = {};
     if (!targetCourseId) next.courseId = 'Vui lòng chọn học phần';
     if (!form.schedules.length) next.schedules = 'Chọn ít nhất một buổi học';
-<<<<<<< HEAD
     const today = getTodayDate();
     if (mode === 'create' && form.studyStart && form.studyStart < today) {
       next.studyStart = 'Ngày bắt đầu học không được ở quá khứ';
@@ -136,28 +119,6 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
     if (form.studyEnd && form.studyStart && form.studyEnd < form.studyStart) {
       next.studyEnd = 'Ngày kết thúc phải sau ngày bắt đầu';
     }
-=======
-    
-    const todayStr = getTodayDate();
-    // Validate 15 weeks minimum and strictly non-past
-    if (!form.studyStart) {
-      next.studyStart = 'Vui lòng chọn ngày bắt đầu học phần';
-    } else if (mode === 'create' && form.studyStart < todayStr) {
-      next.studyStart = 'Ngày bắt đầu học phần phải từ hôm nay trở về sau';
-    }
-
-    if (!form.studyEnd) {
-      next.studyEnd = 'Vui lòng chọn ngày kết thúc học phần';
-    } else if (form.studyEnd < todayStr) {
-      next.studyEnd = 'Ngày kết thúc học phần không được ở quá khứ';
-    } else if (form.studyStart) {
-      const minEnd = addWeeksToDate(form.studyStart, 15);
-      if (form.studyEnd < minEnd) {
-        next.studyEnd = `Ngày kết thúc bắt buộc phải sau ít nhất 15 tuần kể từ ngày bắt đầu (tối thiểu từ ${formatDate(minEnd)})`;
-      }
-    }
-
->>>>>>> 4e8ffb5c0a056164b568d493668162ccf16b4bd5
     setErrors(next);
     if (Object.keys(next).length) return;
 
@@ -175,56 +136,6 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
   };
 
   return (
-<<<<<<< HEAD
-    <Modal open={open} onClose={onClose} title={mode === 'create' ? 'Thêm lớp học phần' : 'Sửa lớp học phần'} size="lg">
-      <form onSubmit={submit} className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <FormField label="Mã lớp" error={errors.id} required>
-            <input className={inputClass} value={form.id} disabled={mode === 'edit'} onChange={set('id')} placeholder="VD: IT101-01" />
-          </FormField>
-          <FormField label="Giáo viên">
-            <select className={inputClass} value={form.teacherId} onChange={set('teacherId')}>
-              <option value="">Chưa phân công</option>
-              {teachers.map((t) => (
-                <option key={t._id} value={t.id}>
-                  {t.hoTen} ({formatTeacherCode(t.id)})
-                </option>
-              ))}
-            </select>
-          </FormField>
-          <FormField label="Phòng học">
-            <input className={inputClass} value={form.room} onChange={set('room')} placeholder="VD: A101" />
-          </FormField>
-          <FormField label="Sĩ số tối đa" hint="0 = không giới hạn">
-            <input type="number" min="0" className={inputClass} value={form.capacity} onChange={set('capacity')} />
-          </FormField>
-          <FormField label="Bắt đầu học" hint="Tự động tính ngày kết thúc sau 13 tuần" error={errors.studyStart}>
-            <input
-              type="date"
-              min={mode === 'create' ? getTodayDate() : undefined}
-              className={inputClass}
-              value={form.studyStart}
-              onChange={handleStudyStartChange}
-            />
-          </FormField>
-          <FormField label="Kết thúc học" hint="Chuẩn 13 tuần học phần" error={errors.studyEnd}>
-            <input
-              type="date"
-              min={form.studyStart || (mode === 'create' ? getTodayDate() : undefined)}
-              className={inputClass}
-              value={form.studyEnd}
-              onChange={set('studyEnd')}
-            />
-          </FormField>
-          <FormField label="Trạng thái" hint="Chọn 'Đang mở' để sinh viên thấy và đăng ký">
-            <select className={inputClass} value={form.status} onChange={set('status')}>
-              {CLASS_STATUSES.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-=======
     <Modal open={open} onClose={onClose} title={mode === 'create' ? 'Mở lớp học phần mới' : 'Chỉnh sửa thông tin lớp học phần'} size="xl">
       <form onSubmit={submit} className="space-y-5">
         <div className="bg-slate-50/60 p-4 rounded-2xl border border-gray-100">
@@ -336,14 +247,14 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
         <div className="bg-slate-50/60 p-4 rounded-2xl border border-gray-100">
           <div className="text-xs font-bold uppercase tracking-wider text-indigo-700 mb-3 flex items-center gap-1.5">
             <i className="far fa-calendar text-indigo-500" />
-            <span>Thời gian đào tạo (Tối thiểu 15 tuần)</span>
+            <span>Thời gian đào tạo (Chuẩn 13 tuần)</span>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <FormField
               label="Bắt đầu học"
               error={errors.studyStart}
               required
-              hint="Ngày học buổi đầu tiên"
+              hint="Tự động tính ngày kết thúc sau 13 tuần"
             >
               <input
                 type="date"
@@ -359,16 +270,12 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
               label="Kết thúc học"
               error={errors.studyEnd}
               required
-              hint={
-                form.studyStart
-                  ? `Tối thiểu 15 tuần (từ ${formatDate(addWeeksToDate(form.studyStart, 15))})`
-                  : 'Bắt buộc sau ít nhất 15 tuần kể từ ngày bắt đầu'
-              }
+              hint="Chuẩn 13 tuần học phần"
             >
               <input
                 type="date"
                 required
-                min={form.studyStart ? addWeeksToDate(form.studyStart, 15) : todayStr}
+                min={form.studyStart || (mode === 'create' ? todayStr : undefined)}
                 className={inputClass}
                 value={form.studyEnd}
                 onChange={set('studyEnd')}
@@ -384,7 +291,6 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
           </div>
           <FormField error={errors.schedules} required>
             <SchedulePicker value={form.schedules} onChange={(schedules) => setForm((f) => ({ ...f, schedules }))} />
->>>>>>> 4e8ffb5c0a056164b568d493668162ccf16b4bd5
           </FormField>
         </div>
 

@@ -150,22 +150,6 @@ export async function deleteTeacher(rawId) {
   return { success: true };
 }
 
-export async function bulkDeleteTeachers(ids) {
-  if (!Array.isArray(ids) || ids.length === 0) {
-    throw AppError.badRequest('Danh sách mã giáo viên không hợp lệ');
-  }
-  let deletedCount = 0;
-  for (const id of ids) {
-    try {
-      await deleteTeacher(id);
-      deletedCount += 1;
-    } catch {
-      // Continue next
-    }
-  }
-  return { deletedCount };
-}
-
 export async function setTeacherAvatar(rawId, file) {
   const teacherObjectId = await resolveTeacherObjectId(rawId);
   if (!mongoose.Types.ObjectId.isValid(teacherObjectId)) {

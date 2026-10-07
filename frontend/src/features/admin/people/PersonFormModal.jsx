@@ -125,7 +125,15 @@ export function PersonFormModal({
   }, [initial, open]);
 
   const set = (name) => (e) => {
-    setForm((f) => ({ ...f, [name]: e.target.value }));
+    let val = e.target.value;
+    const field = fields?.find((f) => f.name === name);
+    if (field?.type === 'date' && field.max) {
+      const maxVal = typeof field.max === 'function' ? field.max() : field.max;
+      if (maxVal && val && val > maxVal) {
+        val = maxVal;
+      }
+    }
+    setForm((f) => ({ ...f, [name]: val }));
     setErrors((prev) => ({ ...prev, [name]: '' }));
   };
 
@@ -211,35 +219,41 @@ export function PersonFormModal({
     onSubmit(nextForm, setErrors);
   };
 
-  const renderField = (field) => (
-    <div key={field.name} className={field.fullWidth ? 'sm:col-span-2' : ''}>
-      <FormField label={field.label} error={errors[field.name]} required={field.required}>
-        {field.type === 'select' ? (
-          <select className={inputClass} value={form[field.name] || ''} onChange={set(field.name)} onBlur={() => validateField(field)}>
-            <option value="">{field.placeholder || 'Chọn...'}</option>
-            {(field.name === 'departmentId' ? departments : field.options || []).map((opt) => (
-              <option key={opt.id ?? opt.value} value={opt.id ?? opt.value}>
-                {opt.name ?? opt.label}
-              </option>
-            ))}
-          </select>
-        ) : field.type === 'email' && mode === 'edit' ? (
-          <input className={`${inputClass} bg-gray-50`} value={form[field.name] || ''} disabled />
-        ) : (
-          <input
-            type={field.type === 'email' ? 'email' : field.type === 'date' ? 'date' : 'text'}
-            className={inputClass}
-            value={form[field.name] || ''}
-            onChange={set(field.name)}
-            onBlur={() => (field.type === 'email' ? handleEmailBlur(field) : validateField(field))}
-            placeholder={field.placeholder}
-            maxLength={field.maxLength}
-            {...(field.type === 'tel' ? { inputMode: 'numeric' } : {})}
-          />
-        )}
-      </FormField>
-    </div>
-  );
+  const renderField = (field) => {
+    const maxVal = field.type === 'date' && field.max ? (typeof field.max === 'function' ? field.max() : field.max) : undefined;
+    const minVal = field.type === 'date' && field.min ? (typeof field.min === 'function' ? field.min() : field.min) : undefined;
+    return (
+      <div key={field.name} className={field.fullWidth ? 'sm:col-span-2' : ''}>
+        <FormField label={field.label} error={errors[field.name]} required={field.required} hint={field.hint}>
+          {field.type === 'select' ? (
+            <select className={inputClass} value={form[field.name] || ''} onChange={set(field.name)} onBlur={() => validateField(field)}>
+              <option value="">{field.placeholder || 'Chọn...'}</option>
+              {(field.name === 'departmentId' ? departments : field.options || []).map((opt) => (
+                <option key={opt.id ?? opt.value} value={opt.id ?? opt.value}>
+                  {opt.name ?? opt.label}
+                </option>
+              ))}
+            </select>
+          ) : field.type === 'email' && mode === 'edit' ? (
+            <input className={`${inputClass} bg-gray-50`} value={form[field.name] || ''} disabled />
+          ) : (
+            <input
+              type={field.type === 'email' ? 'email' : field.type === 'date' ? 'date' : 'text'}
+              className={inputClass}
+              value={form[field.name] || ''}
+              onChange={set(field.name)}
+              onBlur={() => (field.type === 'email' ? handleEmailBlur(field) : validateField(field))}
+              placeholder={field.placeholder}
+              maxLength={field.maxLength}
+              max={maxVal}
+              min={minVal}
+              {...(field.type === 'tel' ? { inputMode: 'numeric' } : {})}
+            />
+          )}
+        </FormField>
+      </div>
+    );
+  };
 
   const departmentName = departments.find((department) => String(department.id) === String(form.departmentId))?.name;
   const avatarPreview = form.avatarPreview || form.avatar?.url || '';

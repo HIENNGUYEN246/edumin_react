@@ -33,10 +33,7 @@ export function PersonManager({ config }) {
   const [selectedClass, setSelectedClass] = useState('');
   const [modal, setModal] = useState(null);
   const [selectedIds, setSelectedIds] = useState([]);
-<<<<<<< HEAD
   const [lastClickedIndex, setLastClickedIndex] = useState(null);
-=======
->>>>>>> 4e8ffb5c0a056164b568d493668162ccf16b4bd5
 
   // Account management state
   const [lockTarget, setLockTarget] = useState(null);
@@ -74,7 +71,6 @@ export function PersonManager({ config }) {
     ? rows.map((person, index) => ({ ...person, serialNumber: (meta.page - 1) * params.limit + index + 1 }))
     : rows;
 
-<<<<<<< HEAD
   const allCurrentRowIds = rows.map((r) => r._id);
   const isAllSelected = rows.length > 0 && allCurrentRowIds.every((id) => selectedIds.includes(id));
   const isSomeSelected = rows.length > 0 && allCurrentRowIds.some((id) => selectedIds.includes(id)) && !isAllSelected;
@@ -139,7 +135,9 @@ export function PersonManager({ config }) {
       setLastClickedIndex(null);
     } catch (error) {
       toast.error(error.message || 'Lỗi khi xóa hàng loạt');
-=======
+    }
+  };
+
   const doUnlock = async (person) => {
     const targetId = person.userId?._id || person.userId || person._id;
     try {
@@ -188,7 +186,6 @@ export function PersonManager({ config }) {
       toast.error(error.message || 'Lỗi khi đặt lại mật khẩu');
     } finally {
       setResettingId(null);
->>>>>>> 4e8ffb5c0a056164b568d493668162ccf16b4bd5
     }
   };
 
@@ -389,9 +386,6 @@ export function PersonManager({ config }) {
     }
   };
 
-<<<<<<< HEAD
-  const baseColumns = config.columns({
-=======
   const renderStatus = (person) => {
     const userObj = person.userId;
     const isLocked =
@@ -415,8 +409,7 @@ export function PersonManager({ config }) {
     );
   };
 
-  const columns = config.columns({
->>>>>>> 4e8ffb5c0a056164b568d493668162ccf16b4bd5
+  const baseColumns = config.columns({
     formatCode: config.formatCode,
     renderAvatar: (person) => (
       <Avatar src={person.avatar?.url || person.avatar} name={person.hoTen} size={38} />
@@ -570,7 +563,6 @@ export function PersonManager({ config }) {
         }
       />
 
-<<<<<<< HEAD
       {selectedIds.length > 0 && (
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-indigo-200 bg-indigo-50/90 px-4 py-3 shadow-xs">
           <div className="flex items-center gap-3">
@@ -605,14 +597,11 @@ export function PersonManager({ config }) {
         </div>
       )}
 
-=======
->>>>>>> 4e8ffb5c0a056164b568d493668162ccf16b4bd5
       <DataTable
         columns={columns}
         rows={tableRows}
         isLoading={isLoading}
         emptyText="Chưa có dữ liệu"
-<<<<<<< HEAD
         rowClassName={(person) => (selectedIds.includes(person._id) ? 'bg-indigo-50/40' : '')}
       />
       <Pagination
@@ -625,41 +614,6 @@ export function PersonManager({ config }) {
           setPage(p);
         }}
       />
-=======
-        selectable
-        selectedKeys={selectedIds}
-        onSelectKey={(key) =>
-          setSelectedIds((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]))
-        }
-        onSelectAll={(allKeys) =>
-          setSelectedIds((prev) =>
-            allKeys.every((k) => prev.includes(k))
-              ? prev.filter((k) => !allKeys.includes(k))
-              : Array.from(new Set([...prev, ...allKeys]))
-          )
-        }
-        bulkActions={
-          <>
-            <button
-              type="button"
-              onClick={() => setSelectedIds([])}
-              className="px-3 py-1.5 text-xs font-semibold text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50"
-            >
-              Bỏ chọn
-            </button>
-            <button
-              type="button"
-              onClick={onBulkDelete}
-              className="px-3 py-1.5 text-xs font-bold text-white bg-red-600 rounded-xl hover:bg-red-700 shadow-xs flex items-center gap-1.5"
-            >
-              <i className="fas fa-trash-alt" />
-              <span>Xóa {selectedIds.length} mục đã chọn</span>
-            </button>
-          </>
-        }
-      />
-      <Pagination page={meta.page} pages={meta.pages} total={meta.total} onPageChange={setPage} />
->>>>>>> 4e8ffb5c0a056164b568d493668162ccf16b4bd5
 
       {modal && (
         <PersonFormModal
