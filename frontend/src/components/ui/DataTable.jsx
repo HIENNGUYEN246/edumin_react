@@ -4,7 +4,7 @@ import { Spinner } from './Spinner.jsx';
  * Presentational table driven by a `columns` config.
  * columns: [{ key, header, render?, className? }]
  */
-export function DataTable({ columns, rows, rowKey = (r) => r._id, isLoading, emptyText = 'Không có dữ liệu', onRowClick }) {
+export function DataTable({ columns, rows, rowKey = (r) => r._id, isLoading, emptyText = 'Không có dữ liệu', onRowClick, rowClassName }) {
   if (isLoading) return <Spinner />;
 
   return (
@@ -31,7 +31,7 @@ export function DataTable({ columns, rows, rowKey = (r) => r._id, isLoading, emp
               <tr
                 key={rowKey(row)}
                 onClick={onRowClick ? () => onRowClick(row) : undefined}
-                className={`hover:bg-indigo-50/40 transition ${onRowClick ? 'cursor-pointer' : ''}`}
+                className={`hover:bg-indigo-50/40 transition ${onRowClick ? 'cursor-pointer' : ''} ${rowClassName ? rowClassName(row) : ''}`}
               >
                 {columns.map((col) => (
                   <td key={col.key} className={`px-4 py-3 text-gray-700 ${col.className || ''}`}>

@@ -218,4 +218,33 @@ describe('Teachers', () => {
     const after = await Department.findById(dept._id);
     expect(after.head).toBeNull();
   });
+
+  it('bulk deletes teachers and clears department head', async () => {
+    const t1 = await request(app)
+      .post('/api/teachers')
+      .set(authHeader(adminToken))
+      .send(validTeacherPayload({ hoTen: 'GV Một', email: 'gv1@university.edu.vn' }));
+    const t2 = await request(app)
+      .post('/api/teachers')
+      .set(authHeader(adminToken))
+      .send(validTeacherPayload({ hoTen: 'GV Hai', email: 'gv2@university.edu.vn' }));
+    expect(await Teacher.countDocuments()).toBe(2);
+
+    const dept = await Department.findOne({ id: 'CNTT' });
+    dept.head = t1.body._id;
+    await dept.save();
+
+    const res = await request(app)
+      .post('/api/teachers/bulk-delete')
+      .set(authHeader(adminToken))
+      .send({ ids: [t1.body._id, t2.body._id] });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.deletedCount).toBe(2);
+    expect(await Teacher.countDocuments()).toBe(0);
+    expect(await User.countDocuments({ email: { $in: ['gv1@university.edu.vn', 'gv2@university.edu.vn'] } })).toBe(0);
+    const after = await Department.findById(dept._id);
+    expect(after.head).toBeNull();
+  });
 });

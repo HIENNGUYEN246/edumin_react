@@ -24,6 +24,7 @@ export function PersonManager({ config }) {
   const [searchText, setSearchText] = useState('');
   const search = useDebounce(searchText);
   const [modal, setModal] = useState(null);
+  const [selectedIds, setSelectedIds] = useState([]);
 
   const params = useMemo(() => ({ page, limit: 10, search }), [page, search]);
   const { data, isLoading } = usePeople(config.queryKey, config.api, params);
@@ -36,6 +37,41 @@ export function PersonManager({ config }) {
   const tableRows = config.showSerialNumber
     ? rows.map((person, index) => ({ ...person, serialNumber: (meta.page - 1) * params.limit + index + 1 }))
     : rows;
+
+  const allCurrentRowIds = rows.map((r) => r._id);
+  const isAllSelected = rows.length > 0 && allCurrentRowIds.every((id) => selectedIds.includes(id));
+  const isSomeSelected = rows.length > 0 && allCurrentRowIds.some((id) => selectedIds.includes(id)) && !isAllSelected;
+
+  const handleSelectAll = () => {
+    if (isAllSelected) {
+      setSelectedIds((prev) => prev.filter((id) => !allCurrentRowIds.includes(id)));
+    } else {
+      setSelectedIds((prev) => Array.from(new Set([...prev, ...allCurrentRowIds])));
+    }
+  };
+
+  const handleToggleRow = (id) => {
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    const count = selectedIds.length;
+    const ok = await confirm({
+      title: 'Xóa hàng loạt',
+      message: `Bạn có chắc chắn muốn xóa ${count} ${config.entityLabel} đã chọn? Tài khoản đăng nhập tương ứng cũng sẽ bị xóa.`,
+      confirmText: `Xóa ${count} bản ghi`,
+    });
+    if (!ok) return;
+
+    try {
+      await mutations.bulkRemove.mutateAsync(selectedIds);
+      toast.success(`Đã xóa thành công ${count} ${config.entityLabel}`);
+      setSelectedIds([]);
+    } catch (error) {
+      toast.error(error.message || 'Lỗi khi xóa hàng loạt');
+    }
+  };
 
   const openCreate = () => setModal({ mode: 'create', initial: { ...config.emptyForm } });
   const openEdit = (person) =>
@@ -93,6 +129,7 @@ export function PersonManager({ config }) {
     if (!ok) return;
     try {
       await mutations.remove.mutateAsync(person._id);
+      setSelectedIds((prev) => prev.filter((id) => id !== person._id));
       toast.success('Đã xóa');
     } catch (error) {
       toast.error(error.message);
@@ -146,7 +183,7 @@ export function PersonManager({ config }) {
     }
   };
 
-  const columns = config.columns({
+  const baseColumns = config.columns({
     formatCode: config.formatCode,
     renderAvatar: (person) => (
       <label className="group relative inline-flex cursor-pointer" title="Tải ảnh lên Cloudinary">
@@ -178,6 +215,39 @@ export function PersonManager({ config }) {
     ),
   });
 
+  const selectionColumn = {
+    key: 'selection',
+    header: (
+      <div className="flex items-center justify-center">
+        <input
+          type="checkbox"
+          checked={isAllSelected}
+          ref={(el) => {
+            if (el) el.indeterminate = isSomeSelected;
+          }}
+          onChange={handleSelectAll}
+          className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+          title="Chọn tất cả"
+          aria-label="Chọn tất cả"
+        />
+      </div>
+    ),
+    className: 'w-10 text-center px-2',
+    render: (person) => (
+      <div className="flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
+        <input
+          type="checkbox"
+          checked={selectedIds.includes(person._id)}
+          onChange={() => handleToggleRow(person._id)}
+          className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+          aria-label={`Chọn ${person.hoTen}`}
+        />
+      </div>
+    ),
+  };
+
+  const columns = [selectionColumn, ...baseColumns];
+
   return (
     <div>
       <PageHeader
@@ -189,6 +259,7 @@ export function PersonManager({ config }) {
               value={searchText}
               onChange={(v) => {
                 setSearchText(v);
+                setSelectedIds([]);
                 setPage(1);
               }}
             />
@@ -206,8 +277,53 @@ export function PersonManager({ config }) {
         }
       />
 
-      <DataTable columns={columns} rows={tableRows} isLoading={isLoading} emptyText="Chưa có dữ liệu" />
-      <Pagination page={meta.page} pages={meta.pages} total={meta.total} onPageChange={setPage} />
+      {selectedIds.length > 0 && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-indigo-200 bg-indigo-50/90 px-4 py-3 shadow-xs">
+          <div className="flex items-center gap-3">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-600 text-xs font-bold text-white shadow-xs">
+              {selectedIds.length}
+            </span>
+            <span className="text-sm font-medium text-indigo-950">
+              Đang chọn <strong className="text-indigo-700">{selectedIds.length}</strong> {config.entityLabel}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setSelectedIds([])}
+              className="rounded-xl border border-gray-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 shadow-2xs transition"
+            >
+              Bỏ chọn
+            </button>
+            <button
+              type="button"
+              onClick={handleBulkDelete}
+              disabled={mutations.bulkRemove.isPending}
+              className="flex items-center gap-1.5 rounded-xl bg-red-600 px-4 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-red-700 disabled:opacity-50 transition"
+            >
+              <i className="fas fa-trash-alt text-[11px]" />
+              <span>{mutations.bulkRemove.isPending ? 'Đang xóa...' : `Xóa ${selectedIds.length} đã chọn`}</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      <DataTable
+        columns={columns}
+        rows={tableRows}
+        isLoading={isLoading}
+        emptyText="Chưa có dữ liệu"
+        rowClassName={(person) => (selectedIds.includes(person._id) ? 'bg-indigo-50/40' : '')}
+      />
+      <Pagination
+        page={meta.page}
+        pages={meta.pages}
+        total={meta.total}
+        onPageChange={(p) => {
+          setSelectedIds([]);
+          setPage(p);
+        }}
+      />
 
       {modal && (
         <PersonFormModal

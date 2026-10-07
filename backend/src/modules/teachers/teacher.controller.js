@@ -32,3 +32,8 @@ export const uploadAvatar = asyncHandler(async (req, res) => {
 export const importRows = asyncHandler(async (req, res) => {
   res.json(await service.importTeachers(req.body.rows));
 });
+
+export const bulkRemove = asyncHandler(async (req, res) => {
+  const ids = req.body?.ids || req.body;
+  res.json(await service.bulkDeleteTeachers(ids));
+});

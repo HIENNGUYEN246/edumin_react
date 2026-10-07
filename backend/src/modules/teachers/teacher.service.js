@@ -224,3 +224,39 @@ export async function importTeachers(rows) {
   }
   return results;
 }
+
+export async function bulkDeleteTeachers(ids) {
+  if (!Array.isArray(ids) || ids.length === 0) {
+    throw AppError.badRequest('Danh sách id không hợp lệ');
+  }
+
+  const teachers = await Teacher.find({ _id: { $in: ids } }).select('_id userId avatar').lean();
+  if (teachers.length === 0) {
+    return { success: true, deletedCount: 0 };
+  }
+
+  const teacherIds = teachers.map((t) => t._id);
+  const userIds = teachers.map((t) => t.userId).filter(Boolean);
+
+  if (mongoose.modelNames().includes('Department')) {
+    await mongoose
+      .model('Department')
+      .updateMany({ head: { $in: teacherIds } }, { $set: { head: null } });
+  }
+
+  if (userIds.length > 0) {
+    await User.deleteMany({ _id: { $in: userIds } });
+  }
+
+  const result = await Teacher.deleteMany({ _id: { $in: teacherIds } });
+
+  for (const t of teachers) {
+    if (t.avatar?.publicId) {
+      filesService
+        .destroy(t.avatar.publicId, { resourceType: t.avatar.resourceType || 'image' })
+        .catch(() => {});
+    }
+  }
+
+  return { success: true, deletedCount: result.deletedCount };
+}

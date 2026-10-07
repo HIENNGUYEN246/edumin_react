@@ -229,3 +229,35 @@ export async function registerStudent(payload) {
   const populated = await Student.findById(profile._id).populate(POPULATE).lean();
   return { token, user: user.toPublic(), profile: populated };
 }
+
+export async function bulkDeleteStudents(ids) {
+  if (!Array.isArray(ids) || ids.length === 0) {
+    throw AppError.badRequest('Danh sách id không hợp lệ');
+  }
+
+  const students = await Student.find({ _id: { $in: ids } }).select('_id userId avatar').lean();
+  if (students.length === 0) {
+    return { success: true, deletedCount: 0 };
+  }
+
+  const studentIds = students.map((s) => s._id);
+  const userIds = students.map((s) => s.userId).filter(Boolean);
+
+  if (mongoose.modelNames().includes('Enrollment')) {
+    await mongoose.model('Enrollment').deleteMany({ student: { $in: studentIds } });
+  }
+
+  if (userIds.length > 0) {
+    await User.deleteMany({ _id: { $in: userIds } });
+  }
+
+  const result = await Student.deleteMany({ _id: { $in: studentIds } });
+
+  for (const s of students) {
+    if (s.avatar?.publicId) {
+      filesService.destroy(s.avatar.publicId, { resourceType: 'image' }).catch(() => {});
+    }
+  }
+
+  return { success: true, deletedCount: result.deletedCount };
+}

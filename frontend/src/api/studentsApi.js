@@ -7,6 +7,7 @@ export const studentsApi = {
   create: (payload) => http.post('/students', payload),
   update: (id, payload) => http.patch(`/students/${id}`, payload),
   remove: (id) => http.delete(`/students/${id}`),
+  bulkRemove: (ids) => http.post('/students/bulk-delete', { ids }),
   importRows: (rows) => http.post('/students/import', { rows }),
   uploadAvatar: (id, file) => {
     const form = new FormData();

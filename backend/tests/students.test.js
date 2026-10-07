@@ -5,6 +5,7 @@ import { createUser, authHeader } from './helpers/factories.js';
 import { ROLES } from '../src/lib/roles.js';
 import { Department } from '../src/modules/departments/department.model.js';
 import { Student } from '../src/modules/students/student.model.js';
+import { User } from '../src/modules/auth/user.model.js';
 
 vi.mock('../src/lib/files.service.js', () => ({
   uploadBuffer: vi.fn(async () => ({ publicId: 'p', url: 'u', resourceType: 'image', bytes: 1, format: 'png', access: 'public' })),
@@ -136,5 +137,29 @@ describe('Student self-registration', () => {
       .post('/api/auth/register')
       .send({ hoTen: 'Không Khoa', email: 'nk@edu.vn', password: 'Passw0rd', departmentId: 'ZZZ' });
     expect(res.status).toBe(400);
+  });
+
+  it('bulk deletes students by ids', async () => {
+    await Department.create({ id: 'CNTT', name: 'CNTT' });
+    const s1 = await request(app)
+      .post('/api/students')
+      .set(authHeader(adminToken))
+      .send({ hoTen: 'SV Một', email: 'sv1@edu.vn', departmentId: 'CNTT', className: 'K1', dob: '2005-01-01', phone: '0901234567', address: 'Q1' });
+    const s2 = await request(app)
+      .post('/api/students')
+      .set(authHeader(adminToken))
+      .send({ hoTen: 'SV Hai', email: 'sv2@edu.vn', departmentId: 'CNTT', className: 'K1', dob: '2005-01-01', phone: '0901234568', address: 'Q2' });
+    expect(await Student.countDocuments()).toBe(2);
+
+    const res = await request(app)
+      .post('/api/students/bulk-delete')
+      .set(authHeader(adminToken))
+      .send({ ids: [s1.body._id, s2.body._id] });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.deletedCount).toBe(2);
+    expect(await Student.countDocuments()).toBe(0);
+    expect(await User.countDocuments({ email: { $in: ['sv1@edu.vn', 'sv2@edu.vn'] } })).toBe(0);
   });
 });

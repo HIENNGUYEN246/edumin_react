@@ -23,6 +23,7 @@ export function usePeopleMutations(queryKey, api) {
       onSuccess: invalidate,
     }),
     remove: useMutation({ mutationFn: api.remove, onSuccess: invalidate }),
+    bulkRemove: useMutation({ mutationFn: api.bulkRemove, onSuccess: invalidate }),
     uploadAvatar: useMutation({
       mutationFn: ({ id, file }) => api.uploadAvatar(id, file),
       onSuccess: invalidate,
