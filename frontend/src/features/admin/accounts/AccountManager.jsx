@@ -44,7 +44,9 @@ export function AccountManager({ config }) {
     ? rows.map((account, index) => ({ ...account, serialNumber: (meta.page - 1) * meta.limit + index + 1 }))
     : rows;
 
-  const isStudentRole = config.role === 'sinh-vien' || config.hideAvatar;
+  const isStudentRole = config.role === 'sinh-vien';
+  const isTeacherRole = config.role === 'giao-vien';
+  const hideAvatar = Boolean(config.hideAvatar || isStudentRole || isTeacherRole);
   const allCurrentRowIds = rows.map((r) => r._id);
   const isAllSelected = rows.length > 0 && allCurrentRowIds.every((id) => selectedIds.includes(id));
   const isSomeSelected = rows.length > 0 && allCurrentRowIds.some((id) => selectedIds.includes(id)) && !isAllSelected;
@@ -200,9 +202,11 @@ export function AccountManager({ config }) {
     ),
   };
 
+  const codeHeader = isStudentRole ? 'Mã SV' : isTeacherRole ? 'Mã GV' : 'Mã';
+
   const baseColumns = [
-    ...(!isStudentRole && config.showSerialNumber ? [{ key: 'serialNumber', header: 'STT', className: 'w-16 text-center' }] : []),
-    ...(!isStudentRole
+    ...(config.showSerialNumber ? [{ key: 'serialNumber', header: 'STT', className: 'w-16 text-center' }] : []),
+    ...(!hideAvatar
       ? [
           {
             key: 'avatar',
@@ -218,7 +222,7 @@ export function AccountManager({ config }) {
       : []),
     {
       key: 'code',
-      header: isStudentRole ? 'Mã SV' : 'Mã',
+      header: codeHeader,
       className: 'font-semibold text-gray-800 whitespace-nowrap',
       render: (a) => {
         const profile = a[config.role === 'giao-vien' ? 'teacher' : 'student'];

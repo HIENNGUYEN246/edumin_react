@@ -8,7 +8,7 @@ const teacherConfig = {
   title: 'Quản lý giáo viên',
   subtitle: 'Thêm, sửa, xóa giáo viên và nhập/xuất Excel',
   entityLabel: 'giáo viên',
-  showSerialNumber: true,
+  showSerialNumber: false,
   profilePanel: true,
   createTitle: 'Thêm Giảng Viên Mới',
   editTitle: 'Cập nhật thông tin giảng viên',
@@ -80,9 +80,8 @@ const teacherConfig = {
     },
     { name: 'departmentId', label: 'Khoa', type: 'select', required: true, validation: 'department', placeholder: 'Chọn khoa công tác', section: 'work', fullWidth: true },
   ],
-  columns: ({ formatCode, renderAvatar, renderStatus, actions }) => [
-    { key: 'avatar', header: '', className: 'w-14', render: renderAvatar },
-    { key: 'id', header: 'Mã', className: 'font-semibold text-gray-800', render: (t) => formatCode(t.id) },
+  columns: ({ formatCode, renderStatus, actions }) => [
+    { key: 'id', header: 'Mã GV', className: 'font-semibold text-gray-800 whitespace-nowrap', render: (t) => formatCode(t.id) },
     {
       key: 'hoTen',
       header: 'Họ tên & Trình độ',

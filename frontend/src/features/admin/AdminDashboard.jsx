@@ -19,11 +19,8 @@ export function AdminDashboard() {
   const studentCount = data?.students ?? 0;
   const openClassesCount = data?.openClasses ?? 0;
   const classesCount = data?.classes ?? 0;
-  const attendanceCount = data?.attendanceCount ?? 0;
-  const attendancePresentRate = data?.attendancePresentRate ?? 100;
   const feedbackCount = data?.feedbackCount ?? 0;
   const avgRating = data?.avgRating ?? '5.0';
-  const revenueTotal = data?.revenueTotal ?? (studentCount > 0 ? studentCount * 3200000 : 0);
 
   const quickActions = [
     { to: '/admin/teachers', label: 'Quản lý Giáo viên', desc: `${teacherCount} giảng viên, hồ sơ & tài khoản`, icon: 'fa-chalkboard-user', color: 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100' },
@@ -31,8 +28,6 @@ export function AdminDashboard() {
     { to: '/admin/departments', label: 'Quản lý Khoa', desc: `${data?.departments ?? 0} khoa đào tạo`, icon: 'fa-building-columns', color: 'bg-amber-50 text-amber-600 hover:bg-amber-100' },
     { to: '/admin/courses', label: 'Quản lý Môn học', desc: `${data?.courses ?? 0} môn học trong danh mục`, icon: 'fa-book-bookmark', color: 'bg-violet-50 text-violet-600 hover:bg-violet-100' },
     { to: '/admin/classes', label: 'Quản lý Lớp học phần', desc: `${data?.classes ?? 0} lớp học phần mở theo kỳ`, icon: 'fa-shapes', color: 'bg-blue-50 text-blue-600 hover:bg-blue-100' },
-    { to: '/admin/attendance', label: 'Điểm danh & Chuyên cần', desc: `${attendanceCount} lượt ghi nhận (${attendancePresentRate}%)`, icon: 'fa-clipboard-user', color: 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100' },
-    { to: '/admin/tuition', label: 'Quản lý Học phí', desc: 'Theo dõi công nợ & duyệt thu tiền SV', icon: 'fa-money-bill-wave', color: 'bg-cyan-50 text-cyan-600 hover:bg-cyan-100' },
     { to: '/admin/feedbacks', label: 'Ý kiến & Phản hồi', desc: `${feedbackCount} phản hồi (⭐ ${avgRating})`, icon: 'fa-comments', color: 'bg-teal-50 text-teal-600 hover:bg-teal-100' },
     { to: '/admin/profile-requests', label: 'Duyệt yêu cầu thay đổi', desc: 'Phê duyệt ảnh đại diện & hồ sơ GV/SV', icon: 'fa-user-check', color: 'bg-rose-50 text-rose-600 hover:bg-rose-100' },
   ];
@@ -70,7 +65,7 @@ export function AdminDashboard() {
         <Spinner />
       ) : (
         <>
-          {/* 6 Top Stat Cards matching PDTDashboard on main */}
+          {/* 6 Top Stat Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
             {/* 1. Tổng Giáo Viên */}
             <div
@@ -83,7 +78,7 @@ export function AdminDashboard() {
                 <div className="w-full bg-black/15 rounded-full h-1.5 mt-3 overflow-hidden">
                   <div className="bg-white h-1.5 rounded-full" style={{ width: '85%' }} />
                 </div>
-                <p className="text-[11px] mt-1.5 text-indigo-100 font-medium">85% Đang hoạt động</p>
+                <p className="text-[11px] mt-1.5 text-indigo-100 font-medium">Giảng viên giảng dạy</p>
               </div>
               <i className="fas fa-user-tie absolute -right-3 -bottom-3 text-7xl opacity-15 pointer-events-none" />
             </div>
@@ -104,7 +99,39 @@ export function AdminDashboard() {
               <i className="fas fa-user-graduate absolute -right-3 -bottom-3 text-7xl opacity-15 pointer-events-none" />
             </div>
 
-            {/* 3. Lớp học phần mở */}
+            {/* 3. Khoa Đào Tạo */}
+            <div
+              onClick={() => navigate('/admin/departments')}
+              className="bg-gradient-to-br from-emerald-500 to-teal-600 p-5 rounded-2xl text-white shadow-sm shadow-emerald-200/40 relative overflow-hidden cursor-pointer hover:-translate-y-0.5 hover:shadow-md transition-all duration-200"
+            >
+              <div className="z-10 relative">
+                <p className="text-[11px] uppercase tracking-wider font-semibold text-emerald-100">Khoa Đào Tạo</p>
+                <h3 className="text-2xl font-extrabold tracking-tight my-1">{(data?.departments ?? 0).toLocaleString('vi-VN')}</h3>
+                <div className="w-full bg-black/15 rounded-full h-1.5 mt-3 overflow-hidden">
+                  <div className="bg-white h-1.5 rounded-full" style={{ width: '100%' }} />
+                </div>
+                <p className="text-[11px] mt-1.5 text-emerald-100 font-medium">Khoa chuyên môn</p>
+              </div>
+              <i className="fas fa-building-columns absolute -right-3 -bottom-3 text-7xl opacity-15 pointer-events-none" />
+            </div>
+
+            {/* 4. Môn Học Đào Tạo */}
+            <div
+              onClick={() => navigate('/admin/courses')}
+              className="bg-gradient-to-br from-cyan-500 to-blue-600 p-5 rounded-2xl text-white shadow-sm shadow-cyan-200/40 relative overflow-hidden cursor-pointer hover:-translate-y-0.5 hover:shadow-md transition-all duration-200"
+            >
+              <div className="z-10 relative">
+                <p className="text-[11px] uppercase tracking-wider font-semibold text-cyan-100">Môn Học Đào Tạo</p>
+                <h3 className="text-2xl font-extrabold tracking-tight my-1">{(data?.courses ?? 0).toLocaleString('vi-VN')}</h3>
+                <div className="w-full bg-black/15 rounded-full h-1.5 mt-3 overflow-hidden">
+                  <div className="bg-white h-1.5 rounded-full" style={{ width: '90%' }} />
+                </div>
+                <p className="text-[11px] mt-1.5 text-cyan-100 font-medium">Học phần đào tạo</p>
+              </div>
+              <i className="fas fa-book-bookmark absolute -right-3 -bottom-3 text-7xl opacity-15 pointer-events-none" />
+            </div>
+
+            {/* 5. Lớp học phần mở */}
             <div
               onClick={() => navigate('/admin/classes')}
               className="bg-gradient-to-br from-violet-500 to-purple-600 p-5 rounded-2xl text-white shadow-sm shadow-purple-200/40 relative overflow-hidden cursor-pointer hover:-translate-y-0.5 hover:shadow-md transition-all duration-200"
@@ -121,37 +148,6 @@ export function AdminDashboard() {
                 <p className="text-[11px] mt-1.5 text-purple-100 font-medium">{classesCount} lớp tổng số</p>
               </div>
               <i className="fas fa-shapes absolute -right-3 -bottom-3 text-7xl opacity-15 pointer-events-none" />
-            </div>
-
-            {/* 4. Tỷ lệ chuyên cần */}
-            <div
-              onClick={() => navigate('/admin/attendance')}
-              className="bg-gradient-to-br from-emerald-500 to-teal-600 p-5 rounded-2xl text-white shadow-sm shadow-emerald-200/40 relative overflow-hidden cursor-pointer hover:-translate-y-0.5 hover:shadow-md transition-all duration-200"
-            >
-              <div className="z-10 relative">
-                <p className="text-[11px] uppercase tracking-wider font-semibold text-emerald-100">Tỷ lệ chuyên cần</p>
-                <h3 className="text-2xl font-extrabold tracking-tight my-1">{attendancePresentRate}%</h3>
-                <div className="w-full bg-black/15 rounded-full h-1.5 mt-3 overflow-hidden">
-                  <div className="bg-white h-1.5 rounded-full" style={{ width: `${attendancePresentRate}%` }} />
-                </div>
-                <p className="text-[11px] mt-1.5 text-emerald-100 font-medium">{attendanceCount} lượt ghi nhận</p>
-              </div>
-              <i className="fas fa-clipboard-check absolute -right-3 -bottom-3 text-7xl opacity-15 pointer-events-none" />
-            </div>
-
-            {/* 5. Học phí thu */}
-            <div className="bg-gradient-to-br from-rose-500 to-pink-600 p-5 rounded-2xl text-white shadow-sm shadow-rose-200/40 relative overflow-hidden hover:-translate-y-0.5 hover:shadow-md transition-all duration-200">
-              <div className="z-10 relative">
-                <p className="text-[11px] uppercase tracking-wider font-semibold text-rose-100">Học phí thu</p>
-                <h3 className="text-2xl font-extrabold tracking-tight my-1">
-                  {new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 0 }).format(revenueTotal)}đ
-                </h3>
-                <div className="w-full bg-black/15 rounded-full h-1.5 mt-3 overflow-hidden">
-                  <div className="bg-white h-1.5 rounded-full" style={{ width: '75%' }} />
-                </div>
-                <p className="text-[11px] mt-1.5 text-rose-100 font-medium">Doanh thu học phần</p>
-              </div>
-              <i className="fas fa-dollar-sign absolute -right-3 -bottom-3 text-7xl opacity-15 pointer-events-none" />
             </div>
 
             {/* 6. Ý kiến phản hồi */}
@@ -174,8 +170,8 @@ export function AdminDashboard() {
             </div>
           </div>
 
-          {/* Three Interactive Charts from PDTDashboard */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Interactive Charts */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Chart 1: Thống kê sinh viên theo ngày */}
             <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
               <div className="flex justify-between items-center mb-6">
@@ -224,42 +220,7 @@ export function AdminDashboard() {
               </div>
             </div>
 
-            {/* Chart 2: Trạng thái học phí */}
-            <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm text-center flex flex-col justify-between">
-              <div>
-                <div className="flex justify-between items-center mb-4">
-                  <h4 className="font-bold text-gray-800 text-base text-left">Trạng thái học phí</h4>
-                  <span className="text-xs font-semibold px-2.5 py-1 bg-emerald-50 text-emerald-600 rounded-lg">Kỳ 1</span>
-                </div>
-                <p className="text-xs text-gray-400 text-left mb-4">Tỷ lệ hoàn tất nghĩa vụ học phí sinh viên</p>
-              </div>
-
-              <div className="py-2 flex items-center justify-center">
-                <div className="relative inline-block">
-                  <div
-                    className="w-44 h-44 rounded-full border-[14px] border-indigo-600 border-t-transparent border-r-indigo-100 flex items-center justify-center shadow-inner"
-                    style={{ transform: 'rotate(45deg)' }}
-                  >
-                    <div style={{ transform: 'rotate(-45deg)' }} className="text-center">
-                      <p className="text-xs text-gray-400 font-semibold uppercase tracking-wider">Đã hoàn thành</p>
-                      <p className="text-3xl font-black text-gray-800 mt-1">85%</p>
-                      <p className="text-[11px] text-emerald-600 font-bold">Tốt</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-4 flex justify-center gap-6 text-xs font-semibold">
-                <span className="flex items-center gap-2 text-gray-700">
-                  <span className="w-3 h-3 bg-indigo-600 rounded-full" /> Đã đóng (85%)
-                </span>
-                <span className="flex items-center gap-2 text-gray-500">
-                  <span className="w-3 h-3 bg-indigo-100 rounded-full" /> Còn nợ (15%)
-                </span>
-              </div>
-            </div>
-
-            {/* Chart 3: Hiệu quả tuyển sinh & Khuyến mãi */}
+            {/* Chart 2: Hiệu quả tuyển sinh & Khuyến mãi */}
             <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-between">
               <div>
                 <div className="flex justify-between items-center mb-2">

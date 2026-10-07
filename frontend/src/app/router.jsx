@@ -15,7 +15,6 @@ const ManageStudentAccounts = lazy(() => import('../features/admin/accounts/Mana
 const ManageCourses = lazy(() => import('../features/admin/courses/ManageCourses.jsx'));
 const CourseDetail = lazy(() => import('../features/admin/courses/CourseDetail.jsx'));
 const ManageClasses = lazy(() => import('../features/admin/classes/ManageClasses.jsx'));
-const ManageAttendance = lazy(() => import('../features/admin/attendance/ManageAttendance.jsx'));
 const ManageFeedbacks = lazy(() => import('../features/admin/feedback/ManageFeedbacks.jsx'));
 const ManageProfileRequests = lazy(() => import('../features/admin/requests/ManageProfileRequests.jsx'));
 const TeacherDashboard = lazy(() => import('../features/teacher/TeacherDashboard.jsx'));
@@ -33,9 +32,6 @@ const StudentAttendance = lazy(() => import('../features/student/attendance/Stud
 const StudentDocumentList = lazy(() => import('../features/student/StudentDocumentList.jsx'));
 const StudentAssignmentList = lazy(() => import('../features/student/assignments/StudentAssignmentList.jsx'));
 const StudentQuizPage = lazy(() => import('../features/student/assignments/StudentQuizPage.jsx'));
-const StudentTuition = lazy(() => import('../features/student/StudentTuition.jsx'));
-const AccountantDashboard = lazy(() => import('../features/accountant/AccountantDashboard.jsx'));
-const ManageTuition = lazy(() => import('../features/accountant/ManageTuition.jsx'));
 
 export function AppRouter() {
   return (
@@ -58,21 +54,8 @@ export function AppRouter() {
         <Route path="/admin/courses" element={<ManageCourses />} />
         <Route path="/admin/courses/:id" element={<CourseDetail />} />
         <Route path="/admin/classes" element={<ManageClasses />} />
-        <Route path="/admin/attendance" element={<ManageAttendance />} />
         <Route path="/admin/feedbacks" element={<ManageFeedbacks />} />
         <Route path="/admin/profile-requests" element={<ManageProfileRequests />} />
-        <Route path="/admin/tuition" element={<ManageTuition />} />
-      </Route>
-
-      <Route
-        element={
-          <RequireRole role={ROLES.ACCOUNTANT}>
-            <AppLayout />
-          </RequireRole>
-        }
-      >
-        <Route path="/accountant" element={<AccountantDashboard />} />
-        <Route path="/accountant/tuition" element={<ManageTuition />} />
       </Route>
 
       <Route
@@ -106,11 +89,15 @@ export function AppRouter() {
         <Route path="/student/documents" element={<StudentDocumentList />} />
         <Route path="/student/assignments" element={<StudentAssignmentList />} />
         <Route path="/student/assignments/:id" element={<StudentQuizPage />} />
-        <Route path="/student/tuition" element={<StudentTuition />} />
       </Route>
 
-      {/* Legacy route redirects for backward compatibility with main branch */}
-      <Route path="/pdt/manage-attendance" element={<Navigate to="/admin/attendance" replace />} />
+      {/* Legacy and deprecated route redirects */}
+      <Route path="/admin/attendance" element={<Navigate to="/teacher/attendance" replace />} />
+      <Route path="/admin/tuition" element={<Navigate to="/admin" replace />} />
+      <Route path="/accountant/*" element={<Navigate to="/admin" replace />} />
+      <Route path="/accountant" element={<Navigate to="/admin" replace />} />
+      <Route path="/student/tuition" element={<Navigate to="/student" replace />} />
+      <Route path="/pdt/manage-attendance" element={<Navigate to="/teacher/attendance" replace />} />
       <Route path="/pdt/manage-feedbacks" element={<Navigate to="/admin/feedbacks" replace />} />
       <Route path="/gv/attendance" element={<Navigate to="/teacher/attendance" replace />} />
       <Route path="/sv/attendance" element={<Navigate to="/student/attendance" replace />} />

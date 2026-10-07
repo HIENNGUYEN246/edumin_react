@@ -23,20 +23,14 @@ export const NAV_BY_ROLE = {
     { to: '/admin/departments', label: 'Quản lý khoa', icon: 'fa-building-columns' },
     { to: '/admin/courses', label: 'Quản lý học phần', icon: 'fa-book' },
     { to: '/admin/classes', label: 'Quản lý lớp học phần', icon: 'fa-shapes' },
-    { to: '/admin/attendance', label: 'Điểm danh & Chuyên cần', icon: 'fa-clipboard-user' },
-    { to: '/admin/tuition', label: 'Quản lý học phí', icon: 'fa-money-bill-wave' },
     { to: '/admin/feedbacks', label: 'Ý kiến & Phản hồi', icon: 'fa-comments' },
     { to: '/admin/profile-requests', label: 'Duyệt yêu cầu', icon: 'fa-user-check' },
-  ],
-  [ROLES.ACCOUNTANT]: [
-    { to: '/accountant', label: 'Tổng quan tài chính', icon: 'fa-chart-pie', end: true },
-    { to: '/accountant/tuition', label: 'Quản lý học phí', icon: 'fa-money-bill-wave' },
   ],
   [ROLES.TEACHER]: [
     { to: '/teacher', label: 'Tổng quan', icon: 'fa-gauge-high', end: true },
     { to: '/teacher/schedule', label: 'Lịch dạy', icon: 'fa-calendar-days' },
     { to: '/teacher/classes', label: 'Lớp học phần', icon: 'fa-users' },
-    { to: '/teacher/attendance', label: 'Điểm danh & Đánh giá', icon: 'fa-clipboard-user' },
+    { to: '/teacher/attendance', label: 'Điểm danh & Chuyên cần', icon: 'fa-clipboard-user' },
     { to: '/teacher/assignments', label: 'Bài tập', icon: 'fa-file-pen' },
     { to: '/teacher/documents', label: 'Tài liệu', icon: 'fa-folder-open' },
   ],
@@ -47,7 +41,6 @@ export const NAV_BY_ROLE = {
     { to: '/student/attendance', label: 'Điểm danh & Chuyên cần', icon: 'fa-clipboard-check' },
     { to: '/student/assignments', label: 'Bài tập', icon: 'fa-file-pen' },
     { to: '/student/documents', label: 'Tài liệu', icon: 'fa-folder-open' },
-    { to: '/student/tuition', label: 'Học phí & Tài chính', icon: 'fa-wallet' },
   ],
 };
 

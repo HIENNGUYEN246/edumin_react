@@ -230,9 +230,9 @@ export function StudentAttendance() {
             <p className="text-xs text-gray-400 mt-1">Thông tin điểm danh từng buổi học sẽ xuất hiện tại đây.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm text-gray-700">
-              <thead className="bg-gray-50/75 border-b border-gray-100 text-xs font-bold text-gray-500 uppercase tracking-wider">
+          <div className="overflow-x-auto custom-scrollbar">
+            <table className="w-full min-w-[760px] text-left text-sm text-gray-700">
+              <thead className="bg-gray-50/75 border-b border-gray-100 text-xs font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">
                 <tr>
                   <th className="px-5 py-3">Học phần</th>
                   <th className="px-5 py-3">Ngày học</th>

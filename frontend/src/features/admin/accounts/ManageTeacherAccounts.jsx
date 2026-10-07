@@ -10,7 +10,8 @@ export function ManageTeacherAccounts() {
         title: 'Tài khoản giáo viên',
         subtitle: 'Khóa/mở khóa, đặt lại mật khẩu và xóa tài khoản',
         formatCode: formatTeacherCode,
-        showSerialNumber: true,
+        showSerialNumber: false,
+        hideAvatar: true,
       }}
     />
   );

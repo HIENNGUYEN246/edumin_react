@@ -114,10 +114,10 @@ export function TeacherClassGradebook() {
         }
       />
 
-      <div className="overflow-x-auto rounded-2xl border border-gray-100 bg-white shadow-sm">
+      <div className="overflow-x-auto custom-scrollbar rounded-2xl border border-gray-100 bg-white shadow-sm">
         <table className="min-w-[1400px] w-full text-sm">
           <thead>
-            <tr className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-500">
+            <tr className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-500 whitespace-nowrap">
               <th className="px-3 py-3">STT</th>
               <th className="px-3 py-3">Mã SV</th>
               <th className="px-3 py-3">Họ tên</th>

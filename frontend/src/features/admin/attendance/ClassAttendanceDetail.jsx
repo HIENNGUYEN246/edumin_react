@@ -543,9 +543,9 @@ export function ClassAttendanceDetail({ classItem, onBack }) {
                 <p className="text-xs text-gray-400 mt-1">Lớp học phần này chưa có sinh viên đăng ký hoặc không khớp với bộ lọc.</p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm text-gray-700">
-                  <thead className="bg-gray-50/75 border-b border-gray-100 text-xs font-bold text-gray-500 uppercase tracking-wider">
+              <div className="overflow-x-auto custom-scrollbar">
+                <table className="w-full min-w-[850px] text-left text-sm text-gray-700">
+                  <thead className="bg-gray-50/75 border-b border-gray-100 text-xs font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">
                     <tr>
                       <th className="px-5 py-3 w-14 text-center">STT</th>
                       <th className="px-5 py-3">Mã SV</th>
@@ -669,9 +669,9 @@ export function ClassAttendanceDetail({ classItem, onBack }) {
                 <p className="font-semibold text-gray-600 text-sm">Không có dữ liệu sinh viên</p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm text-gray-700">
-                  <thead className="bg-gray-50/75 border-b border-gray-100 text-xs font-bold text-gray-500 uppercase tracking-wider">
+              <div className="overflow-x-auto custom-scrollbar">
+                <table className="w-full min-w-[950px] text-left text-sm text-gray-700">
+                  <thead className="bg-gray-50/75 border-b border-gray-100 text-xs font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">
                     <tr>
                       <th className="px-5 py-3 w-14 text-center">STT</th>
                       <th className="px-5 py-3">Mã SV</th>
@@ -945,14 +945,14 @@ export function ClassAttendanceDetail({ classItem, onBack }) {
               </div>
             )}
 
-            <div className="max-h-96 overflow-y-auto rounded-xl border border-gray-100">
+            <div className="max-h-96 overflow-y-auto overflow-x-auto custom-scrollbar rounded-xl border border-gray-100">
               {historyModal.student?.history?.length === 0 ? (
                 <div className="p-8 text-center text-gray-400 text-sm">
                   Chưa có lượt điểm danh nào cho sinh viên này trong lớp.
                 </div>
               ) : (
-                <table className="w-full text-left text-xs text-gray-700">
-                  <thead className="bg-gray-50 border-b border-gray-100 font-bold text-gray-500 uppercase">
+                <table className="w-full min-w-[500px] text-left text-xs text-gray-700">
+                  <thead className="bg-gray-50 border-b border-gray-100 font-bold text-gray-500 uppercase whitespace-nowrap">
                     <tr>
                       <th className="px-4 py-2.5">Ngày học</th>
                       <th className="px-4 py-2.5">Ca học</th>
