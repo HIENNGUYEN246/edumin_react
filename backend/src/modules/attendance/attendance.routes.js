@@ -12,6 +12,12 @@ const parseTeacherId = (val) => {
   return String(val);
 };
 
+const getTodayStr = () => {
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+};
+
 // GET /api/attendance
 router.get('/', async (req, res, next) => {
   try {
@@ -82,6 +88,11 @@ router.post('/check-in', async (req, res, next) => {
     const regIdStr = String(classCode);
     const dateStr = String(date);
     const shiftIdStr = String(shiftId);
+
+    const todayStr = getTodayStr();
+    if (dateStr > todayStr) {
+      return res.status(400).json({ error: 'Không thể điểm danh cho ngày trong tương lai' });
+    }
 
     const student = await Student.findOne({
       $or: [{ id: numericStudentId }, { email: studentEmail }],
@@ -180,6 +191,11 @@ router.post('/record', async (req, res, next) => {
     const regIdStr = String(classCode);
     const dateStr = String(date);
     const shiftIdStr = String(shiftId);
+
+    const todayStr = getTodayStr();
+    if (dateStr > todayStr) {
+      return res.status(400).json({ error: 'Không thể điểm danh cho ngày trong tương lai' });
+    }
 
     const student = await Student.findOne({
       $or: [{ id: numericStudentId }, { email: studentEmail }],
@@ -289,6 +305,11 @@ router.post('/bulk', async (req, res, next) => {
     const regIdStr = String(classCode);
     const dateStr = String(date);
     const shiftIdStr = String(shiftId);
+
+    const todayStr = getTodayStr();
+    if (dateStr > todayStr) {
+      return res.status(400).json({ error: 'Không thể điểm danh cho ngày trong tương lai' });
+    }
 
     const now = new Date();
     const pad = (n) => String(n).padStart(2, '0');

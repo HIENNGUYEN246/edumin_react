@@ -9,6 +9,7 @@ import { useCourseOptions } from '../../shared/useCourseOptions.js';
 import { useAssignments, useAssignmentMutations } from '../../shared/useAssignments.js';
 import { QuizEditor, newQuestion } from './QuizEditor.jsx';
 import { SubmissionTable } from './SubmissionTable.jsx';
+import { getTodayDate } from '../../../lib/format.js';
 
 const emptyForm = () => ({ courseId: '', type: 'quiz', title: '', description: '', dueDate: '', status: 'Công khai', questions: [newQuestion()] });
 
@@ -47,6 +48,10 @@ export function TeacherAssignmentList() {
     e.preventDefault();
     if (!form.courseId) return toast.error('Chọn học phần');
     if (!form.title.trim()) return toast.error('Nhập tiêu đề');
+    const today = getTodayDate();
+    if (editor.mode === 'create' && form.dueDate && form.dueDate < today) {
+      return toast.error('Hạn nộp bài tập phải từ ngày hôm nay trở về sau');
+    }
     try {
       if (editor.mode === 'create') {
         await create.mutateAsync({
@@ -151,7 +156,13 @@ export function TeacherAssignmentList() {
                 <input className={inputClass} value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} />
               </FormField>
               <FormField label="Hạn nộp">
-                <input type="date" className={inputClass} value={form.dueDate} onChange={(e) => setForm((f) => ({ ...f, dueDate: e.target.value }))} />
+                <input
+                  type="date"
+                  min={editor.mode === 'create' ? getTodayDate() : undefined}
+                  className={inputClass}
+                  value={form.dueDate}
+                  onChange={(e) => setForm((f) => ({ ...f, dueDate: e.target.value }))}
+                />
               </FormField>
               <FormField label="Trạng thái">
                 <select className={inputClass} value={form.status} onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}>

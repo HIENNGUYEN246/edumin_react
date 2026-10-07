@@ -66,5 +66,20 @@ describe('Attendance API', () => {
     expect(res.body.length).toBeGreaterThan(0);
     expect(res.body[0].studentId).toBe(1);
   });
+
+  it('rejects attendance check-in for future dates', async () => {
+    const res = await request(app)
+      .post('/api/attendance/check-in')
+      .send({
+        classId: 'IT101-01',
+        studentId: 1,
+        date: '2099-01-01',
+        shiftId: '1',
+        status: 'Có mặt',
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/tương lai/);
+  });
 });
 

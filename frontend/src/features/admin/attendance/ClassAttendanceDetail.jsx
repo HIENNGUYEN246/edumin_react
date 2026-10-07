@@ -214,6 +214,10 @@ export function ClassAttendanceDetail({ classItem, onBack }) {
   // Save record from Modal
   const handleSaveEdit = async () => {
     if (!editModal.student) return;
+    if (editModal.date > getTodayDateString()) {
+      toast.error('Không thể lưu điểm danh cho ngày trong tương lai!');
+      return;
+    }
     try {
       setSavingRecord(true);
       await attendanceApi.recordAndEvaluate({
@@ -261,6 +265,10 @@ export function ClassAttendanceDetail({ classItem, onBack }) {
 
   // Mark all unrecorded students as present for current date & shift
   const handleMarkAllPresent = async () => {
+    if (selectedDate > getTodayDateString()) {
+      toast.error('Không thể điểm danh cho ngày trong tương lai!');
+      return;
+    }
     const unrecorded = filteredSessionRows.filter((r) => !r.record);
     if (unrecorded.length === 0) {
       toast.info('Tất cả sinh viên trong buổi này đã được ghi nhận điểm danh.');
@@ -430,8 +438,17 @@ export function ClassAttendanceDetail({ classItem, onBack }) {
                   <div className="flex items-center gap-1.5">
                     <input
                       type="date"
+                      max={getTodayDateString()}
+                      min={classItem?.studyStart || undefined}
                       value={selectedDate}
-                      onChange={(e) => setSelectedDate(e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val > getTodayDateString()) {
+                          toast.error('Không thể chọn ngày điểm danh ở tương lai');
+                          return;
+                        }
+                        setSelectedDate(val);
+                      }}
                       className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
                     />
                     <button
@@ -780,8 +797,17 @@ export function ClassAttendanceDetail({ classItem, onBack }) {
                 </label>
                 <input
                   type="date"
+                  max={getTodayDateString()}
+                  min={classItem?.studyStart || undefined}
                   value={editModal.date}
-                  onChange={(e) => setEditModal((p) => ({ ...p, date: e.target.value }))}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val > getTodayDateString()) {
+                      toast.error('Không thể chọn ngày điểm danh ở tương lai');
+                      return;
+                    }
+                    setEditModal((p) => ({ ...p, date: val }));
+                  }}
                   className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
                 />
               </div>

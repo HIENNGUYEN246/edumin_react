@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Modal } from '../../../components/ui/Modal.jsx';
 import { FormField, inputClass } from '../../../components/ui/FormField.jsx';
 import { SchedulePicker } from '../../../components/schedule/SchedulePicker.jsx';
-import { formatTeacherCode } from '../../../lib/format.js';
+import { formatTeacherCode, getTodayDate } from '../../../lib/format.js';
 import { teachersApi } from '../../../api/teachersApi.js';
 import { CLASS_STATUSES } from '../../../api/classesApi.js';
 
@@ -48,6 +48,13 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
     const next = {};
     if (mode === 'create' && !String(form.id).trim()) next.id = 'Mã lớp là bắt buộc';
     if (!form.schedules.length) next.schedules = 'Chọn ít nhất một buổi học';
+    const today = getTodayDate();
+    if (mode === 'create' && form.studyStart && form.studyStart < today) {
+      next.studyStart = 'Ngày bắt đầu học không được ở quá khứ';
+    }
+    if (form.studyEnd && form.studyStart && form.studyEnd < form.studyStart) {
+      next.studyEnd = 'Ngày kết thúc phải sau ngày bắt đầu';
+    }
     setErrors(next);
     if (Object.keys(next).length) return;
 
@@ -87,11 +94,23 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
           <FormField label="Sĩ số tối đa" hint="0 = không giới hạn">
             <input type="number" min="0" className={inputClass} value={form.capacity} onChange={set('capacity')} />
           </FormField>
-          <FormField label="Bắt đầu học">
-            <input type="date" className={inputClass} value={form.studyStart} onChange={set('studyStart')} />
+          <FormField label="Bắt đầu học" error={errors.studyStart}>
+            <input
+              type="date"
+              min={mode === 'create' ? getTodayDate() : undefined}
+              className={inputClass}
+              value={form.studyStart}
+              onChange={set('studyStart')}
+            />
           </FormField>
-          <FormField label="Kết thúc học">
-            <input type="date" className={inputClass} value={form.studyEnd} onChange={set('studyEnd')} />
+          <FormField label="Kết thúc học" error={errors.studyEnd}>
+            <input
+              type="date"
+              min={form.studyStart || (mode === 'create' ? getTodayDate() : undefined)}
+              className={inputClass}
+              value={form.studyEnd}
+              onChange={set('studyEnd')}
+            />
           </FormField>
           <FormField label="Trạng thái" hint="Chọn 'Đang mở' để sinh viên thấy và đăng ký">
             <select className={inputClass} value={form.status} onChange={set('status')}>

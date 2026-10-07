@@ -1,9 +1,11 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { PageHeader, SearchInput } from '../../../components/ui/PageHeader.jsx';
+import { DataTable } from '../../../components/ui/DataTable.jsx';
 import { Spinner } from '../../../components/ui/Spinner.jsx';
 import { Modal } from '../../../components/ui/Modal.jsx';
 import { Avatar } from '../../../components/ui/Avatar.jsx';
+import { ScheduleRoomBadge } from '../../../components/schedule/ScheduleBadge.jsx';
 import { useToast } from '../../../app/providers/ToastProvider.jsx';
 import { useAuth } from '../../../app/providers/AuthProvider.jsx';
 import { useDebounce } from '../../../lib/useDebounce.js';
@@ -33,7 +35,18 @@ export function TeacherAttendance() {
   const { data: classData, isLoading: classesLoading } = useMyTeacherClasses();
   const classes = classData?.data || [];
 
+  // Hierarchical view mode: 'list' (Danh sách lớp học phần) | 'detail' (Chi tiết điểm danh sinh viên của lớp)
   const [selectedClassId, setSelectedClassId] = useState(initialClassId);
+  const [viewMode, setViewMode] = useState(initialClassId ? 'detail' : 'list');
+
+  // Search filter in class list
+  const [classSearch, setClassSearch] = useState('');
+  const debouncedClassSearch = useDebounce(classSearch);
+
+  // Overall attendance records across all teacher classes (for class list stats)
+  const [allTeacherRecords, setAllTeacherRecords] = useState([]);
+
+  // Session date & shift in detail view
   const [selectedDate, setSelectedDate] = useState(getTodayDateString());
   const [selectedShift, setSelectedShift] = useState('1');
 
@@ -70,12 +83,25 @@ export function TeacherAttendance() {
     student: null,
   });
 
-  // Auto-select first class if none selected
+  // Load all attendance records for teacher's overview
   useEffect(() => {
-    if (!selectedClassId && classes.length > 0) {
-      setSelectedClassId(classes[0].id);
-    }
-  }, [selectedClassId, classes]);
+    let active = true;
+    const fetchOverview = async () => {
+      try {
+        const teacherParam = profile?.id || user?._id;
+        const res = await attendanceApi.getAll({ teacherId: teacherParam }).catch(() => []);
+        if (active) {
+          setAllTeacherRecords(Array.isArray(res) ? res : res?.data || []);
+        }
+      } catch {
+        // Ignore
+      }
+    };
+    fetchOverview();
+    return () => {
+      active = false;
+    };
+  }, [profile?.id, user?._id]);
 
   // Load all attendance records for the selected class (for student summary calculations)
   const loadClassAttendance = useCallback(async () => {
@@ -121,13 +147,57 @@ export function TeacherAttendance() {
   }, [selectedClassId, selectedDate, selectedShift]);
 
   useEffect(() => {
-    loadExistingAttendance();
-    loadClassAttendance();
-  }, [loadExistingAttendance, loadClassAttendance]);
+    if (viewMode === 'detail' && selectedClassId) {
+      loadExistingAttendance();
+      loadClassAttendance();
+    }
+  }, [viewMode, selectedClassId, loadExistingAttendance, loadClassAttendance]);
 
   const selectedClass = useMemo(() => {
     return classes.find((c) => c.id === selectedClassId) || null;
   }, [classes, selectedClassId]);
+
+  // Map attendance rate per class for Class List view
+  const classRateMap = useMemo(() => {
+    const map = {};
+    allTeacherRecords.forEach((att) => {
+      const cId = att.regId || att.courseId;
+      if (!cId) return;
+      if (!map[cId]) map[cId] = { total: 0, present: 0, late: 0 };
+      map[cId].total += 1;
+      if (att.status === 'Có mặt') map[cId].present += 1;
+      else if (att.status === 'Đi muộn') map[cId].late += 1;
+    });
+
+    const rates = {};
+    Object.keys(map).forEach((cId) => {
+      const item = map[cId];
+      rates[cId] = item.total > 0 ? Math.round(((item.present + item.late * 0.5) / item.total) * 100) : 100;
+    });
+    return rates;
+  }, [allTeacherRecords]);
+
+  // Filtered classes in list view
+  const filteredClasses = useMemo(() => {
+    if (!debouncedClassSearch) return classes;
+    const q = debouncedClassSearch.toLowerCase();
+    return classes.filter(
+      (c) =>
+        (c.id || '').toLowerCase().includes(q) ||
+        (c.courseName || '').toLowerCase().includes(q) ||
+        (c.room || '').toLowerCase().includes(q)
+    );
+  }, [classes, debouncedClassSearch]);
+
+  // Overall attendance statistics for selected class
+  const overallStats = useMemo(() => {
+    const total = classAttendanceRecords.length;
+    const present = classAttendanceRecords.filter((r) => r.status === 'Có mặt').length;
+    const late = classAttendanceRecords.filter((r) => r.status === 'Đi muộn').length;
+    const absent = classAttendanceRecords.filter((r) => r.status === 'Vắng mặt' || r.status === 'Vắng có phép').length;
+    const rate = total > 0 ? Math.round(((present + late * 0.5) / total) * 100) : 100;
+    return { total, present, late, absent, rate };
+  }, [classAttendanceRecords]);
 
   // Handle status change
   const handleStatusChange = (studentId, status) => {
@@ -142,6 +212,10 @@ export function TeacherAttendance() {
 
   // Mark all present for current session
   const handleMarkAllPresent = () => {
+    if (selectedDate > getTodayDateString()) {
+      toast.error('Không thể điểm danh cho ngày trong tương lai!');
+      return;
+    }
     const next = { ...records };
     students.forEach((s) => {
       next[s.id] = {
@@ -166,7 +240,7 @@ export function TeacherAttendance() {
     });
   };
 
-  // Save single evaluation from modal
+  // Save quick evaluation modal
   const handleSaveEvalModal = () => {
     if (!evalModal.student) return;
     setRecords((prev) => ({
@@ -187,6 +261,10 @@ export function TeacherAttendance() {
   const handleSaveBulk = async () => {
     if (!selectedClassId || students.length === 0) {
       toast.error('Chưa có danh sách sinh viên để lưu');
+      return;
+    }
+    if (selectedDate > getTodayDateString()) {
+      toast.error('Không thể điểm danh cho ngày trong tương lai!');
       return;
     }
 
@@ -248,55 +326,51 @@ export function TeacherAttendance() {
     return { present, late, excused, absent, total: students.length };
   }, [students, records]);
 
-  // Overall attendance statistics of the class
-  const overallStats = useMemo(() => {
-    const total = classAttendanceRecords.length;
-    const present = classAttendanceRecords.filter((a) => a.status === 'Có mặt').length;
-    const late = classAttendanceRecords.filter((a) => a.status === 'Đi muộn').length;
-    const excused = classAttendanceRecords.filter((a) => a.status === 'Vắng có phép').length;
-    const absent = classAttendanceRecords.filter((a) => a.status === 'Vắng mặt').length;
-    const rate = total > 0 ? Math.round(((present + late * 0.5) / total) * 100) : 100;
-    return { total, present, late, excused, absent, rate };
-  }, [classAttendanceRecords]);
-
-  // Map of studentId -> attendance history in this class
+  // Aggregate attendance per student for the selected class
   const studentAttendanceMap = useMemo(() => {
-    const map = new Map();
-    students.forEach((s) => {
-      map.set(s.id, []);
-    });
-
+    const map = {};
     classAttendanceRecords.forEach((att) => {
-      if (map.has(att.studentId)) {
-        map.get(att.studentId).push(att);
-      } else {
-        map.set(att.studentId, [att]);
+      const sId = att.studentId;
+      if (!map[sId]) {
+        map[sId] = { total: 0, present: 0, late: 0, excused: 0, absent: 0, scores: [], history: [] };
+      }
+      map[sId].total += 1;
+      map[sId].history.push(att);
+      if (att.status === 'Có mặt') map[sId].present += 1;
+      else if (att.status === 'Đi muộn') map[sId].late += 1;
+      else if (att.status === 'Vắng có phép') map[sId].excused += 1;
+      else if (att.status === 'Vắng mặt') map[sId].absent += 1;
+
+      if (att.score !== null && att.score !== undefined) {
+        map[sId].scores.push(Number(att.score));
       }
     });
-
     return map;
-  }, [students, classAttendanceRecords]);
+  }, [classAttendanceRecords]);
 
-  // Summary per student for 'students' tab
+  // Student list enriched with statistics
   const studentSummaries = useMemo(() => {
     return students.map((s) => {
-      const history = studentAttendanceMap.get(s.id) || [];
-      const total = history.length;
-      const present = history.filter((a) => a.status === 'Có mặt').length;
-      const late = history.filter((a) => a.status === 'Đi muộn').length;
-      const excused = history.filter((a) => a.status === 'Vắng có phép').length;
-      const absent = history.filter((a) => a.status === 'Vắng mặt').length;
-      const rate = total > 0 ? Math.round(((present + late * 0.5) / total) * 100) : 100;
-      const isAtRisk = total > 0 && ((absent + excused) / total >= 0.2 || absent >= 3);
+      const stat = studentAttendanceMap[s.id] || { total: 0, present: 0, late: 0, excused: 0, absent: 0, scores: [], history: [] };
+      const rate = stat.total > 0 ? Math.round(((stat.present + stat.late * 0.5) / stat.total) * 100) : 100;
+      const avgScore =
+        stat.scores.length > 0
+          ? (stat.scores.reduce((a, b) => a + b, 0) / stat.scores.length).toFixed(1)
+          : null;
+      const absentCount = stat.absent + stat.excused;
+      const isAtRisk = stat.total >= 3 && rate < 80;
+      const history = stat.history.sort((a, b) => b.date.localeCompare(a.date));
 
       return {
         ...s,
-        total,
-        present,
-        late,
-        excused,
-        absent,
+        total: stat.total,
+        present: stat.present,
+        late: stat.late,
+        excused: stat.excused,
+        absent: stat.absent,
+        absentCount,
         rate,
+        avgScore,
         isAtRisk,
         history,
       };
@@ -317,13 +391,208 @@ export function TeacherAttendance() {
 
   if (classesLoading) return <Spinner />;
 
+  // ==========================================
+  // VIEW 1: CLASS LIST (Danh sách lớp học phần)
+  // ==========================================
+  if (viewMode === 'list') {
+    const classColumns = [
+      {
+        key: 'id',
+        header: 'Mã lớp',
+        className: 'w-36 font-mono font-bold text-indigo-700',
+        render: (c) => (
+          <span className="px-2.5 py-1 rounded-md bg-indigo-50 border border-indigo-200/80">
+            {c.id}
+          </span>
+        ),
+      },
+      {
+        key: 'courseName',
+        header: 'Học phần',
+        render: (c) => (
+          <div>
+            <p className="font-bold text-gray-900 leading-tight">{c.courseName}</p>
+            <p className="text-xs text-gray-400 mt-0.5">Khoa: {c.department || 'Chung'}</p>
+          </div>
+        ),
+      },
+      {
+        key: 'schedules',
+        header: 'Lịch học & Phòng',
+        render: (c) => (
+          <ScheduleRoomBadge
+            schedules={c.schedules}
+            room={c.room}
+            studyStart={c.studyStart}
+            studyEnd={c.studyEnd}
+          />
+        ),
+      },
+      {
+        key: 'enrolledCount',
+        header: 'Sĩ số',
+        className: 'text-center font-bold text-gray-800 w-24',
+        render: (c) => (
+          <span>
+            {c.enrolledCount ?? 0}
+            {c.capacity ? <span className="text-gray-400 font-normal text-xs">/{c.capacity}</span> : ''}
+          </span>
+        ),
+      },
+      {
+        key: 'attendanceRate',
+        header: 'Chuyên cần',
+        className: 'w-36',
+        render: (c) => {
+          const rate = classRateMap[c.id] ?? 100;
+          return (
+            <div>
+              <div className="flex justify-between items-center text-xs font-bold mb-1">
+                <span className={rate >= 80 ? 'text-emerald-700' : rate >= 70 ? 'text-amber-700' : 'text-rose-700'}>
+                  {rate}%
+                </span>
+              </div>
+              <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+                <div
+                  className={`h-2 rounded-full transition-all duration-500 ${
+                    rate >= 80 ? 'bg-emerald-500' : rate >= 70 ? 'bg-amber-500' : 'bg-rose-500'
+                  }`}
+                  style={{ width: `${rate}%` }}
+                />
+              </div>
+            </div>
+          );
+        },
+      },
+      {
+        key: 'action',
+        header: '',
+        className: 'text-right w-44',
+        render: (c) => (
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedClassId(c.id);
+              setViewMode('detail');
+            }}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 transition shadow-2xs"
+          >
+            <i className="fas fa-clipboard-user text-[11px]" />
+            <span>Điểm danh & Quản lý</span>
+          </button>
+        ),
+      },
+    ];
+
+    const totalEnrolled = classes.reduce((sum, c) => sum + (c.enrolledCount || 0), 0);
+    const avgTeacherRate =
+      classes.length > 0
+        ? Math.round(
+            classes.reduce((sum, c) => sum + (classRateMap[c.id] ?? 100), 0) / classes.length
+          )
+        : 100;
+
+    return (
+      <div className="space-y-5">
+        <PageHeader
+          title="Điểm danh & Đánh giá Sinh viên"
+          description="Danh sách các lớp học phần được phân công giảng dạy. Chọn một lớp để quản lý điểm danh và đánh giá chuyên cần."
+        />
+
+        {/* KPI stats */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
+              <i className="fas fa-chalkboard text-base" />
+            </div>
+            <div>
+              <p className="text-xs text-gray-400 font-semibold uppercase">Lớp phụ trách</p>
+              <p className="text-2xl font-black text-gray-800">{classes.length}</p>
+            </div>
+          </div>
+          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+              <i className="fas fa-user-graduate text-base" />
+            </div>
+            <div>
+              <p className="text-xs text-gray-400 font-semibold uppercase">Tổng sinh viên</p>
+              <p className="text-2xl font-black text-gray-800">{totalEnrolled}</p>
+            </div>
+          </div>
+          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
+              <i className="fas fa-clipboard-check text-base" />
+            </div>
+            <div>
+              <p className="text-xs text-gray-400 font-semibold uppercase">Chuyên cần trung bình</p>
+              <p className="text-2xl font-black text-emerald-600">{avgTeacherRate}%</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Filter bar */}
+        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs flex flex-wrap items-center justify-between gap-3">
+          <p className="text-xs text-gray-500 font-medium">
+            Chọn lớp học phần bên dưới để ghi nhận chuyên cần theo từng buổi hoặc theo dõi báo cáo sinh viên.
+          </p>
+          <div className="w-full sm:w-72">
+            <SearchInput
+              value={classSearch}
+              onChange={setClassSearch}
+              placeholder="Tìm mã lớp, học phần, phòng..."
+              className="w-full"
+            />
+          </div>
+        </div>
+
+        {/* Class DataTable */}
+        <DataTable
+          columns={classColumns}
+          rows={filteredClasses}
+          emptyText="Bạn chưa được phân công lớp học phần nào"
+        />
+      </div>
+    );
+  }
+
+  // ==========================================
+  // VIEW 2: STUDENT ATTENDANCE DETAILS
+  // ==========================================
   return (
     <div className="space-y-5">
-      <PageHeader
-        title="Điểm danh & Đánh giá Sinh viên"
-        description="Ghi nhận chuyên cần, đánh giá kết quả và theo dõi tổng thể tình hình học tập của lớp"
-        actions={
-          activeTab === 'session' ? (
+      {/* Top Header Navigation */}
+      <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-2xs">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                setViewMode('list');
+                setSelectedClassId('');
+              }}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold text-gray-700 bg-gray-100 hover:bg-indigo-50 hover:text-indigo-700 border border-gray-200 transition"
+              title="Quay lại danh sách lớp học phần"
+            >
+              <i className="fas fa-arrow-left text-xs" />
+              <span>Danh sách lớp</span>
+            </button>
+            <div className="h-6 w-px bg-gray-200 hidden sm:block" />
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-mono text-xs font-bold px-2.5 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200/80">
+                  {selectedClass?.id || selectedClassId}
+                </span>
+                <h1 className="text-base sm:text-lg font-black text-gray-900">
+                  {selectedClass?.courseName || 'Chi tiết lớp học phần'}
+                </h1>
+              </div>
+              <p className="text-xs text-gray-400 mt-0.5">
+                Khoa: {selectedClass?.department || 'Chung'} • Sĩ số: {students.length} SV • Chuyên cần: {overallStats.rate}%
+              </p>
+            </div>
+          </div>
+
+          {activeTab === 'session' && (
             <div className="flex items-center gap-2.5">
               <button
                 type="button"
@@ -342,31 +611,34 @@ export function TeacherAttendance() {
                 <i className="fas fa-save" /> {saving ? 'Đang lưu...' : 'Lưu điểm danh'}
               </button>
             </div>
-          ) : null
-        }
-      />
+          )}
+        </div>
+      </div>
 
-      {/* Select class card */}
+      {/* Select class and session filters */}
       <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-2xs space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
-              Chọn lớp học phần
+              Đổi lớp học phần
             </label>
             <select
               value={selectedClassId}
-              onChange={(e) => setSelectedClassId(e.target.value)}
+              onChange={(e) => {
+                if (e.target.value === '__list__') {
+                  setViewMode('list');
+                } else {
+                  setSelectedClassId(e.target.value);
+                }
+              }}
               className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white font-medium"
             >
-              {classes.length === 0 ? (
-                <option value="">Chưa có lớp giảng dạy</option>
-              ) : (
-                classes.map((c) => (
-                  <option key={c._id} value={c.id}>
-                    {c.id} - {c.courseName}
-                  </option>
-                ))
-              )}
+              {classes.map((c) => (
+                <option key={c._id || c.id} value={c.id}>
+                  {c.id} - {c.courseName}
+                </option>
+              ))}
+              <option value="__list__">← Quay lại danh sách lớp...</option>
             </select>
           </div>
 
@@ -377,8 +649,17 @@ export function TeacherAttendance() {
             <div className="flex items-center gap-1.5">
               <input
                 type="date"
+                max={getTodayDateString()}
+                min={selectedClass?.studyStart || undefined}
                 value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val > getTodayDateString()) {
+                    toast.error('Không thể chọn ngày điểm danh ở tương lai');
+                    return;
+                  }
+                  setSelectedDate(val);
+                }}
                 className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
               />
               <button
@@ -753,43 +1034,69 @@ export function TeacherAttendance() {
             )}
 
             <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
-                Trạng thái điểm danh
+              <label className="block text-xs font-bold text-gray-600 uppercase mb-1">
+                Trạng thái chuyên cần
               </label>
-              <select
-                value={evalModal.status}
-                onChange={(e) => setEvalModal((p) => ({ ...p, status: e.target.value }))}
-                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
-              >
-                {ATTENDANCE_STATUSES.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
+              <div className="grid grid-cols-2 gap-2">
+                {ATTENDANCE_STATUSES.map((status) => {
+                  const isSelected = evalModal.status === status;
+                  return (
+                    <button
+                      key={status}
+                      type="button"
+                      onClick={() => setEvalModal((p) => ({ ...p, status }))}
+                      className={`p-2.5 rounded-xl text-xs font-bold border text-left transition flex items-center justify-between ${
+                        isSelected
+                          ? getStatusBadgeClass(status) + ' ring-2 ring-indigo-500/20'
+                          : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                      }`}
+                    >
+                      <span>{status}</span>
+                      <i className={`fas ${getStatusIcon(status)}`} />
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
-                Điểm đánh giá buổi học (Thang điểm 10)
-              </label>
+              <div className="flex justify-between items-center mb-1">
+                <label className="block text-xs font-bold text-gray-600 uppercase">
+                  Điểm đánh giá tiết học (Thang điểm 10)
+                </label>
+                {evalModal.score && (
+                  <span className="text-xs font-bold text-indigo-600">{evalModal.score} / 10 điểm</span>
+                )}
+              </div>
               <input
                 type="number"
                 min="0"
                 max="10"
                 step="0.5"
+                placeholder="Nhập điểm phát biểu, làm bài (VD: 8.5)"
                 value={evalModal.score}
                 onChange={(e) => setEvalModal((p) => ({ ...p, score: e.target.value }))}
-                placeholder="VD: 9.0"
-                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
               />
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {[10, 9, 8, 7, 5].map((val) => (
+                  <button
+                    key={val}
+                    type="button"
+                    onClick={() => setEvalModal((p) => ({ ...p, score: String(val) }))}
+                    className="px-2 py-0.5 rounded-lg border border-gray-200 text-xs font-semibold hover:bg-gray-50 text-gray-700"
+                  >
+                    {val}đ
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5">
+              <label className="block text-xs font-bold text-gray-600 uppercase mb-1">
                 Gợi ý nhận xét nhanh
               </label>
-              <div className="flex flex-wrap gap-1.5">
+              <div className="flex flex-wrap gap-1.5 mb-2">
                 {EVALUATION_QUICK_TAGS.map((tag) => (
                   <button
                     key={tag}
@@ -800,131 +1107,132 @@ export function TeacherAttendance() {
                         evaluation: p.evaluation ? `${p.evaluation}, ${tag}` : tag,
                       }))
                     }
-                    className="px-2.5 py-1 bg-gray-100 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg text-xs transition"
+                    className="text-[11px] px-2.5 py-1 rounded-lg bg-gray-100 hover:bg-indigo-50 hover:text-indigo-600 text-gray-700 transition"
                   >
                     + {tag}
                   </button>
                 ))}
               </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
-                Nội dung nhận xét chi tiết
-              </label>
               <textarea
                 rows={2}
+                placeholder="Ghi chú thái độ, kết quả học tập của sinh viên trong buổi này..."
                 value={evalModal.evaluation}
                 onChange={(e) => setEvalModal((p) => ({ ...p, evaluation: e.target.value }))}
-                placeholder="Nhập nhận xét về thái độ học tập, bài làm..."
-                className="w-full border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
               />
             </div>
 
-            <div className="flex justify-end gap-3 pt-3 border-t border-gray-100">
+            <div className="flex justify-end gap-2.5 pt-3 border-t border-gray-100">
               <button
                 type="button"
                 onClick={() => setEvalModal({ isOpen: false, student: null, score: '', evaluation: '', status: 'Có mặt', note: '' })}
-                className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-xl font-medium"
+                className="px-4 py-2 text-xs font-bold text-gray-600 hover:bg-gray-100 rounded-xl transition"
               >
                 Hủy
               </button>
               <button
                 type="button"
                 onClick={handleSaveEvalModal}
-                className="px-5 py-2 text-sm bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition"
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition shadow-xs"
               >
-                Xác nhận
+                Cập nhật đánh giá
               </button>
             </div>
           </div>
         </Modal>
       )}
 
-      {/* MODAL 2: Student Attendance History modal */}
+      {/* MODAL 2: Student Attendance History */}
       {historyModal.isOpen && (
         <Modal
           open
           onClose={() => setHistoryModal({ isOpen: false, student: null })}
           title={`Lịch sử điểm danh - ${historyModal.student?.hoTen || 'Sinh viên'}`}
-          size="lg"
         >
           <div className="space-y-4">
             {historyModal.student && (
-              <div className="flex items-center justify-between p-3.5 bg-gray-50 rounded-2xl border border-gray-200">
-                <div className="flex items-center gap-3">
-                  <Avatar
-                    src={historyModal.student.avatar?.url || historyModal.student.avatar}
-                    name={historyModal.student.hoTen || 'SV'}
-                    size={44}
-                  />
-                  <div>
-                    <p className="font-bold text-gray-900">{historyModal.student.hoTen}</p>
-                    <p className="text-xs text-gray-500">
-                      Mã SV: <span className="font-mono text-indigo-700 font-bold">{formatStudentCode(historyModal.student.id)}</span> • {historyModal.student.className || 'Chưa phân lớp'}
-                    </p>
+              <div className="bg-gray-50 p-3.5 rounded-2xl border border-gray-100">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <Avatar
+                      src={historyModal.student.avatar?.url || historyModal.student.avatar}
+                      name={historyModal.student.hoTen || 'SV'}
+                      size={40}
+                    />
+                    <div>
+                      <p className="font-bold text-gray-900 text-sm">{historyModal.student.hoTen}</p>
+                      <p className="text-xs text-gray-400">
+                        Mã SV: <strong className="font-mono text-gray-700">{formatStudentCode(historyModal.student.id)}</strong>
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-xs text-gray-400">Chuyên cần</span>
+                    <p className="text-base font-black text-indigo-600">{historyModal.student.rate}%</p>
                   </div>
                 </div>
-                <div className="text-right">
-                  <span className="text-xs font-semibold text-gray-400 block">Tỷ lệ chuyên cần</span>
-                  <span className={`text-lg font-black ${
-                    historyModal.student.rate >= 80 ? 'text-emerald-600' : historyModal.student.rate >= 70 ? 'text-amber-600' : 'text-rose-600'
-                  }`}>
-                    {historyModal.student.rate}%
-                  </span>
+
+                <div className="grid grid-cols-4 gap-2 mt-3 pt-3 border-t border-gray-200/60 text-center">
+                  <div>
+                    <span className="text-[10px] text-gray-400 block uppercase font-bold">Tổng</span>
+                    <span className="font-bold text-gray-700 text-xs">{historyModal.student.total} buổi</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-emerald-600 block uppercase font-bold">Có mặt</span>
+                    <span className="font-bold text-emerald-600 text-xs">{historyModal.student.present}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-amber-600 block uppercase font-bold">Muộn</span>
+                    <span className="font-bold text-amber-600 text-xs">{historyModal.student.late}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-rose-600 block uppercase font-bold">Vắng</span>
+                    <span className="font-bold text-rose-600 text-xs">{historyModal.student.absent + historyModal.student.excused}</span>
+                  </div>
                 </div>
               </div>
             )}
 
-            <div className="max-h-96 overflow-y-auto rounded-xl border border-gray-100">
+            <div className="max-h-72 overflow-y-auto space-y-2 pr-1">
               {historyModal.student?.history?.length === 0 ? (
-                <div className="p-8 text-center text-gray-400 text-sm">
-                  Chưa có lượt điểm danh nào cho sinh viên này trong lớp.
-                </div>
+                <p className="text-center text-xs text-gray-400 py-6">Chưa có bản ghi điểm danh nào</p>
               ) : (
-                <table className="w-full text-left text-xs text-gray-700">
-                  <thead className="bg-gray-50 border-b border-gray-100 font-bold text-gray-500 uppercase">
-                    <tr>
-                      <th className="px-4 py-2.5">Ngày học</th>
-                      <th className="px-4 py-2.5">Ca học</th>
-                      <th className="px-4 py-2.5">Trạng thái</th>
-                      <th className="px-4 py-2.5">Điểm tiết</th>
-                      <th className="px-4 py-2.5">Đánh giá / Ghi chú</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {historyModal.student?.history?.map((rec) => (
-                      <tr key={rec._id || rec.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-2.5 font-medium text-gray-900">
+                historyModal.student?.history?.map((rec) => (
+                  <div
+                    key={rec._id || rec.id}
+                    className="p-3 bg-white rounded-xl border border-gray-100 flex items-center justify-between text-xs"
+                  >
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-gray-800">
                           {formatAttendanceDate(rec.date)}
-                        </td>
-                        <td className="px-4 py-2.5 text-gray-500">
-                          {getShiftLabel(rec.shiftId)}
-                        </td>
-                        <td className="px-4 py-2.5">
-                          <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-bold text-[10px] ${getStatusBadgeClass(rec.status)}`}>
-                            <i className={`fas ${getStatusIcon(rec.status)}`} />
-                            {rec.status}
-                          </span>
-                        </td>
-                        <td className="px-4 py-2.5 font-bold text-gray-800">
-                          {rec.score != null ? `${rec.score}đ` : '—'}
-                        </td>
-                        <td className="px-4 py-2.5 text-gray-600 italic">
-                          {rec.evaluation || rec.note || '—'}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                        </span>
+                        <span className="text-gray-400">• Ca {rec.shiftId}</span>
+                      </div>
+                      {rec.evaluation && (
+                        <p className="text-gray-500 italic mt-0.5 text-[11px]">"{rec.evaluation}"</p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {rec.score != null && (
+                        <span className="font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded text-[11px] border border-emerald-100">
+                          {rec.score}đ
+                        </span>
+                      )}
+                      <span className={`px-2 py-0.5 rounded-md font-bold text-[11px] ${getStatusBadgeClass(rec.status)}`}>
+                        {rec.status}
+                      </span>
+                    </div>
+                  </div>
+                ))
               )}
             </div>
 
-            <div className="flex justify-end pt-2">
+            <div className="flex justify-end pt-2 border-t border-gray-100">
               <button
                 type="button"
                 onClick={() => setHistoryModal({ isOpen: false, student: null })}
-                className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-xl font-semibold text-gray-700"
+                className="px-4 py-2 text-xs font-bold text-gray-600 hover:bg-gray-100 rounded-xl transition"
               >
                 Đóng
               </button>
