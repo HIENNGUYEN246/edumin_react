@@ -12,7 +12,9 @@ function normalizeHead(head) {
 
 /** Populate `head` only once the Teacher model exists (added in a later module). */
 const headPopulate = () =>
-  mongoose.modelNames().includes('Teacher') ? { path: 'head', select: 'id hoTen' } : undefined;
+  mongoose.modelNames().includes('Teacher')
+    ? { path: 'head', select: 'id hoTen avatar email department' }
+    : undefined;
 
 export async function listDepartments(query) {
   const { page, limit, skip, sort, search } = parseListQuery(query, { defaultSort: 'name' });
@@ -43,7 +45,18 @@ export async function createDepartment(payload) {
 export async function updateDepartment(id, payload) {
   const update = {};
   if (payload.name !== undefined) update.name = payload.name;
-  if (payload.head !== undefined) update.head = normalizeHead(payload.head);
+  if (payload.head !== undefined) {
+    update.head = normalizeHead(payload.head);
+    if (update.head && mongoose.modelNames().includes('Teacher')) {
+      const currentDept = await Department.findById(id);
+      if (currentDept) {
+        await mongoose.model('Teacher').updateOne(
+          { _id: update.head },
+          { $set: { department: currentDept.name, departmentRef: currentDept._id } }
+        );
+      }
+    }
+  }
 
   let queryBuilder = Department.findByIdAndUpdate(id, update, { new: true, runValidators: true });
   const populate = headPopulate();
@@ -54,7 +67,7 @@ export async function updateDepartment(id, payload) {
 }
 
 /**
- * Delete a department and detach every reference to it in one transaction.
+ * Delete a department and detach every reference to it.
  * Teacher/Student/Course models are looked up lazily so this works before
  * those modules exist and stays correct after they do.
  */

@@ -38,5 +38,6 @@ router.post('/register', registerLimiter, validate(registerSchema), controller.r
 router.get('/me', authenticate, controller.me);
 router.patch('/me/password', authenticate, validate(changePasswordSchema), controller.changePassword);
 router.put('/me/avatar', authenticate, uploadImage, controller.updateAvatar);
+router.put('/me/profile', authenticate, controller.updateProfile);
 
 export default router;

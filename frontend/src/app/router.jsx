@@ -14,7 +14,14 @@ const ManageTeacherAccounts = lazy(() => import('../features/admin/accounts/Mana
 const ManageStudentAccounts = lazy(() => import('../features/admin/accounts/ManageStudentAccounts.jsx'));
 const ManageCourses = lazy(() => import('../features/admin/courses/ManageCourses.jsx'));
 const CourseDetail = lazy(() => import('../features/admin/courses/CourseDetail.jsx'));
+<<<<<<< HEAD
 const ManageAttendance = lazy(() => import('../features/admin/attendance/ManageAttendance.jsx'));
+=======
+const ManageClasses = lazy(() => import('../features/admin/classes/ManageClasses.jsx'));
+const ManageAttendance = lazy(() => import('../features/admin/attendance/ManageAttendance.jsx'));
+const ManageFeedbacks = lazy(() => import('../features/admin/feedback/ManageFeedbacks.jsx'));
+const ManageProfileRequests = lazy(() => import('../features/admin/requests/ManageProfileRequests.jsx'));
+>>>>>>> 4e8ffb5c0a056164b568d493668162ccf16b4bd5
 const TeacherDashboard = lazy(() => import('../features/teacher/TeacherDashboard.jsx'));
 const TeacherSchedule = lazy(() => import('../features/teacher/TeacherSchedule.jsx'));
 const TeacherClassList = lazy(() => import('../features/teacher/TeacherClassList.jsx'));
@@ -30,6 +37,9 @@ const StudentAttendance = lazy(() => import('../features/student/attendance/Stud
 const StudentDocumentList = lazy(() => import('../features/student/StudentDocumentList.jsx'));
 const StudentAssignmentList = lazy(() => import('../features/student/assignments/StudentAssignmentList.jsx'));
 const StudentQuizPage = lazy(() => import('../features/student/assignments/StudentQuizPage.jsx'));
+const StudentTuition = lazy(() => import('../features/student/StudentTuition.jsx'));
+const AccountantDashboard = lazy(() => import('../features/accountant/AccountantDashboard.jsx'));
+const ManageTuition = lazy(() => import('../features/accountant/ManageTuition.jsx'));
 
 export function AppRouter() {
   return (
@@ -51,7 +61,26 @@ export function AppRouter() {
         <Route path="/admin/departments" element={<ManageDepartments />} />
         <Route path="/admin/courses" element={<ManageCourses />} />
         <Route path="/admin/courses/:id" element={<CourseDetail />} />
+<<<<<<< HEAD
         <Route path="/admin/attendance" element={<ManageAttendance />} />
+=======
+        <Route path="/admin/classes" element={<ManageClasses />} />
+        <Route path="/admin/attendance" element={<ManageAttendance />} />
+        <Route path="/admin/feedbacks" element={<ManageFeedbacks />} />
+        <Route path="/admin/profile-requests" element={<ManageProfileRequests />} />
+        <Route path="/admin/tuition" element={<ManageTuition />} />
+      </Route>
+
+      <Route
+        element={
+          <RequireRole role={ROLES.ACCOUNTANT}>
+            <AppLayout />
+          </RequireRole>
+        }
+      >
+        <Route path="/accountant" element={<AccountantDashboard />} />
+        <Route path="/accountant/tuition" element={<ManageTuition />} />
+>>>>>>> 4e8ffb5c0a056164b568d493668162ccf16b4bd5
       </Route>
 
       <Route
@@ -85,7 +114,15 @@ export function AppRouter() {
         <Route path="/student/documents" element={<StudentDocumentList />} />
         <Route path="/student/assignments" element={<StudentAssignmentList />} />
         <Route path="/student/assignments/:id" element={<StudentQuizPage />} />
+        <Route path="/student/tuition" element={<StudentTuition />} />
       </Route>
+
+      {/* Legacy route redirects for backward compatibility with main branch */}
+      <Route path="/pdt/manage-attendance" element={<Navigate to="/admin/attendance" replace />} />
+      <Route path="/pdt/manage-feedbacks" element={<Navigate to="/admin/feedbacks" replace />} />
+      <Route path="/gv/attendance" element={<Navigate to="/teacher/attendance" replace />} />
+      <Route path="/sv/attendance" element={<Navigate to="/student/attendance" replace />} />
+      <Route path="/sv/feedback" element={<Navigate to="/student" replace />} />
 
       <Route path="/" element={<Navigate to="/login" replace />} />
       <Route path="*" element={<Navigate to="/login" replace />} />

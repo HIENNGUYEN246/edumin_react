@@ -9,15 +9,37 @@ import { loadProfile } from './profile.js';
 
 /** Authenticate credentials and issue a token. */
 export async function login({ email, password }) {
-  // passwordHash is select:false, so request it explicitly for comparison.
-  const user = await User.findOne({ email }).select('+passwordHash');
+  // passwordHash and password are select:false, so request them explicitly for comparison.
+  const user = await User.findOne({ email }).select('+passwordHash +password');
   if (!user) throw AppError.unauthorized('Email hoặc mật khẩu không chính xác');
 
-  const ok = await comparePassword(password, user.passwordHash);
+  let ok = false;
+  if (user.passwordHash) {
+    ok = await comparePassword(password, user.passwordHash);
+  }
+  // Fallback for legacy plain-text passwords
+  if (!ok && user.password) {
+    if (String(user.password) === String(password)) {
+      ok = true;
+      user.passwordHash = await hashPassword(password);
+      await user.save().catch(() => {});
+    }
+  }
+
   if (!ok) throw AppError.unauthorized('Email hoặc mật khẩu không chính xác');
 
   if (user.status === 'Locked') {
     throw AppError.locked(user.lockReason ? `Tài khoản đã bị khóa: ${user.lockReason}` : 'Tài khoản đã bị khóa');
+  }
+
+  // Ensure references are populated
+  if (!user.teacher && user.teacherId) {
+    user.teacher = user.teacherId;
+    await user.save().catch(() => {});
+  }
+  if (!user.student && user.studentId) {
+    user.student = user.studentId;
+    await user.save().catch(() => {});
   }
 
   const token = signToken(user);
@@ -31,31 +53,64 @@ export async function getMe(user) {
   return { user: user.toPublic(), profile };
 }
 
-/** Update the authenticated user's own avatar (teacher/student profile). */
+/** Update the authenticated user's own avatar (admin/teacher/student). */
 export async function updateMyAvatar(user, file) {
   if (!file) throw AppError.badRequest('Thiếu tệp ảnh');
-
-  const modelName =
-    user.role === ROLES.TEACHER ? 'Teacher' : user.role === ROLES.STUDENT ? 'Student' : null;
-  if (!modelName) throw AppError.badRequest('Vai trò không có hồ sơ ảnh đại diện');
-
-  const Model = mongoose.model(modelName);
-  const profileId = user.role === ROLES.TEACHER ? user.teacher : user.student;
-  const profile = await Model.findById(profileId);
-  if (!profile) throw AppError.notFound('Không tìm thấy hồ sơ');
 
   const uploaded = await filesService.uploadBuffer(file.buffer, {
     folder: 'avatars',
     resourceType: 'image',
     access: 'public',
   });
-  const previous = profile.avatar?.publicId;
-  profile.avatar = uploaded;
-  await profile.save();
-  if (previous && previous !== uploaded.publicId) {
-    await filesService.destroy(previous, { resourceType: 'image' }).catch(() => {});
+
+  if (user.role === ROLES.ADMIN) {
+    const userDoc = await User.findById(user._id);
+    if (!userDoc) throw AppError.notFound('Không tìm thấy tài khoản quản trị');
+    const previous = userDoc.avatar?.publicId;
+    userDoc.avatar = uploaded;
+    await userDoc.save();
+    if (previous && previous !== uploaded.publicId) {
+      await filesService.destroy(previous, { resourceType: 'image' }).catch(() => {});
+    }
+    return { avatar: uploaded, user: userDoc.toPublic() };
   }
-  return { avatar: uploaded };
+
+  // Teacher or Student: route through admin approval process
+  const { createRequest } = await import('../profileRequests/profileRequest.service.js');
+  const request = await createRequest(user, {
+    type: 'avatar',
+    requestedData: { avatar: uploaded },
+  });
+
+  return {
+    pending: true,
+    message: 'Yêu cầu thay đổi ảnh đại diện đã được gửi đến Quản trị viên để phê duyệt',
+    avatar: uploaded,
+    request,
+  };
+}
+
+/** Submit a profile information update request (self-service for teacher/student). */
+export async function requestProfileUpdate(user, updateData) {
+  if (user.role === ROLES.ADMIN) {
+    const userDoc = await User.findById(user._id);
+    if (!userDoc) throw AppError.notFound('Không tìm thấy tài khoản quản trị');
+    if (updateData.hoTen) userDoc.hoTen = updateData.hoTen;
+    await userDoc.save();
+    return { user: userDoc.toPublic() };
+  }
+
+  const { createRequest } = await import('../profileRequests/profileRequest.service.js');
+  const request = await createRequest(user, {
+    type: 'profile',
+    requestedData: updateData,
+  });
+
+  return {
+    pending: true,
+    message: 'Yêu cầu cập nhật thông tin cá nhân đã được gửi đến Quản trị viên để phê duyệt',
+    request,
+  };
 }
 
 /** Change own password after verifying the old one; revokes old tokens. */

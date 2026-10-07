@@ -4,7 +4,8 @@ import { Assignment, Submission } from './assignment.model.js';
 import { Course } from '../courses/course.model.js';
 import { Teacher } from '../teachers/teacher.model.js';
 import { Student } from '../students/student.model.js';
-import { canAccessCourse, enrolledCourseIds } from '../shared/courseAccess.js';
+import { canAccessCourse, enrolledCourseIds, teacherAccessibleCourseIds } from '../shared/courseAccess.js';
+import { CourseClass } from '../classes/courseClass.model.js';
 
 /**
  * Public DTO for students: strips `correctIndex` from every question so the
@@ -40,9 +41,18 @@ export async function listAssignments(query, user) {
     filter.courseId = query.courseId && courseIds.includes(query.courseId)
       ? query.courseId
       : { $in: courseIds };
+  } else if (user.role === ROLES.TEACHER) {
+    // Teachers only see assignments of courses they teach or in their department / chuyên ngành
+    const courseIds = await teacherAccessibleCourseIds(user);
+    if (!courseIds.length) return { data: [] };
+    filter.courseId = query.courseId && courseIds.includes(query.courseId)
+      ? query.courseId
+      : { $in: courseIds };
   }
 
-  const assignments = await Assignment.find(filter).sort({ createdAt: -1 });
+  const assignments = await Assignment.find(filter)
+    .populate('createdByRef', 'id hoTen avatar email')
+    .sort({ createdAt: -1 });
   // Teachers/admins get the full document; students get the answer-stripped DTO.
   if (user.role === ROLES.STUDENT) {
     const student = await Student.findById(user.student).select('_id').lean();
@@ -70,7 +80,7 @@ export async function listAssignments(query, user) {
 
 /** Single assignment for the taking page. Students get the answer-stripped DTO. */
 export async function getAssignment(id, user) {
-  const assignment = await Assignment.findById(id);
+  const assignment = await Assignment.findById(id).populate('createdByRef', 'id hoTen avatar email');
   if (!assignment) throw AppError.notFound('Không tìm thấy bài tập');
 
   if (user.role === ROLES.STUDENT) {
@@ -88,10 +98,24 @@ export async function createAssignment(payload, user) {
   if (!course) throw AppError.badRequest('Học phần không tồn tại');
   await requireCourseTeacher(user, payload.courseId);
 
+  let classRef = null;
+  let classId = '';
+  if (payload.classId) {
+    const cls = await CourseClass.findOne({ id: payload.classId });
+    if (cls) {
+      classRef = cls._id;
+      classId = cls.id;
+    } else {
+      classId = payload.classId;
+    }
+  }
+
   const teacher = user.role === ROLES.TEACHER ? await Teacher.findById(user.teacher).lean() : null;
   const doc = await Assignment.create({
     courseRef: course._id,
     courseId: course.id,
+    classRef,
+    classId,
     type: payload.type,
     title: payload.title,
     description: payload.description,
@@ -109,6 +133,16 @@ export async function updateAssignment(id, payload, user) {
   if (!doc) throw AppError.notFound('Không tìm thấy bài tập');
   await requireCourseTeacher(user, doc.courseId);
 
+  if (payload.classId !== undefined) {
+    if (payload.classId) {
+      const cls = await CourseClass.findOne({ id: payload.classId });
+      doc.classRef = cls?._id || null;
+      doc.classId = cls?.id || payload.classId;
+    } else {
+      doc.classRef = null;
+      doc.classId = '';
+    }
+  }
   if (payload.title !== undefined) doc.title = payload.title;
   if (payload.description !== undefined) doc.description = payload.description;
   if (payload.dueDate !== undefined) doc.dueDate = payload.dueDate;
@@ -132,7 +166,7 @@ export async function listSubmissions(id, user) {
   if (!doc) throw AppError.notFound('Không tìm thấy bài tập');
   await requireCourseTeacher(user, doc.courseId);
   const submissions = await Submission.find({ assignmentRef: doc._id })
-    .populate({ path: 'student', select: 'id hoTen email' })
+    .populate({ path: 'student', select: 'id hoTen email avatar className' })
     .sort({ score: -1 })
     .lean();
   return { data: submissions };

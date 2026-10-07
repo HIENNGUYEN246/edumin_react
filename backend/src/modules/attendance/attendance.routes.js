@@ -12,12 +12,15 @@ const parseTeacherId = (val) => {
   return String(val);
 };
 
+<<<<<<< HEAD
 const getTodayStr = () => {
   const d = new Date();
   const pad = (n) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 };
 
+=======
+>>>>>>> 4e8ffb5c0a056164b568d493668162ccf16b4bd5
 // GET /api/attendance
 router.get('/', async (req, res, next) => {
   try {
@@ -89,11 +92,14 @@ router.post('/check-in', async (req, res, next) => {
     const dateStr = String(date);
     const shiftIdStr = String(shiftId);
 
+<<<<<<< HEAD
     const todayStr = getTodayStr();
     if (dateStr > todayStr) {
       return res.status(400).json({ error: 'Không thể điểm danh cho ngày trong tương lai' });
     }
 
+=======
+>>>>>>> 4e8ffb5c0a056164b568d493668162ccf16b4bd5
     const student = await Student.findOne({
       $or: [{ id: numericStudentId }, { email: studentEmail }],
     });
@@ -192,11 +198,14 @@ router.post('/record', async (req, res, next) => {
     const dateStr = String(date);
     const shiftIdStr = String(shiftId);
 
+<<<<<<< HEAD
     const todayStr = getTodayStr();
     if (dateStr > todayStr) {
       return res.status(400).json({ error: 'Không thể điểm danh cho ngày trong tương lai' });
     }
 
+=======
+>>>>>>> 4e8ffb5c0a056164b568d493668162ccf16b4bd5
     const student = await Student.findOne({
       $or: [{ id: numericStudentId }, { email: studentEmail }],
     });
@@ -306,11 +315,14 @@ router.post('/bulk', async (req, res, next) => {
     const dateStr = String(date);
     const shiftIdStr = String(shiftId);
 
+<<<<<<< HEAD
     const todayStr = getTodayStr();
     if (dateStr > todayStr) {
       return res.status(400).json({ error: 'Không thể điểm danh cho ngày trong tương lai' });
     }
 
+=======
+>>>>>>> 4e8ffb5c0a056164b568d493668162ccf16b4bd5
     const now = new Date();
     const pad = (n) => String(n).padStart(2, '0');
     const evaluatedAt = `${pad(now.getHours())}:${pad(now.getMinutes())} ${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()}`;

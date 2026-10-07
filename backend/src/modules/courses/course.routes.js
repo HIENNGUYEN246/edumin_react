@@ -15,6 +15,7 @@ router.get('/:id', controller.getOne);
 
 router.post('/', authorize(ROLES.ADMIN), validate(createCourseSchema), controller.create);
 router.post('/import', authorize(ROLES.ADMIN), validate(importCoursesSchema), controller.importRows);
+router.post('/bulk-delete', authorize(ROLES.ADMIN), controller.bulkDelete);
 router.patch('/:id', authorize(ROLES.ADMIN), validate(updateCourseSchema), controller.update);
 router.delete('/:id', authorize(ROLES.ADMIN), controller.remove);
 

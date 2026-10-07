@@ -30,4 +30,20 @@ function makeUploader(allowed) {
 }
 
 export const uploadImage = makeUploader(IMAGE_TYPES).single('file');
-export const uploadDocument = makeUploader(DOC_TYPES).single('file');
+
+const documentMulter = makeUploader(DOC_TYPES).fields([
+  { name: 'file', maxCount: 1 },
+  { name: 'files', maxCount: 10 },
+]);
+
+export const uploadDocument = (req, res, next) => {
+  documentMulter(req, res, (err) => {
+    if (err) return next(err);
+    if (req.files) {
+      if (req.files.file && req.files.file[0]) {
+        req.file = req.files.file[0];
+      }
+    }
+    next();
+  });
+};

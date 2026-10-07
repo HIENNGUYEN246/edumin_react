@@ -4,6 +4,7 @@ import { DataTable } from '../../../components/ui/DataTable.jsx';
 import { Pagination } from '../../../components/ui/Pagination.jsx';
 import { Modal } from '../../../components/ui/Modal.jsx';
 import { FormField, inputClass } from '../../../components/ui/FormField.jsx';
+import { Avatar } from '../../../components/ui/Avatar.jsx';
 import { useToast } from '../../../app/providers/ToastProvider.jsx';
 import { useConfirm } from '../../../app/providers/ConfirmProvider.jsx';
 import { useDebounce } from '../../../lib/useDebounce.js';
@@ -35,6 +36,22 @@ export function ManageDepartments() {
 
   const rows = data?.data || [];
   const meta = data?.meta || { page: 1, pages: 1, total: 0 };
+
+  // Filter teachers belonging to the department being edited (theo đúng chuyên ngành/khoa đó)
+  const deptTeachers = useMemo(() => {
+    if (!modal?.dept) return [];
+    const deptId = modal.dept._id;
+    const deptCode = modal.dept.id;
+    const deptName = modal.dept.name;
+
+    return teachers.filter((t) => {
+      const tRefId = t.departmentRef?._id || t.departmentRef;
+      const matchesRef = tRefId && String(tRefId) === String(deptId);
+      const matchesName = t.department && (t.department === deptName || t.department === deptCode);
+      const isCurrentHead = form.head && String(t._id) === String(form.head);
+      return matchesRef || matchesName || isCurrentHead;
+    });
+  }, [teachers, modal?.dept, form.head]);
 
   const openCreate = () => {
     setForm(EMPTY);
@@ -92,7 +109,18 @@ export function ManageDepartments() {
     {
       key: 'head',
       header: 'Trưởng khoa',
-      render: (d) => d.head?.hoTen || <span className="text-gray-400">Chưa có</span>,
+      render: (d) =>
+        d.head?.hoTen ? (
+          <div className="flex items-center gap-2.5">
+            <Avatar src={d.head.avatar?.url || d.head.avatar} name={d.head.hoTen} size={30} />
+            <div>
+              <p className="font-semibold text-gray-800 text-xs">{d.head.hoTen}</p>
+              <p className="text-[11px] text-gray-400 font-mono">{formatTeacherCode(d.head.id)}</p>
+            </div>
+          </div>
+        ) : (
+          <span className="text-gray-400 text-xs italic">Chưa có</span>
+        ),
     },
     {
       key: 'actions',
@@ -139,9 +167,9 @@ export function ManageDepartments() {
             <button
               type="button"
               onClick={openCreate}
-              className="px-4 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 whitespace-nowrap"
+              className="px-4 py-2.5 rounded-xl bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 shadow-xs hover:shadow transition active:scale-[0.98] whitespace-nowrap"
             >
-              <i className="fas fa-plus mr-2" /> Thêm khoa
+              <i className="fas fa-plus mr-1.5" /> Thêm khoa
             </button>
           </>
         }
@@ -176,33 +204,43 @@ export function ManageDepartments() {
               />
             </FormField>
             {modal.mode === 'edit' && (
-              <FormField label="Trưởng khoa">
+              <FormField label="Trưởng khoa (chuyên ngành khoa này)">
                 <select
                   className={inputClass}
                   value={form.head}
                   onChange={(e) => setForm((f) => ({ ...f, head: e.target.value }))}
                 >
-                  <option value="">Chưa có</option>
-                  {teachers.map((t) => (
+                  <option value="">Chưa có / Chưa phân công</option>
+                  {deptTeachers.map((t) => (
                     <option key={t._id} value={t._id}>
-                      {t.hoTen} ({formatTeacherCode(t.id)})
+                      {t.hoTen} ({formatTeacherCode(t.id)}) {t.education ? `— ${t.education}` : ''}
                     </option>
                   ))}
                 </select>
+                {deptTeachers.length === 0 ? (
+                  <p className="text-xs text-amber-600 mt-1.5 flex items-center gap-1.5">
+                    <i className="fas fa-exclamation-triangle shrink-0" />
+                    <span>Khoa chưa có giáo viên nào trực thuộc. Vui lòng phân công giáo viên vào khoa trong <strong>Quản lý giáo viên</strong> trước.</span>
+                  </p>
+                ) : (
+                  <p className="text-[11px] text-gray-500 mt-1">
+                    * Chỉ giáo viên thuộc chuyên ngành <strong>{modal.dept?.name}</strong> mới có thể đảm nhận vai trò Trưởng khoa.
+                  </p>
+                )}
               </FormField>
             )}
             <div className="flex justify-end gap-3 pt-2">
               <button
                 type="button"
                 onClick={() => setModal(null)}
-                className="px-4 py-2 rounded-xl text-sm font-semibold bg-gray-100 text-gray-600 hover:bg-gray-200"
+                className="px-4 py-2 rounded-xl text-sm font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 transition"
               >
                 Hủy
               </button>
               <button
                 type="submit"
                 disabled={create.isPending || update.isPending}
-                className="px-4 py-2 rounded-xl text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60"
+                className="px-5 py-2 rounded-xl text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 shadow-xs hover:shadow disabled:opacity-60 transition active:scale-[0.98]"
               >
                 {create.isPending || update.isPending ? 'Đang lưu...' : 'Lưu'}
               </button>

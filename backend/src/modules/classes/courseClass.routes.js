@@ -14,7 +14,9 @@ router.use(authenticate);
 router.get('/open', controller.listOpen);
 // All classes of a course (admin course-detail page).
 router.get('/by-course/:courseId', authorize(ROLES.ADMIN, ROLES.TEACHER), controller.listByCourse);
+router.get('/student-groups', authorize(ROLES.ADMIN, ROLES.TEACHER), controller.studentGroups);
 router.get('/', controller.list);
+router.get('/next-code', authorize(ROLES.ADMIN, ROLES.TEACHER), controller.getNextCode);
 router.get('/:id', controller.getOne);
 router.patch('/:id/students/:studentId/grades', authorize(ROLES.TEACHER), validate(updateStudentGradesSchema), controller.updateStudentGrades);
 router.get('/:id/students', authorize(ROLES.ADMIN, ROLES.TEACHER), controller.students);

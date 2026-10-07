@@ -6,7 +6,12 @@ export const list = asyncHandler(async (req, res) => {
 });
 
 export const create = asyncHandler(async (req, res) => {
-  res.status(201).json(await service.createDocument(req.body, req.file, req.user));
+  const files = req.files?.files?.length
+    ? req.files.files
+    : req.file
+    ? [req.file]
+    : [];
+  res.status(201).json(await service.createDocument(req.body, files, req.user));
 });
 
 export const update = asyncHandler(async (req, res) => {

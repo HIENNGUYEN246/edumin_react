@@ -64,6 +64,22 @@ export async function deleteCourse(id) {
   return { success: true };
 }
 
+export async function bulkDeleteCourses(ids) {
+  if (!Array.isArray(ids) || ids.length === 0) {
+    throw AppError.badRequest('Danh sách mã học phần không hợp lệ');
+  }
+  let deletedCount = 0;
+  for (const id of ids) {
+    try {
+      await deleteCourse(id);
+      deletedCount += 1;
+    } catch {
+      // Continue next
+    }
+  }
+  return { deletedCount };
+}
+
 function normalizeImportHeader(value) {
   return String(value)
     .normalize('NFD')

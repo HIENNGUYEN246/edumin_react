@@ -48,8 +48,13 @@ export function TeacherAssignmentList() {
     e.preventDefault();
     if (!form.courseId) return toast.error('Chọn học phần');
     if (!form.title.trim()) return toast.error('Nhập tiêu đề');
+<<<<<<< HEAD
     const today = getTodayDate();
     if (editor.mode === 'create' && form.dueDate && form.dueDate < today) {
+=======
+    const todayStr = getTodayDate();
+    if (form.dueDate && form.dueDate < todayStr) {
+>>>>>>> 4e8ffb5c0a056164b568d493668162ccf16b4bd5
       return toast.error('Hạn nộp bài tập phải từ ngày hôm nay trở về sau');
     }
     try {
@@ -156,6 +161,7 @@ export function TeacherAssignmentList() {
                 <input className={inputClass} value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} />
               </FormField>
               <FormField label="Hạn nộp">
+<<<<<<< HEAD
                 <input
                   type="date"
                   min={editor.mode === 'create' ? getTodayDate() : undefined}
@@ -163,6 +169,9 @@ export function TeacherAssignmentList() {
                   value={form.dueDate}
                   onChange={(e) => setForm((f) => ({ ...f, dueDate: e.target.value }))}
                 />
+=======
+                <input type="date" min={getTodayDate()} className={inputClass} value={form.dueDate} onChange={(e) => setForm((f) => ({ ...f, dueDate: e.target.value }))} />
+>>>>>>> 4e8ffb5c0a056164b568d493668162ccf16b4bd5
               </FormField>
               <FormField label="Trạng thái">
                 <select className={inputClass} value={form.status} onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}>

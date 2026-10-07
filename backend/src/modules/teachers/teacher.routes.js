@@ -19,8 +19,12 @@ router.get('/:id', controller.getOne);
 
 router.post('/', authorize(ROLES.ADMIN), validate(createTeacherSchema), controller.create);
 router.post('/import', authorize(ROLES.ADMIN), validate(importTeachersSchema), controller.importRows);
+<<<<<<< HEAD
 router.post('/bulk-delete', authorize(ROLES.ADMIN), controller.bulkRemove);
 router.delete('/bulk', authorize(ROLES.ADMIN), controller.bulkRemove);
+=======
+router.post('/bulk-delete', authorize(ROLES.ADMIN), controller.bulkDelete);
+>>>>>>> 4e8ffb5c0a056164b568d493668162ccf16b4bd5
 router.patch('/:id', authorize(ROLES.ADMIN), validate(updateTeacherSchema), controller.update);
 router.put('/:id/avatar', authorize(ROLES.ADMIN), uploadImage, controller.uploadAvatar);
 router.delete('/:id', authorize(ROLES.ADMIN), controller.remove);

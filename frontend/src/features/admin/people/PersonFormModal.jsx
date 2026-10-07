@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Modal } from '../../../components/ui/Modal.jsx';
 import { FormField, inputClass } from '../../../components/ui/FormField.jsx';
 import { Avatar } from '../../../components/ui/Avatar.jsx';
+<<<<<<< HEAD
 
 const PERSON_NAME_PATTERN = /^[\p{L}\p{M}]+(?: [\p{L}\p{M}]+)*$/u;
 const ADDRESS_PATTERN = /^[\p{L}\p{M}\p{N}]+(?:[./-][\p{L}\p{M}\p{N}]+)*(?:(?: |, )[\p{L}\p{M}\p{N}]+(?:[./-][\p{L}\p{M}\p{N}]+)*)*$/u;
@@ -95,38 +96,60 @@ function getFieldError(field, rawValue, departments) {
   return '';
 }
 
+=======
+>>>>>>> 4e8ffb5c0a056164b568d493668162ccf16b4bd5
 /**
  * Config-driven create/edit form for a person.
  * `fields` describe inputs; `departments` populates the department select.
  */
-export function PersonFormModal({
-  open,
-  mode,
-  title,
-  initial,
-  fields,
-  departments,
-  profilePanel = false,
-  formatCode = (value) => value,
-  entityLabel = 'nhân sự',
-  profileCodeLabel = 'Mã GV',
-  profileDetailField = 'education',
-  profileDetailFallback = 'Trình độ chuyên môn',
-  onClose,
-  onSubmit,
-  saving,
-}) {
+export function PersonFormModal({ open, mode, title, initial, fields, departments, onClose, onSubmit, onAvatar, saving }) {
   const [form, setForm] = useState(initial);
+  const [avatarPreview, setAvatarPreview] = useState(initial?.avatar?.url || initial?.avatar);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [errors, setErrors] = useState({});
 
   useEffect(() => {
     setForm(initial);
+    setAvatarPreview(initial?.avatar?.url || initial?.avatar);
     setErrors({});
   }, [initial, open]);
 
-  const set = (name) => (e) => {
-    setForm((f) => ({ ...f, [name]: e.target.value }));
-    setErrors((prev) => ({ ...prev, [name]: '' }));
+  const handleAvatarChange = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || !onAvatar) return;
+    try {
+      setUploadingAvatar(true);
+      const res = await onAvatar(file);
+      if (res?.avatar?.url) {
+        setAvatarPreview(res.avatar.url);
+        setForm((f) => ({ ...f, avatar: res.avatar }));
+      } else {
+        setAvatarPreview(URL.createObjectURL(file));
+      }
+    } catch {
+      // toast handled in caller
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
+  const set = (field) => (e) => {
+    let value = e.target.value;
+    const maxVal = typeof field.max === 'function' ? field.max() : field.max;
+    if (field.type === 'date' && maxVal && value && value > maxVal) {
+      value = maxVal;
+    }
+    setForm((f) => ({ ...f, [field.name]: value }));
+    setErrors((prev) => ({ ...prev, [field.name]: '' }));
+  };
+
+  const handleBlur = (field) => () => {
+    const maxVal = typeof field.max === 'function' ? field.max() : field.max;
+    if (field.type === 'date' && maxVal && form[field.name] && form[field.name] > maxVal) {
+      setForm((f) => ({ ...f, [field.name]: maxVal }));
+      setErrors((prev) => ({ ...prev, [field.name]: '' }));
+    }
   };
 
   const validateField = (field) => {
@@ -199,6 +222,7 @@ export function PersonFormModal({
     const next = {};
     fields.forEach((field) => {
       if (mode === 'edit' && field.type === 'email') return;
+<<<<<<< HEAD
       const message = getFieldError(field, nextForm[field.name], departments);
       if (message) next[field.name] = message;
     });
@@ -243,113 +267,178 @@ export function PersonFormModal({
 
   const departmentName = departments.find((department) => String(department.id) === String(form.departmentId))?.name;
   const avatarPreview = form.avatarPreview || form.avatar?.url || '';
+=======
+      const maxVal = typeof field.max === 'function' ? field.max() : field.max;
+      if (field.required && !String(form[field.name] || '').trim()) {
+        next[field.name] = `${field.label} là bắt buộc`;
+      }
+      if (field.type === 'email' && form[field.name] && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form[field.name])) {
+        next[field.name] = 'Email không hợp lệ';
+      }
+      if (field.type === 'date' && maxVal && form[field.name] && form[field.name] > maxVal) {
+        next[field.name] = field.maxError || `${field.label} không hợp lệ (tối đa là ngày ${maxVal})`;
+      }
+    });
+    setErrors(next);
+    if (Object.keys(next).length) return;
+    if (typeof onSubmit === 'function') {
+      onSubmit({ ...form, password: form.password || '123' }, setErrors);
+    }
+  };
+
+>>>>>>> 4e8ffb5c0a056164b568d493668162ccf16b4bd5
 
   return (
-    <Modal open={open} onClose={onClose} title={profilePanel ? undefined : title} size={profilePanel ? '2xl' : 'lg'}>
-      <form
-        onSubmit={submit}
-        className={profilePanel ? '-m-6 grid grid-cols-1 md:grid-cols-[320px_minmax(0,1fr)]' : 'grid grid-cols-1 md:grid-cols-2 gap-4'}
-      >
-        {profilePanel && (
-          <aside className="flex flex-col items-center justify-center bg-gradient-to-b from-indigo-600 to-indigo-700 px-7 py-8 text-center text-white">
-            <label className="group relative mt-1 block cursor-pointer" title="Chọn ảnh đại diện">
-              <Avatar
-                src={avatarPreview}
-                name={form.hoTen || 'Giảng viên'}
-                size={132}
-                className="border-4 border-white shadow-xl"
-              />
-              <span className="absolute bottom-1 right-1 grid h-10 w-10 place-items-center rounded-full border-2 border-indigo-600 bg-white text-indigo-600 shadow">
-                <i className="fas fa-camera" />
-              </span>
-              <input type="file" accept="image/jpeg,image/png,image/gif,image/webp" className="hidden" onChange={selectAvatar} />
-            </label>
-            {errors.avatar && <p className="mt-2 text-xs text-white">{errors.avatar}</p>}
-            <p className="mt-5 text-xl font-bold">{form.hoTen || `Tên ${entityLabel}`}</p>
-            <p className="mt-1 text-sm text-indigo-100">{form[profileDetailField] || profileDetailFallback}</p>
+    <Modal open={open} onClose={onClose} title={title} size="lg">
+      <form onSubmit={submit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {mode === 'edit' && (
+          <div className="md:col-span-2 flex items-center justify-between p-3.5 bg-indigo-50/60 rounded-2xl border border-indigo-100">
+            <div className="flex items-center gap-3">
+              <label className="relative group cursor-pointer inline-block" title="Bấm để đổi ảnh đại diện">
+                <Avatar src={avatarPreview} name={initial?.hoTen || 'User'} size={48} />
+                <span className="absolute inset-0 bg-black/40 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                  <i className="fas fa-camera text-xs" />
+                </span>
+                {uploadingAvatar && (
+                  <span className="absolute inset-0 bg-black/60 text-white rounded-full flex items-center justify-center">
+                    <i className="fas fa-spinner fa-spin text-xs" />
+                  </span>
+                )}
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  disabled={uploadingAvatar}
+                  onChange={handleAvatarChange}
+                />
+              </label>
+              <div>
+                <p className="font-bold text-gray-900 text-sm">{initial?.hoTen}</p>
+                <p className="text-xs text-gray-500">{initial?.email}</p>
+              </div>
+            </div>
+            {onAvatar && (
+              <label className="cursor-pointer px-3 py-1.5 rounded-xl bg-white border border-indigo-200 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 transition shadow-xs flex items-center gap-1.5">
+                <i className={`fas ${uploadingAvatar ? 'fa-spinner fa-spin' : 'fa-camera'}`} />
+                <span>{uploadingAvatar ? 'Đang tải...' : 'Đổi ảnh đại diện'}</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  disabled={uploadingAvatar}
+                  onChange={handleAvatarChange}
+                />
+              </label>
+            )}
+          </div>
+        )}
+        {fields.map((field) => {
+          const maxVal = typeof field.max === 'function' ? field.max() : field.max;
+          return (
+            <FormField
+              key={field.name}
+              label={field.label}
+              error={errors[field.name]}
+              required={field.required}
+              hint={field.hint}
+            >
+              {field.type === 'select' ? (
+                (() => {
+                  const opts = field.name === 'departmentId' ? departments : field.options || [];
+                  const currentValue = form[field.name] || '';
+                  const hasCurrent = !currentValue || opts.some((opt) => String(opt.id ?? opt.value) === String(currentValue));
 
-            <div className="mt-7 w-full space-y-4 border-t border-white/20 pt-5 text-left text-sm">
-              <p className="flex items-start gap-3 break-all text-indigo-50">
-                <i className="fas fa-id-card mt-0.5 w-4 shrink-0" />
-                {form.id ? formatCode(form.id) : `${profileCodeLabel}: Sẽ tạo mới`}
+                  return (
+                    <select className={inputClass} value={currentValue} onChange={set(field)}>
+                      <option value="">{field.placeholder || 'Chọn...'}</option>
+                      {!hasCurrent && (
+                        <option value={currentValue}>{currentValue} (Hiện tại)</option>
+                      )}
+                      {opts.map((opt) => (
+                        <option key={opt.id ?? opt.value} value={opt.id ?? opt.value}>
+                          {opt.name ?? opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  );
+                })()
+              ) : field.type === 'email' && mode === 'edit' ? (
+                <input className={`${inputClass} bg-gray-50`} value={form[field.name] || ''} disabled />
+              ) : field.type === 'email' && field.emailDomain && mode === 'create' ? (
+                <div className="flex rounded-xl overflow-hidden border border-gray-200 focus-within:ring-2 focus-within:ring-indigo-400 focus-within:border-transparent bg-white shadow-2xs">
+                  <input
+                    type="text"
+                    className="flex-1 px-4 py-2.5 outline-none text-sm text-gray-800 bg-transparent min-w-0"
+                    value={
+                      (form[field.name] || '').endsWith(field.emailDomain)
+                        ? form[field.name].slice(0, -field.emailDomain.length)
+                        : form[field.name] || ''
+                    }
+                    onChange={(e) => {
+                      const raw = e.target.value.trim().toLowerCase();
+                      const clean = raw.endsWith(field.emailDomain)
+                        ? raw.slice(0, -field.emailDomain.length)
+                        : raw.replace(/@.*$/, '');
+                      const full = clean ? `${clean}${field.emailDomain}` : '';
+                      setForm((f) => ({ ...f, [field.name]: full }));
+                      setErrors((prev) => ({ ...prev, [field.name]: '' }));
+                    }}
+                    placeholder={field.placeholder || 'Nhập tên tài khoản...'}
+                  />
+                  <span className="inline-flex items-center px-3.5 bg-indigo-50/70 text-indigo-700 font-bold text-xs border-l border-gray-200 select-none shrink-0 font-mono">
+                    {field.emailDomain}
+                  </span>
+                </div>
+              ) : (
+                <input
+                  type={field.type === 'email' ? 'email' : field.type === 'date' ? 'date' : 'text'}
+                  className={inputClass}
+                  value={form[field.name] || ''}
+                  onChange={set(field)}
+                  onBlur={handleBlur(field)}
+                  placeholder={field.placeholder}
+                  {...(field.type === 'date' && maxVal ? { max: maxVal } : {})}
+                />
+              )}
+            </FormField>
+          );
+        })}
+
+        {mode === 'create' && (
+          <div className="md:col-span-2 p-3.5 bg-amber-50/80 border border-amber-200 rounded-2xl flex items-center gap-3 text-xs text-amber-900">
+            <div className="w-8 h-8 rounded-xl bg-amber-200/80 text-amber-800 flex items-center justify-center shrink-0">
+              <i className="fas fa-key text-sm" />
+            </div>
+            <div className="flex-1">
+              <p className="font-bold text-amber-950">
+                Mật khẩu khởi tạo mặc định:{' '}
+                <span className="font-mono bg-white px-2.5 py-0.5 rounded-lg border border-amber-300 font-bold text-indigo-700 text-sm">
+                  123
+                </span>
               </p>
-              <p className="flex items-start gap-3 break-all text-indigo-50">
-                <i className="fas fa-envelope mt-0.5 w-4 shrink-0" />
-                {form.email || 'Email chưa cập nhật'}
-              </p>
-              <p className="flex items-start gap-3 text-indigo-50">
-                <i className="fas fa-building mt-0.5 w-4 shrink-0" />
-                {departmentName || 'Khoa chưa chọn'}
+              <p className="text-amber-800/90 mt-0.5">
+                Tài khoản sẽ được tạo với mật khẩu là 123. Người dùng đăng nhập lần đầu và tự đổi lại mật khẩu cá nhân.
               </p>
             </div>
-          </aside>
+          </div>
         )}
 
-        <div className={profilePanel ? 'min-w-0 p-6' : 'contents'}>
-          {profilePanel && (
-            <div className="mb-6 flex items-center justify-between border-b border-gray-100 pb-4">
-              <h3 className="text-xl font-extrabold text-gray-800">{title}</h3>
-              <button
-                type="button"
-                onClick={onClose}
-                className="grid h-9 w-9 place-items-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700"
-                aria-label="Đóng"
-              >
-                <i className="fas fa-times" />
-              </button>
-            </div>
-          )}
-          {profilePanel ? (
-            <div className="space-y-6">
-              {[
-                { key: 'personal', title: 'THÔNG TIN CÁ NHÂN', icon: 'fa-user' },
-                { key: 'work', title: 'THÔNG TIN CÔNG TÁC', icon: 'fa-briefcase' },
-              ].map((section) => (
-                <section key={section.key}>
-                  <h4 className="mb-3 flex items-center gap-2 text-xs font-bold uppercase text-indigo-600">
-                    <i className={`fas ${section.icon}`} />{section.title}
-                  </h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {fields.filter((field) => field.section === section.key).map(renderField)}
-                    {section.key === 'work' && mode === 'create' && (
-                      <FormField label="Mật khẩu" error={errors.password} hint="Để trống sẽ tạo mật khẩu ngẫu nhiên" className="sm:col-span-2">
-                        <input
-                          type="text"
-                          className={inputClass}
-                          value={form.password || ''}
-                          onChange={set('password')}
-                          placeholder="Tối thiểu 6 ký tự"
-                        />
-                      </FormField>
-                    )}
-                  </div>
-                </section>
-              ))}
-            </div>
-          ) : (
-            fields.map(renderField)
-          )}
-
-          {!profilePanel && mode === 'create' && (
-            <FormField label="Mật khẩu" error={errors.password} hint="Để trống sẽ tạo mật khẩu ngẫu nhiên">
-              <input
-                type="text"
-                className={inputClass}
-                value={form.password || ''}
-                onChange={set('password')}
-                placeholder="Tối thiểu 6 ký tự"
-              />
-            </FormField>
-          )}
-
-          <div className={`flex justify-end gap-3 ${profilePanel ? 'mt-6 border-t border-gray-100 pt-5' : 'md:col-span-2 pt-2'}`}>
-            <button type="button" onClick={onClose} className="rounded-xl bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-200">
-              Hủy bỏ
-            </button>
-            <button type="submit" disabled={saving} className="rounded-xl bg-indigo-600 px-5 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60">
-              {saving ? 'Đang lưu...' : 'Lưu dữ liệu'}
-            </button>
-          </div>
+        <div className="md:col-span-2 flex justify-end gap-3 pt-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 rounded-xl text-sm font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 transition"
+          >
+            Hủy
+          </button>
+          <button
+            type="submit"
+            disabled={saving || uploadingAvatar}
+            className="px-5 py-2 rounded-xl text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 shadow-xs hover:shadow disabled:opacity-60 flex items-center gap-2 transition active:scale-[0.98]"
+          >
+            {(saving || uploadingAvatar) && <i className="fas fa-spinner fa-spin text-xs" />}
+            <span>{saving ? 'Đang lưu...' : uploadingAvatar ? 'Đang tải ảnh...' : 'Lưu'}</span>
+          </button>
         </div>
       </form>
     </Modal>

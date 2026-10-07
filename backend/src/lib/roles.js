@@ -2,6 +2,7 @@ export const ROLES = {
   ADMIN: 'dao-tao',
   TEACHER: 'giao-vien',
   STUDENT: 'sinh-vien',
+  ACCOUNTANT: 'ke-toan',
 };
 
 export const ALL_ROLES = Object.values(ROLES);

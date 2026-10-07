@@ -1,7 +1,10 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageHeader, SearchInput } from '../../../components/ui/PageHeader.jsx';
 import { DataTable } from '../../../components/ui/DataTable.jsx';
 import { Pagination } from '../../../components/ui/Pagination.jsx';
+import { Modal } from '../../../components/ui/Modal.jsx';
+import { FormField, inputClass } from '../../../components/ui/FormField.jsx';
 import { Avatar } from '../../../components/ui/Avatar.jsx';
 import { useToast } from '../../../app/providers/ToastProvider.jsx';
 import { useConfirm } from '../../../app/providers/ConfirmProvider.jsx';
@@ -10,27 +13,59 @@ import { useDepartments } from '../departments/useDepartments.js';
 import { usePeople, usePeopleMutations } from './usePeople.js';
 import { PersonFormModal } from './PersonFormModal.jsx';
 import { readSheet, exportSheet } from '../../../lib/excel.js';
+import { accountsApi } from '../../../api/accountsApi.js';
+
+const LOCK_REASONS = ['Vi phạm quy định', 'Nghỉ học/nghỉ dạy', 'Yêu cầu từ quản lý', 'Khác'];
 
 /**
  * Config-driven manager shared by teachers and students.
- * config: { queryKey, api, title, subtitle, formatCode, columns(fmt), fields, emptyForm, exportName }
+ * config: { queryKey, api, title, subtitle, formatCode, columns(fmt), fields, emptyForm, exportName, enableClassFilter }
  */
 export function PersonManager({ config }) {
   const toast = useToast();
   const confirm = useConfirm();
+  const queryClient = useQueryClient();
   const fileRef = useRef(null);
 
   const [page, setPage] = useState(1);
   const [searchText, setSearchText] = useState('');
   const search = useDebounce(searchText);
+  const [selectedClass, setSelectedClass] = useState('');
   const [modal, setModal] = useState(null);
   const [selectedIds, setSelectedIds] = useState([]);
+<<<<<<< HEAD
   const [lastClickedIndex, setLastClickedIndex] = useState(null);
+=======
+>>>>>>> 4e8ffb5c0a056164b568d493668162ccf16b4bd5
 
-  const params = useMemo(() => ({ page, limit: 10, search }), [page, search]);
+  // Account management state
+  const [lockTarget, setLockTarget] = useState(null);
+  const [lockReason, setLockReason] = useState(LOCK_REASONS[0]);
+  const [customReason, setCustomReason] = useState('');
+  const [tempPassword, setTempPassword] = useState(null);
+  const [locking, setLocking] = useState(false);
+  const [resettingId, setResettingId] = useState(null);
+
+  useEffect(() => {
+    setSelectedIds([]);
+  }, [page, search, selectedClass]);
+
+  const params = useMemo(
+    () => ({ page, limit: 10, search, className: selectedClass || undefined }),
+    [page, search, selectedClass]
+  );
   const { data, isLoading } = usePeople(config.queryKey, config.api, params);
   const mutations = usePeopleMutations(config.queryKey, config.api);
   const { data: deptData } = useDepartments({ limit: 100 });
+
+  const { data: classesData } = useQuery({
+    queryKey: [config.queryKey, 'classes-filter'],
+    queryFn: async () => {
+      const res = await config.api.classes?.();
+      return res?.data || [];
+    },
+    enabled: Boolean(config.enableClassFilter && config.api?.classes),
+  });
 
   const rows = data?.data || [];
   const meta = data?.meta || { page: 1, pages: 1, total: 0 };
@@ -39,6 +74,7 @@ export function PersonManager({ config }) {
     ? rows.map((person, index) => ({ ...person, serialNumber: (meta.page - 1) * params.limit + index + 1 }))
     : rows;
 
+<<<<<<< HEAD
   const allCurrentRowIds = rows.map((r) => r._id);
   const isAllSelected = rows.length > 0 && allCurrentRowIds.every((id) => selectedIds.includes(id));
   const isSomeSelected = rows.length > 0 && allCurrentRowIds.some((id) => selectedIds.includes(id)) && !isAllSelected;
@@ -103,21 +139,83 @@ export function PersonManager({ config }) {
       setLastClickedIndex(null);
     } catch (error) {
       toast.error(error.message || 'Lỗi khi xóa hàng loạt');
+=======
+  const doUnlock = async (person) => {
+    const targetId = person.userId?._id || person.userId || person._id;
+    try {
+      await accountsApi.updateStatus(targetId, { status: 'Active' });
+      toast.success('Đã mở khóa tài khoản');
+      queryClient.invalidateQueries({ queryKey: [config.queryKey] });
+    } catch (error) {
+      toast.error(error.message || 'Lỗi khi mở khóa tài khoản');
+    }
+  };
+
+  const doLock = async () => {
+    if (!lockTarget) return;
+    const reason = lockReason === 'Khác' ? customReason.trim() : lockReason;
+    const targetId = lockTarget.userId?._id || lockTarget.userId || lockTarget._id;
+    try {
+      setLocking(true);
+      await accountsApi.updateStatus(targetId, { status: 'Locked', lockReason: reason });
+      toast.success('Đã khóa tài khoản');
+      setLockTarget(null);
+      setCustomReason('');
+      queryClient.invalidateQueries({ queryKey: [config.queryKey] });
+    } catch (error) {
+      toast.error(error.message || 'Lỗi khi khóa tài khoản');
+    } finally {
+      setLocking(false);
+    }
+  };
+
+  const doReset = async (person) => {
+    const ok = await confirm({
+      title: 'Đặt lại mật khẩu',
+      message: `Cấp mật khẩu mới ngẫu nhiên cho ${person.hoTen || person.email}? Phiên đăng nhập hiện tại của họ sẽ bị đăng xuất.`,
+      confirmText: 'Đặt lại',
+      tone: 'primary',
+    });
+    if (!ok) return;
+    const targetId = person.userId?._id || person.userId || person._id;
+    try {
+      setResettingId(targetId);
+      const result = await accountsApi.resetPassword(targetId);
+      setTempPassword({ email: person.email, password: result.tempPassword });
+      toast.success('Đã tạo mật khẩu mới');
+      queryClient.invalidateQueries({ queryKey: [config.queryKey] });
+    } catch (error) {
+      toast.error(error.message || 'Lỗi khi đặt lại mật khẩu');
+    } finally {
+      setResettingId(null);
+>>>>>>> 4e8ffb5c0a056164b568d493668162ccf16b4bd5
     }
   };
 
   const openCreate = () => setModal({ mode: 'create', initial: { ...config.emptyForm } });
-  const openEdit = (person) =>
+  const openEdit = (person) => {
+    const currentDeptId =
+      person.departmentRef?.id ||
+      departments.find((d) => d.id === person.department || d.name === person.department)?._id ||
+      departments.find((d) => d.id === person.department || d.name === person.department)?.id ||
+      '';
+
     setModal({
       mode: 'edit',
       person,
       initial: {
         ...config.emptyForm,
         ...person,
-        departmentId: person.departmentRef?.id || '',
+        dob: person.dob || '',
+        phone: person.phone || '',
+        address: person.address || '',
+        className: person.className || '',
+        education: person.education || '',
+        departmentId: currentDeptId,
         avatarPreview: person.avatar?.url || '',
       },
     });
+  };
 
   const handleSubmit = async (form, setErrors) => {
     try {
@@ -131,10 +229,38 @@ export function PersonManager({ config }) {
       if (modal.mode === 'create') {
         person = await mutations.create.mutateAsync(payload);
       } else {
-        const { email, password, ...rest } = payload;
-        void email;
-        void password;
-        person = await mutations.update.mutateAsync({ id: modal.person._id, ...rest });
+        const targetId =
+          modal?.person?._id ||
+          modal?.person?.id ||
+          modal?.initial?._id ||
+          modal?.initial?.id ||
+          form?._id ||
+          form?.id;
+
+        // Clean up payload: exclude internal MongoDB fields and email/password
+        const {
+          _id,
+          id,
+          userId,
+          departmentRef,
+          department,
+          avatar,
+          createdAt,
+          updatedAt,
+          __v,
+          email,
+          password,
+          ...rest
+        } = form;
+
+        // Normalize string fields, converting null or undefined to empty string
+        const cleaned = {};
+        for (const [k, v] of Object.entries(rest)) {
+          cleaned[k] = v === null || v === undefined ? '' : v;
+        }
+
+        person = await mutations.update.mutateAsync({ id: targetId, ...cleaned });
+        toast.success('Đã cập nhật');
       }
       if (avatarFile) {
         try {
@@ -148,8 +274,18 @@ export function PersonManager({ config }) {
       toast.success(modal.mode === 'create' ? 'Đã thêm thành công' : 'Đã cập nhật');
       setModal(null);
     } catch (error) {
-      if (error.code === 'CONFLICT' || error.code === 'DUPLICATE_KEY') setErrors({ email: error.message });
-      else toast.error(error.message);
+      if (error.code === 'CONFLICT' || error.code === 'DUPLICATE_KEY') {
+        setErrors({ email: error.message });
+      } else if (error.details && Array.isArray(error.details)) {
+        const fieldErrors = {};
+        error.details.forEach((d) => {
+          if (d.path) fieldErrors[d.path] = d.message;
+        });
+        setErrors(fieldErrors);
+        toast.error(error.message || 'Dữ liệu không hợp lệ');
+      } else {
+        toast.error(error.message || 'Lỗi khi lưu dữ liệu');
+      }
     }
   };
 
@@ -158,6 +294,7 @@ export function PersonManager({ config }) {
       title: 'Xóa',
       message: `Xóa "${person.hoTen}"? Tài khoản đăng nhập cũng sẽ bị xóa.`,
       confirmText: 'Xóa',
+      tone: 'danger',
     });
     if (!ok) return;
     try {
@@ -169,13 +306,49 @@ export function PersonManager({ config }) {
     }
   };
 
+  const onBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    const ok = await confirm({
+      title: 'Xóa nhiều mục đã chọn',
+      message: `Bạn có chắc muốn xóa ${selectedIds.length} ${config.entityLabel} đã chọn? Tài khoản đăng nhập của các mục này cũng sẽ bị xóa.`,
+      confirmText: `Xóa ${selectedIds.length} mục`,
+      tone: 'danger',
+    });
+    if (!ok) return;
+    try {
+      if (mutations.bulkDelete) {
+        await mutations.bulkDelete.mutateAsync(selectedIds);
+      } else {
+        await Promise.all(selectedIds.map((id) => mutations.remove.mutateAsync(id)));
+      }
+      toast.success(`Đã xóa ${selectedIds.length} ${config.entityLabel}`);
+      setSelectedIds([]);
+    } catch (error) {
+      toast.error(error.message || 'Lỗi khi xóa nhiều mục');
+    }
+  };
+
   const onAvatar = async (person, file) => {
     if (!file) return;
     try {
-      await mutations.uploadAvatar.mutateAsync({ id: person._id, file });
+      const targetId =
+        (typeof person === 'string' ? person : null) ||
+        person?._id ||
+        person?.id ||
+        modal?.person?._id ||
+        modal?.person?.id ||
+        modal?.initial?._id ||
+        modal?.initial?.id;
+      if (!targetId) {
+        toast.error('Không tìm thấy mã định danh để cập nhật ảnh đại diện');
+        return;
+      }
+      const res = await mutations.uploadAvatar.mutateAsync({ id: targetId, file });
       toast.success('Đã cập nhật ảnh đại diện');
+      return res;
     } catch (error) {
       toast.error(error.message);
+      throw error;
     }
   };
 
@@ -216,36 +389,104 @@ export function PersonManager({ config }) {
     }
   };
 
+<<<<<<< HEAD
   const baseColumns = config.columns({
+=======
+  const renderStatus = (person) => {
+    const userObj = person.userId;
+    const isLocked =
+      (typeof userObj === 'object' && userObj?.status === 'Locked') ||
+      person.accountStatus === 'Locked';
+    const lockMsg = typeof userObj === 'object' && userObj?.lockReason ? userObj.lockReason : null;
+
+    return isLocked ? (
+      <button
+        type="button"
+        className="inline-flex items-center gap-1 text-xs font-semibold text-red-600 bg-red-50 border border-red-200 px-2.5 py-1 rounded-full hover:bg-red-100 transition-colors"
+        title={lockMsg ? `Lý do: ${lockMsg} (Bấm để mở khóa)` : 'Đã khóa (Bấm để mở khóa)'}
+        onClick={() => doUnlock(person)}
+      >
+        <i className="fas fa-lock" /> Đã khóa
+      </button>
+    ) : (
+      <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full">
+        <i className="fas fa-circle-check" /> Hoạt động
+      </span>
+    );
+  };
+
+  const columns = config.columns({
+>>>>>>> 4e8ffb5c0a056164b568d493668162ccf16b4bd5
     formatCode: config.formatCode,
     renderAvatar: (person) => (
-      <label className="group relative inline-flex cursor-pointer" title="Tải ảnh lên Cloudinary">
-        <Avatar src={person.avatar?.url} name={person.hoTen} size={42} />
-        <span className="absolute -bottom-1 -right-1 grid h-5 w-5 place-items-center rounded-full border-2 border-white bg-indigo-600 text-[9px] text-white">
-          <i className="fas fa-camera" />
-        </span>
-        <input
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            e.target.value = '';
-            onAvatar(person, file);
-          }}
-        />
-      </label>
+      <Avatar src={person.avatar?.url || person.avatar} name={person.hoTen} size={38} />
     ),
-    actions: (person) => (
-      <div className="flex justify-end gap-2">
-        <button type="button" onClick={() => openEdit(person)} className="w-8 h-8 rounded-lg text-indigo-600 hover:bg-indigo-50" aria-label="Sửa">
-          <i className="fas fa-pen" />
-        </button>
-        <button type="button" onClick={() => onDelete(person)} className="w-8 h-8 rounded-lg text-red-600 hover:bg-red-50" aria-label="Xóa">
-          <i className="fas fa-trash-alt" />
-        </button>
-      </div>
-    ),
+    renderStatus,
+    actions: (person) => {
+      const userObj = person.userId;
+      const isLocked =
+        (typeof userObj === 'object' && userObj?.status === 'Locked') ||
+        person.accountStatus === 'Locked';
+      const personId = person.userId?._id || person._id;
+
+      return (
+        <div className="flex justify-end items-center gap-1.5">
+          {isLocked ? (
+            <button
+              type="button"
+              onClick={() => doUnlock(person)}
+              className="w-8 h-8 rounded-lg text-emerald-600 hover:bg-emerald-50 transition-colors flex items-center justify-center"
+              title="Mở khóa tài khoản"
+              aria-label="Mở khóa tài khoản"
+            >
+              <i className="fas fa-unlock" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                setLockTarget(person);
+                setLockReason(LOCK_REASONS[0]);
+                setCustomReason('');
+              }}
+              className="w-8 h-8 rounded-lg text-amber-600 hover:bg-amber-50 transition-colors flex items-center justify-center"
+              title="Khóa tài khoản"
+              aria-label="Khóa tài khoản"
+            >
+              <i className="fas fa-lock" />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => doReset(person)}
+            disabled={resettingId === personId}
+            className="w-8 h-8 rounded-lg text-indigo-600 hover:bg-indigo-50 transition-colors flex items-center justify-center disabled:opacity-50"
+            title="Đặt lại mật khẩu"
+            aria-label="Đặt lại mật khẩu"
+          >
+            <i className="fas fa-key" />
+          </button>
+          <button
+            type="button"
+            onClick={() => openEdit(person)}
+            className="w-8 h-8 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors flex items-center justify-center"
+            title="Sửa thông tin"
+            aria-label="Sửa"
+          >
+            <i className="fas fa-pen" />
+          </button>
+          <button
+            type="button"
+            onClick={() => onDelete(person)}
+            className="w-8 h-8 rounded-lg text-red-600 hover:bg-red-50 transition-colors flex items-center justify-center"
+            title="Xóa"
+            aria-label="Xóa"
+          >
+            <i className="fas fa-trash-alt" />
+          </button>
+        </div>
+      );
+    },
   });
 
   const selectionColumn = {
@@ -298,20 +539,38 @@ export function PersonManager({ config }) {
                 setPage(1);
               }}
             />
-            <button type="button" onClick={() => fileRef.current?.click()} className="px-3 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700">
+            {config.enableClassFilter && (
+              <select
+                className="bg-white border border-slate-200 text-xs font-semibold px-3 py-2 rounded-xl text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-400 shadow-2xs hover:border-slate-300 transition"
+                value={selectedClass}
+                onChange={(e) => {
+                  setSelectedClass(e.target.value);
+                  setPage(1);
+                }}
+              >
+                <option value="">Tất cả lớp sinh hoạt</option>
+                {(classesData || []).map((cls) => (
+                  <option key={cls} value={cls}>
+                    Lớp {cls}
+                  </option>
+                ))}
+              </select>
+            )}
+            <button type="button" onClick={() => fileRef.current?.click()} className="px-3.5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 shadow-xs hover:shadow transition active:scale-[0.98]">
               <i className="fas fa-file-import mr-1.5" /> Nhập
             </button>
-            <button type="button" onClick={onExport} className="px-3 py-2.5 rounded-xl bg-teal-600 text-white text-sm font-semibold hover:bg-teal-700">
+            <button type="button" onClick={onExport} className="px-3.5 py-2 rounded-xl bg-teal-600 text-white text-xs font-semibold hover:bg-teal-700 shadow-xs hover:shadow transition active:scale-[0.98]">
               <i className="fas fa-file-export mr-1.5" /> Xuất
             </button>
-            <button type="button" onClick={openCreate} className="px-4 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 whitespace-nowrap">
-              <i className="fas fa-plus mr-1.5" /> Thêm
+            <button type="button" onClick={openCreate} className="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 shadow-xs hover:shadow transition active:scale-[0.98] whitespace-nowrap">
+              <i className="fas fa-plus mr-1.5" /> Thêm {config.entityLabel || ''}
             </button>
             <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={onImport} />
           </>
         }
       />
 
+<<<<<<< HEAD
       {selectedIds.length > 0 && (
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-indigo-200 bg-indigo-50/90 px-4 py-3 shadow-xs">
           <div className="flex items-center gap-3">
@@ -346,11 +605,14 @@ export function PersonManager({ config }) {
         </div>
       )}
 
+=======
+>>>>>>> 4e8ffb5c0a056164b568d493668162ccf16b4bd5
       <DataTable
         columns={columns}
         rows={tableRows}
         isLoading={isLoading}
         emptyText="Chưa có dữ liệu"
+<<<<<<< HEAD
         rowClassName={(person) => (selectedIds.includes(person._id) ? 'bg-indigo-50/40' : '')}
       />
       <Pagination
@@ -363,6 +625,41 @@ export function PersonManager({ config }) {
           setPage(p);
         }}
       />
+=======
+        selectable
+        selectedKeys={selectedIds}
+        onSelectKey={(key) =>
+          setSelectedIds((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]))
+        }
+        onSelectAll={(allKeys) =>
+          setSelectedIds((prev) =>
+            allKeys.every((k) => prev.includes(k))
+              ? prev.filter((k) => !allKeys.includes(k))
+              : Array.from(new Set([...prev, ...allKeys]))
+          )
+        }
+        bulkActions={
+          <>
+            <button
+              type="button"
+              onClick={() => setSelectedIds([])}
+              className="px-3 py-1.5 text-xs font-semibold text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50"
+            >
+              Bỏ chọn
+            </button>
+            <button
+              type="button"
+              onClick={onBulkDelete}
+              className="px-3 py-1.5 text-xs font-bold text-white bg-red-600 rounded-xl hover:bg-red-700 shadow-xs flex items-center gap-1.5"
+            >
+              <i className="fas fa-trash-alt" />
+              <span>Xóa {selectedIds.length} mục đã chọn</span>
+            </button>
+          </>
+        }
+      />
+      <Pagination page={meta.page} pages={meta.pages} total={meta.total} onPageChange={setPage} />
+>>>>>>> 4e8ffb5c0a056164b568d493668162ccf16b4bd5
 
       {modal && (
         <PersonFormModal
@@ -381,8 +678,89 @@ export function PersonManager({ config }) {
           onClose={() => setModal(null)}
           onSubmit={handleSubmit}
           saving={mutations.create.isPending || mutations.update.isPending || mutations.uploadAvatar.isPending}
+          onAvatar={
+            (modal.mode === 'edit' && (modal.person?._id || modal.person?.id || modal.initial?._id || modal.initial?.id))
+              ? (file) => onAvatar(modal.person || modal.initial, file)
+              : undefined
+          }
         />
       )}
+
+      {/* Modal khóa tài khoản */}
+      <Modal open={Boolean(lockTarget)} onClose={() => setLockTarget(null)} title="Khóa tài khoản" size="sm">
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600">
+            Khóa tài khoản của <span className="font-semibold text-gray-900">{lockTarget?.hoTen || lockTarget?.email}</span>. Người dùng sẽ bị đăng xuất ngay lập tức.
+          </p>
+          <FormField label="Lý do khóa">
+            <select className={inputClass} value={lockReason} onChange={(e) => setLockReason(e.target.value)}>
+              {LOCK_REASONS.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
+            </select>
+          </FormField>
+          {lockReason === 'Khác' && (
+            <FormField label="Nhập lý do">
+              <input
+                className={inputClass}
+                placeholder="Nhập lý do cụ thể..."
+                value={customReason}
+                onChange={(e) => setCustomReason(e.target.value)}
+              />
+            </FormField>
+          )}
+          <div className="flex justify-end gap-3 pt-2">
+            <button
+              type="button"
+              onClick={() => setLockTarget(null)}
+              className="px-4 py-2 rounded-xl text-sm font-semibold bg-gray-100 text-gray-600 hover:bg-gray-200"
+            >
+              Hủy
+            </button>
+            <button
+              type="button"
+              onClick={doLock}
+              disabled={locking}
+              className="px-4 py-2 rounded-xl text-sm font-semibold bg-red-600 text-white hover:bg-red-700 disabled:opacity-60"
+            >
+              {locking ? 'Đang khóa...' : 'Xác nhận khóa'}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal hiển thị mật khẩu tạm thời */}
+      <Modal open={Boolean(tempPassword)} onClose={() => setTempPassword(null)} title="Mật khẩu tạm thời" size="sm">
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600">
+            Đã đặt lại mật khẩu cho <span className="font-semibold text-gray-900">{tempPassword?.email}</span>. Hãy sao chép và gửi cho người dùng — mật khẩu này chỉ hiển thị một lần.
+          </p>
+          <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-4 py-3">
+            <code className="flex-1 font-mono text-indigo-700 font-bold text-lg">{tempPassword?.password}</code>
+            <button
+              type="button"
+              onClick={() => {
+                navigator.clipboard?.writeText(tempPassword.password);
+                toast.success('Đã sao chép vào bộ nhớ tạm');
+              }}
+              className="px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 flex items-center gap-1.5"
+            >
+              <i className="fas fa-copy" /> Sao chép
+            </button>
+          </div>
+          <div className="flex justify-end pt-2">
+            <button
+              type="button"
+              onClick={() => setTempPassword(null)}
+              className="px-4 py-2 rounded-xl text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700"
+            >
+              Đóng
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

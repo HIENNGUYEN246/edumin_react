@@ -10,6 +10,7 @@ import { Counter } from '../modules/shared/counter.model.js';
  * `counters` collection), preventing duplicate-key errors on the numeric id.
  *
  * @param {string} key
+<<<<<<< HEAD
  * @param {{ model: import('mongoose').Model, field?: string }} [syncFrom]
  */
 export async function nextSequence(key, syncFromOrSession, syncFrom) {
@@ -17,6 +18,18 @@ export async function nextSequence(key, syncFromOrSession, syncFrom) {
   if (sync?.model) {
     const field = sync.field || 'id';
     const top = await sync.model
+=======
+ * @param {import('mongoose').ClientSession|null} [_session]  Deprecated/ignored, kept for signature compatibility
+ * @param {{ model: import('mongoose').Model, field?: string }} [syncFrom]
+ */
+export async function nextSequence(key, _session, syncFrom) {
+  // Support both nextSequence(key, syncFrom) and nextSequence(key, session, syncFrom)
+  const syncOptions = syncFrom || (_session && typeof _session === 'object' && _session.model ? _session : null);
+
+  if (syncOptions?.model) {
+    const field = syncOptions.field || 'id';
+    const top = await syncOptions.model
+>>>>>>> 4e8ffb5c0a056164b568d493668162ccf16b4bd5
       .findOne({}, { [field]: 1 })
       .sort({ [field]: -1 })
       .lean();

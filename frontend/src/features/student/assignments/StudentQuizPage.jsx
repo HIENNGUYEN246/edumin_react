@@ -1,6 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Spinner } from '../../../components/ui/Spinner.jsx';
+import { Avatar } from '../../../components/ui/Avatar.jsx';
 import { assignmentsApi } from '../../../api/assignmentsApi.js';
 import { QuizPlayer } from './QuizPlayer.jsx';
 
@@ -31,7 +32,7 @@ export function StudentQuizPage() {
         <button
           type="button"
           onClick={() => navigate('/student/assignments')}
-          className="mt-5 px-4 py-2 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700"
+          className="mt-5 px-4 py-2 rounded-xl bg-teal-600 text-white text-sm font-semibold hover:bg-teal-700"
         >
           Quay lại danh sách
         </button>
@@ -57,19 +58,33 @@ export function StudentQuizPage() {
       <button
         type="button"
         onClick={() => navigate('/student/assignments')}
-        className="inline-flex items-center gap-2 text-sm font-semibold text-gray-500 hover:text-indigo-600 mb-4"
+        className="inline-flex items-center gap-2 text-sm font-semibold text-gray-500 hover:text-teal-600 mb-4 transition"
       >
         <i className="fas fa-arrow-left" /> Danh sách bài tập
       </button>
 
       <div className="mb-6">
-        <p className="text-xs font-bold uppercase tracking-[0.2em] text-violet-500">
+        <p className="text-xs font-bold uppercase tracking-[0.2em] text-teal-600">
           {assignment.courseId} · Trắc nghiệm
         </p>
         <h1 className="text-2xl md:text-3xl font-extrabold text-gray-900 mt-1">{assignment.title}</h1>
-        {assignment.description && <p className="text-gray-500 mt-2">{assignment.description}</p>}
+        {assignment.description && <p className="text-gray-500 mt-2 leading-relaxed">{assignment.description}</p>}
+        
+        {assignment.createdBy && (
+          <div className="flex items-center gap-2 mt-2.5">
+            <Avatar
+              src={assignment.createdByRef?.avatar?.url || assignment.createdByRef?.avatar}
+              name={assignment.createdBy}
+              size={24}
+            />
+            <span className="text-xs text-gray-600 font-medium">
+              Giảng viên ra đề: <strong className="text-gray-800">{assignment.createdBy}</strong>
+            </span>
+          </div>
+        )}
+
         <div className="flex flex-wrap gap-4 mt-3 text-sm text-gray-500">
-          <span><i className="fas fa-list-ol mr-1.5" />{assignment.questions?.length || 0} câu hỏi</span>
+          <span><i className="fas fa-list-ol mr-1.5 text-teal-600" />{assignment.questions?.length || 0} câu hỏi</span>
           {assignment.dueDate && <span><i className="far fa-clock mr-1.5" />Hạn nộp {assignment.dueDate}</span>}
           {submission && <span className="text-emerald-600 font-semibold"><i className="fas fa-circle-check mr-1.5" />Đã nộp</span>}
         </div>

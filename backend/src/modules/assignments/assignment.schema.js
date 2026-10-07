@@ -10,6 +10,7 @@ const questionSchema = z.object({
 export const createAssignmentSchema = z
   .object({
     courseId: z.string().trim().min(1, 'Chọn học phần'),
+    classId: z.string().trim().optional().default(''),
     type: z.enum(['file', 'quiz']).default('file'),
     title: z.string().trim().min(1, 'Tiêu đề là bắt buộc').max(200),
     description: z.string().trim().optional().default(''),
@@ -23,6 +24,7 @@ export const createAssignmentSchema = z
   });
 
 export const updateAssignmentSchema = z.object({
+  classId: z.string().trim().optional(),
   title: z.string().trim().min(1).max(200).optional(),
   description: z.string().trim().optional(),
   dueDate: z.string().trim().optional(),

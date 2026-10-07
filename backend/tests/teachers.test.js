@@ -219,6 +219,7 @@ describe('Teachers', () => {
     expect(after.head).toBeNull();
   });
 
+<<<<<<< HEAD
   it('bulk deletes teachers and clears department head', async () => {
     const t1 = await request(app)
       .post('/api/teachers')
@@ -246,5 +247,37 @@ describe('Teachers', () => {
     expect(await User.countDocuments({ email: { $in: ['gv1@university.edu.vn', 'gv2@university.edu.vn'] } })).toBe(0);
     const after = await Department.findById(dept._id);
     expect(after.head).toBeNull();
+=======
+  it('updates all teacher profile info via PATCH and keeps User name in sync', async () => {
+    await Department.create({ id: 'NNA', name: 'Khoa Ngôn Ngữ Anh' });
+    const createRes = await request(app)
+      .post('/api/teachers')
+      .set(authHeader(adminToken))
+      .send({ hoTen: 'Giáo Viên Gốc', email: 'allteach@edu.vn' });
+    expect(createRes.status).toBe(201);
+    const id = createRes.body._id;
+
+    const updateRes = await request(app)
+      .patch(`/api/teachers/${id}`)
+      .set(authHeader(adminToken))
+      .send({
+        hoTen: 'Giáo Viên Đã Đổi Tên',
+        phone: '0988776655',
+        dob: '1988-11-20',
+        gender: 'Nữ',
+        address: 'Đà Nẵng',
+        education: 'Tiến sĩ',
+        departmentId: 'NNA',
+      });
+
+    expect(updateRes.status).toBe(200);
+    expect(updateRes.body.hoTen).toBe('Giáo Viên Đã Đổi Tên');
+    expect(updateRes.body.phone).toBe('0988776655');
+    expect(updateRes.body.dob).toBe('1988-11-20');
+    expect(updateRes.body.gender).toBe('Nữ');
+    expect(updateRes.body.address).toBe('Đà Nẵng');
+    expect(updateRes.body.education).toBe('Tiến sĩ');
+    expect(updateRes.body.department).toBe('Khoa Ngôn Ngữ Anh');
+>>>>>>> 4e8ffb5c0a056164b568d493668162ccf16b4bd5
   });
 });

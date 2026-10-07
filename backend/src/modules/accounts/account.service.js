@@ -67,11 +67,36 @@ export async function listAccounts(query) {
   return paginate(User, { filter, page, limit, skip, sort, populate, select: '-passwordHash' });
 }
 
+async function findUserByIdOrProfile(id) {
+  if (!id) return null;
+  let user = null;
+  if (mongoose.Types.ObjectId.isValid(id)) {
+    user = await User.findById(id);
+    if (!user) {
+      user = await User.findOne({ $or: [{ student: id }, { teacher: id }, { studentId: id }, { teacherId: id }] });
+    }
+    if (!user) {
+      const models = mongoose.modelNames();
+      if (models.includes('Student')) {
+        const s = await mongoose.model('Student').findById(id).select('userId email');
+        if (s?.userId) user = await User.findById(s.userId);
+        if (!user && s?.email) user = await User.findOne({ email: s.email });
+      }
+      if (!user && models.includes('Teacher')) {
+        const t = await mongoose.model('Teacher').findById(id).select('userId email');
+        if (t?.userId) user = await User.findById(t.userId);
+        if (!user && t?.email) user = await User.findOne({ email: t.email });
+      }
+    }
+  }
+  return user;
+}
+
 export async function updateStatus(actor, id, { status, lockReason }) {
   if (String(actor._id) === String(id) && status === 'Locked') {
     throw AppError.badRequest('Bạn không thể tự khóa tài khoản của mình');
   }
-  const user = await User.findById(id);
+  const user = await findUserByIdOrProfile(id);
   if (!user) throw AppError.notFound('Không tìm thấy tài khoản');
 
   user.status = status;
@@ -84,7 +109,7 @@ export async function updateStatus(actor, id, { status, lockReason }) {
 
 /** Reset to a random temp password and return it once for the admin to relay. */
 export async function resetPassword(id) {
-  const user = await User.findById(id);
+  const user = await findUserByIdOrProfile(id);
   if (!user) throw AppError.notFound('Không tìm thấy tài khoản');
 
   const tempPassword = generateTempPassword();
@@ -94,7 +119,7 @@ export async function resetPassword(id) {
   return { tempPassword };
 }
 
-/** Delete an account plus its profile (and avatar/enrollments) in a transaction. */
+/** Delete an account plus its profile (and avatar/enrollments) sequentially. */
 export async function deleteAccount(actor, id) {
   if (String(actor._id) === String(id)) {
     throw AppError.badRequest('Bạn không thể xóa tài khoản của mình');
@@ -109,7 +134,13 @@ export async function deleteAccount(actor, id) {
     const teacher = await mongoose.model('Teacher').findById(user.teacher);
     if (teacher) {
       avatarToDelete = teacher.avatar?.publicId || null;
+<<<<<<< HEAD
       await mongoose.model('Department').updateMany({ head: teacher._id }, { $set: { head: null } });
+=======
+      if (models.includes('Department')) {
+        await mongoose.model('Department').updateMany({ head: teacher._id }, { $set: { head: null } });
+      }
+>>>>>>> 4e8ffb5c0a056164b568d493668162ccf16b4bd5
       await mongoose.model('Teacher').deleteOne({ _id: teacher._id });
     }
   }
@@ -131,3 +162,20 @@ export async function deleteAccount(actor, id) {
   }
   return { success: true };
 }
+
+export async function bulkDeleteAccounts(actor, ids) {
+  if (!Array.isArray(ids) || ids.length === 0) {
+    throw AppError.badRequest('Danh sách mã tài khoản không hợp lệ');
+  }
+  let deletedCount = 0;
+  for (const id of ids) {
+    try {
+      await deleteAccount(actor, id);
+      deletedCount += 1;
+    } catch {
+      // Continue next
+    }
+  }
+  return { deletedCount };
+}
+

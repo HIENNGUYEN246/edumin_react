@@ -10,7 +10,11 @@ body,
 
 body {
   margin: 0;
-  font-family: 'Poppins', system-ui, sans-serif;
+  font-family: 'Poppins', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background-color: #f8fafc;
+  color: #0f172a;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .font-poppins {
@@ -22,15 +26,15 @@ body {
   width: 6px;
 }
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: #f1f1f1;
-  border-radius: 10px;
+  background: #f1f5f9;
+  border-radius: 9999px;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #c7d2fe;
-  border-radius: 10px;
+  background: #cbd5e1;
+  border-radius: 9999px;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #818cf8;
+  background: #94a3b8;
 }
 
 .sticky-col {
@@ -38,15 +42,24 @@ body {
   right: 0;
   background-color: white;
   z-index: 10;
-  box-shadow: -2px 0 5px rgba(0, 0, 0, 0.05);
+  box-shadow: -2px 0 6px rgba(0, 0, 0, 0.04);
 }
 tr:hover .sticky-col {
-  background-color: #f5f7ff;
+  background-color: #f8fafc;
 }
 th.sticky-col {
-  background-color: #f9fafb !important;
+  background-color: #f8fafc !important;
   z-index: 20;
 }
 .avatar-error {
   border: 4px solid #ef4444 !important;
+}
+
+/* Modern UI card transitions */
+.card-hover {
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.08), 0 8px 10px -6px rgba(15, 23, 42, 0.04);
 }

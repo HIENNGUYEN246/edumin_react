@@ -63,6 +63,7 @@ export const DAYS = [
 
 export const dayLabel = (id) => DAYS.find((d) => d.id === String(id))?.label || String(id);
 export const dayShort = (id) => DAYS.find((d) => d.id === String(id))?.short || String(id);
+<<<<<<< HEAD
 export const dayInfo = (id) =>
   DAYS.find((d) => d.id === String(id)) || {
     id: String(id),
@@ -71,6 +72,9 @@ export const dayInfo = (id) =>
     badgeBg: 'bg-gray-600 text-white',
     lightBg: 'bg-gray-50 text-gray-700 border-gray-200',
   };
+=======
+export const dayInfo = (id) => DAYS.find((d) => d.id === String(id)) || { id: String(id), label: String(id), short: String(id), badgeBg: 'bg-gray-600 text-white', lightBg: 'bg-gray-50 text-gray-700 border-gray-200' };
+>>>>>>> 4e8ffb5c0a056164b568d493668162ccf16b4bd5
 
 export const shiftLabel = (id) => SHIFTS.find((s) => s.id === id)?.label || String(id);
 export const shiftInfo = (id) =>
