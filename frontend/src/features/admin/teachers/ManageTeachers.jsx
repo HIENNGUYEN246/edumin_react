@@ -67,7 +67,7 @@ const teacherConfig = {
       ],
     },
     { name: 'address', label: 'Địa chỉ cư trú', required: true, validation: 'address', maxLength: 200, section: 'personal', fullWidth: true },
-    { name: 'email', label: 'Email giảng viên', type: 'email', required: true, validation: 'teacherEmail', placeholder: 'VD: gv.an@university.edu.vn', maxLength: 254, section: 'work' },
+    { name: 'email', label: 'Email giảng viên', type: 'email', required: true, validation: 'teacherEmail', placeholder: 'VD: gv.an', hint: 'Đuôi email mặc định: @university.edu.vn', maxLength: 254, section: 'work' },
     {
       name: 'education',
       label: 'Trình độ',

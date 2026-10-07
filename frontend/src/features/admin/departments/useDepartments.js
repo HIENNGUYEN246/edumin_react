@@ -21,6 +21,8 @@ export function useDepartmentMutations() {
     onSuccess: invalidate,
   });
   const remove = useMutation({ mutationFn: departmentsApi.remove, onSuccess: invalidate });
+  const bulkRemove = useMutation({ mutationFn: departmentsApi.bulkDelete, onSuccess: invalidate });
 
-  return { create, update, remove };
+  return { create, update, remove, bulkRemove };
 }
+

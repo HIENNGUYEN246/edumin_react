@@ -14,7 +14,9 @@ export const departmentsApi = {
   create: (payload) => http.post('/departments', payload),
   update: (id, payload) => http.patch(`/departments/${id}`, payload),
   remove: (id) => http.delete(`/departments/${id}`),
+  bulkDelete: (ids) => http.post('/departments/bulk-delete', { ids }),
 };
+
 
 export { qs };
 export default departmentsApi;

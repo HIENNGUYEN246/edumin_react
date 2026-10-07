@@ -33,14 +33,63 @@ export function ManageCourses() {
   const { create, update, remove, bulkDelete, importRows } = useCourseMutations();
   const { data: deptData } = useDepartments({ limit: 100 });
   const [selectedIds, setSelectedIds] = useState([]);
+  const [lastClickedIndex, setLastClickedIndex] = useState(null);
 
   useEffect(() => {
     setSelectedIds([]);
+    setLastClickedIndex(null);
   }, [page, search]);
 
   const rows = data?.data || [];
   const meta = data?.meta || { page: 1, pages: 1, total: 0 };
   const departments = deptData?.data || [];
+
+  const allCurrentRowIds = rows.map((r) => r._id);
+  const isAllSelected = rows.length > 0 && allCurrentRowIds.every((id) => selectedIds.includes(id));
+  const isSomeSelected = rows.length > 0 && allCurrentRowIds.some((id) => selectedIds.includes(id)) && !isAllSelected;
+
+  const handleSelectAll = () => {
+    setLastClickedIndex(null);
+    if (isAllSelected) {
+      setSelectedIds((prev) => prev.filter((id) => !allCurrentRowIds.includes(id)));
+    } else {
+      setSelectedIds((prev) => Array.from(new Set([...prev, ...allCurrentRowIds])));
+    }
+  };
+
+  const handleRowCheckboxClick = (e, course, rowIndex) => {
+    e.stopPropagation();
+
+    if (e.shiftKey) {
+      window.getSelection?.()?.removeAllRanges?.();
+    }
+
+    const index = typeof rowIndex === 'number' ? rowIndex : rows.findIndex((r) => r._id === course._id);
+    const isCurrentlyChecked = selectedIds.includes(course._id);
+    const targetChecked = !isCurrentlyChecked;
+
+    if (e.shiftKey && lastClickedIndex !== null && lastClickedIndex !== index && index >= 0) {
+      const start = Math.min(lastClickedIndex, index);
+      const end = Math.max(lastClickedIndex, index);
+      const rangeRows = rows.slice(start, end + 1);
+      const rangeIds = rangeRows.map((r) => r._id);
+
+      if (targetChecked) {
+        setSelectedIds((prev) => Array.from(new Set([...prev, ...rangeIds])));
+      } else {
+        setSelectedIds((prev) => prev.filter((id) => !rangeIds.includes(id)));
+      }
+    } else {
+      if (targetChecked) {
+        setSelectedIds((prev) => (prev.includes(course._id) ? prev : [...prev, course._id]));
+      } else {
+        setSelectedIds((prev) => prev.filter((id) => id !== course._id));
+      }
+    }
+
+    setLastClickedIndex(index >= 0 ? index : null);
+  };
+
 
   const openCreate = () => {
     setForm(EMPTY);
@@ -161,7 +210,39 @@ export function ManageCourses() {
     fn();
   };
 
-  const columns = [
+  const selectionColumn = {
+    key: 'selection',
+    header: (
+      <div className="flex items-center justify-center">
+        <input
+          type="checkbox"
+          checked={isAllSelected}
+          ref={(el) => {
+            if (el) el.indeterminate = isSomeSelected;
+          }}
+          onChange={handleSelectAll}
+          className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+          title="Chọn tất cả"
+          aria-label="Chọn tất cả"
+        />
+      </div>
+    ),
+    className: 'w-10 text-center px-2',
+    render: (c, rowIndex) => (
+      <div className="flex items-center justify-center select-none" onClick={(e) => e.stopPropagation()}>
+        <input
+          type="checkbox"
+          checked={selectedIds.includes(c._id)}
+          onChange={() => {}}
+          onClick={(e) => handleRowCheckboxClick(e, c, rowIndex)}
+          className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+          aria-label={`Chọn môn học ${c.name}`}
+        />
+      </div>
+    ),
+  };
+
+  const baseColumns = [
     {
       key: 'id',
       header: 'Mã môn',
@@ -203,6 +284,8 @@ export function ManageCourses() {
     },
   ];
 
+  const columns = [selectionColumn, ...baseColumns];
+
   return (
     <div>
       <PageHeader
@@ -210,7 +293,15 @@ export function ManageCourses() {
         subtitle="Quản lý danh mục môn học, số tín chỉ, học phí định mức và khoa đào tạo"
         actions={
           <>
-            <SearchInput value={searchText} onChange={(v) => { setSearchText(v); setPage(1); }} />
+            <SearchInput
+              value={searchText}
+              onChange={(v) => {
+                setSearchText(v);
+                setSelectedIds([]);
+                setLastClickedIndex(null);
+                setPage(1);
+              }}
+            />
             <button type="button" onClick={() => fileRef.current?.click()} className="px-3.5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 shadow-xs hover:shadow transition active:scale-[0.98]">
               <i className="fas fa-file-import mr-1.5" /> Nhập Excel
             </button>
@@ -225,45 +316,59 @@ export function ManageCourses() {
         }
       />
 
-      <DataTable
-        columns={columns}
-        rows={rows}
-        isLoading={isLoading}
-        emptyText="Chưa có môn học nào trong danh mục"
-        onRowClick={(c) => navigate(`/admin/courses/${c._id}`)}
-        selectable
-        selectedKeys={selectedIds}
-        onSelectKey={(key) =>
-          setSelectedIds((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]))
-        }
-        onSelectAll={(allKeys) =>
-          setSelectedIds((prev) =>
-            allKeys.every((k) => prev.includes(k))
-              ? prev.filter((k) => !allKeys.includes(k))
-              : Array.from(new Set([...prev, ...allKeys]))
-          )
-        }
-        bulkActions={
-          <>
+      {selectedIds.length > 0 && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-indigo-200 bg-indigo-50/90 px-4 py-3 shadow-xs">
+          <div className="flex items-center gap-3">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-600 text-xs font-bold text-white shadow-xs">
+              {selectedIds.length}
+            </span>
+            <span className="text-sm font-medium text-indigo-950">
+              Đang chọn <strong className="text-indigo-700">{selectedIds.length}</strong> môn học
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setSelectedIds([])}
-              className="px-3 py-1.5 text-xs font-semibold text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50"
+              onClick={() => {
+                setSelectedIds([]);
+                setLastClickedIndex(null);
+              }}
+              className="rounded-xl border border-gray-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 shadow-2xs transition"
             >
               Bỏ chọn
             </button>
             <button
               type="button"
               onClick={onBulkDelete}
-              className="px-3 py-1.5 text-xs font-bold text-white bg-red-600 rounded-xl hover:bg-red-700 shadow-xs flex items-center gap-1.5"
+              disabled={bulkDelete?.isPending}
+              className="flex items-center gap-1.5 rounded-xl bg-red-600 px-4 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-red-700 disabled:opacity-50 transition"
             >
-              <i className="fas fa-trash-alt" />
-              <span>Xóa {selectedIds.length} môn học đã chọn</span>
+              <i className="fas fa-trash-alt text-[11px]" />
+              <span>{bulkDelete?.isPending ? 'Đang xóa...' : `Xóa ${selectedIds.length} môn học đã chọn`}</span>
             </button>
-          </>
-        }
+          </div>
+        </div>
+      )}
+
+      <DataTable
+        columns={columns}
+        rows={rows}
+        isLoading={isLoading}
+        emptyText="Chưa có môn học nào trong danh mục"
+        onRowClick={(c) => navigate(`/admin/courses/${c._id}`)}
+        rowClassName={(c) => (selectedIds.includes(c._id) ? 'bg-indigo-50/40' : '')}
       />
-      <Pagination page={meta.page} pages={meta.pages} total={meta.total} onPageChange={setPage} />
+      <Pagination
+        page={meta.page}
+        pages={meta.pages}
+        total={meta.total}
+        onPageChange={(p) => {
+          setSelectedIds([]);
+          setLastClickedIndex(null);
+          setPage(p);
+        }}
+      />
+
 
       <Modal open={Boolean(modal)} onClose={() => setModal(null)} title={modal?.mode === 'create' ? 'Thêm môn học mới' : 'Sửa thông tin môn học'}>
         {modal && (

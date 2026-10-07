@@ -72,7 +72,7 @@ const studentConfig = {
       ],
     },
     { name: 'address', label: 'Địa chỉ cư trú', required: true, validation: 'address', maxLength: 200, section: 'personal', fullWidth: true },
-    { name: 'email', label: 'Email sinh viên', type: 'email', required: true, validation: 'studentEmail', placeholder: 'VD: sv.an@student.edu.vn', maxLength: 254, section: 'work' },
+    { name: 'email', label: 'Email sinh viên', type: 'email', required: true, validation: 'studentEmail', placeholder: 'VD: sv.an', hint: 'Đuôi email mặc định: @student.edu.vn', maxLength: 254, section: 'work' },
     { name: 'className', label: 'Lớp sinh hoạt', required: true, validation: 'studentClass', placeholder: 'Ví dụ: 20DTH01', maxLength: 40, section: 'work' },
     { name: 'departmentId', label: 'Khoa', type: 'select', required: true, validation: 'department', placeholder: 'Chọn khoa', section: 'work', fullWidth: true },
     {

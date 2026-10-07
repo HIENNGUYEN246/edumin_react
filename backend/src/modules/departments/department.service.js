@@ -96,3 +96,20 @@ export async function deleteDepartment(id) {
 
   return { success: true };
 }
+
+export async function bulkDeleteDepartments(ids) {
+  if (!Array.isArray(ids) || ids.length === 0) {
+    throw AppError.badRequest('Danh sách mã khoa không hợp lệ');
+  }
+  let deletedCount = 0;
+  for (const id of ids) {
+    try {
+      await deleteDepartment(id);
+      deletedCount += 1;
+    } catch {
+      // Continue next
+    }
+  }
+  return { deletedCount };
+}
+

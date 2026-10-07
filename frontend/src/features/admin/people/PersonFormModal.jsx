@@ -32,13 +32,38 @@ function normalizeEmailWithDomain(rawEmail, expectedDomain) {
   if (!trimmed) return '';
   if (!expectedDomain) return trimmed;
 
+  const domain = expectedDomain.startsWith('@') ? expectedDomain.slice(1) : expectedDomain;
   if (!trimmed.includes('@')) {
-    return `${trimmed}@${expectedDomain}`;
+    return `${trimmed}@${domain}`;
   }
   const [username] = trimmed.split('@');
   if (!username) return trimmed;
-  return `${username}@${expectedDomain}`;
+  return `${username}@${domain}`;
 }
+
+function getFieldDomainSuffix(field, entityLabel) {
+  if (field.validation === 'teacherEmail' || entityLabel?.toLowerCase().includes('giáo viên') || entityLabel?.toLowerCase().includes('giảng viên')) {
+    return '@university.edu.vn';
+  }
+  if (field.validation === 'studentEmail' || entityLabel?.toLowerCase().includes('sinh viên')) {
+    return '@student.edu.vn';
+  }
+  return null;
+}
+
+function getEmailPrefix(fullEmail, suffix) {
+  if (!fullEmail) return '';
+  const str = String(fullEmail).trim();
+  if (!str) return '';
+  if (suffix && str.toLowerCase().endsWith(suffix.toLowerCase())) {
+    return str.slice(0, -suffix.length);
+  }
+  if (str.includes('@')) {
+    return str.split('@')[0];
+  }
+  return str;
+}
+
 
 function getFieldError(field, rawValue, departments) {
   const raw = String(rawValue ?? '');
@@ -142,18 +167,24 @@ export function PersonFormModal({
     setErrors((previous) => ({ ...previous, [field.name]: message }));
   };
 
+  const handleEmailPrefixChange = (field, suffix) => (e) => {
+    let val = e.target.value;
+    if (val.includes('@')) {
+      val = val.split('@')[0];
+    }
+    val = val.replace(/\s+/g, '');
+    const fullEmail = val ? `${val}${suffix}` : '';
+    setForm((f) => ({ ...f, [field.name]: fullEmail }));
+    setErrors((prev) => ({ ...prev, [field.name]: '' }));
+  };
+
   const handleEmailBlur = (field) => {
     const raw = String(form[field.name] || '').trim();
     if (!raw) {
       validateField(field);
       return;
     }
-    const domain =
-      field.validation === 'teacherEmail' || entityLabel?.toLowerCase().includes('giáo viên')
-        ? 'university.edu.vn'
-        : field.validation === 'studentEmail' || entityLabel?.toLowerCase().includes('sinh viên')
-        ? 'student.edu.vn'
-        : null;
+    const domain = getFieldDomainSuffix(field, entityLabel);
 
     if (domain) {
       const normalized = normalizeEmailWithDomain(raw, domain);
@@ -192,12 +223,7 @@ export function PersonFormModal({
     // Tự động gắn ngầm chuẩn đuôi email trước khi validate & submit
     fields.forEach((field) => {
       if (field.type === 'email' && nextForm[field.name]) {
-        const domain =
-          field.validation === 'teacherEmail' || entityLabel?.toLowerCase().includes('giáo viên')
-            ? 'university.edu.vn'
-            : field.validation === 'studentEmail' || entityLabel?.toLowerCase().includes('sinh viên')
-            ? 'student.edu.vn'
-            : null;
+        const domain = getFieldDomainSuffix(field, entityLabel);
         if (domain) {
           nextForm[field.name] = normalizeEmailWithDomain(nextForm[field.name], domain);
         }
@@ -222,6 +248,8 @@ export function PersonFormModal({
   const renderField = (field) => {
     const maxVal = field.type === 'date' && field.max ? (typeof field.max === 'function' ? field.max() : field.max) : undefined;
     const minVal = field.type === 'date' && field.min ? (typeof field.min === 'function' ? field.min() : field.min) : undefined;
+    const domainSuffix = field.type === 'email' ? getFieldDomainSuffix(field, entityLabel) : null;
+
     return (
       <div key={field.name} className={field.fullWidth ? 'sm:col-span-2' : ''}>
         <FormField label={field.label} error={errors[field.name]} required={field.required} hint={field.hint}>
@@ -234,6 +262,24 @@ export function PersonFormModal({
                 </option>
               ))}
             </select>
+          ) : field.type === 'email' && domainSuffix ? (
+            <div className="flex rounded-xl shadow-2xs">
+              <input
+                type="text"
+                className={`flex-1 min-w-0 rounded-l-xl rounded-r-none border border-r-0 ${
+                  errors[field.name] ? 'border-red-300 focus:border-red-500' : 'border-gray-200 focus:border-indigo-500'
+                } ${mode === 'edit' ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : 'bg-white text-gray-800'} px-3.5 py-2.5 text-xs focus:ring-2 focus:ring-indigo-100 focus:outline-none transition`}
+                value={getEmailPrefix(form[field.name], domainSuffix)}
+                disabled={mode === 'edit'}
+                onChange={handleEmailPrefixChange(field, domainSuffix)}
+                onBlur={() => handleEmailBlur(field)}
+                placeholder={field.placeholder ? field.placeholder.replace(/@.+$/, '') : 'VD: nguyen.van.a'}
+                maxLength={field.maxLength ? field.maxLength - domainSuffix.length : 60}
+              />
+              <span className="inline-flex items-center px-3 bg-gray-100 text-gray-600 text-xs font-semibold border border-gray-200 rounded-r-xl select-none whitespace-nowrap">
+                {domainSuffix}
+              </span>
+            </div>
           ) : field.type === 'email' && mode === 'edit' ? (
             <input className={`${inputClass} bg-gray-50`} value={form[field.name] || ''} disabled />
           ) : (
@@ -254,6 +300,7 @@ export function PersonFormModal({
       </div>
     );
   };
+
 
   const departmentName = departments.find((department) => String(department.id) === String(form.departmentId))?.name;
   const avatarPreview = form.avatarPreview || form.avatar?.url || (typeof form.avatar === 'string' ? form.avatar : '') || '';

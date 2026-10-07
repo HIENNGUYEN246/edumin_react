@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { PageHeader, SearchInput } from '../../../components/ui/PageHeader.jsx';
 import { DataTable } from '../../../components/ui/DataTable.jsx';
 import { Pagination } from '../../../components/ui/Pagination.jsx';
@@ -24,10 +24,18 @@ export function ManageDepartments() {
   const [modal, setModal] = useState(null); // null | {mode:'create'|'edit', dept}
   const [form, setForm] = useState(EMPTY);
   const [errors, setErrors] = useState({});
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [lastClickedIndex, setLastClickedIndex] = useState(null);
 
   const params = useMemo(() => ({ page, limit: 10, search }), [page, search]);
   const { data, isLoading } = useDepartments(params);
-  const { create, update, remove } = useDepartmentMutations();
+  const { create, update, remove, bulkRemove } = useDepartmentMutations();
+
+  useEffect(() => {
+    setSelectedIds([]);
+    setLastClickedIndex(null);
+  }, [page, search]);
+
   const { data: teacherData } = useQuery({
     queryKey: ['teachers', { limit: 200 }],
     queryFn: () => teachersApi.list({ limit: 200 }),
@@ -88,22 +96,127 @@ export function ManageDepartments() {
     }
   };
 
+  const allCurrentRowIds = rows.map((r) => r._id);
+  const isAllSelected = rows.length > 0 && allCurrentRowIds.every((id) => selectedIds.includes(id));
+  const isSomeSelected = rows.length > 0 && allCurrentRowIds.some((id) => selectedIds.includes(id)) && !isAllSelected;
+
+  const handleSelectAll = () => {
+    setLastClickedIndex(null);
+    if (isAllSelected) {
+      setSelectedIds((prev) => prev.filter((id) => !allCurrentRowIds.includes(id)));
+    } else {
+      setSelectedIds((prev) => Array.from(new Set([...prev, ...allCurrentRowIds])));
+    }
+  };
+
+  const handleRowCheckboxClick = (e, dept, rowIndex) => {
+    e.stopPropagation();
+
+    if (e.shiftKey) {
+      window.getSelection?.()?.removeAllRanges?.();
+    }
+
+    const index = typeof rowIndex === 'number' ? rowIndex : rows.findIndex((r) => r._id === dept._id);
+    const isCurrentlyChecked = selectedIds.includes(dept._id);
+    const targetChecked = !isCurrentlyChecked;
+
+    if (e.shiftKey && lastClickedIndex !== null && lastClickedIndex !== index && index >= 0) {
+      const start = Math.min(lastClickedIndex, index);
+      const end = Math.max(lastClickedIndex, index);
+      const rangeRows = rows.slice(start, end + 1);
+      const rangeIds = rangeRows.map((r) => r._id);
+
+      if (targetChecked) {
+        setSelectedIds((prev) => Array.from(new Set([...prev, ...rangeIds])));
+      } else {
+        setSelectedIds((prev) => prev.filter((id) => !rangeIds.includes(id)));
+      }
+    } else {
+      if (targetChecked) {
+        setSelectedIds((prev) => (prev.includes(dept._id) ? prev : [...prev, dept._id]));
+      } else {
+        setSelectedIds((prev) => prev.filter((id) => id !== dept._id));
+      }
+    }
+
+    setLastClickedIndex(index >= 0 ? index : null);
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    const count = selectedIds.length;
+    const ok = await confirm({
+      title: 'Xóa nhiều khoa đã chọn',
+      message: `Bạn có chắc chắn muốn xóa ${count} khoa đã chọn? Giáo viên, sinh viên và học phần thuộc các khoa này sẽ chuyển sang "Chưa xác định".`,
+      confirmText: `Xóa ${count} khoa`,
+      tone: 'danger',
+    });
+    if (!ok) return;
+
+    try {
+      if (bulkRemove) {
+        await bulkRemove.mutateAsync(selectedIds);
+      } else {
+        await Promise.all(selectedIds.map((id) => remove.mutateAsync(id)));
+      }
+      toast.success(`Đã xóa thành công ${count} khoa`);
+      setSelectedIds([]);
+      setLastClickedIndex(null);
+    } catch (error) {
+      toast.error(error.message || 'Lỗi khi xóa khoa');
+    }
+  };
+
   const onDelete = async (dept) => {
     const ok = await confirm({
       title: 'Xóa khoa',
       message: `Xóa khoa "${dept.name}"? Giáo viên, sinh viên và học phần thuộc khoa sẽ chuyển sang "Chưa xác định".`,
       confirmText: 'Xóa',
+      tone: 'danger',
     });
     if (!ok) return;
     try {
       await remove.mutateAsync(dept._id);
+      setSelectedIds((prev) => prev.filter((id) => id !== dept._id));
       toast.success('Đã xóa khoa');
     } catch (error) {
       toast.error(error.message);
     }
   };
 
-  const columns = [
+  const selectionColumn = {
+    key: 'selection',
+    header: (
+      <div className="flex items-center justify-center">
+        <input
+          type="checkbox"
+          checked={isAllSelected}
+          ref={(el) => {
+            if (el) el.indeterminate = isSomeSelected;
+          }}
+          onChange={handleSelectAll}
+          className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+          title="Chọn tất cả"
+          aria-label="Chọn tất cả"
+        />
+      </div>
+    ),
+    className: 'w-10 text-center px-2',
+    render: (dept, rowIndex) => (
+      <div className="flex items-center justify-center select-none" onClick={(e) => e.stopPropagation()}>
+        <input
+          type="checkbox"
+          checked={selectedIds.includes(dept._id)}
+          onChange={() => {}}
+          onClick={(e) => handleRowCheckboxClick(e, dept, rowIndex)}
+          className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+          aria-label={`Chọn khoa ${dept.name}`}
+        />
+      </div>
+    ),
+  };
+
+  const baseColumns = [
     { key: 'id', header: 'Mã khoa', className: 'font-semibold text-gray-800' },
     { key: 'name', header: 'Tên khoa' },
     {
@@ -149,6 +262,8 @@ export function ManageDepartments() {
     },
   ];
 
+  const columns = [selectionColumn, ...baseColumns];
+
   return (
     <div>
       <PageHeader
@@ -160,6 +275,8 @@ export function ManageDepartments() {
               value={searchText}
               onChange={(v) => {
                 setSearchText(v);
+                setSelectedIds([]);
+                setLastClickedIndex(null);
                 setPage(1);
               }}
               placeholder="Tìm theo mã hoặc tên..."
@@ -175,8 +292,58 @@ export function ManageDepartments() {
         }
       />
 
-      <DataTable columns={columns} rows={rows} isLoading={isLoading} emptyText="Chưa có khoa nào" />
-      <Pagination page={meta.page} pages={meta.pages} total={meta.total} onPageChange={setPage} />
+      {selectedIds.length > 0 && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-indigo-200 bg-indigo-50/90 px-4 py-3 shadow-xs">
+          <div className="flex items-center gap-3">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-600 text-xs font-bold text-white shadow-xs">
+              {selectedIds.length}
+            </span>
+            <span className="text-sm font-medium text-indigo-950">
+              Đang chọn <strong className="text-indigo-700">{selectedIds.length}</strong> khoa
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedIds([]);
+                setLastClickedIndex(null);
+              }}
+              className="rounded-xl border border-gray-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 shadow-2xs transition"
+            >
+              Bỏ chọn
+            </button>
+            <button
+              type="button"
+              onClick={handleBulkDelete}
+              disabled={bulkRemove?.isPending}
+              className="flex items-center gap-1.5 rounded-xl bg-red-600 px-4 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-red-700 disabled:opacity-50 transition"
+            >
+              <i className="fas fa-trash-alt text-[11px]" />
+              <span>{bulkRemove?.isPending ? 'Đang xóa...' : `Xóa ${selectedIds.length} khoa đã chọn`}</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      <DataTable
+        columns={columns}
+        rows={rows}
+        isLoading={isLoading}
+        emptyText="Chưa có khoa nào"
+        rowClassName={(dept) => (selectedIds.includes(dept._id) ? 'bg-indigo-50/40' : '')}
+      />
+      <Pagination
+        page={meta.page}
+        pages={meta.pages}
+        total={meta.total}
+        onPageChange={(p) => {
+          setSelectedIds([]);
+          setLastClickedIndex(null);
+          setPage(p);
+        }}
+      />
+
 
       <Modal
         open={Boolean(modal)}

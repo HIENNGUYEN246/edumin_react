@@ -20,3 +20,8 @@ export const update = asyncHandler(async (req, res) => {
 export const remove = asyncHandler(async (req, res) => {
   res.json(await service.deleteDepartment(req.params.id));
 });
+
+export const bulkDelete = asyncHandler(async (req, res) => {
+  res.json(await service.bulkDeleteDepartments(req.body.ids));
+});
+

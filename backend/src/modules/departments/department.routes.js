@@ -15,8 +15,10 @@ router.get('/', controller.list);
 router.get('/:id', controller.getOne);
 
 // Only admin can mutate.
+router.post('/bulk-delete', authorize(ROLES.ADMIN), controller.bulkDelete);
 router.post('/', authorize(ROLES.ADMIN), validate(createDepartmentSchema), controller.create);
 router.patch('/:id', authorize(ROLES.ADMIN), validate(updateDepartmentSchema), controller.update);
 router.delete('/:id', authorize(ROLES.ADMIN), controller.remove);
+
 
 export default router;
