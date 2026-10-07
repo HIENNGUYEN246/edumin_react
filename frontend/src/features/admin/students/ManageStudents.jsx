@@ -8,7 +8,7 @@ const studentConfig = {
   title: 'Quản lý sinh viên',
   subtitle: 'Thêm, sửa, xóa sinh viên và nhập/xuất Excel',
   entityLabel: 'sinh viên',
-  showSerialNumber: true,
+  showSerialNumber: false,
   profilePanel: true,
   createTitle: 'Thêm Sinh Viên Mới',
   editTitle: 'Cập nhật thông tin sinh viên',
@@ -84,9 +84,8 @@ const studentConfig = {
       section: 'work',
     },
   ],
-  columns: ({ formatCode, renderAvatar, renderStatus, actions }) => [
-    { key: 'avatar', header: '', className: 'w-14', render: renderAvatar },
-    { key: 'id', header: 'Mã', className: 'font-semibold text-gray-800', render: (s) => formatCode(s.id) },
+  columns: ({ formatCode, renderStatus, actions }) => [
+    { key: 'id', header: 'Mã SV', className: 'font-semibold text-gray-800 whitespace-nowrap', render: (s) => formatCode(s.id) },
     {
       key: 'hoTen',
       header: 'Họ tên & Hệ ĐT',

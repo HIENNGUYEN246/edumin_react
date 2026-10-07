@@ -256,7 +256,7 @@ export function PersonFormModal({
   };
 
   const departmentName = departments.find((department) => String(department.id) === String(form.departmentId))?.name;
-  const avatarPreview = form.avatarPreview || form.avatar?.url || '';
+  const avatarPreview = form.avatarPreview || form.avatar?.url || (typeof form.avatar === 'string' ? form.avatar : '') || '';
 
   return (
     <Modal open={open} onClose={onClose} title={profilePanel ? undefined : title} size={profilePanel ? '2xl' : 'lg'}>
@@ -269,7 +269,7 @@ export function PersonFormModal({
             <label className="group relative mt-1 block cursor-pointer" title="Chọn ảnh đại diện">
               <Avatar
                 src={avatarPreview}
-                name={form.hoTen || 'Giảng viên'}
+                name={form.hoTen || (entityLabel ? `Tên ${entityLabel}` : 'Nhân sự')}
                 size={132}
                 className="border-4 border-white shadow-xl"
               />

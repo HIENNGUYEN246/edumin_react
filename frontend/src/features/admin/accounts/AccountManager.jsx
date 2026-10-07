@@ -31,9 +31,11 @@ export function AccountManager({ config }) {
   const { data, isLoading } = useAccounts(params);
   const { updateStatus, resetPassword, remove, bulkDelete } = useAccountMutations();
   const [selectedIds, setSelectedIds] = useState([]);
+  const [lastClickedIndex, setLastClickedIndex] = useState(null);
 
   useEffect(() => {
     setSelectedIds([]);
+    setLastClickedIndex(null);
   }, [page, search]);
 
   const rows = data?.data || [];
@@ -41,6 +43,53 @@ export function AccountManager({ config }) {
   const tableRows = config.showSerialNumber
     ? rows.map((account, index) => ({ ...account, serialNumber: (meta.page - 1) * meta.limit + index + 1 }))
     : rows;
+
+  const isStudentRole = config.role === 'sinh-vien' || config.hideAvatar;
+  const allCurrentRowIds = rows.map((r) => r._id);
+  const isAllSelected = rows.length > 0 && allCurrentRowIds.every((id) => selectedIds.includes(id));
+  const isSomeSelected = rows.length > 0 && allCurrentRowIds.some((id) => selectedIds.includes(id)) && !isAllSelected;
+
+  const handleSelectAll = () => {
+    setLastClickedIndex(null);
+    if (isAllSelected) {
+      setSelectedIds((prev) => prev.filter((id) => !allCurrentRowIds.includes(id)));
+    } else {
+      setSelectedIds((prev) => Array.from(new Set([...prev, ...allCurrentRowIds])));
+    }
+  };
+
+  const handleRowCheckboxClick = (e, account, rowIndex) => {
+    e.stopPropagation();
+
+    if (e.shiftKey) {
+      window.getSelection?.()?.removeAllRanges?.();
+    }
+
+    const index = typeof rowIndex === 'number' ? rowIndex : tableRows.findIndex((r) => r._id === account._id);
+    const isCurrentlyChecked = selectedIds.includes(account._id);
+    const targetChecked = !isCurrentlyChecked;
+
+    if (e.shiftKey && lastClickedIndex !== null && lastClickedIndex !== index && index >= 0) {
+      const start = Math.min(lastClickedIndex, index);
+      const end = Math.max(lastClickedIndex, index);
+      const rangeRows = tableRows.slice(start, end + 1);
+      const rangeIds = rangeRows.map((r) => r._id);
+
+      if (targetChecked) {
+        setSelectedIds((prev) => Array.from(new Set([...prev, ...rangeIds])));
+      } else {
+        setSelectedIds((prev) => prev.filter((id) => !rangeIds.includes(id)));
+      }
+    } else {
+      if (targetChecked) {
+        setSelectedIds((prev) => (prev.includes(account._id) ? prev : [...prev, account._id]));
+      } else {
+        setSelectedIds((prev) => prev.filter((id) => id !== account._id));
+      }
+    }
+
+    setLastClickedIndex(index >= 0 ? index : null);
+  };
 
   const doLock = async () => {
     const reason = lockReason === 'Khác' ? customReason.trim() : lockReason;
@@ -113,30 +162,69 @@ export function AccountManager({ config }) {
       }
       toast.success(`Đã xóa ${selectedIds.length} tài khoản`);
       setSelectedIds([]);
+      setLastClickedIndex(null);
     } catch (error) {
       toast.error(error.message || 'Lỗi khi xóa tài khoản');
     }
   };
 
-  const columns = [
-    ...(config.showSerialNumber ? [{ key: 'serialNumber', header: 'STT', className: 'w-16 text-center' }] : []),
-    {
-      key: 'avatar',
-      header: '',
-      className: 'w-12 text-center',
-      render: (a) => {
-        const profile = a[config.role === 'giao-vien' ? 'teacher' : 'student'];
-        const avatarSrc = profile?.avatar?.url || profile?.avatar || a?.avatar?.url || a?.avatar;
-        return <Avatar src={avatarSrc} name={a.hoTen} size={36} />;
-      },
-    },
+  const selectionColumn = {
+    key: 'selection',
+    header: (
+      <div className="flex items-center justify-center">
+        <input
+          type="checkbox"
+          checked={isAllSelected}
+          ref={(el) => {
+            if (el) el.indeterminate = isSomeSelected;
+          }}
+          onChange={handleSelectAll}
+          className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+          title="Chọn tất cả"
+          aria-label="Chọn tất cả"
+        />
+      </div>
+    ),
+    className: 'w-10 text-center px-2',
+    render: (account, rowIndex) => (
+      <div className="flex items-center justify-center select-none" onClick={(e) => e.stopPropagation()}>
+        <input
+          type="checkbox"
+          checked={selectedIds.includes(account._id)}
+          onChange={() => {}}
+          onClick={(e) => handleRowCheckboxClick(e, account, rowIndex)}
+          className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+          aria-label={`Chọn ${account.hoTen || account.email}`}
+        />
+      </div>
+    ),
+  };
+
+  const baseColumns = [
+    ...(!isStudentRole && config.showSerialNumber ? [{ key: 'serialNumber', header: 'STT', className: 'w-16 text-center' }] : []),
+    ...(!isStudentRole
+      ? [
+          {
+            key: 'avatar',
+            header: '',
+            className: 'w-12 text-center',
+            render: (a) => {
+              const profile = a[config.role === 'giao-vien' ? 'teacher' : 'student'];
+              const avatarSrc = profile?.avatar?.url || profile?.avatar || a?.avatar?.url || a?.avatar;
+              return <Avatar src={avatarSrc} name={a.hoTen} size={36} />;
+            },
+          },
+        ]
+      : []),
     {
       key: 'code',
-      header: 'Mã',
-      className: 'font-semibold text-gray-800',
-      render: (a) => (a[config.role === 'giao-vien' ? 'teacher' : 'student']?.id != null
-        ? config.formatCode(a[config.role === 'giao-vien' ? 'teacher' : 'student'].id)
-        : '—'),
+      header: isStudentRole ? 'Mã SV' : 'Mã',
+      className: 'font-semibold text-gray-800 whitespace-nowrap',
+      render: (a) => {
+        const profile = a[config.role === 'giao-vien' ? 'teacher' : 'student'];
+        const val = profile?.id != null ? profile.id : a?.id;
+        return val != null ? config.formatCode(val) : '—';
+      },
     },
     { key: 'hoTen', header: 'Họ tên', className: 'font-bold text-gray-900', render: (a) => a.hoTen || '—' },
     { key: 'email', header: 'Email' },
@@ -161,24 +249,26 @@ export function AccountManager({ config }) {
       render: (a) => (
         <div className="flex justify-end gap-2">
           {a.status === 'Locked' ? (
-            <button type="button" onClick={() => doUnlock(a)} className="w-8 h-8 rounded-lg text-emerald-600 hover:bg-emerald-50" title="Mở khóa">
+            <button type="button" onClick={() => doUnlock(a)} className="w-8 h-8 rounded-lg text-emerald-600 hover:bg-emerald-50" title="Mở khóa" aria-label="Mở khóa">
               <i className="fas fa-unlock" />
             </button>
           ) : (
-            <button type="button" onClick={() => setLockTarget(a)} className="w-8 h-8 rounded-lg text-amber-600 hover:bg-amber-50" title="Khóa">
+            <button type="button" onClick={() => setLockTarget(a)} className="w-8 h-8 rounded-lg text-amber-600 hover:bg-amber-50" title="Khóa" aria-label="Khóa">
               <i className="fas fa-lock" />
             </button>
           )}
-          <button type="button" onClick={() => doReset(a)} className="w-8 h-8 rounded-lg text-indigo-600 hover:bg-indigo-50" title="Đặt lại mật khẩu">
+          <button type="button" onClick={() => doReset(a)} className="w-8 h-8 rounded-lg text-indigo-600 hover:bg-indigo-50" title="Đặt lại mật khẩu" aria-label="Đặt lại mật khẩu">
             <i className="fas fa-key" />
           </button>
-          <button type="button" onClick={() => doDelete(a)} className="w-8 h-8 rounded-lg text-red-600 hover:bg-red-50" title="Xóa">
+          <button type="button" onClick={() => doDelete(a)} className="w-8 h-8 rounded-lg text-red-600 hover:bg-red-50" title="Xóa" aria-label="Xóa">
             <i className="fas fa-trash-alt" />
           </button>
         </div>
       ),
     },
   ];
+
+  const columns = [selectionColumn, ...baseColumns];
 
   return (
     <div>
@@ -190,50 +280,65 @@ export function AccountManager({ config }) {
             value={searchText}
             onChange={(v) => {
               setSearchText(v);
+              setSelectedIds([]);
+              setLastClickedIndex(null);
               setPage(1);
             }}
           />
         }
       />
 
-      <DataTable
-        columns={columns}
-        rows={tableRows}
-        isLoading={isLoading}
-        emptyText="Chưa có tài khoản"
-        selectable
-        selectedKeys={selectedIds}
-        onSelectKey={(key) =>
-          setSelectedIds((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]))
-        }
-        onSelectAll={(allKeys) =>
-          setSelectedIds((prev) =>
-            allKeys.every((k) => prev.includes(k))
-              ? prev.filter((k) => !allKeys.includes(k))
-              : Array.from(new Set([...prev, ...allKeys]))
-          )
-        }
-        bulkActions={
-          <>
+      {selectedIds.length > 0 && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-indigo-200 bg-indigo-50/90 px-4 py-3 shadow-xs">
+          <div className="flex items-center gap-3">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-600 text-xs font-bold text-white shadow-xs">
+              {selectedIds.length}
+            </span>
+            <span className="text-sm font-medium text-indigo-950">
+              Đang chọn <strong className="text-indigo-700">{selectedIds.length}</strong> tài khoản
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setSelectedIds([])}
-              className="px-3 py-1.5 text-xs font-semibold text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50"
+              onClick={() => {
+                setSelectedIds([]);
+                setLastClickedIndex(null);
+              }}
+              className="rounded-xl border border-gray-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 shadow-2xs transition"
             >
               Bỏ chọn
             </button>
             <button
               type="button"
               onClick={onBulkDelete}
-              className="px-3 py-1.5 text-xs font-bold text-white bg-red-600 rounded-xl hover:bg-red-700 shadow-xs flex items-center gap-1.5"
+              disabled={bulkDelete?.isPending}
+              className="flex items-center gap-1.5 rounded-xl bg-red-600 px-4 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-red-700 disabled:opacity-50 transition"
             >
-              <i className="fas fa-trash-alt" />
-              <span>Xóa {selectedIds.length} tài khoản đã chọn</span>
+              <i className="fas fa-trash-alt text-[11px]" />
+              <span>{bulkDelete?.isPending ? 'Đang xóa...' : `Xóa ${selectedIds.length} tài khoản đã chọn`}</span>
             </button>
-          </>
-        }
+          </div>
+        </div>
+      )}
+
+      <DataTable
+        columns={columns}
+        rows={tableRows}
+        isLoading={isLoading}
+        emptyText="Chưa có tài khoản"
+        rowClassName={(account) => (selectedIds.includes(account._id) ? 'bg-indigo-50/40' : '')}
       />
-      <Pagination page={meta.page} pages={meta.pages} total={meta.total} onPageChange={setPage} />
+      <Pagination
+        page={meta.page}
+        pages={meta.pages}
+        total={meta.total}
+        onPageChange={(p) => {
+          setSelectedIds([]);
+          setLastClickedIndex(null);
+          setPage(p);
+        }}
+      />
 
       <Modal open={Boolean(lockTarget)} onClose={() => setLockTarget(null)} title="Khóa tài khoản" size="sm">
         <div className="space-y-4">
