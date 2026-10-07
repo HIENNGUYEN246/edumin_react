@@ -11,13 +11,10 @@ import documentRoutes from './modules/documents/document.routes.js';
 import assignmentRoutes from './modules/assignments/assignment.routes.js';
 import statsRoutes from './modules/stats/stats.routes.js';
 import attendanceRoutes from './modules/attendance/attendance.routes.js';
-<<<<<<< HEAD
-=======
 import feedbackRoutes from './modules/feedback/feedback.routes.js';
 import notificationRoutes from './modules/notifications/notification.routes.js';
 import profileRequestRoutes from './modules/profileRequests/profileRequest.routes.js';
 import tuitionRoutes from './modules/tuition/tuition.routes.js';
->>>>>>> 4e8ffb5c0a056164b568d493668162ccf16b4bd5
 
 /**
  * Aggregate router. Feature modules register their sub-routers here.
@@ -36,12 +33,9 @@ apiRouter.use('/documents', documentRoutes);
 apiRouter.use('/assignments', assignmentRoutes);
 apiRouter.use('/stats', statsRoutes);
 apiRouter.use('/attendance', attendanceRoutes);
-<<<<<<< HEAD
-=======
 apiRouter.use('/feedbacks', feedbackRoutes);
 apiRouter.use('/notifications', notificationRoutes);
 apiRouter.use('/profile-requests', profileRequestRoutes);
 apiRouter.use('/tuition', tuitionRoutes);
->>>>>>> 4e8ffb5c0a056164b568d493668162ccf16b4bd5
 
 export default apiRouter;
