@@ -35,16 +35,17 @@ const teacherConfig = {
     address: '',
     education: '',
     departmentId: '',
-    password: '123',
+    password: '',
   },
   fields: [
-    { name: 'hoTen', label: 'Họ tên', required: true },
-    { name: 'email', label: 'Email', type: 'email', required: true, emailDomain: '@university.edu.vn', placeholder: 'VD: nguyenvana' },
-    { name: 'phone', label: 'Số điện thoại' },
+    { name: 'hoTen', label: 'Họ và tên', required: true, validation: 'name', maxLength: 100, section: 'personal' },
     {
       name: 'dob',
       label: 'Ngày sinh',
       type: 'date',
+      required: true,
+      validation: 'birthDate',
+      section: 'personal',
       get max() {
         return getMaxBirthDate(24);
       },
@@ -53,10 +54,12 @@ const teacherConfig = {
       },
       maxError: 'Giảng viên phải từ 24 tuổi trở lên',
     },
+    { name: 'phone', label: 'Số điện thoại', type: 'tel', required: true, validation: 'phone', maxLength: 10, section: 'personal' },
     {
       name: 'gender',
       label: 'Giới tính',
       type: 'select',
+      section: 'personal',
       options: [
         { value: 'Nam', label: 'Nam' },
         { value: 'Nữ', label: 'Nữ' },

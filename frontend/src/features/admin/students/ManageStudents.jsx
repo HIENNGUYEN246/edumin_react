@@ -40,17 +40,17 @@ const studentConfig = {
     address: '',
     departmentId: '',
     className: '',
-    password: '123',
+    password: '',
   },
   fields: [
-    { name: 'hoTen', label: 'Họ tên', required: true },
-    { name: 'email', label: 'Email', type: 'email', required: true, emailDomain: '@student.edu.vn', placeholder: 'VD: 2011001 hoặc nguyenvana' },
-    { name: 'className', label: 'Lớp sinh hoạt', placeholder: 'Ví dụ: 20DTH01' },
-    { name: 'phone', label: 'Số điện thoại' },
+    { name: 'hoTen', label: 'Họ và tên', required: true, validation: 'name', maxLength: 100, section: 'personal' },
     {
       name: 'dob',
       label: 'Ngày sinh',
       type: 'date',
+      required: true,
+      validation: 'birthDateNoFuture',
+      section: 'personal',
       get max() {
         return getMaxBirthDate(17);
       },
@@ -59,10 +59,12 @@ const studentConfig = {
       },
       maxError: 'Sinh viên phải từ 17 tuổi trở lên',
     },
+    { name: 'phone', label: 'Số điện thoại', type: 'tel', required: true, validation: 'phone', maxLength: 10, section: 'personal' },
     {
       name: 'gender',
       label: 'Giới tính',
       type: 'select',
+      section: 'personal',
       options: [
         { value: 'Nam', label: 'Nam' },
         { value: 'Nữ', label: 'Nữ' },
@@ -71,7 +73,7 @@ const studentConfig = {
     },
     { name: 'address', label: 'Địa chỉ cư trú', required: true, validation: 'address', maxLength: 200, section: 'personal', fullWidth: true },
     { name: 'email', label: 'Email sinh viên', type: 'email', required: true, validation: 'studentEmail', placeholder: 'VD: sv.an@student.edu.vn', maxLength: 254, section: 'work' },
-    { name: 'className', label: 'Lớp', required: true, validation: 'studentClass', maxLength: 40, section: 'work' },
+    { name: 'className', label: 'Lớp sinh hoạt', required: true, validation: 'studentClass', placeholder: 'Ví dụ: 20DTH01', maxLength: 40, section: 'work' },
     { name: 'departmentId', label: 'Khoa', type: 'select', required: true, validation: 'department', placeholder: 'Chọn khoa', section: 'work', fullWidth: true },
     {
       name: 'education',
