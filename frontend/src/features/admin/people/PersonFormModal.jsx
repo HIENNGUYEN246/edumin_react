@@ -60,6 +60,12 @@ function getFieldError(field, rawValue, departments) {
     if (value.length > field.maxLength) return `Địa chỉ không được vượt quá ${field.maxLength} ký tự`;
     if (!ADDRESS_PATTERN.test(value)) return 'Địa chỉ chỉ gồm chữ, số, dấu , . / - và khoảng trắng đơn';
   }
+  if (field.validation === 'teacherEmail' && !/^[^\s@]+@university\.edu\.vn$/i.test(value)) {
+    return 'Email giảng viên bắt buộc phải có đuôi @university.edu.vn';
+  }
+  if (field.validation === 'studentEmail' && !/^[^\s@]+@student\.edu\.vn$/i.test(value)) {
+    return 'Email sinh viên bắt buộc phải có đuôi @student.edu.vn';
+  }
   if (field.validation === 'eduEmail' && !/^[^\s@]+@(?:[a-z0-9-]+\.)*edu\.vn$/i.test(value)) {
     return 'Email nội bộ phải có đuôi edu.vn';
   }
@@ -118,6 +124,48 @@ export function PersonFormModal({
     setErrors((previous) => ({ ...previous, [field.name]: message }));
   };
 
+  const handleEmailBlur = (field) => {
+    const raw = String(form[field.name] || '').trim();
+    if (!raw) {
+      validateField(field);
+      return;
+    }
+    const domain =
+      field.validation === 'teacherEmail' || entityLabel?.toLowerCase().includes('giáo viên')
+        ? 'university.edu.vn'
+        : field.validation === 'studentEmail' || entityLabel?.toLowerCase().includes('sinh viên')
+        ? 'student.edu.vn'
+        : null;
+
+    if (domain) {
+      let updated = raw;
+      if (!raw.includes('@')) {
+        updated = `${raw}@${domain}`;
+      } else if (raw.endsWith('@')) {
+        updated = `${raw}${domain}`;
+      }
+      if (updated !== raw) {
+        setForm((f) => ({ ...f, [field.name]: updated }));
+        const msg = getFieldError(field, updated, departments);
+        setErrors((p) => ({ ...p, [field.name]: msg }));
+        return;
+      }
+    }
+    validateField(field);
+  };
+
+  const applyEmailDomain = (fieldName, domain) => {
+    const current = String(form[fieldName] || '').trim();
+    let prefix = current;
+    if (current.includes('@')) {
+      prefix = current.split('@')[0];
+    }
+    if (!prefix) prefix = 'user';
+    const nextVal = `${prefix}@${domain}`;
+    setForm((f) => ({ ...f, [fieldName]: nextVal }));
+    setErrors((p) => ({ ...p, [fieldName]: '' }));
+  };
+
   const selectAvatar = (event) => {
     const file = event.target.files?.[0];
     event.target.value = '';
@@ -152,35 +200,60 @@ export function PersonFormModal({
     onSubmit(form, setErrors);
   };
 
-  const renderField = (field) => (
-    <div key={field.name} className={field.fullWidth ? 'sm:col-span-2' : ''}>
-      <FormField label={field.label} error={errors[field.name]} required={field.required}>
-      {field.type === 'select' ? (
-        <select className={inputClass} value={form[field.name] || ''} onChange={set(field.name)} onBlur={() => validateField(field)}>
-          <option value="">{field.placeholder || 'Chọn...'}</option>
-          {(field.name === 'departmentId' ? departments : field.options || []).map((opt) => (
-            <option key={opt.id ?? opt.value} value={opt.id ?? opt.value}>
-              {opt.name ?? opt.label}
-            </option>
-          ))}
-        </select>
-      ) : field.type === 'email' && mode === 'edit' ? (
-        <input className={`${inputClass} bg-gray-50`} value={form[field.name] || ''} disabled />
-      ) : (
-        <input
-          type={field.type === 'email' ? 'email' : field.type === 'date' ? 'date' : 'text'}
-          className={inputClass}
-          value={form[field.name] || ''}
-          onChange={set(field.name)}
-          onBlur={() => validateField(field)}
-          placeholder={field.placeholder}
-          maxLength={field.maxLength}
-          {...(field.type === 'tel' ? { inputMode: 'numeric' } : {})}
-        />
-      )}
-      </FormField>
-    </div>
-  );
+  const renderField = (field) => {
+    const domain =
+      field.type === 'email'
+        ? field.validation === 'teacherEmail' || entityLabel?.toLowerCase().includes('giáo viên')
+          ? 'university.edu.vn'
+          : field.validation === 'studentEmail' || entityLabel?.toLowerCase().includes('sinh viên')
+          ? 'student.edu.vn'
+          : null
+        : null;
+
+    return (
+      <div key={field.name} className={field.fullWidth ? 'sm:col-span-2' : ''}>
+        <FormField label={field.label} error={errors[field.name]} required={field.required}>
+          {field.type === 'select' ? (
+            <select className={inputClass} value={form[field.name] || ''} onChange={set(field.name)} onBlur={() => validateField(field)}>
+              <option value="">{field.placeholder || 'Chọn...'}</option>
+              {(field.name === 'departmentId' ? departments : field.options || []).map((opt) => (
+                <option key={opt.id ?? opt.value} value={opt.id ?? opt.value}>
+                  {opt.name ?? opt.label}
+                </option>
+              ))}
+            </select>
+          ) : field.type === 'email' && mode === 'edit' ? (
+            <input className={`${inputClass} bg-gray-50`} value={form[field.name] || ''} disabled />
+          ) : (
+            <div>
+              <input
+                type={field.type === 'email' ? 'email' : field.type === 'date' ? 'date' : 'text'}
+                className={inputClass}
+                value={form[field.name] || ''}
+                onChange={set(field.name)}
+                onBlur={() => (field.type === 'email' ? handleEmailBlur(field) : validateField(field))}
+                placeholder={field.placeholder}
+                maxLength={field.maxLength}
+                {...(field.type === 'tel' ? { inputMode: 'numeric' } : {})}
+              />
+              {domain && mode === 'create' && (
+                <div className="mt-1 flex items-center justify-between text-[11px] text-gray-500">
+                  <span>Định dạng yêu cầu: <strong className="text-indigo-600 font-semibold">@{domain}</strong></span>
+                  <button
+                    type="button"
+                    onClick={() => applyEmailDomain(field.name, domain)}
+                    className="text-indigo-600 hover:text-indigo-800 font-bold hover:underline"
+                  >
+                    + Điền @{domain}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </FormField>
+      </div>
+    );
+  };
 
   const departmentName = departments.find((department) => String(department.id) === String(form.departmentId))?.name;
   const avatarPreview = form.avatarPreview || form.avatar?.url || '';

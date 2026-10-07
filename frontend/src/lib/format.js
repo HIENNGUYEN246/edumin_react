@@ -48,9 +48,9 @@ export function getMaxBirthDate(minAge) {
 }
 
 /**
- * Add specified number of weeks (default 15 weeks = 105 days) to a date string (YYYY-MM-DD).
+ * Add specified number of weeks (default 13 weeks = 91 days) to a date string (YYYY-MM-DD).
  */
-export function addWeeksToDate(dateStr, weeks = 15) {
+export function addWeeksToDate(dateStr, weeks = 13) {
   if (!dateStr) return '';
   const [year, month, day] = String(dateStr).split('-').map(Number);
   if (!year || !month || !day) return '';

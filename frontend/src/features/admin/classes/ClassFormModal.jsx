@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Modal } from '../../../components/ui/Modal.jsx';
 import { FormField, inputClass } from '../../../components/ui/FormField.jsx';
 import { SchedulePicker } from '../../../components/schedule/SchedulePicker.jsx';
-import { formatTeacherCode, getTodayDate } from '../../../lib/format.js';
+import { formatTeacherCode, getTodayDate, addWeeksToDate } from '../../../lib/format.js';
 import { teachersApi } from '../../../api/teachersApi.js';
 import { CLASS_STATUSES } from '../../../api/classesApi.js';
 
@@ -42,6 +42,16 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
   }, [open, initial, courseId]);
 
   const set = (name) => (e) => setForm((f) => ({ ...f, [name]: e.target.value }));
+
+  const handleStudyStartChange = (e) => {
+    const val = e.target.value;
+    setForm((f) => ({
+      ...f,
+      studyStart: val,
+      studyEnd: val ? addWeeksToDate(val, 13) : f.studyEnd,
+    }));
+    setErrors((prev) => ({ ...prev, studyStart: '', studyEnd: '' }));
+  };
 
   const submit = (e) => {
     e.preventDefault();
@@ -94,16 +104,16 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
           <FormField label="Sĩ số tối đa" hint="0 = không giới hạn">
             <input type="number" min="0" className={inputClass} value={form.capacity} onChange={set('capacity')} />
           </FormField>
-          <FormField label="Bắt đầu học" error={errors.studyStart}>
+          <FormField label="Bắt đầu học" hint="Tự động tính ngày kết thúc sau 13 tuần" error={errors.studyStart}>
             <input
               type="date"
               min={mode === 'create' ? getTodayDate() : undefined}
               className={inputClass}
               value={form.studyStart}
-              onChange={set('studyStart')}
+              onChange={handleStudyStartChange}
             />
           </FormField>
-          <FormField label="Kết thúc học" error={errors.studyEnd}>
+          <FormField label="Kết thúc học" hint="Chuẩn 13 tuần học phần" error={errors.studyEnd}>
             <input
               type="date"
               min={form.studyStart || (mode === 'create' ? getTodayDate() : undefined)}
