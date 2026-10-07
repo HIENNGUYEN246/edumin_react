@@ -14,16 +14,19 @@ const ManageTeacherAccounts = lazy(() => import('../features/admin/accounts/Mana
 const ManageStudentAccounts = lazy(() => import('../features/admin/accounts/ManageStudentAccounts.jsx'));
 const ManageCourses = lazy(() => import('../features/admin/courses/ManageCourses.jsx'));
 const CourseDetail = lazy(() => import('../features/admin/courses/CourseDetail.jsx'));
+const ManageAttendance = lazy(() => import('../features/admin/attendance/ManageAttendance.jsx'));
 const TeacherDashboard = lazy(() => import('../features/teacher/TeacherDashboard.jsx'));
 const TeacherSchedule = lazy(() => import('../features/teacher/TeacherSchedule.jsx'));
 const TeacherClassList = lazy(() => import('../features/teacher/TeacherClassList.jsx'));
 const TeacherClassGradebook = lazy(() => import('../features/teacher/TeacherClassGradebook.jsx'));
 const TeacherClassStudents = lazy(() => import('../features/teacher/TeacherClassStudents.jsx'));
+const TeacherAttendance = lazy(() => import('../features/teacher/attendance/TeacherAttendance.jsx'));
 const TeacherDocumentList = lazy(() => import('../features/teacher/TeacherDocumentList.jsx'));
 const TeacherAssignmentList = lazy(() => import('../features/teacher/assignments/TeacherAssignmentList.jsx'));
 const StudentDashboard = lazy(() => import('../features/student/StudentDashboard.jsx'));
 const StudentCourseRegistration = lazy(() => import('../features/student/StudentCourseRegistration.jsx'));
 const StudentTimetable = lazy(() => import('../features/student/StudentTimetable.jsx'));
+const StudentAttendance = lazy(() => import('../features/student/attendance/StudentAttendance.jsx'));
 const StudentDocumentList = lazy(() => import('../features/student/StudentDocumentList.jsx'));
 const StudentAssignmentList = lazy(() => import('../features/student/assignments/StudentAssignmentList.jsx'));
 const StudentQuizPage = lazy(() => import('../features/student/assignments/StudentQuizPage.jsx'));
@@ -48,6 +51,7 @@ export function AppRouter() {
         <Route path="/admin/departments" element={<ManageDepartments />} />
         <Route path="/admin/courses" element={<ManageCourses />} />
         <Route path="/admin/courses/:id" element={<CourseDetail />} />
+        <Route path="/admin/attendance" element={<ManageAttendance />} />
       </Route>
 
       <Route
@@ -62,6 +66,7 @@ export function AppRouter() {
         <Route path="/teacher/classes" element={<TeacherClassList />} />
         <Route path="/teacher/classes/:id/students" element={<TeacherClassStudents />} />
         <Route path="/teacher/classes/:id/grades" element={<TeacherClassGradebook />} />
+        <Route path="/teacher/attendance" element={<TeacherAttendance />} />
         <Route path="/teacher/documents" element={<TeacherDocumentList />} />
         <Route path="/teacher/assignments" element={<TeacherAssignmentList />} />
       </Route>
@@ -76,6 +81,7 @@ export function AppRouter() {
         <Route path="/student" element={<StudentDashboard />} />
         <Route path="/student/course-registration" element={<StudentCourseRegistration />} />
         <Route path="/student/timetable" element={<StudentTimetable />} />
+        <Route path="/student/attendance" element={<StudentAttendance />} />
         <Route path="/student/documents" element={<StudentDocumentList />} />
         <Route path="/student/assignments" element={<StudentAssignmentList />} />
         <Route path="/student/assignments/:id" element={<StudentQuizPage />} />

@@ -10,6 +10,7 @@ import enrollmentRoutes from './modules/enrollments/enrollment.routes.js';
 import documentRoutes from './modules/documents/document.routes.js';
 import assignmentRoutes from './modules/assignments/assignment.routes.js';
 import statsRoutes from './modules/stats/stats.routes.js';
+import attendanceRoutes from './modules/attendance/attendance.routes.js';
 
 /**
  * Aggregate router. Feature modules register their sub-routers here.
@@ -27,5 +28,6 @@ apiRouter.use('/enrollments', enrollmentRoutes);
 apiRouter.use('/documents', documentRoutes);
 apiRouter.use('/assignments', assignmentRoutes);
 apiRouter.use('/stats', statsRoutes);
+apiRouter.use('/attendance', attendanceRoutes);
 
 export default apiRouter;
