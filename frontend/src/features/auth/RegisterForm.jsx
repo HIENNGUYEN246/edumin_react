@@ -23,31 +23,32 @@ export function RegisterForm({ register, inputClass, onSuccess, onBackToLogin })
     setErrors((prev) => ({ ...prev, [field]: '' }));
   };
 
+  const normalizeStudentEmail = (raw) => {
+    if (!raw) return '';
+    const trimmed = raw.trim();
+    if (!trimmed) return '';
+    if (!trimmed.includes('@')) {
+      return `${trimmed}@student.edu.vn`;
+    }
+    const [username] = trimmed.split('@');
+    if (!username) return trimmed;
+    return `${username}@student.edu.vn`;
+  };
+
   const handleEmailBlur = () => {
     const raw = form.email.trim();
     if (!raw) return;
-    let updated = raw;
-    if (!raw.includes('@')) {
-      updated = `${raw}@student.edu.vn`;
-    } else if (raw.endsWith('@')) {
-      updated = `${raw}student.edu.vn`;
-    }
-    if (updated !== raw) {
-      setForm((f) => ({ ...f, email: updated }));
+    const normalized = normalizeStudentEmail(raw);
+    if (normalized !== form.email) {
+      setForm((f) => ({ ...f, email: normalized }));
     }
   };
 
-  const applyStudentDomain = () => {
-    const raw = form.email.trim();
-    const prefix = raw.includes('@') ? raw.split('@')[0] : raw || 'sinhvien';
-    setForm((f) => ({ ...f, email: `${prefix}@student.edu.vn` }));
-    setErrors((p) => ({ ...p, email: '' }));
-  };
-
-  const validate = () => {
+  const validate = (emailToCheck) => {
     const next = {};
     if (form.hoTen.trim().length < 2) next.hoTen = 'Vui lòng nhập họ tên đầy đủ';
-    if (!/^[^\s@]+@student\.edu\.vn$/i.test(form.email.trim())) {
+    const emailVal = emailToCheck || form.email.trim();
+    if (!/^[^\s@]+@student\.edu\.vn$/i.test(emailVal)) {
       next.email = 'Email sinh viên bắt buộc phải có đuôi @student.edu.vn';
     }
     if (!form.departmentId) next.departmentId = 'Vui lòng chọn khoa';
@@ -59,12 +60,16 @@ export function RegisterForm({ register, inputClass, onSuccess, onBackToLogin })
 
   const submit = async (e) => {
     e.preventDefault();
-    if (submitting || !validate()) return;
+    const normalizedEmail = normalizeStudentEmail(form.email);
+    if (normalizedEmail !== form.email) {
+      setForm((f) => ({ ...f, email: normalizedEmail }));
+    }
+    if (submitting || !validate(normalizedEmail)) return;
     setSubmitting(true);
     try {
       const result = await register({
         hoTen: form.hoTen.trim(),
-        email: form.email.trim(),
+        email: normalizedEmail,
         departmentId: form.departmentId,
         className: form.className.trim(),
         password: form.password,
@@ -96,16 +101,6 @@ export function RegisterForm({ register, inputClass, onSuccess, onBackToLogin })
           placeholder="Email sinh viên (VD: sv01@student.edu.vn)"
           className={cls('email')}
         />
-        <div className="mt-1 flex items-center justify-between text-[11px] text-gray-500">
-          <span>Bắt buộc: <strong className="text-indigo-600 font-semibold">@student.edu.vn</strong></span>
-          <button
-            type="button"
-            onClick={applyStudentDomain}
-            className="text-indigo-600 hover:text-indigo-800 font-bold hover:underline"
-          >
-            + Điền @student.edu.vn
-          </button>
-        </div>
         {errors.email && <p className="text-xs text-red-600 mt-1">{errors.email}</p>}
       </div>
       <div>

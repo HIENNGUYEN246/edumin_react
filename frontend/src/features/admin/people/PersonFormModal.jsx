@@ -6,34 +6,38 @@ import { Avatar } from '../../../components/ui/Avatar.jsx';
 const PERSON_NAME_PATTERN = /^[\p{L}\p{M}]+(?: [\p{L}\p{M}]+)*$/u;
 const ADDRESS_PATTERN = /^[\p{L}\p{M}\p{N}]+(?:[./-][\p{L}\p{M}\p{N}]+)*(?:(?: |, )[\p{L}\p{M}\p{N}]+(?:[./-][\p{L}\p{M}\p{N}]+)*)*$/u;
 
-function isValidAdultBirthDate(value) {
+function getPersonAge(value) {
+  if (!value) return null;
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-  if (!match) return false;
+  if (!match) return null;
   const [, yearText, monthText, dayText] = match;
   const year = Number(yearText);
   const month = Number(monthText);
   const day = Number(dayText);
   const birthDate = new Date(year, month - 1, day);
-  if (birthDate.getFullYear() !== year || birthDate.getMonth() !== month - 1 || birthDate.getDate() !== day) return false;
+  if (birthDate.getFullYear() !== year || birthDate.getMonth() !== month - 1 || birthDate.getDate() !== day) return null;
 
-  const today = new Date();
-  let age = today.getFullYear() - year;
-  if (today.getMonth() < month - 1 || (today.getMonth() === month - 1 && today.getDate() < day)) age -= 1;
-  return age >= 22;
-}
-
-function isValidNonFutureBirthDate(value) {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-  if (!match) return false;
-  const [, yearText, monthText, dayText] = match;
-  const year = Number(yearText);
-  const month = Number(monthText);
-  const day = Number(dayText);
-  const birthDate = new Date(year, month - 1, day);
-  if (birthDate.getFullYear() !== year || birthDate.getMonth() !== month - 1 || birthDate.getDate() !== day) return false;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  return birthDate <= today;
+  if (birthDate > today) return -1;
+
+  let age = today.getFullYear() - year;
+  if (today.getMonth() < month - 1 || (today.getMonth() === month - 1 && today.getDate() < day)) age -= 1;
+  return age;
+}
+
+function normalizeEmailWithDomain(rawEmail, expectedDomain) {
+  if (!rawEmail) return '';
+  const trimmed = rawEmail.trim();
+  if (!trimmed) return '';
+  if (!expectedDomain) return trimmed;
+
+  if (!trimmed.includes('@')) {
+    return `${trimmed}@${expectedDomain}`;
+  }
+  const [username] = trimmed.split('@');
+  if (!username) return trimmed;
+  return `${username}@${expectedDomain}`;
 }
 
 function getFieldError(field, rawValue, departments) {
@@ -47,11 +51,17 @@ function getFieldError(field, rawValue, departments) {
     if (value.length < 2 || value.length > field.maxLength) return `Họ tên phải từ 2 đến ${field.maxLength} ký tự`;
     if (!PERSON_NAME_PATTERN.test(value)) return 'Chỉ nhập chữ và một khoảng trắng giữa các từ';
   }
-  if (field.validation === 'birthDate' && !isValidAdultBirthDate(value)) {
-    return 'Ngày sinh không hợp lệ';
+  if (field.validation === 'birthDate') {
+    const age = getPersonAge(value);
+    if (age === null) return 'Ngày sinh không hợp lệ';
+    if (age < 0) return 'Ngày sinh không thể ở tương lai';
+    if (age < 24) return 'Giảng viên phải từ 24 tuổi trở lên';
   }
-  if (field.validation === 'birthDateNoFuture' && !isValidNonFutureBirthDate(value)) {
-    return 'Ngày sinh không hợp lệ';
+  if (field.validation === 'birthDateNoFuture') {
+    const age = getPersonAge(value);
+    if (age === null) return 'Ngày sinh không hợp lệ';
+    if (age < 0) return 'Ngày sinh không thể ở tương lai';
+    if (age < 17) return 'Sinh viên phải từ 17 tuổi trở lên';
   }
   if (field.validation === 'phone' && !/^0\d{9}$/.test(value)) {
     return 'Số điện thoại phải gồm 10 chữ số và bắt đầu bằng 0';
@@ -138,32 +148,15 @@ export function PersonFormModal({
         : null;
 
     if (domain) {
-      let updated = raw;
-      if (!raw.includes('@')) {
-        updated = `${raw}@${domain}`;
-      } else if (raw.endsWith('@')) {
-        updated = `${raw}${domain}`;
-      }
-      if (updated !== raw) {
-        setForm((f) => ({ ...f, [field.name]: updated }));
-        const msg = getFieldError(field, updated, departments);
+      const normalized = normalizeEmailWithDomain(raw, domain);
+      if (normalized !== form[field.name]) {
+        setForm((f) => ({ ...f, [field.name]: normalized }));
+        const msg = getFieldError(field, normalized, departments);
         setErrors((p) => ({ ...p, [field.name]: msg }));
         return;
       }
     }
     validateField(field);
-  };
-
-  const applyEmailDomain = (fieldName, domain) => {
-    const current = String(form[fieldName] || '').trim();
-    let prefix = current;
-    if (current.includes('@')) {
-      prefix = current.split('@')[0];
-    }
-    if (!prefix) prefix = 'user';
-    const nextVal = `${prefix}@${domain}`;
-    setForm((f) => ({ ...f, [fieldName]: nextVal }));
-    setErrors((p) => ({ ...p, [fieldName]: '' }));
   };
 
   const selectAvatar = (event) => {
@@ -186,74 +179,67 @@ export function PersonFormModal({
 
   const submit = (e) => {
     e.preventDefault();
+    const nextForm = { ...form };
+
+    // Tự động gắn ngầm chuẩn đuôi email trước khi validate & submit
+    fields.forEach((field) => {
+      if (field.type === 'email' && nextForm[field.name]) {
+        const domain =
+          field.validation === 'teacherEmail' || entityLabel?.toLowerCase().includes('giáo viên')
+            ? 'university.edu.vn'
+            : field.validation === 'studentEmail' || entityLabel?.toLowerCase().includes('sinh viên')
+            ? 'student.edu.vn'
+            : null;
+        if (domain) {
+          nextForm[field.name] = normalizeEmailWithDomain(nextForm[field.name], domain);
+        }
+      }
+    });
+
     const next = {};
     fields.forEach((field) => {
       if (mode === 'edit' && field.type === 'email') return;
-      const message = getFieldError(field, form[field.name], departments);
+      const message = getFieldError(field, nextForm[field.name], departments);
       if (message) next[field.name] = message;
     });
-    if (mode === 'create' && form.password && form.password.length < 6) {
+    if (mode === 'create' && nextForm.password && nextForm.password.length < 6) {
       next.password = 'Mật khẩu phải từ 6 ký tự';
     }
     setErrors(next);
     if (Object.keys(next).length) return;
-    onSubmit(form, setErrors);
+    setForm(nextForm);
+    onSubmit(nextForm, setErrors);
   };
 
-  const renderField = (field) => {
-    const domain =
-      field.type === 'email'
-        ? field.validation === 'teacherEmail' || entityLabel?.toLowerCase().includes('giáo viên')
-          ? 'university.edu.vn'
-          : field.validation === 'studentEmail' || entityLabel?.toLowerCase().includes('sinh viên')
-          ? 'student.edu.vn'
-          : null
-        : null;
-
-    return (
-      <div key={field.name} className={field.fullWidth ? 'sm:col-span-2' : ''}>
-        <FormField label={field.label} error={errors[field.name]} required={field.required}>
-          {field.type === 'select' ? (
-            <select className={inputClass} value={form[field.name] || ''} onChange={set(field.name)} onBlur={() => validateField(field)}>
-              <option value="">{field.placeholder || 'Chọn...'}</option>
-              {(field.name === 'departmentId' ? departments : field.options || []).map((opt) => (
-                <option key={opt.id ?? opt.value} value={opt.id ?? opt.value}>
-                  {opt.name ?? opt.label}
-                </option>
-              ))}
-            </select>
-          ) : field.type === 'email' && mode === 'edit' ? (
-            <input className={`${inputClass} bg-gray-50`} value={form[field.name] || ''} disabled />
-          ) : (
-            <div>
-              <input
-                type={field.type === 'email' ? 'email' : field.type === 'date' ? 'date' : 'text'}
-                className={inputClass}
-                value={form[field.name] || ''}
-                onChange={set(field.name)}
-                onBlur={() => (field.type === 'email' ? handleEmailBlur(field) : validateField(field))}
-                placeholder={field.placeholder}
-                maxLength={field.maxLength}
-                {...(field.type === 'tel' ? { inputMode: 'numeric' } : {})}
-              />
-              {domain && mode === 'create' && (
-                <div className="mt-1 flex items-center justify-between text-[11px] text-gray-500">
-                  <span>Định dạng yêu cầu: <strong className="text-indigo-600 font-semibold">@{domain}</strong></span>
-                  <button
-                    type="button"
-                    onClick={() => applyEmailDomain(field.name, domain)}
-                    className="text-indigo-600 hover:text-indigo-800 font-bold hover:underline"
-                  >
-                    + Điền @{domain}
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-        </FormField>
-      </div>
-    );
-  };
+  const renderField = (field) => (
+    <div key={field.name} className={field.fullWidth ? 'sm:col-span-2' : ''}>
+      <FormField label={field.label} error={errors[field.name]} required={field.required}>
+        {field.type === 'select' ? (
+          <select className={inputClass} value={form[field.name] || ''} onChange={set(field.name)} onBlur={() => validateField(field)}>
+            <option value="">{field.placeholder || 'Chọn...'}</option>
+            {(field.name === 'departmentId' ? departments : field.options || []).map((opt) => (
+              <option key={opt.id ?? opt.value} value={opt.id ?? opt.value}>
+                {opt.name ?? opt.label}
+              </option>
+            ))}
+          </select>
+        ) : field.type === 'email' && mode === 'edit' ? (
+          <input className={`${inputClass} bg-gray-50`} value={form[field.name] || ''} disabled />
+        ) : (
+          <input
+            type={field.type === 'email' ? 'email' : field.type === 'date' ? 'date' : 'text'}
+            className={inputClass}
+            value={form[field.name] || ''}
+            onChange={set(field.name)}
+            onBlur={() => (field.type === 'email' ? handleEmailBlur(field) : validateField(field))}
+            placeholder={field.placeholder}
+            maxLength={field.maxLength}
+            {...(field.type === 'tel' ? { inputMode: 'numeric' } : {})}
+          />
+        )}
+      </FormField>
+    </div>
+  );
 
   const departmentName = departments.find((department) => String(department.id) === String(form.departmentId))?.name;
   const avatarPreview = form.avatarPreview || form.avatar?.url || '';
