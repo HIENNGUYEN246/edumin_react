@@ -27,15 +27,15 @@ export function DataTable({ columns, rows, rowKey = (r) => r._id, isLoading, emp
               </td>
             </tr>
           ) : (
-            rows.map((row) => (
+            rows.map((row, rowIndex) => (
               <tr
                 key={rowKey(row)}
                 onClick={onRowClick ? () => onRowClick(row) : undefined}
-                className={`hover:bg-indigo-50/40 transition ${onRowClick ? 'cursor-pointer' : ''} ${rowClassName ? rowClassName(row) : ''}`}
+                className={`hover:bg-indigo-50/40 transition ${onRowClick ? 'cursor-pointer' : ''} ${rowClassName ? rowClassName(row, rowIndex) : ''}`}
               >
                 {columns.map((col) => (
                   <td key={col.key} className={`px-4 py-3 text-gray-700 ${col.className || ''}`}>
-                    {col.render ? col.render(row) : row[col.key]}
+                    {col.render ? col.render(row, rowIndex) : row[col.key]}
                   </td>
                 ))}
               </tr>

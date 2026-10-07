@@ -25,6 +25,7 @@ export function PersonManager({ config }) {
   const search = useDebounce(searchText);
   const [modal, setModal] = useState(null);
   const [selectedIds, setSelectedIds] = useState([]);
+  const [lastClickedIndex, setLastClickedIndex] = useState(null);
 
   const params = useMemo(() => ({ page, limit: 10, search }), [page, search]);
   const { data, isLoading } = usePeople(config.queryKey, config.api, params);
@@ -43,6 +44,7 @@ export function PersonManager({ config }) {
   const isSomeSelected = rows.length > 0 && allCurrentRowIds.some((id) => selectedIds.includes(id)) && !isAllSelected;
 
   const handleSelectAll = () => {
+    setLastClickedIndex(null);
     if (isAllSelected) {
       setSelectedIds((prev) => prev.filter((id) => !allCurrentRowIds.includes(id)));
     } else {
@@ -50,8 +52,38 @@ export function PersonManager({ config }) {
     }
   };
 
-  const handleToggleRow = (id) => {
-    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
+  const handleRowCheckboxClick = (e, person, rowIndex) => {
+    e.stopPropagation();
+
+    // Prevent text selection in browser when holding Shift
+    if (e.shiftKey) {
+      window.getSelection?.()?.removeAllRanges?.();
+    }
+
+    const index = typeof rowIndex === 'number' ? rowIndex : tableRows.findIndex((r) => r._id === person._id);
+    const isCurrentlyChecked = selectedIds.includes(person._id);
+    const targetChecked = !isCurrentlyChecked;
+
+    if (e.shiftKey && lastClickedIndex !== null && lastClickedIndex !== index && index >= 0) {
+      const start = Math.min(lastClickedIndex, index);
+      const end = Math.max(lastClickedIndex, index);
+      const rangeRows = tableRows.slice(start, end + 1);
+      const rangeIds = rangeRows.map((r) => r._id);
+
+      if (targetChecked) {
+        setSelectedIds((prev) => Array.from(new Set([...prev, ...rangeIds])));
+      } else {
+        setSelectedIds((prev) => prev.filter((id) => !rangeIds.includes(id)));
+      }
+    } else {
+      if (targetChecked) {
+        setSelectedIds((prev) => (prev.includes(person._id) ? prev : [...prev, person._id]));
+      } else {
+        setSelectedIds((prev) => prev.filter((id) => id !== person._id));
+      }
+    }
+
+    setLastClickedIndex(index >= 0 ? index : null);
   };
 
   const handleBulkDelete = async () => {
@@ -68,6 +100,7 @@ export function PersonManager({ config }) {
       await mutations.bulkRemove.mutateAsync(selectedIds);
       toast.success(`Đã xóa thành công ${count} ${config.entityLabel}`);
       setSelectedIds([]);
+      setLastClickedIndex(null);
     } catch (error) {
       toast.error(error.message || 'Lỗi khi xóa hàng loạt');
     }
@@ -233,12 +266,13 @@ export function PersonManager({ config }) {
       </div>
     ),
     className: 'w-10 text-center px-2',
-    render: (person) => (
-      <div className="flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
+    render: (person, rowIndex) => (
+      <div className="flex items-center justify-center select-none" onClick={(e) => e.stopPropagation()}>
         <input
           type="checkbox"
           checked={selectedIds.includes(person._id)}
-          onChange={() => handleToggleRow(person._id)}
+          onChange={() => {}}
+          onClick={(e) => handleRowCheckboxClick(e, person, rowIndex)}
           className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
           aria-label={`Chọn ${person.hoTen}`}
         />
@@ -260,6 +294,7 @@ export function PersonManager({ config }) {
               onChange={(v) => {
                 setSearchText(v);
                 setSelectedIds([]);
+                setLastClickedIndex(null);
                 setPage(1);
               }}
             />
@@ -290,7 +325,10 @@ export function PersonManager({ config }) {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setSelectedIds([])}
+              onClick={() => {
+                setSelectedIds([]);
+                setLastClickedIndex(null);
+              }}
               className="rounded-xl border border-gray-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 shadow-2xs transition"
             >
               Bỏ chọn
@@ -321,6 +359,7 @@ export function PersonManager({ config }) {
         total={meta.total}
         onPageChange={(p) => {
           setSelectedIds([]);
+          setLastClickedIndex(null);
           setPage(p);
         }}
       />
