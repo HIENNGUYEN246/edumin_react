@@ -34,7 +34,7 @@ function buildRecipientFilter(user) {
 }
 
 export async function listMyNotifications(user, query = {}) {
-  const { page, limit, skip, sort } = parseListQuery(query, { defaultSort: '-createdAt' });
+  const { page, limit, skip } = parseListQuery(query, { defaultSort: '-createdAt' });
   const filter = buildRecipientFilter(user);
 
   if (query.unreadOnly === 'true' || query.unreadOnly === true) {

@@ -8,13 +8,10 @@ import { Avatar } from '../../../components/ui/Avatar.jsx';
 import { useToast } from '../../../app/providers/ToastProvider.jsx';
 import { useConfirm } from '../../../app/providers/ConfirmProvider.jsx';
 import { useDebounce } from '../../../lib/useDebounce.js';
-import { describeSchedules } from '../../../lib/schedule.js';
-import { formatDate } from '../../../lib/format.js';
 import { coursesApi } from '../../../api/coursesApi.js';
 import { departmentsApi } from '../../../api/departmentsApi.js';
 import { CLASS_STATUSES } from '../../../api/classesApi.js';
 import { useClasses, useClassMutations } from './useClasses.js';
-import { ClassStatusBadge } from './ClassStatusBadge.jsx';
 import { ClassFormModal } from './ClassFormModal.jsx';
 import { ClassStudentsModal } from './ClassStudentsModal.jsx';
 import { ScheduleRoomBadge } from '../../../components/schedule/ScheduleBadge.jsx';
@@ -62,7 +59,7 @@ export function ManageClasses() {
   const { data, isLoading } = useClasses(params);
   const { create, update, changeStatus, remove } = useClassMutations();
 
-  const rows = data?.data || [];
+  const rows = useMemo(() => data?.data || [], [data]);
   const meta = data?.meta || { page: 1, pages: 1, total: 0 };
 
   const openCreate = () => setFormModal({ mode: 'create' });

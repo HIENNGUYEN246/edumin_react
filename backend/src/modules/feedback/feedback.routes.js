@@ -2,7 +2,6 @@ import { Router } from 'express';
 import { Feedback } from './feedback.model.js';
 import { Student } from '../students/student.model.js';
 import { Teacher } from '../teachers/teacher.model.js';
-import { Course } from '../courses/course.model.js';
 import { CourseClass } from '../classes/courseClass.model.js';
 
 const router = Router();

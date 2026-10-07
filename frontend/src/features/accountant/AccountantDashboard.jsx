@@ -6,7 +6,7 @@ import { ProfileCard } from '../../components/account/ProfileCard.jsx';
 import { Spinner } from '../../components/ui/Spinner.jsx';
 import { useAuth } from '../../app/providers/AuthProvider.jsx';
 import { tuitionApi } from '../../api/tuitionApi.js';
-import { formatCurrency, formatDate } from '../../lib/format.js';
+import { formatCurrency } from '../../lib/format.js';
 
 export function AccountantDashboard() {
   const { user } = useAuth();

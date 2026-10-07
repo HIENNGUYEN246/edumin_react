@@ -1,4 +1,3 @@
-import mongoose from 'mongoose';
 import { AppError } from '../../lib/AppError.js';
 import { comparePassword, hashPassword } from '../../lib/password.js';
 import { signToken } from '../../lib/jwt.js';

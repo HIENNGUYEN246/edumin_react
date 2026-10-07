@@ -235,7 +235,7 @@ export function TeacherDashboard() {
                 </div>
 
                 <div className="text-xs text-gray-700 italic bg-white p-3 rounded-xl border border-gray-100">
-                  "{fb.feedbackText}"
+                  &quot;{fb.feedbackText}&quot;
                 </div>
 
                 <div className="flex items-center justify-between text-[11px] text-gray-400 pt-0.5">
@@ -279,7 +279,7 @@ export function TeacherDashboard() {
         >
           <div className="space-y-4">
             <div className="bg-gray-50 p-3 rounded-xl border border-gray-100 text-xs text-gray-600 italic">
-              "{replyModal.feedback?.feedbackText}"
+              &quot;{replyModal.feedback?.feedbackText}&quot;
             </div>
 
             <div>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '../../components/ui/PageHeader.jsx';
 import { DataTable } from '../../components/ui/DataTable.jsx';
 import { Pagination } from '../../components/ui/Pagination.jsx';
@@ -619,7 +619,7 @@ export function ManageTuition() {
             </div>
             <div>
               <h4 className="text-sm font-bold text-indigo-900">
-                Bạn có chắc chắn muốn duyệt {selectedIds.length} mục này sang trạng thái "Đã đóng"?
+                Bạn có chắc chắn muốn duyệt {selectedIds.length} mục này sang trạng thái &quot;Đã đóng&quot;?
               </h4>
               <p className="text-xs text-indigo-700/80 mt-1 leading-relaxed">
                 Hệ thống sẽ cập nhật trạng thái học phí của các sinh viên được chọn thành đã hoàn thành đủ học phí và tạo biên lai nộp tiền tương ứng.

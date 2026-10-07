@@ -277,7 +277,7 @@ export function StudentAttendance() {
                       {row.evaluation ? (
                         <div className="space-y-1">
                           <p className="text-xs text-gray-800 italic leading-relaxed">
-                            "{row.evaluation}"
+                            &quot;{row.evaluation}&quot;
                           </p>
                           {row.teacherName && (
                             <div className="flex items-center gap-1.5 text-[11px] text-gray-500 font-medium">

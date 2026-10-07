@@ -6,7 +6,6 @@ import { Spinner } from '../../../components/ui/Spinner.jsx';
 import { useToast } from '../../../app/providers/ToastProvider.jsx';
 import { useConfirm } from '../../../app/providers/ConfirmProvider.jsx';
 import { formatCurrency } from '../../../lib/format.js';
-import { describeSchedules } from '../../../lib/schedule.js';
 import { coursesApi } from '../../../api/coursesApi.js';
 import { CLASS_STATUSES } from '../../../api/classesApi.js';
 import { useCourseClasses, useClassMutations } from '../classes/useClasses.js';

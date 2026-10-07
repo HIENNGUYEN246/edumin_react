@@ -4,7 +4,6 @@ import { parseListQuery, paginate } from '../../lib/pagination.js';
 import { Tuition } from './tuition.model.js';
 import { Student } from '../students/student.model.js';
 import { Enrollment } from '../enrollments/enrollment.model.js';
-import { CourseClass } from '../classes/courseClass.model.js';
 
 const CURRENT_SEMESTER = 'HK1 (2026-2027)';
 const CURRENT_ACADEMIC_YEAR = '2026-2027';

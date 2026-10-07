@@ -462,7 +462,7 @@ export function ManageFeedbacks() {
                   )}
                 </div>
                 <div className="bg-gray-50/70 p-3.5 rounded-xl border border-gray-100 text-sm text-gray-800 leading-relaxed">
-                  "{item.feedbackText}"
+                  &quot;{item.feedbackText}&quot;
                 </div>
               </div>
 
@@ -490,7 +490,7 @@ export function ManageFeedbacks() {
         >
           <div className="space-y-4">
             <div className="bg-gray-50 p-3 rounded-xl border border-gray-100 text-xs text-gray-600 italic">
-              "{replyModal.feedback?.feedbackText}"
+              &quot;{replyModal.feedback?.feedbackText}&quot;
             </div>
 
             <div>

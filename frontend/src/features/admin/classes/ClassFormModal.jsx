@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Modal } from '../../../components/ui/Modal.jsx';
 import { FormField, inputClass } from '../../../components/ui/FormField.jsx';
@@ -44,7 +44,7 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
     queryFn: () => teachersApi.list({ limit: 500 }),
     enabled: open,
   });
-  const allTeachers = teacherData?.data || [];
+  const allTeachers = useMemo(() => teacherData?.data || [], [teacherData]);
 
   const { data: courseData } = useQuery({
     queryKey: ['courses', { limit: 500 }],

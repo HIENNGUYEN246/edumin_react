@@ -1,9 +1,8 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import { PageHeader, SearchInput } from '../../../components/ui/PageHeader.jsx';
+import { SearchInput } from '../../../components/ui/PageHeader.jsx';
 import { Spinner } from '../../../components/ui/Spinner.jsx';
 import { Modal } from '../../../components/ui/Modal.jsx';
 import { Avatar } from '../../../components/ui/Avatar.jsx';
-import { ScheduleRoomBadge } from '../../../components/schedule/ScheduleBadge.jsx';
 import { useToast } from '../../../app/providers/ToastProvider.jsx';
 import { useConfirm } from '../../../app/providers/ConfirmProvider.jsx';
 import { useDebounce } from '../../../lib/useDebounce.js';
@@ -605,7 +604,7 @@ export function ClassAttendanceDetail({ classItem, onBack }) {
                           )}
                           {row.evaluation && (
                             <p className="text-xs text-gray-600 mt-0.5 italic line-clamp-1 max-w-xs" title={row.evaluation}>
-                              "{row.evaluation}"
+                              &quot;{row.evaluation}&quot;
                             </p>
                           )}
                         </td>

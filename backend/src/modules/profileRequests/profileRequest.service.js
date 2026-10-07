@@ -93,7 +93,7 @@ export async function createRequest(user, { type = 'avatar', requestedData = {} 
 }
 
 export async function listRequests(query = {}) {
-  const { page, limit, skip, sort, search } = parseListQuery(query, { defaultSort: '-createdAt' });
+  const { page, limit, skip, search } = parseListQuery(query, { defaultSort: '-createdAt' });
   const filter = { ...searchFilter(search, ['requesterName', 'requesterEmail', 'requesterCode']) };
 
   if (query.status) {

@@ -32,7 +32,7 @@ export function ManageDepartments() {
     queryKey: ['teachers', { limit: 200 }],
     queryFn: () => teachersApi.list({ limit: 200 }),
   });
-  const teachers = teacherData?.data || [];
+  const teachers = useMemo(() => teacherData?.data || [], [teacherData]);
 
   const rows = data?.data || [];
   const meta = data?.meta || { page: 1, pages: 1, total: 0 };

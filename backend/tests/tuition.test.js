@@ -19,14 +19,14 @@ async function makeStudent(idNum, className = '20DTH01') {
 }
 
 describe('Tuition & Finance Module', () => {
-  let adminToken;
+  let _adminToken;
   let accountantToken;
   let student1;
   let student2;
 
   beforeEach(async () => {
     const admin = await createUser({ role: ROLES.ADMIN });
-    adminToken = admin.token;
+    _adminToken = admin.token;
 
     const accountantUser = await User.create({
       email: 'ketoan.test@edu.vn',

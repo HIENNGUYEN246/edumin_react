@@ -1,5 +1,5 @@
 // Notification Service - Quản lý thông báo người dùng theo role
-export const getInitialNotifications = (role, user) => {
+export const getInitialNotifications = (role, _user) => {
   if (role === 'sinh-vien') {
     return [
       {
@@ -187,6 +187,8 @@ export const saveStoredNotifications = (role, user, list) => {
   try {
     const key = `edumin_notifs_${user?.email || role || 'common'}`;
     localStorage.setItem(key, JSON.stringify(list));
-  } catch {}
+  } catch {
+    // Ignore storage errors
+  }
 };
 

@@ -237,16 +237,16 @@ export function PersonManager({ config }) {
         // Clean up payload: exclude internal MongoDB fields and email/password
         const {
           _id,
-          id,
-          userId,
-          departmentRef,
-          department,
-          avatar,
-          createdAt,
-          updatedAt,
+          id: _idVal,
+          userId: _userId,
+          departmentRef: _deptRef,
+          department: _dept,
+          avatar: _avatar,
+          createdAt: _createdAt,
+          updatedAt: _updatedAt,
           __v,
-          email,
-          password,
+          email: _email,
+          password: _password,
           ...rest
         } = form;
 
@@ -300,28 +300,6 @@ export function PersonManager({ config }) {
       toast.success('Đã xóa');
     } catch (error) {
       toast.error(error.message);
-    }
-  };
-
-  const onBulkDelete = async () => {
-    if (selectedIds.length === 0) return;
-    const ok = await confirm({
-      title: 'Xóa nhiều mục đã chọn',
-      message: `Bạn có chắc muốn xóa ${selectedIds.length} ${config.entityLabel} đã chọn? Tài khoản đăng nhập của các mục này cũng sẽ bị xóa.`,
-      confirmText: `Xóa ${selectedIds.length} mục`,
-      tone: 'danger',
-    });
-    if (!ok) return;
-    try {
-      if (mutations.bulkDelete) {
-        await mutations.bulkDelete.mutateAsync(selectedIds);
-      } else {
-        await Promise.all(selectedIds.map((id) => mutations.remove.mutateAsync(id)));
-      }
-      toast.success(`Đã xóa ${selectedIds.length} ${config.entityLabel}`);
-      setSelectedIds([]);
-    } catch (error) {
-      toast.error(error.message || 'Lỗi khi xóa nhiều mục');
     }
   };
 

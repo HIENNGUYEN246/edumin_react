@@ -33,7 +33,7 @@ export function TeacherAttendance() {
   const [activeTab, setActiveTab] = useState('session');
 
   const { data: classData, isLoading: classesLoading } = useMyTeacherClasses();
-  const classes = classData?.data || [];
+  const classes = useMemo(() => classData?.data || [], [classData]);
 
   // Hierarchical view mode: 'list' (Danh sách lớp học phần) | 'detail' (Chi tiết điểm danh sinh viên của lớp)
   const [selectedClassId, setSelectedClassId] = useState(initialClassId);
@@ -56,7 +56,7 @@ export function TeacherAttendance() {
 
   // Enrolled students in selected class
   const { data: studentsData, isLoading: studentsLoading } = useClassStudents(selectedClassId);
-  const students = studentsData?.students || [];
+  const students = useMemo(() => studentsData?.students || [], [studentsData]);
 
   // Map of studentId -> { status, score, evaluation, note } for current session
   const [records, setRecords] = useState({});
@@ -858,7 +858,7 @@ export function TeacherAttendance() {
                           <td className="px-5 py-3">
                             {rec.evaluation ? (
                               <p className="text-xs text-gray-600 italic line-clamp-1 max-w-xs" title={rec.evaluation}>
-                                "{rec.evaluation}"
+                                &quot;{rec.evaluation}&quot;
                               </p>
                             ) : (
                               <span className="text-gray-300 text-xs italic">Chưa có nhận xét</span>
@@ -1210,7 +1210,7 @@ export function TeacherAttendance() {
                         <span className="text-gray-400">• Ca {rec.shiftId}</span>
                       </div>
                       {rec.evaluation && (
-                        <p className="text-gray-500 italic mt-0.5 text-[11px]">"{rec.evaluation}"</p>
+                        <p className="text-gray-500 italic mt-0.5 text-[11px]">&quot;{rec.evaluation}&quot;</p>
                       )}
                     </div>
                     <div className="flex items-center gap-2">

@@ -1,6 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { PageHeader } from '../../components/ui/PageHeader.jsx';
 import { ProfileCard } from '../../components/account/ProfileCard.jsx';
 import { useAuth } from '../../app/providers/AuthProvider.jsx';
@@ -13,7 +11,7 @@ export function StudentDashboard() {
   const toast = useToast();
   const { user, profile } = useAuth();
   const { data: enrollData } = useMyEnrollments();
-  const enrollments = enrollData?.data || [];
+  const enrollments = useMemo(() => enrollData?.data || [], [enrollData]);
   const enrolledCount = enrollments.length;
 
   const [feedbacks, setFeedbacks] = useState([]);
@@ -189,7 +187,7 @@ export function StudentDashboard() {
                     </div>
                   </div>
 
-                  <p className="text-gray-700 italic leading-relaxed">"{fb.feedbackText}"</p>
+                  <p className="text-gray-700 italic leading-relaxed">&quot;{fb.feedbackText}&quot;</p>
 
                   {fb.response ? (
                     <div className="mt-2 p-3 bg-indigo-50/70 border border-indigo-100 rounded-xl space-y-1">

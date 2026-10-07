@@ -5,7 +5,6 @@ import { Spinner } from '../../components/ui/Spinner.jsx';
 import { Avatar } from '../../components/ui/Avatar.jsx';
 import { useToast } from '../../app/providers/ToastProvider.jsx';
 import { useConfirm } from '../../app/providers/ConfirmProvider.jsx';
-import { describeSchedules } from '../../lib/schedule.js';
 import { formatCurrency } from '../../lib/format.js';
 import { useOpenClasses, useMyEnrollments, useEnrollmentMutations } from './useEnrollments.js';
 import { ScheduleRoomBadge } from '../../components/schedule/ScheduleBadge.jsx';
