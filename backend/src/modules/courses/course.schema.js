@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { gradeWeightsSchema } from '../classes/courseClass.schema.js';
 
 export const createCourseSchema = z.object({
   id: z.string().trim().min(1, 'Mã học phần là bắt buộc').max(30),
@@ -6,6 +7,7 @@ export const createCourseSchema = z.object({
   credits: z.coerce.number().min(0).max(20).optional().default(0),
   fee: z.coerce.number().min(0).optional().default(0),
   departmentId: z.string().trim().optional().default(''),
+  gradeWeights: gradeWeightsSchema.optional(),
 });
 
 export const updateCourseSchema = z.object({
@@ -13,6 +15,7 @@ export const updateCourseSchema = z.object({
   credits: z.coerce.number().min(0).max(20).optional(),
   fee: z.coerce.number().min(0).optional(),
   departmentId: z.string().trim().optional(),
+  gradeWeights: gradeWeightsSchema.optional(),
 });
 
 export const importCoursesSchema = z.object({

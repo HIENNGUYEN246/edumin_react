@@ -6,10 +6,11 @@ import { SchedulePicker } from '../../../components/schedule/SchedulePicker.jsx'
 import {
   formatTeacherCode,
   getTodayDate,
-  getCurrentDateTimeLocal,
-  getCurrentDateTimeLocalWithSeconds,
+  getNextDate,
   addWeeksToDate,
-  registrationDateTimeInput,
+  addDaysToDate,
+  DEFAULT_GRADE_WEIGHTS,
+  GRADE_COMPONENTS,
 } from '../../../lib/format.js';
 import { teachersApi } from '../../../api/teachersApi.js';
 import { classesApi, CLASS_STATUSES } from '../../../api/classesApi.js';
@@ -28,6 +29,7 @@ const emptyForm = (courseId = '') => ({
   studyEnd: '',
   registrationStart: '',
   registrationEnd: '',
+  gradeWeights: { ...DEFAULT_GRADE_WEIGHTS },
   status: 'Nháp',
 });
 
@@ -77,15 +79,22 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
 
   useEffect(() => {
     if (open) {
+      const defaultWeights = selectedCourse?.gradeWeights || DEFAULT_GRADE_WEIGHTS;
       setForm(initial ? {
         ...emptyForm(courseId),
         ...initial,
-        registrationStart: registrationDateTimeInput(initial.registrationStart),
-        registrationEnd: registrationDateTimeInput(initial.registrationEnd, true),
-      } : emptyForm(courseId));
+        registrationStart: initial.registrationStart ? String(initial.registrationStart).slice(0, 10) : '',
+        registrationEnd: initial.registrationEnd ? String(initial.registrationEnd).slice(0, 10) : '',
+        gradeWeights: initial.gradeWeights
+          ? { ...defaultWeights, ...initial.gradeWeights }
+          : { ...defaultWeights },
+      } : {
+        ...emptyForm(courseId),
+        gradeWeights: { ...defaultWeights },
+      });
       setErrors({});
     }
-  }, [open, initial, courseId]);
+  }, [open, initial, courseId, selectedCourse?.gradeWeights]);
 
   // Sync auto-generated code into form in create mode
   useEffect(() => {
@@ -113,6 +122,42 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
     if (errors[name]) setErrors((prev) => ({ ...prev, [name]: null }));
   };
 
+  const handleRegistrationStartChange = (e) => {
+    const val = e.target.value;
+    const autoEnd = val ? addDaysToDate(val, 7) : '';
+    setForm((f) => ({
+      ...f,
+      registrationStart: val,
+      registrationEnd: autoEnd || f.registrationEnd,
+    }));
+    setErrors((prev) => ({ ...prev, registrationStart: '', registrationEnd: '' }));
+  };
+
+  const totalWeight = useMemo(() => {
+    const weights = form.gradeWeights || DEFAULT_GRADE_WEIGHTS;
+    return Object.values(weights).reduce((sum, val) => sum + (Number(val) || 0), 0);
+  }, [form.gradeWeights]);
+
+  const handleGradeWeightChange = (key, val) => {
+    const num = Math.max(0, Math.min(100, Number(val) || 0));
+    setForm((f) => ({
+      ...f,
+      gradeWeights: {
+        ...(f.gradeWeights || DEFAULT_GRADE_WEIGHTS),
+        [key]: num,
+      },
+    }));
+    if (errors.gradeWeights) setErrors((prev) => ({ ...prev, gradeWeights: '' }));
+  };
+
+  const applyWeightPreset = (preset) => {
+    setForm((f) => ({
+      ...f,
+      gradeWeights: { ...preset },
+    }));
+    if (errors.gradeWeights) setErrors((prev) => ({ ...prev, gradeWeights: '' }));
+  };
+
   const handleStudyStartChange = (e) => {
     const val = e.target.value;
     setForm((f) => ({
@@ -138,22 +183,15 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
     if (form.capacity === '' || !Number.isInteger(Number(form.capacity)) || Number(form.capacity) < 10) {
       next.capacity = 'Sĩ số tối đa phải là số nguyên lớn hơn hoặc bằng 10';
     }
+    if (!form.registrationStart) next.registrationStart = 'Vui lòng chọn ngày bắt đầu đăng ký';
+    if (!form.registrationEnd) next.registrationEnd = 'Vui lòng chọn ngày kết thúc đăng ký';
     if (!form.studyStart) next.studyStart = 'Vui lòng chọn ngày bắt đầu học';
     if (!form.studyEnd) next.studyEnd = 'Vui lòng chọn ngày kết thúc học';
     if (!form.schedules.length) next.schedules = 'Chọn ít nhất một buổi học';
     const today = getTodayDate();
-    const now = getCurrentDateTimeLocalWithSeconds();
-    if (mode === 'create' && form.studyStart && form.studyStart < today) {
-      next.studyStart = 'Ngày bắt đầu học không được ở quá khứ';
-    }
-    if (form.studyEnd && form.studyStart && form.studyEnd < form.studyStart) {
-      next.studyEnd = 'Ngày kết thúc phải sau ngày bắt đầu';
-    }
-    if (mode === 'create' && form.registrationStart && `${form.registrationStart}:00` < now) {
+    if (mode === 'create' && form.registrationStart && form.registrationStart < today) {
       next.registrationStart = 'Thời gian bắt đầu đăng ký không được ở quá khứ';
     }
-    if (!form.registrationStart) next.registrationStart = 'Vui lòng chọn ngày bắt đầu đăng ký';
-    if (!form.registrationEnd) next.registrationEnd = 'Vui lòng chọn ngày kết thúc đăng ký';
     if (
       form.registrationStart &&
       form.registrationEnd &&
@@ -161,12 +199,28 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
     ) {
       next.registrationEnd = 'Thời gian kết thúc phải sau thời gian bắt đầu đăng ký';
     }
+    if (mode === 'create' && form.studyStart && form.studyStart < today) {
+      next.studyStart = 'Ngày bắt đầu học không được ở quá khứ';
+    }
+    if (
+      form.studyStart &&
+      form.registrationEnd &&
+      form.studyStart <= form.registrationEnd
+    ) {
+      next.studyStart = 'Thời điểm bắt đầu học bắt buộc phải diễn ra sau thời điểm kết thúc đăng ký';
+    }
+    if (form.studyEnd && form.studyStart && form.studyEnd < form.studyStart) {
+      next.studyEnd = 'Ngày kết thúc phải sau ngày bắt đầu';
+    }
     if (
       form.studyStart &&
       form.studyEnd &&
       form.studyEnd < addWeeksToDate(form.studyStart, CLASS_DURATION_WEEKS)
     ) {
       next.studyEnd = `Ngày kết thúc phải cách ngày bắt đầu ít nhất ${CLASS_DURATION_WEEKS} tuần`;
+    }
+    if (totalWeight !== 100) {
+      next.gradeWeights = `Tổng trọng số các cột điểm phải bằng đúng 100% (hiện tại: ${totalWeight}%)`;
     }
     setErrors(next);
     if (Object.keys(next).length) return;
@@ -183,6 +237,7 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
       studyEnd: form.studyEnd,
       registrationStart: form.registrationStart,
       registrationEnd: form.registrationEnd,
+      gradeWeights: form.gradeWeights || DEFAULT_GRADE_WEIGHTS,
       status: form.status,
     }, setErrors);
   };
@@ -321,12 +376,12 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
               required
             >
               <input
-                type="datetime-local"
+                type="date"
                 required
-                min={mode === 'create' ? getCurrentDateTimeLocal() : undefined}
+                min={mode === 'create' ? todayStr : undefined}
                 className={inputClass}
                 value={form.registrationStart}
-                onChange={set('registrationStart')}
+                onChange={handleRegistrationStartChange}
               />
             </FormField>
             <FormField
@@ -335,9 +390,9 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
               required
             >
               <input
-                type="datetime-local"
+                type="date"
                 required
-                min={form.registrationStart || (mode === 'create' ? getCurrentDateTimeLocal() : undefined)}
+                min={form.registrationStart ? getNextDate(form.registrationStart) : (mode === 'create' ? todayStr : undefined)}
                 className={inputClass}
                 value={form.registrationEnd}
                 onChange={set('registrationEnd')}
@@ -360,7 +415,11 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
               <input
                 type="date"
                 required
-                min={mode === 'create' ? todayStr : undefined}
+                min={
+                  form.registrationEnd
+                    ? getNextDate(form.registrationEnd)
+                    : (mode === 'create' ? todayStr : undefined)
+                }
                 className={inputClass}
                 value={form.studyStart}
                 aria-invalid={Boolean(errors.studyStart)}
@@ -390,6 +449,78 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
               />
             </FormField>
           </div>
+        </div>
+
+        <div className="bg-slate-50/60 p-4 rounded-2xl border border-gray-100">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+            <div className="text-xs font-bold uppercase tracking-wider text-indigo-700 flex items-center gap-1.5">
+              <i className="fas fa-sliders text-indigo-500" />
+              <span>Cấu hình trọng số điểm (%)</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full border ${
+                totalWeight === 100
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                  : 'bg-rose-50 text-rose-700 border-rose-200'
+              }`}>
+                Tổng: {totalWeight}% {totalWeight === 100 ? '✓ Hợp lệ' : '(Cần đúng 100%)'}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 mb-3 text-xs">
+            <span className="text-slate-500 font-medium">Mẫu nhanh:</span>
+            <button
+              type="button"
+              onClick={() => applyWeightPreset({ attendance: 10, homework: 10, midterm: 30, presentation: 0, final: 50 })}
+              className="px-2 py-1 rounded-lg bg-white hover:bg-indigo-50 border border-slate-200 text-slate-700 font-medium transition cursor-pointer"
+            >
+              Chuẩn (10-10-30-50)
+            </button>
+            <button
+              type="button"
+              onClick={() => applyWeightPreset({ attendance: 10, homework: 0, midterm: 40, presentation: 0, final: 50 })}
+              className="px-2 py-1 rounded-lg bg-white hover:bg-indigo-50 border border-slate-200 text-slate-700 font-medium transition cursor-pointer"
+            >
+              3 cột (10-40-50)
+            </button>
+            <button
+              type="button"
+              onClick={() => applyWeightPreset({ attendance: 10, homework: 10, midterm: 20, presentation: 20, final: 40 })}
+              className="px-2 py-1 rounded-lg bg-white hover:bg-indigo-50 border border-slate-200 text-slate-700 font-medium transition cursor-pointer"
+            >
+              Có thuyết trình (10-10-20-20-40)
+            </button>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+            {GRADE_COMPONENTS.map((comp) => (
+              <div key={comp.key} className="bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-2xs">
+                <label className="block text-xs font-semibold text-slate-700 mb-1 truncate" title={comp.label}>
+                  {comp.label}
+                </label>
+                <div className="relative">
+                  <input
+                    aria-label={`Trọng số ${comp.label}`}
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="5"
+                    className="w-full text-center font-bold text-sm text-slate-800 bg-slate-50 focus:bg-white border border-slate-200 focus:border-indigo-500 rounded-lg py-1.5 px-2 outline-hidden transition"
+                    value={form.gradeWeights?.[comp.key] ?? 0}
+                    onChange={(e) => handleGradeWeightChange(comp.key, e.target.value)}
+                  />
+                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-400 pointer-events-none">%</span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {errors.gradeWeights && (
+            <p className="mt-2 text-xs font-semibold text-rose-600 flex items-center gap-1">
+              <i className="fas fa-circle-exclamation" /> {errors.gradeWeights}
+            </p>
+          )}
         </div>
 
         <div className="bg-slate-50/60 p-4 rounded-2xl border border-gray-100">

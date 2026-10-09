@@ -13,18 +13,42 @@ const dateOnly = z
     const date = new Date(`${value}T00:00:00.000Z`);
     return !Number.isNaN(date.valueOf()) && date.toISOString().slice(0, 10) === value;
   }, 'Ngày không hợp lệ');
-const registrationDateTime = z.string().refine((value) => {
-  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value)) return false;
-  const [date, time] = value.split('T');
-  const parsedDate = new Date(`${date}T00:00:00.000Z`);
-  const [hour, minute] = time.split(':').map(Number);
-  return (
-    !Number.isNaN(parsedDate.valueOf()) &&
-    parsedDate.toISOString().slice(0, 10) === date &&
-    hour <= 23 &&
-    minute <= 59
-  );
+const registrationDateOrDateTime = z.string().refine((value) => {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const date = new Date(`${value}T00:00:00.000Z`);
+    return !Number.isNaN(date.valueOf()) && date.toISOString().slice(0, 10) === value;
+  }
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value)) {
+    const [date, time] = value.split('T');
+    const parsedDate = new Date(`${date}T00:00:00.000Z`);
+    const [hour, minute] = time.split(':').map(Number);
+    return (
+      !Number.isNaN(parsedDate.valueOf()) &&
+      parsedDate.toISOString().slice(0, 10) === date &&
+      hour <= 23 &&
+      minute <= 59
+    );
+  }
+  return false;
 }, 'Ngày giờ không hợp lệ');
+
+export const gradeWeightsSchema = z.object({
+  attendance: z.coerce.number().min(0).max(100).default(10),
+  homework: z.coerce.number().min(0).max(100).default(10),
+  midterm: z.coerce.number().min(0).max(100).default(30),
+  presentation: z.coerce.number().min(0).max(100).default(0),
+  final: z.coerce.number().min(0).max(100).default(50),
+}).refine(
+  (weights) => {
+    const sum = (Number(weights.attendance) || 0) +
+      (Number(weights.homework) || 0) +
+      (Number(weights.midterm) || 0) +
+      (Number(weights.presentation) || 0) +
+      (Number(weights.final) || 0);
+    return Math.abs(sum - 100) < 0.01;
+  },
+  { message: 'Tổng tỷ lệ phần trăm trọng số điểm phải bằng đúng 100%' }
+);
 
 export const baseClassSchema = z.object({
   id: z.string().trim().max(40).optional().default(''),
@@ -38,8 +62,15 @@ export const baseClassSchema = z.object({
     .refine((slots) => new Set(slots.map((slot) => `${slot.dayId}:${slot.shiftId}`)).size === slots.length, 'Lịch học không được trùng buổi'),
   studyStart: dateOnly,
   studyEnd: dateOnly,
-  registrationStart: registrationDateTime,
-  registrationEnd: registrationDateTime,
+  registrationStart: registrationDateOrDateTime,
+  registrationEnd: registrationDateOrDateTime,
+  gradeWeights: gradeWeightsSchema.optional().default({
+    attendance: 10,
+    homework: 10,
+    midterm: 30,
+    presentation: 0,
+    final: 50,
+  }),
   status: z.enum(CLASS_STATUS),
 });
 
@@ -57,22 +88,40 @@ function updateStudyPeriodIsValid(data) {
   return studyPeriodIsValid(data);
 }
 
+function studyStartAfterRegistrationEnd(data) {
+  if (!data.studyStart || !data.registrationEnd) return true;
+  return data.studyStart.slice(0, 10) > data.registrationEnd.slice(0, 10);
+}
+
+function registrationPeriodIsValid(data) {
+  if (!data.registrationStart || !data.registrationEnd) return true;
+  return data.registrationEnd > data.registrationStart;
+}
+
 export const createClassSchema = baseClassSchema
-  .refine((data) => data.registrationEnd > data.registrationStart, {
-  message: 'Thời gian kết thúc đăng ký phải sau thời gian bắt đầu đăng ký',
-  path: ['registrationEnd'],
+  .refine(registrationPeriodIsValid, {
+    message: 'Thời gian kết thúc đăng ký phải sau thời gian bắt đầu đăng ký',
+    path: ['registrationEnd'],
+  })
+  .refine(studyStartAfterRegistrationEnd, {
+    message: 'Thời điểm bắt đầu học bắt buộc phải diễn ra sau thời điểm kết thúc đăng ký',
+    path: ['studyStart'],
   })
   .refine(studyPeriodIsValid, {
-  message: 'Ngày kết thúc bắt buộc phải diễn ra sau ít nhất 15 tuần kể từ ngày bắt đầu học phần',
-  path: ['studyEnd'],
+    message: 'Ngày kết thúc bắt buộc phải diễn ra sau ít nhất 15 tuần kể từ ngày bắt đầu học phần',
+    path: ['studyEnd'],
   });
 
 export const updateClassSchema = baseClassSchema
   .partial()
   .omit({ id: true })
-  .refine((data) => !(data.registrationStart && data.registrationEnd) || data.registrationEnd > data.registrationStart, {
+  .refine(registrationPeriodIsValid, {
     message: 'Thời gian kết thúc đăng ký phải sau thời gian bắt đầu đăng ký',
     path: ['registrationEnd'],
+  })
+  .refine(studyStartAfterRegistrationEnd, {
+    message: 'Thời điểm bắt đầu học bắt buộc phải diễn ra sau thời điểm kết thúc đăng ký',
+    path: ['studyStart'],
   })
   .refine(updateStudyPeriodIsValid, {
     message: 'Ngày kết thúc bắt buộc phải diễn ra sau ít nhất 15 tuần kể từ ngày bắt đầu học phần',

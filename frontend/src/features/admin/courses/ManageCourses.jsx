@@ -8,13 +8,13 @@ import { FormField, inputClass } from '../../../components/ui/FormField.jsx';
 import { useToast } from '../../../app/providers/ToastProvider.jsx';
 import { useConfirm } from '../../../app/providers/ConfirmProvider.jsx';
 import { useDebounce } from '../../../lib/useDebounce.js';
-import { formatCurrency } from '../../../lib/format.js';
+import { formatCurrency, DEFAULT_GRADE_WEIGHTS, GRADE_COMPONENTS } from '../../../lib/format.js';
 import { readSheet, exportSheet } from '../../../lib/excel.js';
 import { useDepartments } from '../departments/useDepartments.js';
 import { useCourses, useCourseMutations } from './useCourses.js';
 import { coursesApi } from '../../../api/coursesApi.js';
 
-const EMPTY = { id: '', name: '', credits: 0, fee: 0, departmentId: '' };
+const EMPTY = { id: '', name: '', credits: 0, fee: 0, departmentId: '', gradeWeights: { ...DEFAULT_GRADE_WEIGHTS } };
 
 export function ManageCourses() {
   const toast = useToast();
@@ -103,9 +103,35 @@ export function ManageCourses() {
       credits: course.credits,
       fee: course.fee,
       departmentId: course.departmentRef?.id || '',
+      gradeWeights: course.gradeWeights ? { ...DEFAULT_GRADE_WEIGHTS, ...course.gradeWeights } : { ...DEFAULT_GRADE_WEIGHTS },
     });
     setErrors({});
     setModal({ mode: 'edit', course });
+  };
+
+  const totalWeight = useMemo(() => {
+    const weights = form.gradeWeights || DEFAULT_GRADE_WEIGHTS;
+    return Object.values(weights).reduce((sum, val) => sum + (Number(val) || 0), 0);
+  }, [form.gradeWeights]);
+
+  const handleGradeWeightChange = (key, val) => {
+    const num = Math.max(0, Math.min(100, Number(val) || 0));
+    setForm((f) => ({
+      ...f,
+      gradeWeights: {
+        ...(f.gradeWeights || DEFAULT_GRADE_WEIGHTS),
+        [key]: num,
+      },
+    }));
+    if (errors.gradeWeights) setErrors((prev) => ({ ...prev, gradeWeights: '' }));
+  };
+
+  const applyWeightPreset = (preset) => {
+    setForm((f) => ({
+      ...f,
+      gradeWeights: { ...preset },
+    }));
+    if (errors.gradeWeights) setErrors((prev) => ({ ...prev, gradeWeights: '' }));
   };
 
   const submit = async (e) => {
@@ -113,6 +139,9 @@ export function ManageCourses() {
     const next = {};
     if (modal.mode === 'create' && !form.id.trim()) next.id = 'Mã môn học là bắt buộc';
     if (!form.name.trim()) next.name = 'Tên môn học là bắt buộc';
+    if (totalWeight !== 100) {
+      next.gradeWeights = `Tổng trọng số các cột điểm phải bằng đúng 100% (hiện tại: ${totalWeight}%)`;
+    }
     setErrors(next);
     if (Object.keys(next).length) return;
 
@@ -121,6 +150,7 @@ export function ManageCourses() {
       credits: Number(form.credits) || 0,
       fee: Number(form.fee) || 0,
       departmentId: form.departmentId,
+      gradeWeights: form.gradeWeights || DEFAULT_GRADE_WEIGHTS,
     };
     try {
       if (modal.mode === 'create') {
@@ -361,7 +391,7 @@ export function ManageCourses() {
       />
 
 
-      <Modal open={Boolean(modal)} onClose={() => setModal(null)} title={modal?.mode === 'create' ? 'Thêm môn học mới' : 'Sửa thông tin môn học'}>
+      <Modal open={Boolean(modal)} onClose={() => setModal(null)} title={modal?.mode === 'create' ? 'Thêm môn học mới' : 'Sửa thông tin môn học'} size="xl">
         {modal && (
           <form onSubmit={submit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <FormField label="Mã môn học" error={errors.id} required>
@@ -376,14 +406,89 @@ export function ManageCourses() {
             <FormField label="Học phí (VND)">
               <input type="number" min="0" className={inputClass} value={form.fee} onChange={(e) => setForm((f) => ({ ...f, fee: e.target.value }))} />
             </FormField>
-            <FormField label="Khoa">
-              <select className={inputClass} value={form.departmentId} onChange={(e) => setForm((f) => ({ ...f, departmentId: e.target.value }))}>
-                <option value="">Chọn khoa</option>
-                {departments.map((d) => (
-                  <option key={d.id} value={d.id}>{d.name}</option>
+            <div className="md:col-span-2">
+              <FormField label="Khoa">
+                <select className={inputClass} value={form.departmentId} onChange={(e) => setForm((f) => ({ ...f, departmentId: e.target.value }))}>
+                  <option value="">Chọn khoa</option>
+                  {departments.map((d) => (
+                    <option key={d.id} value={d.id}>{d.name}</option>
+                  ))}
+                </select>
+              </FormField>
+            </div>
+
+            <div className="md:col-span-2 bg-slate-50/60 p-4 rounded-2xl border border-gray-100">
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                <div className="text-xs font-bold uppercase tracking-wider text-indigo-700 flex items-center gap-1.5">
+                  <i className="fas fa-sliders text-indigo-500" />
+                  <span>Cấu hình trọng số điểm mặc định (%)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full border ${
+                    totalWeight === 100
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      : 'bg-rose-50 text-rose-700 border-rose-200'
+                  }`}>
+                    Tổng: {totalWeight}% {totalWeight === 100 ? '✓ Hợp lệ' : '(Cần đúng 100%)'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 mb-3 text-xs">
+                <span className="text-slate-500 font-medium">Mẫu nhanh:</span>
+                <button
+                  type="button"
+                  onClick={() => applyWeightPreset({ attendance: 10, homework: 10, midterm: 30, presentation: 0, final: 50 })}
+                  className="px-2 py-1 rounded-lg bg-white hover:bg-indigo-50 border border-slate-200 text-slate-700 font-medium transition cursor-pointer"
+                >
+                  Chuẩn (10-10-30-50)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => applyWeightPreset({ attendance: 10, homework: 0, midterm: 40, presentation: 0, final: 50 })}
+                  className="px-2 py-1 rounded-lg bg-white hover:bg-indigo-50 border border-slate-200 text-slate-700 font-medium transition cursor-pointer"
+                >
+                  3 cột (10-40-50)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => applyWeightPreset({ attendance: 10, homework: 10, midterm: 20, presentation: 20, final: 40 })}
+                  className="px-2 py-1 rounded-lg bg-white hover:bg-indigo-50 border border-slate-200 text-slate-700 font-medium transition cursor-pointer"
+                >
+                  Có thuyết trình (10-10-20-20-40)
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+                {GRADE_COMPONENTS.map((comp) => (
+                  <div key={comp.key} className="bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-2xs">
+                    <label className="block text-xs font-semibold text-slate-700 mb-1 truncate" title={comp.label}>
+                      {comp.label}
+                    </label>
+                    <div className="relative">
+                      <input
+                        aria-label={`Trọng số ${comp.label}`}
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="5"
+                        className="w-full text-center font-bold text-sm text-slate-800 bg-slate-50 focus:bg-white border border-slate-200 focus:border-indigo-500 rounded-lg py-1.5 px-2 outline-hidden transition"
+                        value={form.gradeWeights?.[comp.key] ?? 0}
+                        onChange={(e) => handleGradeWeightChange(comp.key, e.target.value)}
+                      />
+                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-400 pointer-events-none">%</span>
+                    </div>
+                  </div>
                 ))}
-              </select>
-            </FormField>
+              </div>
+
+              {errors.gradeWeights && (
+                <p className="mt-2 text-xs font-semibold text-rose-600 flex items-center gap-1">
+                  <i className="fas fa-circle-exclamation" /> {errors.gradeWeights}
+                </p>
+              )}
+            </div>
+
             <div className="md:col-span-2 flex justify-end gap-3 pt-2">
               <button type="button" onClick={() => setModal(null)} className="px-4 py-2 rounded-xl text-sm font-semibold bg-gray-100 text-gray-600 hover:bg-gray-200">Hủy</button>
               <button type="submit" disabled={create.isPending || update.isPending} className="px-4 py-2 rounded-xl text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60">Lưu</button>

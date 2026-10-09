@@ -43,8 +43,10 @@ beforeEach(async () => {
 });
 
 const baseClass = (overrides = {}) => {
-  const registrationStart = addMinutes(currentDateTimeString(), 5);
-  const studyStart = addCalendarDays(todayDateString(), 1);
+  const registrationStart = overrides.registrationStart || addMinutes(currentDateTimeString(), 5);
+  const registrationEnd = overrides.registrationEnd || addDays(registrationStart, 5);
+  const studyStart = overrides.studyStart || addCalendarDays(registrationEnd.slice(0, 10), 1);
+  const studyEnd = overrides.studyEnd || addCalendarDays(studyStart, 105);
   return {
     id: 'IT101-01',
     courseId: 'IT101',
@@ -54,9 +56,9 @@ const baseClass = (overrides = {}) => {
     capacity: 10,
     schedules: [{ dayId: '2', shiftId: 'S1' }],
     studyStart,
-    studyEnd: addCalendarDays(studyStart, 105),
+    studyEnd,
     registrationStart,
-    registrationEnd: addDays(registrationStart, 30),
+    registrationEnd,
     status: 'Đang mở',
     ...overrides,
   };
@@ -176,9 +178,14 @@ describe('Course classes', () => {
   });
 
   it('does not list a class before registration starts', async () => {
+    const regStart = addDays(addMinutes(currentDateTimeString(), 5), 1);
+    const regEnd = addDays(regStart, 5);
+    const studyStart = addCalendarDays(regEnd.slice(0, 10), 1);
     await request(app).post('/api/classes').set(authHeader(adminToken)).send(baseClass({
-      registrationStart: addDays(addMinutes(currentDateTimeString(), 5), 1),
-      registrationEnd: addDays(addMinutes(currentDateTimeString(), 5), 30),
+      registrationStart: regStart,
+      registrationEnd: regEnd,
+      studyStart,
+      studyEnd: addCalendarDays(studyStart, 105),
     }));
     const { token } = await createUser({ role: ROLES.STUDENT });
     const res = await request(app).get('/api/classes/open').set(authHeader(token));
@@ -306,15 +313,75 @@ describe('Course classes', () => {
   });
 
   it('rejects class creation when studyEnd is less than 15 weeks from studyStart', async () => {
-    const studyStart = addCalendarDays(todayDateString(), 1);
+    const registrationStart = addMinutes(currentDateTimeString(), 5);
+    const registrationEnd = addDays(registrationStart, 2);
+    const studyStart = addCalendarDays(registrationEnd.slice(0, 10), 1);
     const res = await request(app)
       .post('/api/classes')
       .set(authHeader(adminToken))
-      .send(baseClass({ studyStart, studyEnd: addCalendarDays(studyStart, 14) }));
+      .send(baseClass({
+        registrationStart,
+        registrationEnd,
+        studyStart,
+        studyEnd: addCalendarDays(studyStart, 14),
+      }));
     expect(res.status).toBe(400);
     expect(res.body.error.details).toEqual(expect.arrayContaining([
       expect.objectContaining({ path: 'studyEnd' }),
     ]));
+  });
+
+  it('rejects class creation when studyStart is on or before registrationEnd', async () => {
+    const registrationStart = addMinutes(currentDateTimeString(), 5);
+    const registrationEnd = addDays(registrationStart, 5);
+    // On the same date
+    const resSame = await request(app)
+      .post('/api/classes')
+      .set(authHeader(adminToken))
+      .send(baseClass({
+        registrationStart,
+        registrationEnd,
+        studyStart: registrationEnd.slice(0, 10),
+      }));
+    expect(resSame.status).toBe(400);
+    expect(resSame.body.error.details).toEqual(expect.arrayContaining([
+      expect.objectContaining({ path: 'studyStart' }),
+    ]));
+
+    // Before registrationEnd
+    const resBefore = await request(app)
+      .post('/api/classes')
+      .set(authHeader(adminToken))
+      .send(baseClass({
+        registrationStart,
+        registrationEnd,
+        studyStart: registrationStart.slice(0, 10),
+      }));
+    expect(resBefore.status).toBe(400);
+    expect(resBefore.body.error.details).toEqual(expect.arrayContaining([
+      expect.objectContaining({ path: 'studyStart' }),
+    ]));
+  });
+
+  it('accepts date-only format (YYYY-MM-DD) for registrationStart and registrationEnd', async () => {
+    const today = todayDateString();
+    const regStart = today;
+    const regEnd = addCalendarDays(today, 5);
+    const studyStart = addCalendarDays(regEnd, 1);
+    const res = await request(app)
+      .post('/api/classes')
+      .set(authHeader(adminToken))
+      .send(baseClass({
+        id: 'IT101-09',
+        room: 'D10',
+        registrationStart: regStart,
+        registrationEnd: regEnd,
+        studyStart,
+        studyEnd: addCalendarDays(studyStart, 105),
+      }));
+    expect(res.status).toBe(201);
+    expect(res.body.registrationStart).toBe(regStart);
+    expect(res.body.registrationEnd).toBe(regEnd);
   });
 
   it('rejects assigning a teacher from a different department to the course class', async () => {
@@ -340,5 +407,49 @@ describe('Course classes', () => {
       .send(baseClass({ teacherId: teacher.id }));
     expect(res.status).toBe(201);
     expect(res.body.teacher).toBe('GV CNTT');
+  });
+
+  it('rejects creating class if gradeWeights sum does not equal 100%', async () => {
+    const res = await request(app)
+      .post('/api/classes')
+      .set(authHeader(adminToken))
+      .send(baseClass({
+        id: 'IT101-99',
+        room: 'D99',
+        gradeWeights: {
+          attendance: 10,
+          homework: 10,
+          midterm: 20,
+          presentation: 0,
+          final: 50, // sum is 90%
+        },
+      }));
+    expect(res.status).toBe(400);
+    expect(res.body.error.details).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        path: 'gradeWeights',
+        message: expect.stringMatching(/Tổng tỷ lệ phần trăm trọng số điểm phải bằng đúng 100%/),
+      }),
+    ]));
+  });
+
+  it('accepts and stores custom gradeWeights that sum to 100%', async () => {
+    const customWeights = {
+      attendance: 15,
+      homework: 15,
+      midterm: 20,
+      presentation: 10,
+      final: 40,
+    };
+    const res = await request(app)
+      .post('/api/classes')
+      .set(authHeader(adminToken))
+      .send(baseClass({
+        id: 'IT101-88',
+        room: 'D88',
+        gradeWeights: customWeights,
+      }));
+    expect(res.status).toBe(201);
+    expect(res.body.gradeWeights).toMatchObject(customWeights);
   });
 });

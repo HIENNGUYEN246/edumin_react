@@ -151,9 +151,14 @@ export function StudentCourseRegistration() {
       key: 'courseName',
       header: 'Học phần',
       render: (e) => (
-        <span className="font-semibold text-gray-900 truncate max-w-[220px] block" title={e.class?.courseName}>
-          {e.class?.courseName || '—'}
-        </span>
+        <div>
+          <span className="font-mono font-bold text-xs bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded border border-indigo-100">
+            {e.class?.courseId || '—'}
+          </span>
+          <span className="font-semibold text-gray-900 truncate max-w-[220px] block mt-1" title={e.class?.courseName}>
+            {e.class?.courseName || '—'}
+          </span>
+        </div>
       ),
     },
     {

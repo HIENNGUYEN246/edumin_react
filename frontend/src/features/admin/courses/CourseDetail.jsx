@@ -47,7 +47,14 @@ export function CourseDetail() {
 
   const classes = classData?.data || [];
 
-  const openCreate = () => setFormModal({ mode: 'create' });
+  const openCreate = () =>
+    setFormModal({
+      mode: 'create',
+      initial: {
+        courseId: course?.id,
+        gradeWeights: course?.gradeWeights,
+      },
+    });
   const openEdit = (cls) =>
     setFormModal({
       mode: 'edit',
@@ -64,6 +71,7 @@ export function CourseDetail() {
         studyEnd: cls.studyEnd || '',
         registrationStart: registrationDateTimeInput(cls.registrationStart),
         registrationEnd: registrationDateTimeInput(cls.registrationEnd, true),
+        gradeWeights: cls.gradeWeights || course?.gradeWeights,
         status: cls.status || 'Nháp',
       },
     });

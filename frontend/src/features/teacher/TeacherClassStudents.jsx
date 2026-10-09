@@ -17,8 +17,8 @@ export function TeacherClassStudents() {
   return (
     <div>
       <PageHeader
-        title={classInfo ? `Sinh viên lớp ${classInfo.id}` : 'Danh sách sinh viên'}
-        subtitle={classInfo ? `${classInfo.courseId} · ${classInfo.courseName || ''} · ${students.length} sinh viên` : ''}
+        title={classInfo ? `Sinh viên lớp ${classInfo.id}${classInfo.className ? ` (${classInfo.className})` : ''}` : 'Danh sách sinh viên'}
+        subtitle={classInfo ? `Mã HP: ${classInfo.courseId} · Tên HP: ${classInfo.courseName || ''} · ${students.length} sinh viên` : ''}
         actions={
           <>
             <button

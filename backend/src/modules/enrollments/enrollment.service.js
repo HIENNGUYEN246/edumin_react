@@ -2,6 +2,8 @@ import { AppError } from '../../lib/AppError.js';
 import { rangesOverlap, slotsClash } from '../../lib/schedule.js';
 import { isRegistrationWindowActive, isRegistrationWindowExpired } from '../../lib/dateOnly.js';
 import { closeExpiredClasses } from '../classes/courseClass.service.js';
+import { ROLES } from '../../lib/roles.js';
+import { sendClassAssignedEmail } from '../../lib/mailer.js';
 import { Enrollment } from './enrollment.model.js';
 import { CourseClass } from '../classes/courseClass.model.js';
 import { Student } from '../students/student.model.js';
@@ -70,6 +72,21 @@ export async function enroll(user, classId) {
 
   try {
     const created = await Enrollment.create({ student: student._id, classRef: target._id, classId: target.id });
+
+    if (student.email) {
+      sendClassAssignedEmail({
+        email: student.email,
+        hoTen: student.hoTen,
+        role: ROLES.STUDENT,
+        classId: target.id,
+        className: target.className,
+        courseId: target.courseId,
+        courseName: target.courseName,
+        schedules: target.schedules,
+        room: target.room,
+      }).catch((err) => console.error('[MAILER ERROR]', err));
+    }
+
     return { _id: created._id, classId: target.id, enrolledAt: created.createdAt, class: target.toObject() };
   } catch (error) {
     if (error?.code === 11000) throw AppError.conflict('Bạn đã đăng ký lớp học phần này');

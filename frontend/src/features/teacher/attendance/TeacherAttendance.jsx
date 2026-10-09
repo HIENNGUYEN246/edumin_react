@@ -593,9 +593,19 @@ export function TeacherAttendance() {
                 <span className="font-mono text-xs font-bold px-2.5 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200/80">
                   {selectedClass?.id || selectedClassId}
                 </span>
+                {selectedClass?.courseId && (
+                  <span className="font-mono text-xs font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200">
+                    Mã HP: {selectedClass.courseId}
+                  </span>
+                )}
                 <h1 className="text-base sm:text-lg font-black text-gray-900">
                   {selectedClass?.courseName || 'Chi tiết lớp học phần'}
                 </h1>
+                {selectedClass?.className && (
+                  <span className="text-xs font-medium text-gray-600 bg-gray-50 border border-gray-200 px-2 py-0.5 rounded-md">
+                    Lớp: {selectedClass.className}
+                  </span>
+                )}
               </div>
               <p className="text-xs text-gray-400 mt-0.5">
                 Khoa: {selectedClass?.department || 'Chung'} • Sĩ số: {students.length} SV • Chuyên cần: {overallStats.rate}%

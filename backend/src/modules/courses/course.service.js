@@ -33,7 +33,13 @@ export async function createCourse(payload) {
   const exists = await Course.findOne({ id: payload.id });
   if (exists) throw AppError.conflict('Mã học phần đã tồn tại');
 
-  const course = new Course({ id: payload.id, name: payload.name, credits: payload.credits, fee: payload.fee });
+  const course = new Course({
+    id: payload.id,
+    name: payload.name,
+    credits: payload.credits,
+    fee: payload.fee,
+    gradeWeights: payload.gradeWeights,
+  });
   await applyDepartment(course, payload.departmentId);
   await course.save();
   return Course.findById(course._id).populate(POPULATE).lean();

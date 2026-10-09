@@ -21,9 +21,16 @@ export function TeacherSchedule() {
           classes={classes}
           renderCell={(cls) => (
             <div className="text-xs">
-              <p className="font-bold text-indigo-700">{cls.courseName}</p>
-              <p className="text-gray-500">Lớp {cls.id}</p>
-              {cls.room && <p className="text-gray-400">Phòng {cls.room}</p>}
+              {cls.courseId && (
+                <span className="font-mono text-[10px] font-bold bg-white text-indigo-700 px-1.5 py-0.5 rounded border border-indigo-200 block w-fit mb-1">
+                  {cls.courseId}
+                </span>
+              )}
+              <p className="font-bold text-gray-900 leading-tight">{cls.courseName}</p>
+              <p className="text-indigo-700 font-semibold text-[11px] mt-0.5">
+                {cls.className ? `Lớp ${cls.className}` : `Lớp ${cls.id}`}
+              </p>
+              {cls.room && <p className="text-gray-500 text-[11px] mt-0.5">Phòng {cls.room}</p>}
             </div>
           )}
         />

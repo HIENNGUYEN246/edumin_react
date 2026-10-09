@@ -94,7 +94,26 @@ export function TeacherAssignmentList() {
 
   const columns = [
     { key: 'title', header: 'Tiêu đề', className: 'font-semibold text-gray-800' },
-    { key: 'courseId', header: 'Học phần' },
+    {
+      key: 'courseId',
+      header: 'Học phần',
+      render: (a) => {
+        const c = courses.find((crs) => crs.id === a.courseId);
+        return (
+          <div>
+            <span className="font-mono font-bold text-xs bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded border border-indigo-100">
+              {a.courseId}
+            </span>
+            {c?.name && <p className="text-xs text-gray-800 font-medium mt-1">{c.name}</p>}
+            {(a.className || a.classId) && (
+              <p className="text-[11px] text-gray-500 font-mono mt-0.5">
+                Lớp: {a.className || a.classId}
+              </p>
+            )}
+          </div>
+        );
+      },
+    },
     { key: 'type', header: 'Loại', render: (a) => (a.type === 'quiz' ? 'Trắc nghiệm' : 'Tệp') },
     { key: 'dueDate', header: 'Hạn nộp', render: (a) => a.dueDate || '—' },
     { key: 'status', header: 'Trạng thái' },

@@ -42,7 +42,7 @@ export function PersonManager({ config }) {
   const [tempPassword, setTempPassword] = useState(null);
   const [locking, setLocking] = useState(false);
   const [resettingId, setResettingId] = useState(null);
-  const showAccountActions = config.showAccountActions !== false;
+  const showAccountActions = Boolean(config.showAccountActions);
 
   useEffect(() => {
     setSelectedIds([]);

@@ -19,8 +19,16 @@ export function ScheduleGrid({ classes = [], renderCell }) {
 
   const defaultRender = (cls) => (
     <div className="text-xs">
-      <p className="font-bold text-indigo-700">{cls.courseName || cls.courseId}</p>
-      {cls.room && <p className="text-gray-500 font-medium">Phòng {cls.room}</p>}
+      {cls.courseId && (
+        <span className="font-mono text-[10px] font-bold bg-white text-indigo-700 px-1.5 py-0.5 rounded border border-indigo-200 block w-fit mb-1">
+          {cls.courseId}
+        </span>
+      )}
+      <p className="font-bold text-gray-900 leading-tight">{cls.courseName || cls.courseId}</p>
+      {cls.className && (
+        <p className="text-[11px] font-semibold text-indigo-700 mt-0.5">Lớp {cls.className}</p>
+      )}
+      {cls.room && <p className="text-gray-500 font-medium text-[11px] mt-0.5">Phòng {cls.room}</p>}
       {cls.teacher && (
         <div className="flex items-center gap-1.5 mt-1 pt-1 border-t border-indigo-100/60 text-gray-600">
           <Avatar

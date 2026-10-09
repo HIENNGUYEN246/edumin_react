@@ -15,6 +15,7 @@ import { Course } from '../courses/course.model.js';
 import { Teacher } from '../teachers/teacher.model.js';
 import { Enrollment } from '../enrollments/enrollment.model.js';
 import { Assignment, Submission } from '../assignments/assignment.model.js';
+import { sendClassAssignedEmail } from '../../lib/mailer.js';
 
 const POPULATE = [
   { path: 'courseRef', select: 'id name credits fee department' },
@@ -74,6 +75,13 @@ async function buildClassFields(payload) {
     studyEnd: payload.studyEnd || '',
     registrationStart: payload.registrationStart || '',
     registrationEnd: payload.registrationEnd || '',
+    gradeWeights: payload.gradeWeights || course.gradeWeights || {
+      attendance: 10,
+      homework: 10,
+      midterm: 30,
+      presentation: 0,
+      final: 50,
+    },
     status: payload.status || 'Nháp',
   };
 }
@@ -273,20 +281,47 @@ export async function createClass(payload) {
   }
 
   const fields = await buildClassFields({ ...payload, id: classId });
-  if (normalizeRegistrationDateTime(fields.registrationStart) < currentDateTimeString()) {
+  const isTimeStart = fields.registrationStart.includes('T');
+  if (isTimeStart) {
+    if (normalizeRegistrationDateTime(fields.registrationStart) < currentDateTimeString()) {
+      throw AppError.badRequest('Thời gian bắt đầu đăng ký không được ở quá khứ');
+    }
+  } else if (fields.registrationStart && fields.registrationStart.slice(0, 10) < todayDateString()) {
     throw AppError.badRequest('Thời gian bắt đầu đăng ký không được ở quá khứ');
   }
   if (fields.registrationEnd <= fields.registrationStart) {
     throw AppError.badRequest('Thời gian kết thúc đăng ký phải sau thời gian bắt đầu đăng ký');
   }
+  if (fields.studyStart && fields.registrationEnd) {
+    if (fields.studyStart.slice(0, 10) <= fields.registrationEnd.slice(0, 10)) {
+      throw AppError.badRequest('Thời điểm bắt đầu học bắt buộc phải diễn ra sau thời điểm kết thúc đăng ký');
+    }
+  }
   await assertNoConflict(fields);
   const created = await CourseClass.create({ id: classId, ...fields });
-  return withEnrolledCount(await CourseClass.findById(created._id).populate(POPULATE).lean());
+  const result = await withEnrolledCount(await CourseClass.findById(created._id).populate(POPULATE).lean());
+
+  if (result?.teacherRef?.email) {
+    sendClassAssignedEmail({
+      email: result.teacherRef.email,
+      hoTen: result.teacherRef.hoTen || result.teacher,
+      role: ROLES.TEACHER,
+      classId: result.id,
+      className: result.className,
+      courseId: result.courseId,
+      courseName: result.courseName,
+      schedules: result.schedules,
+      room: result.room,
+    }).catch((err) => console.error('[MAILER ERROR]', err));
+  }
+
+  return result;
 }
 
 export async function updateClass(id, payload) {
   const cls = await CourseClass.findById(id);
   if (!cls) throw AppError.notFound('Không tìm thấy lớp học phần');
+  const prevTeacherId = cls.teacherId;
 
   const start = payload.studyStart !== undefined ? payload.studyStart : cls.studyStart;
   const end = payload.studyEnd !== undefined ? payload.studyEnd : cls.studyEnd;
@@ -306,6 +341,7 @@ export async function updateClass(id, payload) {
     studyEnd: payload.studyEnd !== undefined ? payload.studyEnd : cls.studyEnd,
     registrationStart: payload.registrationStart !== undefined ? payload.registrationStart : cls.registrationStart,
     registrationEnd: payload.registrationEnd !== undefined ? payload.registrationEnd : cls.registrationEnd,
+    gradeWeights: payload.gradeWeights !== undefined ? payload.gradeWeights : cls.gradeWeights,
     status: payload.status || cls.status,
   };
   if (
@@ -315,11 +351,65 @@ export async function updateClass(id, payload) {
   ) {
     throw AppError.badRequest('Thời gian kết thúc đăng ký phải sau thời gian bắt đầu đăng ký');
   }
+  if (
+    merged.studyStart &&
+    merged.registrationEnd &&
+    merged.studyStart.slice(0, 10) <= merged.registrationEnd.slice(0, 10)
+  ) {
+    throw AppError.badRequest('Thời điểm bắt đầu học bắt buộc phải diễn ra sau thời điểm kết thúc đăng ký');
+  }
   const fields = await buildClassFields(merged);
   await assertNoConflict(fields, cls._id);
   Object.assign(cls, fields);
   await cls.save();
-  return withEnrolledCount(await CourseClass.findById(cls._id).populate(POPULATE).lean());
+  const updatedResult = await withEnrolledCount(await CourseClass.findById(cls._id).populate(POPULATE).lean());
+
+  if (fields.teacherId && fields.teacherId !== prevTeacherId && updatedResult?.teacherRef?.email) {
+    sendClassAssignedEmail({
+      email: updatedResult.teacherRef.email,
+      hoTen: updatedResult.teacherRef.hoTen || updatedResult.teacher,
+      role: ROLES.TEACHER,
+      classId: updatedResult.id,
+      className: updatedResult.className,
+      courseId: updatedResult.courseId,
+      courseName: updatedResult.courseName,
+      schedules: updatedResult.schedules,
+      room: updatedResult.room,
+    }).catch((err) => console.error('[MAILER ERROR]', err));
+  }
+
+  return updatedResult;
+}
+
+export function calculateWeightedGpa(grades, weights) {
+  const currentWeights = {
+    attendance: 10,
+    homework: 10,
+    midterm: 30,
+    presentation: 0,
+    final: 50,
+    ...weights,
+  };
+  let totalWeightedScore = 0;
+  let totalWeight = 0;
+  let hasAnyScore = false;
+
+  for (const key of ['attendance', 'homework', 'midterm', 'presentation', 'final']) {
+    const weight = Number(currentWeights[key] ?? 0);
+    if (weight <= 0) continue;
+    const rawVal = grades[key];
+    if (rawVal !== null && rawVal !== undefined && rawVal !== '') {
+      const score = Number(rawVal);
+      if (!Number.isNaN(score)) {
+        totalWeightedScore += score * weight;
+        totalWeight += weight;
+        hasAnyScore = true;
+      }
+    }
+  }
+
+  if (!hasAnyScore || totalWeight <= 0) return null;
+  return Number((totalWeightedScore / totalWeight).toFixed(2));
 }
 
 /**
@@ -364,6 +454,7 @@ export async function listClassStudents(classId, requester) {
     if (submission.score != null) grade.scores.push(submission.score);
     gradesByStudent.set(key, grade);
   }
+  const weights = cls.gradeWeights || { attendance: 10, homework: 10, midterm: 30, presentation: 0, final: 50 };
   const studentsWithGrades = enrollments
     .filter((enrollment) => enrollment.student)
     .map((enrollment) => {
@@ -373,12 +464,21 @@ export async function listClassStudents(classId, requester) {
       const homeworkGrade = homeworkQuizCount
         ? Number((grade.scores.reduce((sum, score) => sum + score, 0) / homeworkQuizCount).toFixed(1))
         : null;
+      const studentGrades = {
+        attendance: enrollment.manualGrades?.attendance ?? null,
+        midterm: enrollment.manualGrades?.midterm ?? null,
+        final: enrollment.manualGrades?.final ?? null,
+        presentation: enrollment.manualGrades?.presentation ?? null,
+        homework: homeworkGrade,
+      };
+      const finalScore = calculateWeightedGpa(studentGrades, weights);
       return {
         ...enrollment.student,
         manualGrades: enrollment.manualGrades || {},
         homeworkGrade,
         homeworkQuizCount,
         homeworkQuizTotal: quizAssignments.length,
+        finalScore,
       };
     });
   return { class: { ...cls.toObject(), enrolledCount: studentsWithGrades.length }, students: studentsWithGrades };
@@ -397,8 +497,19 @@ export async function updateStudentGrades(classId, studentId, grades, requester)
   for (const [key, value] of Object.entries(grades)) {
     enrollment.set(`manualGrades.${key}`, value);
   }
+
+  const weights = cls.gradeWeights || { attendance: 10, homework: 10, midterm: 30, presentation: 0, final: 50 };
+  const studentGrades = {
+    attendance: enrollment.manualGrades?.attendance ?? null,
+    midterm: enrollment.manualGrades?.midterm ?? null,
+    final: enrollment.manualGrades?.final ?? null,
+    presentation: enrollment.manualGrades?.presentation ?? null,
+    homework: enrollment.manualGrades?.assignment ?? null,
+  };
+  const finalScore = calculateWeightedGpa(studentGrades, weights);
+  enrollment.finalScore = finalScore;
   await enrollment.save();
-  return { manualGrades: enrollment.manualGrades.toObject() };
+  return { manualGrades: enrollment.manualGrades.toObject(), finalScore };
 }
 
 export async function deleteClass(id) {

@@ -4,6 +4,7 @@ import { hashPassword } from '../../lib/password.js';
 import { nextSequence } from '../../lib/counters.js';
 import { User } from '../auth/user.model.js';
 import { Department } from '../departments/department.model.js';
+import { sendAccountCreatedEmail } from '../../lib/mailer.js';
 
 /** Resolve a department by id or name to its document (or null). */
 export async function resolveDepartment({ departmentId, department, departmentRef } = {}) {
@@ -77,6 +78,15 @@ export async function createPersonWithAccount({
 
     user[userLink] = profile._id;
     await user.save();
+
+    // Trigger auto email notification
+    sendAccountCreatedEmail({
+      email,
+      hoTen: profileData.hoTen || user.hoTen,
+      role,
+      password: password || '123',
+      id: profile.id,
+    }).catch((err) => console.error('[MAILER ERROR]', err));
 
     return { user, profile };
   } catch (err) {

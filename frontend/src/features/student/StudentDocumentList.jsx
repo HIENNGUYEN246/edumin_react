@@ -40,7 +40,21 @@ export function StudentDocumentList() {
         </div>
       ),
     },
-    { key: 'courseId', header: 'Học phần' },
+    {
+      key: 'courseId',
+      header: 'Học phần',
+      render: (d) => {
+        const c = courses.find((crs) => crs.id === d.courseId);
+        return (
+          <div>
+            <span className="font-mono font-bold text-xs bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded border border-indigo-100">
+              {d.courseId}
+            </span>
+            {c?.name && <p className="text-xs text-gray-800 font-medium mt-1">{c.name}</p>}
+          </div>
+        );
+      },
+    },
     { key: 'format', header: 'Định dạng', render: (d) => d.format || (d.link ? 'Liên kết' : '—') },
     {
       key: 'link',

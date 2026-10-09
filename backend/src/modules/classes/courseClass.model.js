@@ -37,6 +37,15 @@ const courseClassSchema = new Schema(
     registrationStart: { type: String, default: '' },
     registrationEnd: { type: String, default: '' },
 
+    // Grade weighting configuration in percentage (sum must equal 100%)
+    gradeWeights: {
+      attendance: { type: Number, default: 10, min: 0, max: 100 },
+      homework: { type: Number, default: 10, min: 0, max: 100 },
+      midterm: { type: Number, default: 30, min: 0, max: 100 },
+      presentation: { type: Number, default: 0, min: 0, max: 100 },
+      final: { type: Number, default: 50, min: 0, max: 100 },
+    },
+
     // Lifecycle: Nháp (draft, hidden) -> Đang mở (open to students) ->
     // Đã đóng (registration closed) / Đã hủy (cancelled).
     status: {

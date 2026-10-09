@@ -154,17 +154,24 @@ export function ManageAttendance() {
     () => [
       {
         key: 'id',
-        header: 'Mã lớp',
-        className: 'w-28',
+        header: 'Lớp học phần',
+        className: 'w-36',
         render: (cls) => (
-          <button
-            type="button"
-            onClick={() => setSelectedClass(cls)}
-            className="font-mono text-xs font-bold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1 rounded-lg border border-indigo-200 transition"
-            title="Bấm để xem chi tiết điểm danh lớp này"
-          >
-            {cls.id}
-          </button>
+          <div>
+            <button
+              type="button"
+              onClick={() => setSelectedClass(cls)}
+              className="font-mono text-xs font-bold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1 rounded-lg border border-indigo-200 transition"
+              title="Bấm để xem chi tiết điểm danh lớp này"
+            >
+              {cls.id}
+            </button>
+            {cls.className && (
+              <span className="text-[11px] font-medium text-gray-700 truncate max-w-[150px] block mt-1" title={cls.className}>
+                {cls.className}
+              </span>
+            )}
+          </div>
         ),
       },
       {
@@ -172,13 +179,20 @@ export function ManageAttendance() {
         header: 'Học phần & Khoa',
         render: (cls) => (
           <div className="max-w-[260px]">
-            <p
-              onClick={() => setSelectedClass(cls)}
-              className="font-bold text-gray-900 text-sm hover:text-indigo-600 cursor-pointer truncate"
-              title={cls.courseName}
-            >
-              {cls.courseName}
-            </p>
+            <div className="flex items-center gap-1.5">
+              {cls.courseId && (
+                <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-100 shrink-0">
+                  {cls.courseId}
+                </span>
+              )}
+              <p
+                onClick={() => setSelectedClass(cls)}
+                className="font-bold text-gray-900 text-sm hover:text-indigo-600 cursor-pointer truncate"
+                title={cls.courseName}
+              >
+                {cls.courseName}
+              </p>
+            </div>
             <div className="flex items-center gap-1.5 mt-0.5">
               {cls.department ? (
                 <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-gray-100 text-gray-600">

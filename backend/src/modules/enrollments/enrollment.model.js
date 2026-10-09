@@ -16,6 +16,7 @@ const enrollmentSchema = new Schema(
       practical: { type: Number, min: 0, max: 10, default: null },
       final: { type: Number, min: 0, max: 10, default: null },
     },
+    finalScore: { type: Number, min: 0, max: 10, default: null },
   },
   { timestamps: true }
 );

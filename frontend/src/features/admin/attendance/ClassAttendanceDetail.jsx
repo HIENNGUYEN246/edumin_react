@@ -326,9 +326,19 @@ export function ClassAttendanceDetail({ classItem, onBack }) {
                 <span className="font-mono text-xs font-bold px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200/80">
                   {classItem.id}
                 </span>
+                {classItem.courseId && (
+                  <span className="font-mono text-xs font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200">
+                    Mã HP: {classItem.courseId}
+                  </span>
+                )}
                 <h1 className="text-lg sm:text-xl font-bold text-gray-900 leading-tight">
                   {classItem.courseName}
                 </h1>
+                {classItem.className && (
+                  <span className="text-xs font-medium text-gray-600 bg-gray-50 border border-gray-200 px-2 py-0.5 rounded-md">
+                    Lớp: {classItem.className}
+                  </span>
+                )}
               </div>
               <div className="text-xs text-gray-500 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
                 <span>Khoa: <strong className="text-gray-700 font-semibold">{classItem.department || 'Chung'}</strong></span>

@@ -8,7 +8,6 @@ import { useAuth } from '../../../app/providers/AuthProvider.jsx';
 import { attendanceApi } from '../../../api/attendanceApi.js';
 import { enrollmentsApi } from '../../../api/enrollmentsApi.js';
 import {
-  getTodayDateString,
   formatAttendanceDate,
   getShiftLabel,
   getStatusBadgeClass,
@@ -23,7 +22,6 @@ export function StudentAttendance() {
   const [attendances, setAttendances] = useState([]);
   const [enrollments, setEnrollments] = useState([]);
   const [filterCourse, setFilterCourse] = useState('all');
-  const [checkingIn, setCheckingIn] = useState(false);
 
   const studentId = profile?.id ?? user?.studentId ?? user?.id;
 
@@ -60,46 +58,6 @@ export function StudentAttendance() {
   const stats = useMemo(() => {
     return calculateStudentAttendanceStats(filteredList);
   }, [filteredList]);
-
-  // Check if student checked in today for any enrolled class
-  const todayStr = getTodayDateString();
-  const todayRecord = useMemo(() => {
-    return attendances.find((a) => a.date === todayStr);
-  }, [attendances, todayStr]);
-
-  // Handle self check-in
-  const handleSelfCheckIn = async (enr) => {
-    const classObj = enr.class;
-    if (!classObj) return;
-
-    try {
-      setCheckingIn(true);
-      await attendanceApi.checkIn({
-        classId: classObj.id,
-        courseId: classObj.courseId,
-        courseName: classObj.courseName,
-        studentId: profile?.id || user?.id || 1,
-        studentName: profile?.hoTen || user?.hoTen || 'Sinh viên',
-        studentEmail: user?.email || '',
-        studentAvatar: typeof profile?.avatar === 'string' ? profile?.avatar : profile?.avatar?.url || '',
-        date: todayStr,
-        shiftId: classObj.schedules?.[0]?.shiftId || '1',
-        status: 'Có mặt',
-        checkInTime: new Date().toLocaleTimeString('vi-VN'),
-      });
-      toast.success(`Điểm danh môn ${classObj.courseName} thành công!`);
-      await loadData();
-      window.dispatchEvent(
-        new CustomEvent('edumin_attendance_updated', {
-          detail: { courseName: classObj.courseName, status: 'Có mặt' },
-        })
-      );
-    } catch {
-      toast.error('Lỗi khi điểm danh');
-    } finally {
-      setCheckingIn(false);
-    }
-  };
 
   return (
     <div className="space-y-6">
@@ -160,44 +118,6 @@ export function StudentAttendance() {
         </div>
       </div>
 
-      {/* Self check-in banner for enrolled classes */}
-      {enrollments.length > 0 && (
-        <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-xs flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-lg">
-              <i className="fas fa-qrcode" />
-            </div>
-            <div>
-              <h4 className="font-bold text-sm text-gray-800">Điểm danh nhanh hôm nay ({todayStr})</h4>
-              <p className="text-xs text-gray-400">
-                {todayRecord
-                  ? `Đã điểm danh hôm nay: ${todayRecord.status} (${todayRecord.courseName || todayRecord.courseId})`
-                  : 'Bấm điểm danh nếu bạn đang tham gia lớp học'}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            {enrollments.map((enr) => {
-              const c = enr.class;
-              if (!c) return null;
-              return (
-                <button
-                  key={enr._id}
-                  type="button"
-                  onClick={() => handleSelfCheckIn(enr)}
-                  disabled={checkingIn}
-                  className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition shadow-xs disabled:opacity-50 flex items-center gap-1.5"
-                >
-                  <i className="fas fa-check" />
-                  Điểm danh {c.courseId}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
       {/* Filter by course */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -234,7 +154,7 @@ export function StudentAttendance() {
             <table className="w-full min-w-[760px] text-left text-sm text-gray-700">
               <thead className="bg-gray-50/75 border-b border-gray-100 text-xs font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">
                 <tr>
-                  <th className="px-5 py-3">Học phần</th>
+                  <th className="px-5 py-3">Học phần & Lớp</th>
                   <th className="px-5 py-3">Ngày học</th>
                   <th className="px-5 py-3">Ca học</th>
                   <th className="px-5 py-3">Trạng thái</th>
@@ -246,8 +166,19 @@ export function StudentAttendance() {
                 {filteredList.map((row) => (
                   <tr key={row._id || row.id} className="hover:bg-indigo-50/20 transition">
                     <td className="px-5 py-3.5">
-                      <p className="font-bold text-gray-900">{row.courseName || row.courseId}</p>
-                      <p className="text-xs text-gray-400 font-mono">{row.regId}</p>
+                      <p className="font-bold text-gray-900 leading-tight">{row.courseName || row.courseId}</p>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        {row.courseId && (
+                          <span className="font-mono text-[10px] font-bold bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded border border-indigo-100">
+                            {row.courseId}
+                          </span>
+                        )}
+                        {row.regId && (
+                          <span className="text-[11px] text-gray-500 font-mono">
+                            Lớp: {row.regId}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-5 py-3.5 font-medium text-gray-800">
                       {formatAttendanceDate(row.date)}

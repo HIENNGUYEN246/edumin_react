@@ -13,12 +13,14 @@ function isPastDue(dueDate) {
   return !Number.isNaN(deadline.valueOf()) && new Date() > deadline;
 }
 
-function AssignmentCard({ assignment, onOpen }) {
+function AssignmentCard({ assignment, onOpen, courses = [] }) {
   const quiz = assignment.type === 'quiz';
   const submission = assignment.mySubmission;
   const overdue = isPastDue(assignment.dueDate);
   const missed = quiz && overdue && !submission;
   const count = assignment.questions?.length || 0;
+  const course = courses.find((c) => c.id === assignment.courseId);
+  const courseName = course?.name || assignment.courseName;
 
   return (
     <article className="group relative overflow-hidden rounded-3xl bg-white border border-gray-100 shadow-sm hover:shadow-md hover:border-teal-200 transition">
@@ -31,7 +33,7 @@ function AssignmentCard({ assignment, onOpen }) {
       />
       <div className="p-5 pl-6">
         <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span
               className={`inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full border ${
                 quiz
@@ -42,13 +44,18 @@ function AssignmentCard({ assignment, onOpen }) {
               <i className={`fas ${quiz ? 'fa-list-check' : 'fa-file-lines'}`} />
               {quiz ? 'Trắc nghiệm' : 'Tệp'}
             </span>
-            <span className="text-xs font-semibold bg-gray-100 text-gray-700 px-2 py-0.5 rounded-md">
+            <span className="font-mono text-xs font-bold bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-md border border-indigo-100">
               {assignment.courseId}
             </span>
+            {assignment.className && (
+              <span className="text-[11px] font-medium text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded">
+                Lớp: {assignment.className}
+              </span>
+            )}
           </div>
           {assignment.dueDate && (
             <span
-              className={`text-xs font-semibold ${
+              className={`text-xs font-semibold whitespace-nowrap ${
                 overdue ? 'text-rose-500' : 'text-teal-700 bg-teal-50/60 px-2 py-0.5 rounded-md'
               }`}
             >
@@ -57,6 +64,12 @@ function AssignmentCard({ assignment, onOpen }) {
             </span>
           )}
         </div>
+
+        {courseName && (
+          <p className="mt-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            {courseName}
+          </p>
+        )}
 
         <h3 className="mt-3 text-lg font-extrabold text-gray-900 leading-6 group-hover:text-teal-700 transition">
           {assignment.title}
@@ -152,7 +165,12 @@ export function StudentAssignmentList() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {assignments.map((a) => (
-            <AssignmentCard key={a._id} assignment={a} onOpen={(item) => navigate(`/student/assignments/${item._id}`)} />
+            <AssignmentCard
+              key={a._id}
+              assignment={a}
+              courses={courses}
+              onOpen={(item) => navigate(`/student/assignments/${item._id}`)}
+            />
           ))}
         </div>
       )}
