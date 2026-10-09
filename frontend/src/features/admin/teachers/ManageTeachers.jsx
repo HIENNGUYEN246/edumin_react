@@ -10,6 +10,7 @@ const teacherConfig = {
   entityLabel: 'giáo viên',
   showSerialNumber: false,
   profilePanel: true,
+  showAccountActions: false,
   createTitle: 'Thêm Giảng Viên Mới',
   editTitle: 'Cập nhật thông tin giảng viên',
   exportName: 'giao-vien.xlsx',
@@ -80,7 +81,7 @@ const teacherConfig = {
     },
     { name: 'departmentId', label: 'Khoa', type: 'select', required: true, validation: 'department', placeholder: 'Chọn khoa công tác', section: 'work', fullWidth: true },
   ],
-  columns: ({ formatCode, renderStatus, actions }) => [
+  columns: ({ formatCode, actions }) => [
     { key: 'id', header: 'Mã GV', className: 'font-semibold text-gray-800 whitespace-nowrap', render: (t) => formatCode(t.id) },
     {
       key: 'hoTen',
@@ -102,7 +103,6 @@ const teacherConfig = {
     { key: 'email', header: 'Email', render: (t) => <span className="truncate max-w-[180px] block text-xs" title={t.email}>{t.email}</span> },
     { key: 'department', header: 'Khoa', render: (t) => t.department ? <span className="truncate max-w-[180px] block text-xs" title={t.department}>{t.department}</span> : <span className="text-gray-400 text-xs">Chưa xác định</span> },
     { key: 'phone', header: 'SĐT' },
-    { key: 'status', header: 'Tài khoản', className: 'text-center w-32', render: renderStatus },
     { key: 'actions', header: 'Thao tác', className: 'text-right w-44', render: actions },
   ],
 };

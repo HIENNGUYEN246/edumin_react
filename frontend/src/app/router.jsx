@@ -54,6 +54,7 @@ export function AppRouter() {
         <Route path="/admin/courses" element={<ManageCourses />} />
         <Route path="/admin/courses/:id" element={<CourseDetail />} />
         <Route path="/admin/classes" element={<ManageClasses />} />
+        <Route path="/admin/classes/course/:id" element={<CourseDetail />} />
         <Route path="/admin/feedbacks" element={<ManageFeedbacks />} />
         <Route path="/admin/profile-requests" element={<ManageProfileRequests />} />
       </Route>

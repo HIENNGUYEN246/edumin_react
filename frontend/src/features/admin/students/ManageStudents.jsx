@@ -10,6 +10,7 @@ const studentConfig = {
   entityLabel: 'sinh viên',
   showSerialNumber: false,
   profilePanel: true,
+  showAccountActions: false,
   createTitle: 'Thêm Sinh Viên Mới',
   editTitle: 'Cập nhật thông tin sinh viên',
   profileCodeLabel: 'Mã SV',
@@ -84,7 +85,7 @@ const studentConfig = {
       section: 'work',
     },
   ],
-  columns: ({ formatCode, renderStatus, actions }) => [
+  columns: ({ formatCode, actions }) => [
     { key: 'id', header: 'Mã SV', className: 'font-semibold text-gray-800 whitespace-nowrap', render: (s) => formatCode(s.id) },
     {
       key: 'hoTen',
@@ -115,7 +116,6 @@ const studentConfig = {
     )},
     { key: 'email', header: 'Email', render: (s) => <span className="truncate max-w-[180px] block text-xs" title={s.email}>{s.email}</span> },
     { key: 'department', header: 'Khoa', render: (s) => s.department ? <span className="truncate max-w-[180px] block text-xs" title={s.department}>{s.department}</span> : <span className="text-gray-400 text-xs">Chưa xác định</span> },
-    { key: 'status', header: 'Tài khoản', className: 'text-center w-32', render: renderStatus },
     { key: 'actions', header: 'Thao tác', className: 'text-right w-44', render: actions },
   ],
 };

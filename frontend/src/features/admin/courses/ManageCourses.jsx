@@ -261,18 +261,9 @@ export function ManageCourses() {
     {
       key: 'actions',
       header: 'Thao tác',
-      className: 'text-right w-36',
+      className: 'text-right w-20',
       render: (c) => (
         <div className="flex justify-end gap-1.5">
-          <button
-            type="button"
-            onClick={stop(() => navigate(`/admin/courses/${c._id}`))}
-            className="px-2 py-1 rounded-lg text-xs font-semibold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 flex items-center gap-1 border border-indigo-200"
-            title="Xem danh sách lớp học phần của môn này"
-          >
-            <i className="fas fa-chalkboard-user text-xs" />
-            <span>Lớp HP</span>
-          </button>
           <button type="button" onClick={stop(() => openEdit(c))} className="w-8 h-8 rounded-lg text-indigo-600 hover:bg-indigo-50 flex items-center justify-center border border-gray-200" aria-label="Sửa" title="Sửa môn học">
             <i className="fas fa-pen text-xs" />
           </button>

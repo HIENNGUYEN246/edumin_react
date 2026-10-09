@@ -3,20 +3,31 @@ import { useQuery } from '@tanstack/react-query';
 import { Modal } from '../../../components/ui/Modal.jsx';
 import { FormField, inputClass } from '../../../components/ui/FormField.jsx';
 import { SchedulePicker } from '../../../components/schedule/SchedulePicker.jsx';
-import { formatTeacherCode, getTodayDate, addWeeksToDate } from '../../../lib/format.js';
+import {
+  formatTeacherCode,
+  getTodayDate,
+  getCurrentDateTimeLocal,
+  getCurrentDateTimeLocalWithSeconds,
+  addWeeksToDate,
+  registrationDateTimeInput,
+} from '../../../lib/format.js';
 import { teachersApi } from '../../../api/teachersApi.js';
 import { classesApi, CLASS_STATUSES } from '../../../api/classesApi.js';
 import { coursesApi } from '../../../api/coursesApi.js';
 
+const CLASS_DURATION_WEEKS = 15;
 const emptyForm = (courseId = '') => ({
   id: '',
   courseId: courseId || '',
+  className: '',
   teacherId: '',
   room: '',
-  capacity: 0,
+  capacity: '',
   schedules: [],
   studyStart: '',
   studyEnd: '',
+  registrationStart: '',
+  registrationEnd: '',
   status: 'Nháp',
 });
 
@@ -66,7 +77,12 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
 
   useEffect(() => {
     if (open) {
-      setForm(initial || emptyForm(courseId));
+      setForm(initial ? {
+        ...emptyForm(courseId),
+        ...initial,
+        registrationStart: registrationDateTimeInput(initial.registrationStart),
+        registrationEnd: registrationDateTimeInput(initial.registrationEnd, true),
+      } : emptyForm(courseId));
       setErrors({});
     }
   }, [open, initial, courseId]);
@@ -102,22 +118,55 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
     setForm((f) => ({
       ...f,
       studyStart: val,
-      studyEnd: val ? addWeeksToDate(val, 13) : f.studyEnd,
+      studyEnd: val ? addWeeksToDate(val, CLASS_DURATION_WEEKS) : f.studyEnd,
     }));
     setErrors((prev) => ({ ...prev, studyStart: '', studyEnd: '' }));
+  };
+
+  const handleSchedulesChange = (schedules) => {
+    setForm((current) => ({ ...current, schedules }));
+    if (errors.schedules) setErrors((current) => ({ ...current, schedules: '' }));
   };
 
   const submit = (e) => {
     e.preventDefault();
     const next = {};
     if (!targetCourseId) next.courseId = 'Vui lòng chọn học phần';
+    if (!form.className.trim()) next.className = 'Vui lòng nhập tên lớp học phần';
+    if (!form.teacherId) next.teacherId = 'Vui lòng chọn giáo viên phụ trách';
+    if (!form.room.trim()) next.room = 'Vui lòng nhập phòng học';
+    if (form.capacity === '' || !Number.isInteger(Number(form.capacity)) || Number(form.capacity) < 10) {
+      next.capacity = 'Sĩ số tối đa phải là số nguyên lớn hơn hoặc bằng 10';
+    }
+    if (!form.studyStart) next.studyStart = 'Vui lòng chọn ngày bắt đầu học';
+    if (!form.studyEnd) next.studyEnd = 'Vui lòng chọn ngày kết thúc học';
     if (!form.schedules.length) next.schedules = 'Chọn ít nhất một buổi học';
     const today = getTodayDate();
+    const now = getCurrentDateTimeLocalWithSeconds();
     if (mode === 'create' && form.studyStart && form.studyStart < today) {
       next.studyStart = 'Ngày bắt đầu học không được ở quá khứ';
     }
     if (form.studyEnd && form.studyStart && form.studyEnd < form.studyStart) {
       next.studyEnd = 'Ngày kết thúc phải sau ngày bắt đầu';
+    }
+    if (mode === 'create' && form.registrationStart && `${form.registrationStart}:00` < now) {
+      next.registrationStart = 'Thời gian bắt đầu đăng ký không được ở quá khứ';
+    }
+    if (!form.registrationStart) next.registrationStart = 'Vui lòng chọn ngày bắt đầu đăng ký';
+    if (!form.registrationEnd) next.registrationEnd = 'Vui lòng chọn ngày kết thúc đăng ký';
+    if (
+      form.registrationStart &&
+      form.registrationEnd &&
+      form.registrationEnd <= form.registrationStart
+    ) {
+      next.registrationEnd = 'Thời gian kết thúc phải sau thời gian bắt đầu đăng ký';
+    }
+    if (
+      form.studyStart &&
+      form.studyEnd &&
+      form.studyEnd < addWeeksToDate(form.studyStart, CLASS_DURATION_WEEKS)
+    ) {
+      next.studyEnd = `Ngày kết thúc phải cách ngày bắt đầu ít nhất ${CLASS_DURATION_WEEKS} tuần`;
     }
     setErrors(next);
     if (Object.keys(next).length) return;
@@ -125,19 +174,22 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
     onSubmit({
       id: String(form.id || nextClassCode || '').trim(),
       courseId: targetCourseId,
+      className: form.className.trim(),
       teacherId: form.teacherId ? Number(form.teacherId) : null,
       room: form.room.trim(),
-      capacity: Number(form.capacity) || 0,
+      capacity: Number(form.capacity),
       schedules: form.schedules,
       studyStart: form.studyStart,
       studyEnd: form.studyEnd,
+      registrationStart: form.registrationStart,
+      registrationEnd: form.registrationEnd,
       status: form.status,
     }, setErrors);
   };
 
   return (
     <Modal open={open} onClose={onClose} title={mode === 'create' ? 'Mở lớp học phần mới' : 'Chỉnh sửa thông tin lớp học phần'} size="xl">
-      <form onSubmit={submit} className="space-y-5">
+      <form onSubmit={submit} noValidate className="space-y-5">
         <div className="bg-slate-50/60 p-4 rounded-2xl border border-gray-100">
           <div className="text-xs font-bold uppercase tracking-wider text-indigo-700 mb-3 flex items-center gap-1.5">
             <i className="fas fa-circle-info text-indigo-500" />
@@ -147,7 +199,6 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
             <FormField
               label="Mã lớp học phần"
               error={errors.id}
-              hint={mode === 'create' ? 'Hệ thống tự động sinh theo mã môn' : undefined}
             >
               <div className="relative">
                 <input
@@ -167,7 +218,7 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
             </FormField>
 
             {courseId ? (
-              <FormField label="Học phần">
+              <FormField label="Học phần" error={errors.courseId} required>
                 <input
                   className={`${inputClass} bg-white text-gray-700 font-medium cursor-not-allowed`}
                   value={`${selectedCourse?.name || courseId} (${courseId})`}
@@ -177,7 +228,7 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
               </FormField>
             ) : (
               <FormField label="Học phần" error={errors.courseId} required>
-                <select className={inputClass} value={form.courseId} disabled={mode === 'edit'} onChange={set('courseId')}>
+                <select className={inputClass} value={form.courseId} disabled={mode === 'edit'} required onChange={set('courseId')}>
                   <option value="">-- Chọn học phần --</option>
                   {courses.map((c) => (
                     <option key={c.id} value={c.id}>
@@ -188,27 +239,33 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
               </FormField>
             )}
 
+            <FormField label="Tên lớp học phần" error={errors.className} required>
+              <input
+                className={inputClass}
+                value={form.className}
+                required
+                maxLength={120}
+                onChange={set('className')}
+              />
+            </FormField>
+
             <FormField
               label="Giáo viên phụ trách"
-              hint={
-                !targetCourseId
-                  ? 'Vui lòng chọn học phần trước để lọc giảng viên theo khoa'
-                  : courseDepartment
-                  ? `Lọc theo khoa: ${courseDepartment} (${teachers.length} GV)`
-                  : 'Giảng viên giảng dạy'
-              }
+              error={errors.teacherId}
+              required
             >
               <select
                 className={inputClass}
                 value={form.teacherId}
                 disabled={!targetCourseId}
+                required
                 onChange={set('teacherId')}
               >
                 {!targetCourseId ? (
                   <option value="">-- Vui lòng chọn học phần trước --</option>
                 ) : (
                   <>
-                    <option value="">Chưa phân công</option>
+                    <option value="">-- Chọn giáo viên --</option>
                     {teachers.map((t) => (
                       <option key={t._id} value={t.id}>
                         {t.hoTen} ({formatTeacherCode(t.id)}){t.department ? ` - ${t.department}` : ''}
@@ -224,16 +281,24 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
               </select>
             </FormField>
 
-            <FormField label="Phòng học">
-              <input className={inputClass} value={form.room} onChange={set('room')} placeholder="VD: A101, B204..." />
+            <FormField label="Phòng học" error={errors.room} required>
+              <input className={inputClass} value={form.room} required onChange={set('room')} />
             </FormField>
 
-            <FormField label="Sĩ số tối đa" hint="0 = Không giới hạn sĩ số">
-              <input type="number" min="0" className={inputClass} value={form.capacity} onChange={set('capacity')} />
+            <FormField label="Sĩ số tối đa" error={errors.capacity} required>
+              <input
+                type="number"
+                min="10"
+                step="1"
+                required
+                className={inputClass}
+                value={form.capacity}
+                onChange={set('capacity')}
+              />
             </FormField>
 
-            <FormField label="Trạng thái" hint="Chọn 'Đang mở' để sinh viên thấy và đăng ký">
-              <select className={inputClass} value={form.status} onChange={set('status')}>
+            <FormField label="Trạng thái" error={errors.status} required>
+              <select className={inputClass} required value={form.status} onChange={set('status')}>
                 {CLASS_STATUSES.map((s) => (
                   <option key={s} value={s}>
                     {s}
@@ -246,15 +311,51 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
 
         <div className="bg-slate-50/60 p-4 rounded-2xl border border-gray-100">
           <div className="text-xs font-bold uppercase tracking-wider text-indigo-700 mb-3 flex items-center gap-1.5">
+            <i className="far fa-calendar-check text-indigo-500" />
+            <span>Thời gian đăng ký</span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <FormField
+              label="Bắt đầu đăng ký"
+              error={errors.registrationStart}
+              required
+            >
+              <input
+                type="datetime-local"
+                required
+                min={mode === 'create' ? getCurrentDateTimeLocal() : undefined}
+                className={inputClass}
+                value={form.registrationStart}
+                onChange={set('registrationStart')}
+              />
+            </FormField>
+            <FormField
+              label="Kết thúc đăng ký"
+              error={errors.registrationEnd}
+              required
+            >
+              <input
+                type="datetime-local"
+                required
+                min={form.registrationStart || (mode === 'create' ? getCurrentDateTimeLocal() : undefined)}
+                className={inputClass}
+                value={form.registrationEnd}
+                onChange={set('registrationEnd')}
+              />
+            </FormField>
+          </div>
+        </div>
+
+        <div className="bg-slate-50/60 p-4 rounded-2xl border border-gray-100">
+          <div className="text-xs font-bold uppercase tracking-wider text-indigo-700 mb-3 flex items-center gap-1.5">
             <i className="far fa-calendar text-indigo-500" />
-            <span>Thời gian đào tạo (Chuẩn 13 tuần)</span>
+            <span>Thời gian đào tạo (Tối thiểu {CLASS_DURATION_WEEKS} tuần)</span>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <FormField
               label="Bắt đầu học"
               error={errors.studyStart}
               required
-              hint="Tự động tính ngày kết thúc sau 13 tuần"
             >
               <input
                 type="date"
@@ -262,6 +363,7 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
                 min={mode === 'create' ? todayStr : undefined}
                 className={inputClass}
                 value={form.studyStart}
+                aria-invalid={Boolean(errors.studyStart)}
                 onChange={handleStudyStartChange}
               />
             </FormField>
@@ -270,14 +372,20 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
               label="Kết thúc học"
               error={errors.studyEnd}
               required
-              hint="Chuẩn 13 tuần học phần"
             >
               <input
                 type="date"
                 required
-                min={form.studyStart || (mode === 'create' ? todayStr : undefined)}
+                min={
+                  form.studyStart
+                    ? addWeeksToDate(form.studyStart, CLASS_DURATION_WEEKS)
+                    : mode === 'create'
+                      ? todayStr
+                      : undefined
+                }
                 className={inputClass}
                 value={form.studyEnd}
+                aria-invalid={Boolean(errors.studyEnd)}
                 onChange={set('studyEnd')}
               />
             </FormField>
@@ -290,7 +398,7 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
             <span>Xếp lịch học trong tuần</span>
           </div>
           <FormField error={errors.schedules} required>
-            <SchedulePicker value={form.schedules} onChange={(schedules) => setForm((f) => ({ ...f, schedules }))} />
+            <SchedulePicker value={form.schedules} onChange={handleSchedulesChange} />
           </FormField>
         </div>
 

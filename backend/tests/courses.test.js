@@ -5,6 +5,7 @@ import { createUser, authHeader } from './helpers/factories.js';
 import { ROLES } from '../src/lib/roles.js';
 import { Department } from '../src/modules/departments/department.model.js';
 import { Course } from '../src/modules/courses/course.model.js';
+import { CourseClass } from '../src/modules/classes/courseClass.model.js';
 
 let adminToken;
 beforeEach(async () => {
@@ -44,11 +45,59 @@ describe('Courses', () => {
     expect(res.body.data).toHaveLength(1);
   });
 
+  it('filters courses by department', async () => {
+    await Course.create([
+      { id: 'IT101', name: 'Lập trình', department: 'CNTT' },
+      { id: 'ENG101', name: 'Tiếng Anh', department: 'Ngoại ngữ' },
+    ]);
+
+    const res = await request(app)
+      .get('/api/courses?department=CNTT')
+      .set(authHeader(adminToken));
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.map((course) => course.id)).toEqual(['IT101']);
+  });
+
   it('deletes a course with no classes', async () => {
     const course = await Course.create({ id: 'IT101', name: 'A' });
     const res = await request(app).delete(`/api/courses/${course._id}`).set(authHeader(adminToken));
     expect(res.status).toBe(200);
     expect(await Course.countDocuments()).toBe(0);
+  });
+
+  it('updates course details cached on its linked classes', async () => {
+    const course = await Course.create({
+      id: 'IT101',
+      name: 'Nhập môn lập trình',
+      credits: 3,
+      fee: 1500000,
+      department: 'CNTT',
+    });
+    const courseClass = await CourseClass.create({
+      id: 'IT101-01',
+      courseRef: course._id,
+      courseId: course.id,
+      courseName: course.name,
+      credits: course.credits,
+      fee: course.fee,
+      department: course.department,
+    });
+
+    const res = await request(app)
+      .patch(`/api/courses/${course._id}`)
+      .set(authHeader(adminToken))
+      .send({ name: 'Lập trình nâng cao', credits: 4, fee: 2000000 });
+
+    expect(res.status).toBe(200);
+    const syncedClass = await CourseClass.findById(courseClass._id).lean();
+    expect(syncedClass).toMatchObject({
+      courseId: 'IT101',
+      courseName: 'Lập trình nâng cao',
+      credits: 4,
+      fee: 2000000,
+      department: 'CNTT',
+    });
   });
 
   it('imports rows with per-row failures', async () => {

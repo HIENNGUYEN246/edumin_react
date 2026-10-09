@@ -398,7 +398,7 @@ export function TeacherAttendance() {
     const classColumns = [
       {
         key: 'id',
-        header: 'Mã lớp',
+        header: 'Mã lớp học phần',
         className: 'w-36 font-mono font-bold text-indigo-700',
         render: (c) => (
           <span className="px-2.5 py-1 rounded-md bg-indigo-50 border border-indigo-200/80">
@@ -407,14 +407,25 @@ export function TeacherAttendance() {
         ),
       },
       {
+        key: 'courseId',
+        header: 'Mã học phần',
+        className: 'w-28 font-mono font-semibold text-gray-700',
+      },
+      {
         key: 'courseName',
-        header: 'Học phần',
+        header: 'Tên học phần',
         render: (c) => (
           <div>
             <p className="font-bold text-gray-900 leading-tight">{c.courseName}</p>
             <p className="text-xs text-gray-400 mt-0.5">Khoa: {c.department || 'Chung'}</p>
           </div>
         ),
+      },
+      {
+        key: 'className',
+        header: 'Tên lớp học phần',
+        className: 'font-medium text-gray-800',
+        render: (c) => c.className || '—',
       },
       {
         key: 'schedules',

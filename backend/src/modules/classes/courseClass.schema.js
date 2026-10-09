@@ -6,42 +6,75 @@ const scheduleSlot = z.object({
 });
 
 const CLASS_STATUS = ['Nháp', 'Đang mở', 'Đã đóng', 'Đã hủy'];
+const dateOnly = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/)
+  .refine((value) => {
+    const date = new Date(`${value}T00:00:00.000Z`);
+    return !Number.isNaN(date.valueOf()) && date.toISOString().slice(0, 10) === value;
+  }, 'Ngày không hợp lệ');
+const registrationDateTime = z.string().refine((value) => {
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value)) return false;
+  const [date, time] = value.split('T');
+  const parsedDate = new Date(`${date}T00:00:00.000Z`);
+  const [hour, minute] = time.split(':').map(Number);
+  return (
+    !Number.isNaN(parsedDate.valueOf()) &&
+    parsedDate.toISOString().slice(0, 10) === date &&
+    hour <= 23 &&
+    minute <= 59
+  );
+}, 'Ngày giờ không hợp lệ');
 
 export const baseClassSchema = z.object({
   id: z.string().trim().max(40).optional().default(''),
   courseId: z.string().trim().min(1, 'Chọn học phần'),
-  teacherId: z.coerce.number().int().positive().optional().nullable(),
-  room: z.string().trim().optional().default(''),
-  capacity: z.coerce.number().int().min(0).optional().default(0),
-  schedules: z.array(scheduleSlot).min(1, 'Cần ít nhất một buổi học'),
-  studyStart: z.string().trim().optional().default(''),
-  studyEnd: z.string().trim().optional().default(''),
-  status: z.enum(CLASS_STATUS).optional().default('Nháp'),
+  className: z.string().trim().min(1, 'Nhập tên lớp học phần').max(120, 'Tên lớp học phần không vượt quá 120 ký tự'),
+  teacherId: z.coerce.number().int().positive({ message: 'Chọn giáo viên phụ trách' }),
+  room: z.string().trim().min(1, 'Nhập phòng học'),
+  capacity: z.number().int().min(10, 'Sĩ số tối đa phải lớn hơn hoặc bằng 10'),
+  schedules: z.array(scheduleSlot)
+    .min(1, 'Cần ít nhất một buổi học')
+    .refine((slots) => new Set(slots.map((slot) => `${slot.dayId}:${slot.shiftId}`)).size === slots.length, 'Lịch học không được trùng buổi'),
+  studyStart: dateOnly,
+  studyEnd: dateOnly,
+  registrationStart: registrationDateTime,
+  registrationEnd: registrationDateTime,
+  status: z.enum(CLASS_STATUS),
 });
 
-const check15Weeks = (data) => {
-  if (data.studyStart && data.studyEnd) {
-    const [sy, sm, sd] = data.studyStart.split('-').map(Number);
-    const [ey, em, ed] = data.studyEnd.split('-').map(Number);
-    if (sy && sm && sd && ey && em && ed) {
-      const minEnd = new Date(sy, sm - 1, sd);
-      minEnd.setDate(minEnd.getDate() + 15 * 7);
-      const end = new Date(ey, em - 1, ed);
-      return end >= minEnd;
-    }
-  }
-  return true;
-};
+function studyPeriodIsValid(data) {
+  const [sy, sm, sd] = data.studyStart.split('-').map(Number);
+  const [ey, em, ed] = data.studyEnd.split('-').map(Number);
+  if (![sy, sm, sd, ey, em, ed].every(Boolean)) return true;
+  const minimumEnd = new Date(sy, sm - 1, sd);
+  minimumEnd.setDate(minimumEnd.getDate() + 15 * 7);
+  return new Date(ey, em - 1, ed) >= minimumEnd;
+}
 
-export const createClassSchema = baseClassSchema.refine(check15Weeks, {
+function updateStudyPeriodIsValid(data) {
+  if (!data.studyStart || !data.studyEnd) return true;
+  return studyPeriodIsValid(data);
+}
+
+export const createClassSchema = baseClassSchema
+  .refine((data) => data.registrationEnd > data.registrationStart, {
+  message: 'Thời gian kết thúc đăng ký phải sau thời gian bắt đầu đăng ký',
+  path: ['registrationEnd'],
+  })
+  .refine(studyPeriodIsValid, {
   message: 'Ngày kết thúc bắt buộc phải diễn ra sau ít nhất 15 tuần kể từ ngày bắt đầu học phần',
   path: ['studyEnd'],
-});
+  });
 
 export const updateClassSchema = baseClassSchema
   .partial()
   .omit({ id: true })
-  .refine(check15Weeks, {
+  .refine((data) => !(data.registrationStart && data.registrationEnd) || data.registrationEnd > data.registrationStart, {
+    message: 'Thời gian kết thúc đăng ký phải sau thời gian bắt đầu đăng ký',
+    path: ['registrationEnd'],
+  })
+  .refine(updateStudyPeriodIsValid, {
     message: 'Ngày kết thúc bắt buộc phải diễn ra sau ít nhất 15 tuần kể từ ngày bắt đầu học phần',
     path: ['studyEnd'],
   });

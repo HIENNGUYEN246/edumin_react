@@ -18,7 +18,9 @@ function loadXlsx() {
 export async function readSheet(file) {
   const XLSX = await loadXlsx();
   const buffer = await file.arrayBuffer();
-  const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
+  // Excel date cells are timezone-free serial numbers. Keep them as numbers so
+  // callers can convert their calendar/time fields without local timezone shifts.
+  const workbook = XLSX.read(buffer, { type: 'array', cellDates: false });
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
   return XLSX.utils.sheet_to_json(sheet, { defval: '' });
 }

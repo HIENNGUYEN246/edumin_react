@@ -31,6 +31,34 @@ export function getTodayDate() {
   return `${y}-${m}-${dt}`;
 }
 
+export function getCurrentDateTimeLocal(now = new Date()) {
+  const pad = (value) => String(value).padStart(2, '0');
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+}
+
+export function getCurrentDateTimeLocalWithSeconds(now = new Date()) {
+  const pad = (value) => String(value).padStart(2, '0');
+  return `${getCurrentDateTimeLocal(now)}:${pad(now.getSeconds())}`;
+}
+
+export function formatRegistrationDateTime(value, isEnd = false) {
+  if (!value) return '—';
+  const normalized = /^\d{4}-\d{2}-\d{2}$/.test(value)
+    ? `${value}T${isEnd ? '23:59' : '00:00'}`
+    : value;
+  const [date, time] = normalized.split('T');
+  const [year, month, day] = date.split('-');
+  return `${day}/${month}/${year} ${time.slice(0, 5)}`;
+}
+
+export function registrationDateTimeInput(value, isEnd = false) {
+  if (!value) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return `${value}T${isEnd ? '23:59' : '00:00'}`;
+  }
+  return value.slice(0, 16);
+}
+
 /**
  * Calculate the maximum allowed date of birth (YYYY-MM-DD) for a given minimum age in years.
  * Prevents selecting dates of birth younger than `minAge` years old relative to today.
@@ -61,4 +89,3 @@ export function addWeeksToDate(dateStr, weeks = 13) {
   const dt = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${dt}`;
 }
-

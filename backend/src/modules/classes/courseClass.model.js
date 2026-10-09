@@ -17,6 +17,7 @@ const courseClassSchema = new Schema(
     courseRef: { type: Schema.Types.ObjectId, ref: 'Course', required: true },
     courseId: { type: String, default: '' },
     courseName: { type: String, default: '' },
+    className: { type: String, default: '', trim: true },
     department: { type: String, default: '' },
     credits: { type: Number, default: 0 },
     fee: { type: Number, default: 0 },
@@ -33,6 +34,8 @@ const courseClassSchema = new Schema(
     // Study period (used for schedule-overlap checks).
     studyStart: { type: String, default: '' },
     studyEnd: { type: String, default: '' },
+    registrationStart: { type: String, default: '' },
+    registrationEnd: { type: String, default: '' },
 
     // Lifecycle: Nháp (draft, hidden) -> Đang mở (open to students) ->
     // Đã đóng (registration closed) / Đã hủy (cancelled).

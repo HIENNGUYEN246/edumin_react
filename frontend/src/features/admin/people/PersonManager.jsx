@@ -42,6 +42,7 @@ export function PersonManager({ config }) {
   const [tempPassword, setTempPassword] = useState(null);
   const [locking, setLocking] = useState(false);
   const [resettingId, setResettingId] = useState(null);
+  const showAccountActions = config.showAccountActions !== false;
 
   useEffect(() => {
     setSelectedIds([]);
@@ -371,7 +372,7 @@ export function PersonManager({ config }) {
       person.accountStatus === 'Locked';
     const lockMsg = typeof userObj === 'object' && userObj?.lockReason ? userObj.lockReason : null;
 
-    return isLocked ? (
+    return isLocked && showAccountActions ? (
       <button
         type="button"
         className="inline-flex items-center gap-1 text-xs font-semibold text-red-600 bg-red-50 border border-red-200 px-2.5 py-1 rounded-full hover:bg-red-100 transition-colors"
@@ -380,6 +381,13 @@ export function PersonManager({ config }) {
       >
         <i className="fas fa-lock" /> Đã khóa
       </button>
+    ) : isLocked ? (
+      <span
+        className="inline-flex items-center gap-1 text-xs font-semibold text-red-600 bg-red-50 border border-red-200 px-2.5 py-1 rounded-full"
+        title={lockMsg ? `Lý do: ${lockMsg}` : 'Đã khóa'}
+      >
+        <i className="fas fa-lock" /> Đã khóa
+      </span>
     ) : (
       <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full">
         <i className="fas fa-circle-check" /> Hoạt động
@@ -402,41 +410,44 @@ export function PersonManager({ config }) {
 
       return (
         <div className="flex justify-end items-center gap-1.5">
-          {isLocked ? (
+          {showAccountActions &&
+            (isLocked ? (
+              <button
+                type="button"
+                onClick={() => doUnlock(person)}
+                className="w-8 h-8 rounded-lg text-emerald-600 hover:bg-emerald-50 transition-colors flex items-center justify-center"
+                title="Mở khóa tài khoản"
+                aria-label="Mở khóa tài khoản"
+              >
+                <i className="fas fa-unlock" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setLockTarget(person);
+                  setLockReason(LOCK_REASONS[0]);
+                  setCustomReason('');
+                }}
+                className="w-8 h-8 rounded-lg text-amber-600 hover:bg-amber-50 transition-colors flex items-center justify-center"
+                title="Khóa tài khoản"
+                aria-label="Khóa tài khoản"
+              >
+                <i className="fas fa-lock" />
+              </button>
+            ))}
+          {showAccountActions && (
             <button
               type="button"
-              onClick={() => doUnlock(person)}
-              className="w-8 h-8 rounded-lg text-emerald-600 hover:bg-emerald-50 transition-colors flex items-center justify-center"
-              title="Mở khóa tài khoản"
-              aria-label="Mở khóa tài khoản"
+              onClick={() => doReset(person)}
+              disabled={resettingId === personId}
+              className="w-8 h-8 rounded-lg text-indigo-600 hover:bg-indigo-50 transition-colors flex items-center justify-center disabled:opacity-50"
+              title="Đặt lại mật khẩu"
+              aria-label="Đặt lại mật khẩu"
             >
-              <i className="fas fa-unlock" />
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => {
-                setLockTarget(person);
-                setLockReason(LOCK_REASONS[0]);
-                setCustomReason('');
-              }}
-              className="w-8 h-8 rounded-lg text-amber-600 hover:bg-amber-50 transition-colors flex items-center justify-center"
-              title="Khóa tài khoản"
-              aria-label="Khóa tài khoản"
-            >
-              <i className="fas fa-lock" />
+              <i className="fas fa-key" />
             </button>
           )}
-          <button
-            type="button"
-            onClick={() => doReset(person)}
-            disabled={resettingId === personId}
-            className="w-8 h-8 rounded-lg text-indigo-600 hover:bg-indigo-50 transition-colors flex items-center justify-center disabled:opacity-50"
-            title="Đặt lại mật khẩu"
-            aria-label="Đặt lại mật khẩu"
-          >
-            <i className="fas fa-key" />
-          </button>
           <button
             type="button"
             onClick={() => openEdit(person)}
@@ -618,6 +629,7 @@ export function PersonManager({ config }) {
         />
       )}
 
+      {showAccountActions && <>
       {/* Modal khóa tài khoản */}
       <Modal open={Boolean(lockTarget)} onClose={() => setLockTarget(null)} title="Khóa tài khoản" size="sm">
         <div className="space-y-4">
@@ -693,6 +705,7 @@ export function PersonManager({ config }) {
           </div>
         </div>
       </Modal>
+      </>}
     </div>
   );
 }

@@ -13,7 +13,11 @@ export function useCourses(params) {
 
 export function useCourseMutations() {
   const queryClient = useQueryClient();
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: [KEY] });
+  const invalidate = () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: [KEY] }),
+      queryClient.invalidateQueries({ queryKey: ['classes'] }),
+    ]);
   return {
     create: useMutation({ mutationFn: coursesApi.create, onSuccess: invalidate }),
     update: useMutation({

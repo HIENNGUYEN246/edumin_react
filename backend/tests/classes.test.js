@@ -6,31 +6,90 @@ import { ROLES } from '../src/lib/roles.js';
 import { Course } from '../src/modules/courses/course.model.js';
 import { Teacher } from '../src/modules/teachers/teacher.model.js';
 import { User } from '../src/modules/auth/user.model.js';
+import { CourseClass } from '../src/modules/classes/courseClass.model.js';
+import { currentDateTimeString, todayDateString } from '../src/lib/dateOnly.js';
 
 let adminToken;
 beforeEach(async () => {
   const { token } = await createUser({ role: ROLES.ADMIN });
   adminToken = token;
   await Course.create({ id: 'IT101', name: 'Lập trình', credits: 3, fee: 1000000, department: 'CNTT' });
+  const teacherUser = await User.create({
+    email: 'gv.default@edu.vn',
+    passwordHash: 'x',
+    role: ROLES.TEACHER,
+    hoTen: 'GV mặc định',
+  });
+  await Teacher.create({
+    userId: teacherUser._id,
+    id: 96,
+    email: 'gv.default@edu.vn',
+    hoTen: 'GV mặc định',
+    department: 'CNTT',
+  });
+  const secondTeacherUser = await User.create({
+    email: 'gv.second@edu.vn',
+    passwordHash: 'x',
+    role: ROLES.TEACHER,
+    hoTen: 'GV thứ hai',
+  });
+  await Teacher.create({
+    userId: secondTeacherUser._id,
+    id: 95,
+    email: 'gv.second@edu.vn',
+    hoTen: 'GV thứ hai',
+    department: 'CNTT',
+  });
 });
 
-const baseClass = (overrides = {}) => ({
-  id: 'IT101-01',
-  courseId: 'IT101',
-  room: 'A1',
-  schedules: [{ dayId: '2', shiftId: 'S1' }],
-  studyStart: '2026-01-01',
-  studyEnd: '2026-06-01',
-  status: 'Đang mở',
-  ...overrides,
-});
+const baseClass = (overrides = {}) => {
+  const registrationStart = addMinutes(currentDateTimeString(), 5);
+  const studyStart = addCalendarDays(todayDateString(), 1);
+  return {
+    id: 'IT101-01',
+    courseId: 'IT101',
+    className: 'Lớp lập trình cơ bản',
+    teacherId: 96,
+    room: 'A1',
+    capacity: 10,
+    schedules: [{ dayId: '2', shiftId: 'S1' }],
+    studyStart,
+    studyEnd: addCalendarDays(studyStart, 105),
+    registrationStart,
+    registrationEnd: addDays(registrationStart, 30),
+    status: 'Đang mở',
+    ...overrides,
+  };
+};
+
+function addCalendarDays(date, days) {
+  const result = new Date(`${date}T00:00:00.000Z`);
+  result.setUTCDate(result.getUTCDate() + days);
+  return result.toISOString().slice(0, 10);
+}
+
+function addDays(date, days) {
+  const result = new Date(`${date.slice(0, 10)}T00:00:00.000Z`);
+  result.setUTCDate(result.getUTCDate() + days);
+  return `${result.toISOString().slice(0, 10)}T${date.slice(11, 16)}`;
+}
+
+function addMinutes(date, minutes) {
+  const result = new Date(`${date.slice(0, 16)}:00Z`);
+  result.setUTCMinutes(result.getUTCMinutes() + minutes);
+  return result.toISOString().slice(0, 16);
+}
 
 describe('Course classes', () => {
   it('creates a class from a course', async () => {
-    const res = await request(app).post('/api/classes').set(authHeader(adminToken)).send(baseClass());
+    const payload = baseClass();
+    const res = await request(app).post('/api/classes').set(authHeader(adminToken)).send(payload);
     expect(res.status).toBe(201);
     expect(res.body.courseName).toBe('Lập trình');
+    expect(res.body.className).toBe(payload.className);
     expect(res.body.credits).toBe(3);
+    expect(res.body.registrationStart).toBe(payload.registrationStart);
+    expect(res.body.registrationEnd).toBe(payload.registrationEnd);
   });
 
   it('rejects a room conflict with 409', async () => {
@@ -38,9 +97,62 @@ describe('Course classes', () => {
     const res = await request(app)
       .post('/api/classes')
       .set(authHeader(adminToken))
-      .send(baseClass({ id: 'IT101-02', room: 'A1' }));
+      .send(baseClass({ id: 'IT101-02', room: 'a1', teacherId: 95 }));
     expect(res.status).toBe(409);
-    expect(res.body.error.message).toMatch(/Phòng/);
+    expect(res.body.error.message).toContain('Lớp lập trình cơ bản');
+    expect(res.body.error.message).toContain('GV mặc định');
+  });
+
+  it('rejects a required class field when it is missing or blank', async () => {
+    const payload = baseClass();
+    delete payload.teacherId;
+    delete payload.className;
+    payload.room = '  ';
+    const missingTeacher = await request(app)
+      .post('/api/classes')
+      .set(authHeader(adminToken))
+      .send(payload);
+    expect(missingTeacher.status).toBe(400);
+    expect(missingTeacher.body.error.details).toEqual(expect.arrayContaining([
+      expect.objectContaining({ path: 'teacherId' }),
+      expect.objectContaining({ path: 'className' }),
+      expect.objectContaining({ path: 'room' }),
+    ]));
+  });
+
+  it('rejects a maximum capacity below 10', async () => {
+    const res = await request(app)
+      .post('/api/classes')
+      .set(authHeader(adminToken))
+      .send(baseClass({ capacity: 9 }));
+    expect(res.status).toBe(400);
+    expect(res.body.error.details).toEqual(expect.arrayContaining([
+      expect.objectContaining({ path: 'capacity' }),
+    ]));
+  });
+
+  it('rejects a teacher conflict on the same schedule slot', async () => {
+    const user = await User.create({
+      email: 'gv.lichday@edu.vn',
+      passwordHash: 'x',
+      role: ROLES.TEACHER,
+      hoTen: 'GV Lịch Dạy',
+    });
+    const teacher = await Teacher.create({
+      userId: user._id,
+      id: 97,
+      email: 'gv.lichday@edu.vn',
+      hoTen: 'GV Lịch Dạy',
+      department: 'CNTT',
+    });
+    await request(app).post('/api/classes').set(authHeader(adminToken)).send(baseClass({ teacherId: teacher.id }));
+    const res = await request(app)
+      .post('/api/classes')
+      .set(authHeader(adminToken))
+      .send(baseClass({ id: 'IT101-02', room: 'B2', teacherId: teacher.id }));
+    expect(res.status).toBe(409);
+    expect(res.body.error.message).toContain('GV Lịch Dạy');
+    expect(res.body.error.message).toContain('Lớp lập trình cơ bản');
   });
 
   it('allows a second class in a different room/slot', async () => {
@@ -53,11 +165,79 @@ describe('Course classes', () => {
   });
 
   it('lists open classes within the registration window', async () => {
-    await request(app).post('/api/classes').set(authHeader(adminToken)).send(baseClass());
+    const created = await request(app).post('/api/classes').set(authHeader(adminToken)).send(baseClass());
+    await CourseClass.findByIdAndUpdate(created.body._id, {
+      registrationStart: addMinutes(currentDateTimeString(), -1),
+    });
     const { token } = await createUser({ role: ROLES.STUDENT });
     const res = await request(app).get('/api/classes/open').set(authHeader(token));
     expect(res.status).toBe(200);
     expect(res.body.data).toHaveLength(1);
+  });
+
+  it('does not list a class before registration starts', async () => {
+    await request(app).post('/api/classes').set(authHeader(adminToken)).send(baseClass({
+      registrationStart: addDays(addMinutes(currentDateTimeString(), 5), 1),
+      registrationEnd: addDays(addMinutes(currentDateTimeString(), 5), 30),
+    }));
+    const { token } = await createUser({ role: ROLES.STUDENT });
+    const res = await request(app).get('/api/classes/open').set(authHeader(token));
+    expect(res.body.data).toHaveLength(0);
+  });
+
+  it('closes an open class after its registration end date', async () => {
+    const created = await request(app).post('/api/classes').set(authHeader(adminToken)).send(baseClass());
+    expect(created.status).toBe(201);
+    await CourseClass.findByIdAndUpdate(created.body._id, {
+      registrationStart: '2026-10-01T06:00',
+      registrationEnd: '2026-10-08T08:00',
+    });
+    const { token } = await createUser({ role: ROLES.STUDENT });
+    const res = await request(app).get('/api/classes/open').set(authHeader(token));
+    expect(res.body.data).toHaveLength(0);
+    const closed = await request(app).get(`/api/classes/${created.body._id}`).set(authHeader(adminToken));
+    expect(closed.body.status).toBe('Đã đóng');
+  });
+
+  it('rejects invalid registration date ranges', async () => {
+    const res = await request(app).post('/api/classes').set(authHeader(adminToken)).send(baseClass({
+      registrationStart: addDays(addMinutes(currentDateTimeString(), 5), 2),
+      registrationEnd: addDays(addMinutes(currentDateTimeString(), 5), 1),
+    }));
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects registration windows with the same start and end time', async () => {
+    const start = addMinutes(currentDateTimeString(), 5);
+    const res = await request(app).post('/api/classes').set(authHeader(adminToken)).send(baseClass({
+      registrationStart: start,
+      registrationEnd: start,
+    }));
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects impossible calendar dates', async () => {
+    const res = await request(app).post('/api/classes').set(authHeader(adminToken)).send(baseClass({
+      registrationStart: '2026-02-30T06:00',
+    }));
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects an invalid registration time', async () => {
+    const res = await request(app).post('/api/classes').set(authHeader(adminToken)).send(baseClass({
+      registrationStart: '2026-10-10T25:90',
+      registrationEnd: '2026-10-11T08:00',
+    }));
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects a registration start time in the past', async () => {
+    const res = await request(app).post('/api/classes').set(authHeader(adminToken)).send(baseClass({
+      registrationStart: '2026-10-01T06:00',
+      registrationEnd: '2026-10-10T08:00',
+    }));
+    expect(res.status).toBe(400);
+    expect(res.body.error.message).toMatch(/không được ở quá khứ/);
   });
 
   it('forbids a student from creating a class', async () => {
@@ -126,11 +306,15 @@ describe('Course classes', () => {
   });
 
   it('rejects class creation when studyEnd is less than 15 weeks from studyStart', async () => {
+    const studyStart = addCalendarDays(todayDateString(), 1);
     const res = await request(app)
       .post('/api/classes')
       .set(authHeader(adminToken))
-      .send(baseClass({ studyStart: '2026-01-01', studyEnd: '2026-02-01' }));
+      .send(baseClass({ studyStart, studyEnd: addCalendarDays(studyStart, 14) }));
     expect(res.status).toBe(400);
+    expect(res.body.error.details).toEqual(expect.arrayContaining([
+      expect.objectContaining({ path: 'studyEnd' }),
+    ]));
   });
 
   it('rejects assigning a teacher from a different department to the course class', async () => {

@@ -26,14 +26,14 @@ export function TeacherClassStudents() {
               onClick={() => navigate('/teacher/classes')}
               className="whitespace-nowrap rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50"
             >
-              <i className="fas fa-arrow-left mr-2" />Về lớp học phần
+              <i className="fas fa-arrow-left mr-2" />Quay lại lớp học phần
             </button>
             <button
               type="button"
               onClick={() => navigate(`/teacher/classes/${id}/grades`)}
               className="whitespace-nowrap rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
             >
-              <i className="fas fa-table-list mr-2" />Sổ điểm
+              <i className="fas fa-table-list mr-2" />Danh sách điểm số
             </button>
           </>
         }

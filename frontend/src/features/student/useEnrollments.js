@@ -3,11 +3,19 @@ import { enrollmentsApi } from '../../api/enrollmentsApi.js';
 import { classesApi } from '../../api/classesApi.js';
 
 export function useOpenClasses() {
-  return useQuery({ queryKey: ['classes', 'open'], queryFn: classesApi.listOpen });
+  return useQuery({
+    queryKey: ['classes', 'open'],
+    queryFn: classesApi.listOpen,
+    refetchInterval: 60_000,
+  });
 }
 
 export function useMyEnrollments() {
-  return useQuery({ queryKey: ['enrollments', 'me'], queryFn: enrollmentsApi.mine });
+  return useQuery({
+    queryKey: ['enrollments', 'me'],
+    queryFn: enrollmentsApi.mine,
+    refetchInterval: 60_000,
+  });
 }
 
 export function useEnrollmentMutations() {

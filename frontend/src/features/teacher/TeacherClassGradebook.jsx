@@ -10,21 +10,26 @@ import { useClassStudents } from './useTeacherClasses.js';
 
 const MANUAL_GRADE_FIELDS = [
   { key: 'attendance', label: 'Điểm chuyên cần' },
-  { key: 'midterm', label: 'Điểm kiểm tra giữa kỳ' },
-  { key: 'assignment', label: 'Điểm tiểu luận' },
   { key: 'presentation', label: 'Điểm thuyết trình' },
-  { key: 'practical', label: 'Điểm thực hành' },
+  { key: 'midterm', label: 'Điểm thi giữa kỳ' },
   { key: 'final', label: 'Điểm thi cuối kỳ' },
 ];
 
-function StudentGradeRow({ classId, student, ordinal }) {
+function StudentGradeRow({ classId, student }) {
   const toast = useToast();
   const queryClient = useQueryClient();
   const [grades, setGrades] = useState(() =>
     Object.fromEntries(MANUAL_GRADE_FIELDS.map(({ key }) => [key, student.manualGrades?.[key] ?? '']))
   );
   const saveGrades = useMutation({
-    mutationFn: () => classesApi.updateStudentGrades(classId, student._id, grades),
+    mutationFn: () =>
+      classesApi.updateStudentGrades(
+        classId,
+        student._id,
+        Object.fromEntries(
+          Object.entries(grades).map(([key, value]) => [key, value === '' ? null : Number(value)])
+        )
+      ),
     onSuccess: (data) => {
       setGrades(Object.fromEntries(MANUAL_GRADE_FIELDS.map(({ key }) => [key, data.manualGrades?.[key] ?? ''])));
       queryClient.invalidateQueries({ queryKey: ['classes', classId, 'students'] });
@@ -35,28 +40,25 @@ function StudentGradeRow({ classId, student, ordinal }) {
 
   return (
     <tr className="border-t border-gray-100 hover:bg-indigo-50/30">
-      <td className="px-3 py-3 text-gray-500">{ordinal}</td>
       <td className="whitespace-nowrap px-3 py-3 font-semibold text-gray-700">{formatStudentCode(student.id)}</td>
       <td className="whitespace-nowrap px-3 py-3 font-medium text-gray-800">{student.hoTen}</td>
-      {MANUAL_GRADE_FIELDS.slice(0, 2).map(({ key, label }) => (
-        <td key={key} className="px-3 py-3">
-          <input
-            aria-label={`${label} - ${student.hoTen}`}
-            type="number"
-            min="0"
-            max="10"
-            step="0.1"
-            value={grades[key]}
-            onChange={(event) => setGrades((current) => ({ ...current, [key]: event.target.value }))}
-            className="w-24 rounded-lg border border-gray-200 px-2.5 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
-          />
-        </td>
-      ))}
+      <td className="px-3 py-3">
+        <input
+          aria-label={`Điểm chuyên cần - ${student.hoTen}`}
+          type="number"
+          min="0"
+          max="10"
+          step="0.1"
+          value={grades.attendance}
+          onChange={(event) => setGrades((current) => ({ ...current, attendance: event.target.value }))}
+          className="w-24 rounded-lg border border-gray-200 px-2.5 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+        />
+      </td>
       <td className="px-3 py-3">
         <div className="font-bold text-gray-800">{student.homeworkGrade == null ? '—' : `${student.homeworkGrade}/10`}</div>
         <div className="mt-0.5 text-xs text-gray-400">{student.homeworkQuizCount}/{student.homeworkQuizTotal} quiz</div>
       </td>
-      {MANUAL_GRADE_FIELDS.slice(2).map(({ key, label }) => (
+      {MANUAL_GRADE_FIELDS.slice(1).map(({ key, label }) => (
         <td key={key} className="px-3 py-3">
           <input
             aria-label={`${label} - ${student.hoTen}`}
@@ -114,19 +116,19 @@ export function TeacherClassGradebook() {
         }
       />
 
+      <p className="mb-3 text-sm text-slate-500">
+        Điểm bài tập được tính tự động từ điểm trung bình các quiz; quiz đã quá hạn mà chưa nộp được tính 0.
+      </p>
       <div className="overflow-x-auto custom-scrollbar rounded-2xl border border-gray-100 bg-white shadow-sm">
-        <table className="min-w-[1400px] w-full text-sm">
+        <table className="min-w-[1100px] w-full text-sm">
           <thead>
             <tr className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-500 whitespace-nowrap">
-              <th className="px-3 py-3">STT</th>
               <th className="px-3 py-3">Mã SV</th>
               <th className="px-3 py-3">Họ tên</th>
               <th className="px-3 py-3">Điểm chuyên cần</th>
-              <th className="px-3 py-3">Điểm kiểm tra giữa kỳ</th>
-              <th className="px-3 py-3">Điểm bài tập về nhà</th>
-              <th className="px-3 py-3">Điểm tiểu luận</th>
+              <th className="px-3 py-3">Điểm bài tập</th>
               <th className="px-3 py-3">Điểm thuyết trình</th>
-              <th className="px-3 py-3">Điểm thực hành</th>
+              <th className="px-3 py-3">Điểm thi giữa kỳ</th>
               <th className="px-3 py-3">Điểm thi cuối kỳ</th>
               <th className="px-3 py-3 text-right">Thao tác</th>
             </tr>
@@ -134,10 +136,10 @@ export function TeacherClassGradebook() {
           <tbody>
             {students.length === 0 ? (
               <tr>
-                <td colSpan={11} className="px-4 py-10 text-center text-gray-400">Chưa có sinh viên đăng ký lớp này.</td>
+                <td colSpan={8} className="px-4 py-10 text-center text-gray-400">Chưa có sinh viên đăng ký lớp này.</td>
               </tr>
-            ) : students.map((student, index) => (
-              <StudentGradeRow key={student._id} classId={id} student={student} ordinal={index + 1} />
+            ) : students.map((student) => (
+              <StudentGradeRow key={student._id} classId={id} student={student} />
             ))}
           </tbody>
         </table>

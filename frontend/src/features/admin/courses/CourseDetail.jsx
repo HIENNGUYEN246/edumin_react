@@ -1,11 +1,15 @@
-import { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useRef, useState } from 'react';
+import { useLocation, useParams, useNavigate } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { DataTable } from '../../../components/ui/DataTable.jsx';
 import { Spinner } from '../../../components/ui/Spinner.jsx';
 import { useToast } from '../../../app/providers/ToastProvider.jsx';
 import { useConfirm } from '../../../app/providers/ConfirmProvider.jsx';
-import { formatCurrency } from '../../../lib/format.js';
+import {
+  formatCurrency,
+  registrationDateTimeInput,
+  formatRegistrationDateTime,
+} from '../../../lib/format.js';
 import { coursesApi } from '../../../api/coursesApi.js';
 import { CLASS_STATUSES } from '../../../api/classesApi.js';
 import { useCourseClasses, useClassMutations } from '../classes/useClasses.js';
@@ -14,12 +18,24 @@ import { ClassFormModal } from '../classes/ClassFormModal.jsx';
 import { ClassStudentsModal } from '../classes/ClassStudentsModal.jsx';
 import { Avatar } from '../../../components/ui/Avatar.jsx';
 import { ScheduleRoomBadge } from '../../../components/schedule/ScheduleBadge.jsx';
+import { classesApi } from '../../../api/classesApi.js';
+import { teachersApi } from '../../../api/teachersApi.js';
+import { readSheet, exportSheet } from '../../../lib/excel.js';
+import { classExportRow, classImportPayload } from '../classes/classExcel.js';
 
 export function CourseDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const fromClasses = location.pathname.startsWith('/admin/classes/course/');
+  const backPath = fromClasses ? '/admin/classes' : '/admin/courses';
+  const backLabel = fromClasses ? 'Quản lý lớp học phần' : 'Danh mục môn học';
   const toast = useToast();
   const confirm = useConfirm();
+  const queryClient = useQueryClient();
+  const importFileRef = useRef(null);
+  const [importing, setImporting] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const courseQuery = useQuery({ queryKey: ['courses', id, 'detail'], queryFn: () => coursesApi.get(id) });
   const course = courseQuery.data;
@@ -39,12 +55,15 @@ export function CourseDetail() {
       initial: {
         id: cls.id,
         courseId: course.id,
+        className: cls.className || '',
         teacherId: cls.teacherId || '',
         room: cls.room || '',
         capacity: cls.capacity || 0,
         schedules: cls.schedules || [],
         studyStart: cls.studyStart || '',
         studyEnd: cls.studyEnd || '',
+        registrationStart: registrationDateTimeInput(cls.registrationStart),
+        registrationEnd: registrationDateTimeInput(cls.registrationEnd, true),
         status: cls.status || 'Nháp',
       },
     });
@@ -63,8 +82,98 @@ export function CourseDetail() {
       }
       setFormModal(null);
     } catch (error) {
-      if (error.code === 'DUPLICATE_KEY') setErrors({ id: 'Mã lớp đã tồn tại' });
+      const fieldErrors = {};
+      for (const detail of error.details || []) {
+        if (detail.path) fieldErrors[detail.path] = detail.message;
+      }
+      if (error.code === 'DUPLICATE_KEY') {
+        fieldErrors.id = 'Mã lớp đã tồn tại';
+      } else if (/giáo viên trùng lịch/i.test(error.message)) {
+        fieldErrors.teacherId = error.message;
+      } else if (/phòng .* đã được sử dụng/i.test(error.message)) {
+        fieldErrors.room = error.message;
+      } else if (/thời gian bắt đầu đăng ký/i.test(error.message)) {
+        fieldErrors.registrationStart = error.message;
+      } else if (/thời gian đăng ký/i.test(error.message)) {
+        fieldErrors.registrationEnd = error.message;
+      } else if (/15 tuần|ngày bắt đầu học/i.test(error.message)) {
+        fieldErrors.studyEnd = error.message;
+      } else if (/lịch học/i.test(error.message)) {
+        fieldErrors.schedules = error.message;
+      } else if (/giáo viên/i.test(error.message)) {
+        fieldErrors.teacherId = error.message;
+      } else if (/học phần/i.test(error.message)) {
+        fieldErrors.courseId = error.message;
+      }
+
+      if (Object.keys(fieldErrors).length) setErrors(fieldErrors);
       else toast.error(error.message, 5000);
+    }
+  };
+
+  const onImportClasses = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    setImporting(true);
+    try {
+      const [rows, teacherResponse] = await Promise.all([
+        readSheet(file),
+        teachersApi.list({ limit: 500 }),
+      ]);
+      if (!rows.length) throw new Error('File Excel chưa có dữ liệu để nhập');
+      const teachers = teacherResponse.data || [];
+      let created = 0;
+      const failures = [];
+
+      for (let index = 0; index < rows.length; index += 1) {
+        const row = rows[index];
+        if (Object.values(row).every((value) => String(value ?? '').trim() === '')) continue;
+        try {
+          const payload = classImportPayload(row, course.id, teachers);
+          if (!payload.id) delete payload.id;
+          await classesApi.create(payload);
+          created += 1;
+        } catch (error) {
+          const details = error.details?.map((detail) => detail.message).filter(Boolean);
+          failures.push({
+            row: index + 2,
+            message: details?.length ? details.join(', ') : error.message,
+          });
+        }
+      }
+
+      if (created) await queryClient.invalidateQueries({ queryKey: ['classes'] });
+      if (failures.length) {
+        const summary = failures.slice(0, 4)
+          .map((failure) => `Dòng ${failure.row}: ${failure.message}`)
+          .join(' · ');
+        toast.error(`Đã nhập ${created} lớp; ${failures.length} dòng lỗi. ${summary}`, 10000);
+      } else if (created) {
+        toast.success(`Đã nhập ${created} lớp học phần`);
+      } else {
+        toast.error('Không tìm thấy dòng dữ liệu hợp lệ trong file');
+      }
+    } catch (error) {
+      toast.error(error.message || 'Không đọc được file Excel');
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const onExportClasses = async () => {
+    setExporting(true);
+    try {
+      await exportSheet(classes.map(classExportRow), {
+        fileName: `lop-hoc-phan-${course.id}.xlsx`,
+        sheetName: 'Danh sach lop',
+      });
+      toast.success('Đã xuất danh sách lớp học phần');
+    } catch (error) {
+      toast.error(error.message || 'Không xuất được file Excel');
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -97,7 +206,7 @@ export function CourseDetail() {
     return (
       <div className="max-w-xl mx-auto rounded-2xl bg-white border border-gray-100 shadow-sm p-10 text-center">
         <p className="text-gray-600">{courseQuery.error.message || 'Không tìm thấy học phần.'}</p>
-        <button type="button" onClick={() => navigate('/admin/courses')} className="mt-5 px-4 py-2 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700">
+        <button type="button" onClick={() => navigate(backPath)} className="mt-5 px-4 py-2 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700">
           Quay lại
         </button>
       </div>
@@ -106,6 +215,7 @@ export function CourseDetail() {
 
   const columns = [
     { key: 'id', header: 'Mã lớp', className: 'font-semibold text-gray-800' },
+    { key: 'className', header: 'Tên lớp học phần', render: (c) => c.className || '—' },
     {
       key: 'teacher',
       header: 'Giáo viên',
@@ -138,6 +248,17 @@ export function CourseDetail() {
         <span className={c.capacity > 0 && c.enrolledCount >= c.capacity ? 'text-red-600 font-semibold' : ''}>
           {c.enrolledCount}
           {c.capacity > 0 ? `/${c.capacity}` : ''}
+        </span>
+      ),
+    },
+    {
+      key: 'registrationPeriod',
+      header: 'Thời gian đăng ký',
+      render: (c) => (
+        <span className="text-xs text-gray-600 whitespace-nowrap">
+          {formatRegistrationDateTime(c.registrationStart)}
+          {' – '}
+          {formatRegistrationDateTime(c.registrationEnd, true)}
         </span>
       ),
     },
@@ -178,10 +299,10 @@ export function CourseDetail() {
     <div>
       <button
         type="button"
-        onClick={() => navigate('/admin/courses')}
+        onClick={() => navigate(backPath)}
         className="inline-flex items-center gap-2 text-sm font-semibold text-gray-500 hover:text-indigo-600 mb-4"
       >
-        <i className="fas fa-arrow-left" /> Danh mục môn học
+        <i className="fas fa-arrow-left" /> {backLabel}
       </button>
 
       {/* Course info */}
@@ -212,11 +333,35 @@ export function CourseDetail() {
       {/* Classes */}
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-lg font-bold text-gray-800">Các lớp học phần mở</h2>
-        <button type="button" onClick={openCreate} className="px-4 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700">
-          <i className="fas fa-plus mr-1.5" /> Thêm lớp
-        </button>
+        <div className="flex flex-wrap justify-end gap-2">
+          <input
+            ref={importFileRef}
+            type="file"
+            accept=".xlsx,.xls,.csv"
+            className="hidden"
+            onChange={onImportClasses}
+          />
+          <button
+            type="button"
+            onClick={onExportClasses}
+            disabled={exporting || classesLoading}
+            className="px-3 py-2 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 text-sm font-semibold hover:bg-emerald-100 disabled:opacity-60"
+          >
+            <i className="fas fa-file-export mr-1.5" /> {exporting ? 'Đang xuất...' : 'Xuất Excel'}
+          </button>
+          <button
+            type="button"
+            onClick={() => importFileRef.current?.click()}
+            disabled={importing}
+            className="px-3 py-2 rounded-xl border border-indigo-200 bg-indigo-50 text-indigo-700 text-sm font-semibold hover:bg-indigo-100 disabled:opacity-60"
+          >
+            <i className="fas fa-file-import mr-1.5" /> {importing ? 'Đang nhập...' : 'Nhập Excel'}
+          </button>
+          <button type="button" onClick={openCreate} className="px-4 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700">
+            <i className="fas fa-plus mr-1.5" /> Thêm lớp
+          </button>
+        </div>
       </div>
-
       <DataTable columns={columns} rows={classes} isLoading={classesLoading} emptyText="Môn học này chưa có lớp học phần nào được mở" />
 
       {formModal && (

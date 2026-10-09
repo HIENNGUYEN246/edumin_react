@@ -65,10 +65,13 @@ export function findScheduleConflict(candidate, existingClasses) {
         if (!slotsClash(cSlot, eSlot)) continue;
         const when = `${dayLabel(cSlot.dayId)}, ${shiftLabel(cSlot.shiftId)}`;
         if (candidate.teacherId != null && String(existing.teacherId) === String(candidate.teacherId)) {
-          return `Giáo viên trùng lịch dạy (${when}) với lớp ${existing.courseName || existing.id}.`;
+          return `Giáo viên ${candidate.teacher || ''} trùng lịch dạy (${when}) với lớp học phần "${existing.className || existing.courseName || existing.id}".`.trim();
         }
-        if (candidate.room && existing.room === candidate.room) {
-          return `Phòng ${candidate.room} đã bận (${when}) bởi lớp ${existing.courseName || existing.id}.`;
+        if (
+          candidate.room &&
+          String(existing.room || '').trim().toLowerCase() === String(candidate.room).trim().toLowerCase()
+        ) {
+          return `Phòng ${candidate.room} đã được sử dụng (${when}) bởi lớp học phần "${existing.className || existing.courseName || existing.id}" do giáo viên "${existing.teacher || 'chưa phân công'}" phụ trách.`;
         }
       }
     }

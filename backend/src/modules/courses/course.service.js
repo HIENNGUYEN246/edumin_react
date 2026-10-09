@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import { AppError } from '../../lib/AppError.js';
 import { parseListQuery, paginate, searchFilter } from '../../lib/pagination.js';
 import { Course } from './course.model.js';
+import { CourseClass } from '../classes/courseClass.model.js';
 import { resolveDepartment } from '../shared/person.service.js';
 import { createCourseSchema } from './course.schema.js';
 
@@ -10,6 +11,7 @@ const POPULATE = { path: 'departmentRef', select: 'id name' };
 export async function listCourses(query) {
   const { page, limit, skip, sort, search } = parseListQuery(query, { defaultSort: 'id' });
   const filter = searchFilter(search, ['id', 'name', 'department']);
+  if (query.department) filter.department = query.department;
   return paginate(Course, { filter, page, limit, skip, sort, populate: POPULATE });
 }
 
@@ -45,6 +47,18 @@ export async function updateCourse(id, payload) {
   Object.assign(course, rest);
   if (departmentId !== undefined) await applyDepartment(course, departmentId);
   await course.save();
+  await CourseClass.updateMany(
+    { courseRef: course._id },
+    {
+      $set: {
+        courseId: course.id,
+        courseName: course.name,
+        credits: course.credits,
+        fee: course.fee,
+        department: course.department,
+      },
+    }
+  );
   return Course.findById(course._id).populate(POPULATE).lean();
 }
 

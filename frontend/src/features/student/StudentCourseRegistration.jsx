@@ -5,7 +5,12 @@ import { Spinner } from '../../components/ui/Spinner.jsx';
 import { Avatar } from '../../components/ui/Avatar.jsx';
 import { useToast } from '../../app/providers/ToastProvider.jsx';
 import { useConfirm } from '../../app/providers/ConfirmProvider.jsx';
-import { formatCurrency } from '../../lib/format.js';
+import {
+  formatCurrency,
+  getCurrentDateTimeLocalWithSeconds,
+  formatRegistrationDateTime,
+  registrationDateTimeInput,
+} from '../../lib/format.js';
 import { useOpenClasses, useMyEnrollments, useEnrollmentMutations } from './useEnrollments.js';
 import { ScheduleRoomBadge } from '../../components/schedule/ScheduleBadge.jsx';
 
@@ -53,9 +58,14 @@ function ClassRow({ cls, state, onEnroll, pending }) {
 
   return (
     <div className={`flex flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3 rounded-2xl border transition-all ${state.enrolledThisClass ? 'border-emerald-300 bg-emerald-50/50 shadow-2xs' : 'border-gray-200/80 bg-white hover:border-indigo-200 hover:shadow-xs'}`}>
-      <span className="font-mono font-bold text-indigo-700 text-xs w-24 px-2 py-1 rounded-lg bg-indigo-50 border border-indigo-100/80 text-center">
-        {cls.id}
-      </span>
+      <div className="w-32 shrink-0">
+        <span className="font-mono font-bold text-indigo-700 text-xs px-2 py-1 rounded-lg bg-indigo-50 border border-indigo-100/80 text-center block">
+          {cls.id}
+        </span>
+        <span className="mt-1 text-[11px] text-gray-600 text-center block truncate" title={cls.className || ''}>
+          {cls.className || '—'}
+        </span>
+      </div>
       <span className="text-sm text-gray-700 min-w-[150px] max-w-[180px] flex items-center gap-2">
         <Avatar src={cls.teacherRef?.avatar?.url || cls.teacherRef?.avatar} name={cls.teacher || 'GV'} size={24} />
         <span className="font-semibold text-xs text-gray-800 truncate" title={cls.teacher}>{cls.teacher || 'Chưa phân công'}</span>
@@ -66,6 +76,13 @@ function ClassRow({ cls, state, onEnroll, pending }) {
       <span className={`text-xs font-semibold w-16 text-center ${full ? 'text-red-500 font-bold' : 'text-gray-600'}`}>
         {cls.enrolledCount}
         {cls.capacity > 0 ? `/${cls.capacity}` : ''}
+      </span>
+      <span className="text-xs font-semibold text-gray-700">Học phí: {formatCurrency(cls.fee)}</span>
+      <span className="text-xs text-gray-500">
+        Đăng ký: {formatRegistrationDateTime(cls.registrationStart)} – {formatRegistrationDateTime(cls.registrationEnd, true)}
+      </span>
+      <span className="rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-bold text-emerald-700">
+        Trạng thái: {cls.status || 'Đang mở'}
       </span>
       <span className="ml-auto">{action}</span>
     </div>
@@ -112,8 +129,24 @@ export function StudentCourseRegistration() {
     }
   };
 
+  const cancellationLocked = (cls) =>
+    cls?.status !== 'Đang mở' ||
+    Boolean(
+      cls.registrationEnd &&
+      registrationDateTimeInput(cls.registrationEnd, true) < getCurrentDateTimeLocalWithSeconds()
+    );
+
   const enrolledColumns = [
-    { key: 'classId', header: 'Mã lớp', className: 'font-semibold text-gray-800 w-28' },
+    { key: 'classId', header: 'Mã lớp học phần', className: 'font-semibold text-gray-800 w-32' },
+    {
+      key: 'className',
+      header: 'Tên lớp học phần',
+      render: (e) => (
+        <span className="font-medium text-gray-800 truncate max-w-[200px] block" title={e.class?.className || ''}>
+          {e.class?.className || '—'}
+        </span>
+      ),
+    },
     {
       key: 'courseName',
       header: 'Học phần',
@@ -148,14 +181,42 @@ export function StudentCourseRegistration() {
         />
       ),
     },
+    {
+      key: 'registrationPeriod',
+      header: 'Thời gian đăng ký',
+      render: (e) => (
+        <span className="text-xs text-gray-600">
+          {formatRegistrationDateTime(e.class?.registrationStart)} – {formatRegistrationDateTime(e.class?.registrationEnd, true)}
+        </span>
+      ),
+    },
     { key: 'fee', header: 'Học phí', render: (e) => formatCurrency(e.class?.fee) },
+    {
+      key: 'status',
+      header: 'Trạng thái',
+      render: (e) => (
+        <span className={`text-xs font-semibold ${e.class?.status === 'Đang mở' ? 'text-emerald-700' : 'text-gray-500'}`}>
+          {e.class?.status || '—'}
+        </span>
+      ),
+    },
     {
       key: 'action',
       header: '',
       className: 'text-right w-28',
       render: (e) => (
-        <button type="button" onClick={() => doCancel(e)} disabled={cancel.isPending} className="px-3 py-1.5 rounded-lg bg-red-50 text-red-600 text-xs font-semibold hover:bg-red-100 disabled:opacity-60">
-          Hủy
+        <button
+          type="button"
+          onClick={() => doCancel(e)}
+          disabled={cancel.isPending || cancellationLocked(e.class)}
+          title={
+            cancellationLocked(e.class)
+              ? 'Lớp đã đóng đăng ký, không thể hủy học phần'
+              : undefined
+          }
+          className="px-3 py-1.5 rounded-lg bg-red-50 text-red-600 text-xs font-semibold hover:bg-red-100 disabled:opacity-60"
+        >
+          {cancellationLocked(e.class) ? 'Đã khóa' : 'Hủy'}
         </button>
       ),
     },

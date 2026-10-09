@@ -2,6 +2,13 @@ import mongoose from 'mongoose';
 import { AppError } from '../../lib/AppError.js';
 import { parseListQuery, paginate, searchFilter } from '../../lib/pagination.js';
 import { findScheduleConflict, validateSchedules } from '../../lib/schedule.js';
+import {
+  isRegistrationWindowActive,
+  isRegistrationWindowExpired,
+  normalizeRegistrationDateTime,
+  currentDateTimeString,
+  todayDateString,
+} from '../../lib/dateOnly.js';
 import { ROLES } from '../../lib/roles.js';
 import { CourseClass } from './courseClass.model.js';
 import { Course } from '../courses/course.model.js';
@@ -53,19 +60,35 @@ async function buildClassFields(payload) {
     courseRef: course._id,
     courseId: course.id,
     courseName: course.name,
+    className: payload.className?.trim() || '',
     department: course.department || '',
     credits: course.credits,
     fee: course.fee,
     teacherRef: teacher?._id || null,
     teacherId: teacher?.id ?? null,
     teacher: teacher?.hoTen || '',
-    room: payload.room || '',
+    room: payload.room?.trim() || '',
     capacity: Number.isFinite(Number(payload.capacity)) ? Number(payload.capacity) : 0,
     schedules: payload.schedules,
     studyStart: payload.studyStart || '',
     studyEnd: payload.studyEnd || '',
+    registrationStart: payload.registrationStart || '',
+    registrationEnd: payload.registrationEnd || '',
     status: payload.status || 'Nháp',
   };
+}
+
+export async function closeExpiredClasses(now = new Date()) {
+  const openClasses = await CourseClass.find({ status: 'Đang mở' }).select('_id registrationStart registrationEnd').lean();
+  const expiredIds = openClasses
+    .filter((cls) => isRegistrationWindowExpired(cls, now))
+    .map((cls) => cls._id);
+  if (!expiredIds.length) return 0;
+  const result = await CourseClass.updateMany(
+    { _id: { $in: expiredIds }, status: 'Đang mở' },
+    { $set: { status: 'Đã đóng' } }
+  );
+  return result.modifiedCount;
 }
 
 /** Attach a live enrolledCount to a class object (or array of them). */
@@ -91,8 +114,9 @@ async function assertNoConflict(fields, excludeId) {
 }
 
 export async function listClasses(query, requester) {
+  await closeExpiredClasses();
   const { page, limit, skip, sort, search } = parseListQuery(query, { defaultSort: '-createdAt' });
-  const filter = searchFilter(search, ['id', 'courseName', 'teacher', 'room']);
+  const filter = searchFilter(search, ['id', 'courseName', 'className', 'teacher', 'room']);
 
   // Teachers can scope to their own classes via ?teacher=me.
   if (query.teacher === 'me' && requester?.role === ROLES.TEACHER) {
@@ -148,20 +172,21 @@ export async function listStudentClassesSummary() {
 
 /** All classes of a course (for the admin course-detail page), with counts. */
 export async function listClassesByCourse(courseId) {
+  await closeExpiredClasses();
   const classes = await CourseClass.find({ courseId }).sort({ id: 1 }).populate(POPULATE).lean();
   return { data: await withEnrolledCount(classes) };
 }
 
-/**
- * Classes open for registration (for students), with counts.
- * A class is available purely based on its 'Đang mở' status.
- */
+/** Classes currently within their registration window, with enrolled counts. */
 export async function listOpenClasses() {
+  const now = new Date();
+  await closeExpiredClasses(now);
   const classes = await CourseClass.find({ status: 'Đang mở' }).populate(POPULATE).lean();
-  return withEnrolledCount(classes);
+  return withEnrolledCount(classes.filter((cls) => isRegistrationWindowActive(cls, now)));
 }
 
 export async function getClass(id) {
+  await closeExpiredClasses();
   const doc = await CourseClass.findById(id).populate(POPULATE).lean();
   if (!doc) throw AppError.notFound('Không tìm thấy lớp học phần');
   return withEnrolledCount(doc);
@@ -169,8 +194,12 @@ export async function getClass(id) {
 
 /** Change only the lifecycle status of a class. */
 export async function changeStatus(id, status) {
+  await closeExpiredClasses();
   const cls = await CourseClass.findById(id);
   if (!cls) throw AppError.notFound('Không tìm thấy lớp học phần');
+  if (status === 'Đang mở' && isRegistrationWindowExpired(cls)) {
+    throw AppError.conflict('Không thể mở lại lớp vì thời gian đăng ký đã kết thúc');
+  }
   cls.status = status;
   await cls.save();
   return withEnrolledCount(await CourseClass.findById(cls._id).populate(POPULATE).lean());
@@ -239,8 +268,17 @@ export async function createClass(payload) {
   if (payload.studyStart && payload.studyEnd) {
     validate15Weeks(payload.studyStart, payload.studyEnd);
   }
+  if (payload.studyStart < todayDateString()) {
+    throw AppError.badRequest('Ngày bắt đầu học không được ở quá khứ');
+  }
 
   const fields = await buildClassFields({ ...payload, id: classId });
+  if (normalizeRegistrationDateTime(fields.registrationStart) < currentDateTimeString()) {
+    throw AppError.badRequest('Thời gian bắt đầu đăng ký không được ở quá khứ');
+  }
+  if (fields.registrationEnd <= fields.registrationStart) {
+    throw AppError.badRequest('Thời gian kết thúc đăng ký phải sau thời gian bắt đầu đăng ký');
+  }
   await assertNoConflict(fields);
   const created = await CourseClass.create({ id: classId, ...fields });
   return withEnrolledCount(await CourseClass.findById(created._id).populate(POPULATE).lean());
@@ -259,14 +297,24 @@ export async function updateClass(id, payload) {
   // Merge existing values so a partial update still passes the conflict check.
   const merged = {
     courseId: payload.courseId || cls.courseId,
+    className: payload.className !== undefined ? payload.className : cls.className,
     teacherId: payload.teacherId !== undefined ? payload.teacherId : cls.teacherId,
     room: payload.room !== undefined ? payload.room : cls.room,
     capacity: payload.capacity !== undefined ? payload.capacity : cls.capacity,
     schedules: payload.schedules || cls.schedules,
     studyStart: payload.studyStart !== undefined ? payload.studyStart : cls.studyStart,
     studyEnd: payload.studyEnd !== undefined ? payload.studyEnd : cls.studyEnd,
+    registrationStart: payload.registrationStart !== undefined ? payload.registrationStart : cls.registrationStart,
+    registrationEnd: payload.registrationEnd !== undefined ? payload.registrationEnd : cls.registrationEnd,
     status: payload.status || cls.status,
   };
+  if (
+    merged.registrationStart &&
+    merged.registrationEnd &&
+    merged.registrationEnd <= merged.registrationStart
+  ) {
+    throw AppError.badRequest('Thời gian kết thúc đăng ký phải sau thời gian bắt đầu đăng ký');
+  }
   const fields = await buildClassFields(merged);
   await assertNoConflict(fields, cls._id);
   Object.assign(cls, fields);

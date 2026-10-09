@@ -1,5 +1,7 @@
 import { AppError } from '../../lib/AppError.js';
-import { slotsClash } from '../../lib/schedule.js';
+import { rangesOverlap, slotsClash } from '../../lib/schedule.js';
+import { isRegistrationWindowActive, isRegistrationWindowExpired } from '../../lib/dateOnly.js';
+import { closeExpiredClasses } from '../classes/courseClass.service.js';
 import { Enrollment } from './enrollment.model.js';
 import { CourseClass } from '../classes/courseClass.model.js';
 import { Student } from '../students/student.model.js';
@@ -12,6 +14,7 @@ async function requireStudent(user) {
 
 /** Classes the student is enrolled in, with the class details attached. */
 export async function listMyEnrollments(user) {
+  await closeExpiredClasses();
   const student = await requireStudent(user);
   const enrollments = await Enrollment.find({ student: student._id })
     .populate({ path: 'classRef' })
@@ -24,6 +27,7 @@ export async function listMyEnrollments(user) {
 }
 
 export async function enroll(user, classId) {
+  await closeExpiredClasses();
   const student = await requireStudent(user);
   const target = await CourseClass.findById(classId);
   if (!target) throw AppError.notFound('Không tìm thấy lớp học phần');
@@ -31,6 +35,9 @@ export async function enroll(user, classId) {
   // A class is open for registration solely based on its status.
   if (target.status !== 'Đang mở') {
     throw AppError.conflict('Lớp hiện không mở đăng ký');
+  }
+  if (!isRegistrationWindowActive(target)) {
+    throw AppError.conflict('Chưa đến thời gian đăng ký lớp học phần');
   }
 
   const existing = await Enrollment.findOne({ student: student._id, classRef: target._id });
@@ -53,7 +60,9 @@ export async function enroll(user, classId) {
 
   // Reject if the new class clashes with any already-enrolled class slot.
   const clash = current.some((e) =>
-    (e.classRef?.schedules || []).some((existingSlot) =>
+    e.classRef &&
+    rangesOverlap(target.studyStart, target.studyEnd, e.classRef.studyStart, e.classRef.studyEnd) &&
+    (e.classRef.schedules || []).some((existingSlot) =>
       (target.schedules || []).some((newSlot) => slotsClash(newSlot, existingSlot))
     )
   );
@@ -69,12 +78,14 @@ export async function enroll(user, classId) {
 }
 
 export async function cancel(user, classId) {
+  const now = new Date();
+  await closeExpiredClasses(now);
   const student = await requireStudent(user);
   const target = await CourseClass.findById(classId);
 
   // Students may self-cancel only while the class is still open. If the class
   // was removed by an admin, still let them clean up the orphan enrollment.
-  if (target && target.status !== 'Đang mở') {
+  if (target && (target.status !== 'Đang mở' || isRegistrationWindowExpired(target, now))) {
     throw AppError.conflict('Lớp đã đóng đăng ký, không thể tự hủy');
   }
 
