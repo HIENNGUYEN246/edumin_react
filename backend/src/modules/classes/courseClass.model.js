@@ -50,6 +50,11 @@ const courseClassSchema = new Schema(
     midtermQuizId: { type: Schema.Types.ObjectId, ref: 'Assignment', default: null },
     finalQuizId: { type: Schema.Types.ObjectId, ref: 'Assignment', default: null },
 
+    // Gradebook status: whether the class gradebook is locked/frozen by Admin (Phòng Đào Tạo)
+    isGradeLocked: { type: Boolean, default: false },
+    gradeLockedAt: { type: Date, default: null },
+    gradeLockedBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
+
     // Lifecycle: Nháp (draft, hidden) -> Đang mở (open to students) ->
     // Đã đóng (registration closed) / Đã hủy (cancelled).
     status: {

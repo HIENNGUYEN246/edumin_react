@@ -80,5 +80,74 @@ describe('AI Assistant API', () => {
     expect(Array.isArray(res.body.suggestions)).toBe(true);
     expect(res.body.suggestions.length).toBeGreaterThan(0);
   });
+
+  it('correctly prioritizes NAV_GRADES over NAV_STUDENTS for "phần điểm sinh viên"', async () => {
+    const teacherUser = await User.findOne({ email: 'quan.tran@edu.vn' });
+    const token = signToken(teacherUser);
+
+    const res = await request(app)
+      .post('/api/ai/query')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ message: 'Làm sao để vào phần điểm sinh viên?' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.intent).toBe('NAV_GRADES');
+    expect(res.body.reply).toContain('bảng điểm');
+    expect(res.body.quickLinks.some((l) => l.path === '/teacher/classes')).toBe(true);
+  });
+
+  it('honestly responds to out-of-scope queries with exact graceful fallback message', async () => {
+    const studentUser = await User.findOne({ email: 'an.nguyen@edu.vn' });
+    const token = signToken(studentUser);
+
+    const res = await request(app)
+      .post('/api/ai/query')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ message: 'Hệ thống có cho đăng ký ký túc xá và mượn sách thư viện không?' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.intent).toBe('OUT_OF_SCOPE');
+    expect(res.body.reply).toContain(
+      'Dạ, hiện tại hệ thống EduMin chưa hỗ trợ tính năng này hoặc không có mục đó trong phần quản lý của bạn.'
+    );
+  });
+
+  it('detects currentPath and responds friendly with CURRENT_PAGE_ALREADY without useless redirects', async () => {
+    const adminUser = await User.findOne({ role: ROLES.ADMIN });
+    const token = signToken(adminUser);
+
+    const res = await request(app)
+      .post('/api/ai/query')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        message: 'Làm sao để quản lý các khoa đào tạo?',
+        currentPath: '/admin/departments',
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.intent).toBe('CURRENT_PAGE_ALREADY');
+    expect(res.body.reply).toContain('Quản lý khoa đào tạo');
+    expect(res.body.reply).toContain('hiện tại bạn đang ở ngay trang');
+  });
+
+  it('routes Admin to /admin/gradebook when asking about lock or gradebook management', async () => {
+    const adminUser = await User.findOne({ role: ROLES.ADMIN });
+    const token = signToken(adminUser);
+
+    const res = await request(app)
+      .post('/api/ai/query')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        message: 'Làm sao để chốt sổ bảng điểm và khóa điểm toàn trường?',
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.intent).toBe('NAV_ADMIN_GRADEBOOK');
+    expect(res.body.quickLinks.some((l) => l.path === '/admin/gradebook')).toBe(true);
+  });
 });
 

@@ -11,8 +11,13 @@ export const classesApi = {
   changeStatus: (id, status) => http.patch(`/classes/${id}/status`, { status }),
   remove: (id) => http.delete(`/classes/${id}`),
   students: (id) => http.get(`/classes/${id}/students`),
-  updateStudentGrades: (classId, studentId, grades) =>
-    http.patch(`/classes/${classId}/students/${studentId}/grades`, { grades }),
+  updateStudentGrades: (classId, studentId, grades, reason) =>
+    http.patch(`/classes/${classId}/students/${studentId}/grades`, { grades, reason }),
+  adminGradebookOverview: (params) => http.get(`/classes/admin/gradebook-overview${qs(params)}`),
+  toggleGradeLock: (classId, payload) => http.patch(`/classes/${classId}/grade-lock`, payload),
+  lockAllGrades: (payload) => http.post('/classes/admin/lock-all-grades', payload),
+  auditLogs: (classId) => http.get(`/classes/${classId}/audit-logs`),
+  allAuditLogs: () => http.get('/classes/audit-logs/all'),
   updateGradeConfig: (classId, config) =>
     http.patch(`/classes/${classId}/grade-config`, config),
   studentGroups: () => http.get('/classes/student-groups'),

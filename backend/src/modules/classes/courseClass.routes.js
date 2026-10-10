@@ -10,6 +10,11 @@ const router = Router();
 
 router.use(authenticate);
 
+// Admin gradebook overview & batch locking (must precede /:id)
+router.get('/admin/gradebook-overview', authorize(ROLES.ADMIN), controller.adminGradebookOverview);
+router.post('/admin/lock-all-grades', authorize(ROLES.ADMIN), controller.lockAllGrades);
+router.get('/audit-logs/all', authorize(ROLES.ADMIN), controller.allGradeAuditLogs);
+
 // Open classes inside the registration window (students browse these).
 router.get('/open', controller.listOpen);
 // All classes of a course (admin course-detail page).
@@ -18,7 +23,11 @@ router.get('/student-groups', authorize(ROLES.ADMIN, ROLES.TEACHER), controller.
 router.get('/', controller.list);
 router.get('/next-code', authorize(ROLES.ADMIN, ROLES.TEACHER), controller.getNextCode);
 router.get('/:id', controller.getOne);
-router.patch('/:id/students/:studentId/grades', authorize(ROLES.TEACHER), validate(updateStudentGradesSchema), controller.updateStudentGrades);
+
+// Student grades and gradebook configuration
+router.patch('/:id/students/:studentId/grades', authorize(ROLES.ADMIN, ROLES.TEACHER), validate(updateStudentGradesSchema), controller.updateStudentGrades);
+router.patch('/:id/grade-lock', authorize(ROLES.ADMIN), controller.toggleGradeLock);
+router.get('/:id/audit-logs', authorize(ROLES.ADMIN, ROLES.TEACHER), controller.gradeAuditLogs);
 router.patch('/:id/grade-config', authorize(ROLES.ADMIN, ROLES.TEACHER), validate(updateGradeConfigSchema), controller.updateGradeConfig);
 router.get('/:id/students', authorize(ROLES.ADMIN, ROLES.TEACHER), controller.students);
 

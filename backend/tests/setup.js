@@ -6,11 +6,15 @@ import { MongoMemoryReplSet } from 'mongodb-memory-server';
 // work and a real Atlas cluster is never touched.
 process.env.NODE_ENV = 'test';
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-secret-value-please-change';
+process.env.MONGOMS_STARTUP_TIMEOUT = '60000';
 
 let replSet;
 
 beforeAll(async () => {
-  replSet = await MongoMemoryReplSet.create({ replSet: { count: 1 } });
+  replSet = await MongoMemoryReplSet.create({
+    replSet: { count: 1 },
+    instanceOpts: [{ launchTimeout: 60000 }],
+  });
   const uri = replSet.getUri();
   await mongoose.connect(uri);
 });

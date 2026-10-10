@@ -676,4 +676,112 @@ describe('Course classes', () => {
     expect(resConfig.status).toBe(400);
     expect(resConfig.body.error.details?.[0]?.message || resConfig.body.error.message).toMatch(/Không thể chọn cùng một bài Quiz/i);
   });
+
+  it('allows Admin to view gradebook overview, lock gradebook, and records Audit Logs on grade changes', async () => {
+    const courseDoc = await Course.findOne({ id: 'IT101' });
+    const teacherDoc = await Teacher.findOne({ id: 96 });
+
+    const cls = await CourseClass.create(baseClass({
+      id: 'IT101-GB1',
+      room: 'D-GB1',
+      courseRef: courseDoc._id,
+      teacherRef: teacherDoc._id,
+      teacherId: 96,
+      schedules: [{ dayId: '4', shiftId: 'C1' }],
+    }));
+
+    const studentUser = await User.create({
+      email: 'student.gb@edu.vn',
+      passwordHash: 'x',
+      role: ROLES.STUDENT,
+      hoTen: 'Sinh viên GB',
+    });
+    const studentDoc = await Student.create({
+      userId: studentUser._id,
+      id: 202611,
+      hoTen: 'Sinh viên GB',
+      email: 'student.gb@edu.vn',
+      department: 'CNTT',
+    });
+
+    await Enrollment.create({
+      student: studentDoc._id,
+      studentRef: studentDoc._id,
+      studentId: 202611,
+      classRef: cls._id,
+      classId: 'IT101-GB1',
+      courseRef: courseDoc._id,
+      manualGrades: { midterm: 7.0, final: 8.0 },
+      finalScore: 7.6,
+    });
+
+    // 1. GET /api/classes/admin/gradebook-overview
+    const resOverview = await request(app)
+      .get('/api/classes/admin/gradebook-overview')
+      .set(authHeader(adminToken));
+
+    expect(resOverview.status).toBe(200);
+    expect(resOverview.body.totalClasses).toBeGreaterThan(0);
+    expect(resOverview.body.classes.some((c) => c.id === 'IT101-GB1')).toBe(true);
+
+    // 2. Admin overrides grade with reason -> creates GradeAuditLog
+    const resOverride = await request(app)
+      .patch(`/api/classes/${cls._id}/students/${studentDoc._id}/grades`)
+      .set(authHeader(adminToken))
+      .send({
+        grades: { final: 9.5 },
+        reason: 'Phúc khảo theo đơn số 09/PK',
+      });
+
+    expect(resOverride.status).toBe(200);
+    expect(resOverride.body.manualGrades.final).toBe(9.5);
+
+    // 3. GET /api/classes/:id/audit-logs
+    const resAudit = await request(app)
+      .get(`/api/classes/${cls._id}/audit-logs`)
+      .set(authHeader(adminToken));
+
+    expect(resAudit.status).toBe(200);
+    expect(resAudit.body.length).toBeGreaterThan(0);
+    const log = resAudit.body[0];
+    expect(log.oldScore).toBe(8.0);
+    expect(log.newScore).toBe(9.5);
+    expect(log.reason).toBe('Phúc khảo theo đơn số 09/PK');
+
+    // 4. Admin locks the class gradebook
+    const resLock = await request(app)
+      .patch(`/api/classes/${cls._id}/grade-lock`)
+      .set(authHeader(adminToken))
+      .send({ lock: true });
+
+    expect(resLock.status).toBe(200);
+    expect(resLock.body.isGradeLocked).toBe(true);
+
+    // 5. Teacher attempts to update grades while locked -> 403 Forbidden
+    const { token: teacherToken } = await createUser({
+      role: ROLES.TEACHER,
+      email: 'teacher.gb@edu.vn',
+    });
+    // Link teacher doc to this user
+    await Teacher.findOneAndUpdate({ id: 96 }, { userId: (await User.findOne({ email: 'teacher.gb@edu.vn' }))._id });
+
+    const resTeacherPatch = await request(app)
+      .patch(`/api/classes/${cls._id}/students/${studentDoc._id}/grades`)
+      .set(authHeader(teacherToken))
+      .send({
+        grades: { midterm: 8.5 },
+      });
+
+    expect(resTeacherPatch.status).toBe(403);
+    expect(resTeacherPatch.body.error.message).toMatch(/chốt sổ và khóa/i);
+
+    // 6. Admin unlocks the class
+    const resUnlock = await request(app)
+      .patch(`/api/classes/${cls._id}/grade-lock`)
+      .set(authHeader(adminToken))
+      .send({ lock: false });
+
+    expect(resUnlock.status).toBe(200);
+    expect(resUnlock.body.isGradeLocked).toBe(false);
+  });
 });

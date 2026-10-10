@@ -8,7 +8,7 @@ const router = Router();
 // POST /api/ai/query
 router.post('/query', authenticate, async (req, res, next) => {
   try {
-    const { message } = req.body;
+    const { message, currentPath } = req.body;
     if (!message || !String(message).trim()) {
       return res.status(400).json({ error: 'Nội dung câu hỏi không được để trống' });
     }
@@ -16,6 +16,7 @@ router.post('/query', authenticate, async (req, res, next) => {
     const result = await handleAiAssistantQuery({
       message: String(message).trim(),
       user: req.user,
+      currentPath: currentPath || '',
     });
 
     res.json({

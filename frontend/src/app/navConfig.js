@@ -23,6 +23,7 @@ export const NAV_BY_ROLE = {
     { to: '/admin/departments', label: 'Quản lý khoa', icon: 'fa-building-columns' },
     { to: '/admin/courses', label: 'Quản lý học phần', icon: 'fa-book' },
     { to: '/admin/classes', label: 'Quản lý lớp học phần', icon: 'fa-shapes' },
+    { to: '/admin/gradebook', label: 'Quản lý bảng điểm', icon: 'fa-clipboard-list' },
     { to: '/admin/feedbacks', label: 'Ý kiến & Phản hồi', icon: 'fa-comments' },
     { to: '/admin/profile-requests', label: 'Duyệt yêu cầu', icon: 'fa-user-check' },
   ],

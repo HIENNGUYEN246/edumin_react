@@ -10,7 +10,7 @@ import { EduMinAiAssistant } from '../ai/EduMinAiAssistant.jsx';
 export function AppLayout() {
   const { user } = useAuth();
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-slate-50/60 relative">
+    <div className="flex flex-col h-screen overflow-hidden bg-slate-50/60">
       <Header />
       <div className="flex flex-1 overflow-hidden">
         <Sidebar role={user?.role} />

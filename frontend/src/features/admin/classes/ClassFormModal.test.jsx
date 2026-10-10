@@ -126,9 +126,11 @@ describe('ClassFormModal registration date picker & validation', () => {
       },
     });
 
-    // IT101 has 3 credits (fee auto-calculated: 3 * 500,000 = 1,500,000)
     const feeInput = await screen.findByPlaceholderText(/Tự động: 1.500.000/i);
     expect(feeInput).toBeInTheDocument();
+
+    const autoFeeBtn = screen.getByTitle(/Tính tự động dựa trên số tín chỉ/i);
+    fireEvent.click(autoFeeBtn);
     expect(feeInput.value).toBe('1500000');
 
     // User can customize the fee

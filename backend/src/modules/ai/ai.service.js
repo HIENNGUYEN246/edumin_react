@@ -40,7 +40,137 @@ const SHIFT_LABELS = {
   T1: 'Tối (Tiết 13-15)',
 };
 
-export async function handleAiAssistantQuery({ message, user }) {
+const OUT_OF_SCOPE_KEYWORDS = [
+  'ky tuc xa', 'ktx', 'noi tru', 'phong o',
+  'thu vien', 'muon sach', 'tra sach', 'sach giao trinh',
+  'can tin', 'cang tin', 'nha an', 'an trua', 'do an', 'dat com',
+  'xe buyt', 'xe bus', 'tuyen xe', 'dua don', 'gui xe', 'bai do xe', 've xe', 'giu xe',
+  'hoc bong', 'tro cap', 'tro cap xa hoi', 'mien giam hoc phi',
+  'tuyen sinh', 'xet tuyen', 'thi tuyen sinh', 'nop ho so tuyen sinh',
+  'cau lac bo', 'clb', 'doan hoi', 'hoi sinh vien', 'ngoai khoa', 'tinh nguyen', 'mua he xanh',
+  'y te', 'kham suc khoe', 'bao hiem y te', 'bhyt', 'benh xa', 'thuoc men',
+  'chuyen nganh', 'chuyen khoa', 'bao luu', 'thoi hoc', 'rut ho so',
+  'tot nghiep', 'xet tot nghiep', 'le tot nghiep', 'nhan bang', 'chung chi tot nghiep', 'bang dai hoc',
+  'momo', 'zalopay', 'vnpay', 'quet the', 'vi dien tu', 'cong thanh toan',
+  'cuu sinh vien', 'alumni',
+  'do an tot nghiep', 'khoa luan', 'thuc tap', 'doanh nghiep',
+  'nhan tin rieng', 'chat rieng', 'goi dien',
+  'hop truc tuyen', 'zoom', 'google meet', 'microsoft teams',
+  'wifi', 'mang truong', 'mat khau wifi',
+];
+
+const PAGE_INFO = [
+  {
+    path: '/admin/departments',
+    name: 'Quản lý khoa đào tạo',
+    keywords: ['quan ly khoa', 'khoa dao tao', 'danh sach khoa', 'cac khoa', 'bo mon'],
+    description: 'Bạn có thể xem danh sách các khoa, thêm khoa mới hoặc chỉnh sửa thông tin khoa trực tiếp trên màn hình.',
+  },
+  {
+    path: '/admin/students',
+    name: 'Quản lý sinh viên',
+    keywords: ['quan ly sinh vien', 'danh sach sinh vien', 'ho so sinh vien', 'sinh vien toan truong', 'them sinh vien'],
+    description: 'Bạn có thể tìm kiếm, lọc theo khoa/lớp hoặc thêm mới hồ sơ sinh viên trực tiếp trên màn hình.',
+  },
+  {
+    path: '/admin/teachers',
+    name: 'Quản lý giáo viên',
+    keywords: ['quan ly giang vien', 'quan ly giao vien', 'danh sach giang vien', 'giao vien toan truong', 'them giang vien'],
+    description: 'Bạn có thể tra cứu, phân công khoa hoặc thêm hồ sơ giảng viên trực tiếp trên bảng.',
+  },
+  {
+    path: '/admin/classes',
+    name: 'Quản lý lớp học phần',
+    keywords: ['quan ly lop', 'lop hoc phan', 'mo lop', 'danh sach lop', 'tao lop'],
+    description: 'Bạn có thể tạo lớp học phần mới, xếp giảng viên, phòng học và thời khóa biểu trực tiếp trên màn hình.',
+  },
+  {
+    path: '/admin/gradebook',
+    name: 'Quản lý bảng điểm toàn trường',
+    keywords: ['quan ly bang diem', 'bang diem toan truong', 'chot so diem', 'chot so', 'khoa bang diem', 'phuc khao', 'sua diem', 'audit log'],
+    description: 'Bạn có thể theo dõi bảng điểm tất cả các lớp, can thiệp sửa điểm phúc khảo kèm Audit Log, hoặc chốt sổ khóa bảng điểm toàn trường ngay tại đây.',
+  },
+  {
+    path: '/admin/courses',
+    name: 'Quản lý môn học',
+    keywords: ['quan ly mon hoc', 'danh muc mon hoc', 'danh sach mon hoc', 'mon hoc', 'tin chi'],
+    description: 'Bạn có thể xem và quản lý danh mục môn học, số tín chỉ và mã môn trực tiếp trên màn hình.',
+  },
+  {
+    path: '/admin/profile-requests',
+    name: 'Duyệt yêu cầu hồ sơ',
+    keywords: ['duyet yeu cau', 'yeu cau duyet', 'duyet ho so', 'cho duyet', 'cap nhat ho so'],
+    description: 'Bạn có thể xem xét, duyệt hàng loạt hoặc từ chối các yêu cầu cập nhật hồ sơ trực tiếp tại bảng yêu cầu.',
+  },
+  {
+    path: '/admin/feedbacks',
+    name: 'Quản lý đánh giá sinh viên',
+    keywords: ['quan ly danh gia', 'danh gia sinh vien', 'y kien sinh vien', 'phan hoi sinh vien'],
+    description: 'Bạn có thể theo dõi toàn bộ các ý kiến đóng góp và đánh giá của sinh viên toàn trường tại đây.',
+  },
+  {
+    path: '/accountant/tuition',
+    name: 'Quản lý học phí & công nợ',
+    keywords: ['quan ly hoc phi', 'thu hoc phi', 'cong no', 'dong hoc phi', 'tien hoc'],
+    description: 'Bạn có thể quản lý danh sách thu học phí, ghi nhận thanh toán và duyệt hàng loạt trực tiếp trên bảng.',
+  },
+  {
+    path: '/teacher/classes',
+    name: 'Danh sách Lớp học phần',
+    keywords: ['lop toi phu trach', 'danh sach lop', 'lop hoc phan', 'bang diem'],
+    description: 'Thầy/Cô có thể bấm vào nút "Bảng điểm" của từng lớp để nhập điểm, hoặc bấm "Cấu hình Quiz" trực tiếp trên màn hình.',
+  },
+  {
+    path: '/teacher/attendance',
+    name: 'Điểm danh & Chuyên cần',
+    keywords: ['diem danh', 'chuyen can', 'vang mat', 'di tre'],
+    description: 'Thầy/Cô có thể chọn lớp và ngày học để điểm danh trực tiếp cho từng sinh viên trên bảng.',
+  },
+  {
+    path: '/teacher/schedule',
+    name: 'Lịch dạy giảng viên',
+    keywords: ['lich day', 'thoi khoa bieu', 'tkb', 'tiet day', 'ca day'],
+    description: 'Thầy/Cô có thể theo dõi thời khóa biểu chi tiết theo từng ca học và phòng học trên lưới lịch tuần.',
+  },
+  {
+    path: '/teacher/assignments',
+    name: 'Bài tập & Quiz',
+    keywords: ['bai tap', 'quiz', 'trac nghiem', 'tao quiz', 'de thi'],
+    description: 'Thầy/Cô có thể tạo câu hỏi trắc nghiệm mới và quản lý các bài kiểm tra Quiz trực tiếp trên màn hình.',
+  },
+  {
+    path: '/teacher/documents',
+    name: 'Tài liệu giảng dạy',
+    keywords: ['tai lieu', 'slide', 'bai giang', 'giao trinh'],
+    description: 'Thầy/Cô có thể tải lên và quản lý tài liệu học tập cho các lớp học phần tại đây.',
+  },
+  {
+    path: '/student/timetable',
+    name: 'Thời khóa biểu',
+    keywords: ['thoi khoa bieu', 'tkb', 'lich hoc', 'hom nay hoc gi'],
+    description: 'Bạn đang ở ngay trang Thời khóa biểu rồi đây ạ! Bạn có thể xem lịch học các môn theo từng thứ và ca học trên màn hình.',
+  },
+  {
+    path: '/student/attendance',
+    name: 'Chuyên cần & Điểm số',
+    keywords: ['chuyen can', 'diem danh', 'vang mat', 'xem diem'],
+    description: 'Bạn đang ở ngay trang Điểm danh & Chuyên cần rồi đây ạ! Bạn có thể theo dõi tỷ lệ chuyên cần và điểm số các môn trực tiếp trên màn hình.',
+  },
+  {
+    path: '/student/course-registration',
+    name: 'Đăng ký học phần',
+    keywords: ['dang ky hoc phan', 'dang ky mon', 'huy mon'],
+    description: 'Bạn đang ở ngay trang Đăng ký học phần rồi đây ạ! Bạn có thể chọn các lớp học phần đang mở và đăng ký trực tiếp.',
+  },
+  {
+    path: '/student/tuition',
+    name: 'Học phí của tôi',
+    keywords: ['hoc phi', 'tien hoc', 'cong no'],
+    description: 'Bạn đang ở ngay trang Học phí rồi đây ạ! Bạn có thể xem số tiền cần nộp, thời hạn và trạng thái đóng học phí.',
+  },
+];
+
+export async function handleAiAssistantQuery({ message, user, currentPath = '' }) {
   const rawText = String(message || '').trim();
   const text = normalizeText(rawText);
 
@@ -49,15 +179,84 @@ export async function handleAiAssistantQuery({ message, user }) {
   const isTeacher = role === ROLES.TEACHER || role === 'teacher' || role === 'giao-vien';
   const isStudent = role === ROLES.STUDENT || role === 'student' || role === 'sinh-vien';
 
-  // 1. Navigation: Cấu hình điểm, Trọng số & Quiz
+  // 0. Location / Current Page Awareness
+  if (currentPath) {
+    const normPath = currentPath.toLowerCase().trim();
+    const currentPageMatch = PAGE_INFO.find((p) => normPath === p.path || normPath.startsWith(p.path + '/'));
+    if (currentPageMatch) {
+      const isAskingAboutCurrentPage =
+        currentPageMatch.keywords.some((kw) => text.includes(kw)) ||
+        text.includes('trang nay') ||
+        text.includes('o day') ||
+        text.includes('lam gi o day') ||
+        text.includes('dang o dau');
+
+      if (isAskingAboutCurrentPage) {
+        return {
+          reply: `Dạ, hiện tại bạn đang ở ngay trang **${currentPageMatch.name}** rồi đây ạ! ${currentPageMatch.description}`,
+          intent: 'CURRENT_PAGE_ALREADY',
+          quickLinks: [{ label: `Đang ở trang ${currentPageMatch.name}`, path: currentPageMatch.path }],
+        };
+      }
+    }
+  }
+
+  // 0b. Admin Gradebook Module (Phòng Đào Tạo)
   if (
-    text.includes('cau hinh diem') ||
-    text.includes('diem giua ky') ||
-    text.includes('diem cuoi ky') ||
-    text.includes('trong so') ||
-    text.includes('gan quiz') ||
-    text.includes('nhap diem')
+    text.includes('quan ly bang diem') ||
+    text.includes('bang diem toan truong') ||
+    text.includes('chot so') ||
+    text.includes('khoa bang diem') ||
+    text.includes('phuc khao') ||
+    text.includes('audit log') ||
+    text.includes('lich su sua diem') ||
+    text.includes('can thiep diem') ||
+    text.includes('chot so diem')
   ) {
+    if (isAdmin) {
+      return {
+        reply:
+          'Dạ, Quản trị viên (Phòng Đào tạo) có thể xem toàn cục bảng điểm tất cả các lớp, can thiệp sửa điểm phúc khảo kèm Audit Log, và chốt sổ khóa bảng điểm toàn trường tại trang "Quản lý bảng điểm".',
+        intent: 'NAV_ADMIN_GRADEBOOK',
+        quickLinks: [{ label: 'Quản lý Bảng điểm toàn trường', path: '/admin/gradebook' }],
+      };
+    }
+  }
+
+  // 0c. Out-of-Scope / Unsupported Features Handling
+  const isOutOfScope = OUT_OF_SCOPE_KEYWORDS.some((kw) => text.includes(kw));
+  if (isOutOfScope) {
+    return {
+      reply:
+        'Dạ, hiện tại hệ thống EduMin chưa hỗ trợ tính năng này hoặc không có mục đó trong phần quản lý của bạn.\n\n' +
+        'EduMin hiện tập trung hỗ trợ các nghiệp vụ quản lý đào tạo cốt lõi:\n' +
+        '• **Quản lý lớp học phần & Bảng điểm sinh viên**\n' +
+        '• **Cấu hình trọng số điểm & Đồng bộ bài Quiz**\n' +
+        '• **Điểm danh & Theo dõi chuyên cần**\n' +
+        '• **Thời khóa biểu & Lịch giảng dạy**\n' +
+        '• **Đăng ký học phần & Quản lý học phí**\n' +
+        '• **Bài tập trắc nghiệm & Tài liệu học tập**\n' +
+        '• **Duyệt yêu cầu cập nhật hồ sơ & Ý kiến sinh viên**',
+      intent: 'OUT_OF_SCOPE',
+      quickLinks: [
+        { label: 'Trang Tổng quan', path: isTeacher ? '/teacher' : isStudent ? '/student' : '/admin' },
+      ],
+    };
+  }
+
+  // 1. Navigation: Cấu hình điểm, Trọng số & Quiz (Priority before generic grades)
+  const isGradeConfig =
+    text.includes('cau hinh diem') ||
+    text.includes('cau hinh quiz') ||
+    text.includes('gan quiz') ||
+    text.includes('trong so') ||
+    text.includes('ty le diem') ||
+    text.includes('trong so diem') ||
+    text.includes('lien ket quiz') ||
+    text.includes('chon quiz cho') ||
+    text.includes('cai dat diem');
+
+  if (isGradeConfig) {
     if (isTeacher) {
       return {
         reply:
@@ -78,6 +277,58 @@ export async function handleAiAssistantQuery({ message, user }) {
       reply:
         'Hệ thống EduMin cho phép cấu hình tỷ lệ trọng số điểm (%) gồm: Chuyên cần, Bài tập, Giữa kỳ, Cuối kỳ sao cho tổng bằng 100%. Bạn có thể cấu hình khi tạo/sửa lớp học phần hoặc trong bảng điểm của giảng viên.',
       intent: 'NAV_GRADE_CONFIG',
+      quickLinks: [{ label: 'Quản lý Lớp học phần', path: '/admin/classes' }],
+    };
+  }
+
+  // 2. Navigation: Điểm số, Bảng điểm, Nhập điểm, Điểm sinh viên (Priority before generic students)
+  const isGrades =
+    text.includes('phan diem') ||
+    text.includes('diem sinh vien') ||
+    text.includes('diem cua sinh vien') ||
+    text.includes('bang diem') ||
+    text.includes('nhap diem') ||
+    text.includes('so diem') ||
+    text.includes('gpa') ||
+    text.includes('diem thi') ||
+    text.includes('diem so') ||
+    text.includes('diem giua ky') ||
+    text.includes('diem cuoi ky') ||
+    text.includes('diem qua trinh') ||
+    text.includes('diem trung binh') ||
+    text.includes('diem tong ket') ||
+    text.includes('xem diem') ||
+    text.includes('tinh diem') ||
+    text.includes('sua diem') ||
+    text.includes('cham diem') ||
+    text.includes('tra cuu diem') ||
+    text.includes('ket qua hoc tap') ||
+    text.includes('ket qua thi') ||
+    text === 'diem' ||
+    text.startsWith('diem ') ||
+    text.endsWith(' diem');
+
+  if (isGrades && !text.includes('diem danh')) {
+    if (isTeacher) {
+      return {
+        reply:
+          'Dạ, để nhập hoặc theo dõi bảng điểm của sinh viên, bạn vào mục "Lớp học phần", chọn lớp tương ứng và bấm nút "Bảng điểm". Tại đây bạn có thể nhập điểm trực tiếp cho sinh viên, xem điểm chuyên cần tự động đồng bộ từ module Điểm danh, hoặc đồng bộ điểm Giữa kỳ/Cuối kỳ từ bài Quiz trực tuyến.',
+        intent: 'NAV_GRADES',
+        quickLinks: [{ label: 'Bảng điểm Lớp học phần', path: '/teacher/classes' }],
+      };
+    }
+    if (isStudent) {
+      return {
+        reply:
+          'Dạ, bạn có thể theo dõi kết quả học tập, điểm số các môn và tỷ lệ chuyên cần của mình tại mục "Điểm danh & Chuyên cần".',
+        intent: 'NAV_GRADES',
+        quickLinks: [{ label: 'Xem Điểm & Chuyên cần', path: '/student/attendance' }],
+      };
+    }
+    return {
+      reply:
+        'Dạ, bạn có thể theo dõi danh sách lớp học phần, sĩ số và quản lý điểm số các môn tại mục "Quản lý lớp học phần".',
+      intent: 'NAV_GRADES',
       quickLinks: [{ label: 'Quản lý Lớp học phần', path: '/admin/classes' }],
     };
   }
@@ -304,8 +555,10 @@ export async function handleAiAssistantQuery({ message, user }) {
   // 8. Data & Action: Yêu cầu duyệt hồ sơ (Admin)
   if (
     text.includes('yeu cau duyet') ||
+    text.includes('duyet yeu cau') ||
     text.includes('duyet ho so') ||
     text.includes('cho duyet') ||
+    text.includes('cap nhat ho so') ||
     text.includes('profile request')
   ) {
     if (isAdmin) {
@@ -408,7 +661,109 @@ export async function handleAiAssistantQuery({ message, user }) {
     }
   }
 
-  // 12. Navigation: Đổi mật khẩu & Hồ sơ cá nhân
+  // 12. Navigation: Lớp học phần
+  if (
+    text.includes('lop hoc phan') ||
+    text.includes('quan ly lop') ||
+    text.includes('mo lop') ||
+    text.includes('danh sach lop')
+  ) {
+    if (isTeacher) {
+      return {
+        reply: 'Dạ, bạn có thể xem danh sách các lớp học phần mình đang phụ trách và vào bảng điểm tại mục "Lớp học phần".',
+        intent: 'NAV_CLASSES',
+        quickLinks: [{ label: 'Danh sách Lớp học phần', path: '/teacher/classes' }],
+      };
+    }
+    return {
+      reply: 'Dạ, bạn có thể mở lớp mới, xếp giảng viên, phòng học và thời khóa biểu tại mục "Quản lý lớp học phần".',
+      intent: 'NAV_CLASSES',
+      quickLinks: [{ label: 'Quản lý Lớp học phần', path: '/admin/classes' }],
+    };
+  }
+
+  // 13. Navigation: Quản lý Khoa đào tạo
+  if (
+    text.includes('quan ly khoa') ||
+    text.includes('danh sach khoa') ||
+    text.includes('cac khoa') ||
+    text.includes('bo mon') ||
+    text.includes('nganh hoc')
+  ) {
+    return {
+      reply: 'Dạ, bạn có thể xem và quản lý danh sách các khoa đào tạo tại mục "Quản lý khoa" ở menu bên trái.',
+      intent: 'NAV_DEPARTMENTS',
+      quickLinks: [{ label: 'Quản lý Khoa', path: '/admin/departments' }],
+    };
+  }
+
+  // 14. Navigation: Quản lý Môn học
+  if (
+    text.includes('quan ly mon hoc') ||
+    text.includes('danh muc mon hoc') ||
+    text.includes('danh sach mon hoc') ||
+    text.includes('mon hoc')
+  ) {
+    return {
+      reply: 'Dạ, bạn có thể xem và quản lý danh mục môn học, số tín chỉ và mã môn tại mục "Quản lý môn học" ở menu bên trái.',
+      intent: 'NAV_COURSES',
+      quickLinks: [{ label: 'Quản lý Môn học', path: '/admin/courses' }],
+    };
+  }
+
+  // 15. Navigation: Quản lý Giảng viên
+  if (
+    text.includes('danh sach giang vien') ||
+    text.includes('quan ly giang vien') ||
+    text.includes('quan ly giao vien') ||
+    text.includes('giang vien') ||
+    text.includes('giao vien')
+  ) {
+    return {
+      reply: 'Dạ, để xem danh sách giảng viên toàn trường, bạn có thể truy cập nhanh vào mục Quản lý giáo viên ở menu bên trái.',
+      intent: 'NAV_TEACHERS',
+      quickLinks: isAdmin
+        ? [
+            { label: 'Quản lý Giảng viên', path: '/admin/teachers' },
+            { label: 'Tài khoản Giảng viên', path: '/admin/teacher-accounts' },
+          ]
+        : [{ label: 'Quản lý Giảng viên', path: '/admin/teachers' }],
+    };
+  }
+
+  // 16. Navigation: Danh sách sinh viên & Quản lý sinh viên (Checked after specific features)
+  if (
+    text.includes('danh sach sinh vien') ||
+    text.includes('quan ly sinh vien') ||
+    text.includes('tai khoan sinh vien') ||
+    text.includes('ho so sinh vien') ||
+    text.includes('sinh vien toan truong') ||
+    text.includes('them sinh vien') ||
+    text.includes('sinh vien') ||
+    text.includes('hoc sinh') ||
+    text === 'sv' ||
+    text.startsWith('sv ')
+  ) {
+    return {
+      reply: 'Dạ, để xem danh sách sinh viên, bạn có thể truy cập nhanh vào mục Quản lý sinh viên ở menu bên trái.',
+      intent: 'NAV_STUDENTS',
+      quickLinks: isAdmin
+        ? [
+            { label: 'Quản lý sinh viên', path: '/admin/students' },
+            { label: 'Tài khoản sinh viên', path: '/admin/student-accounts' },
+          ]
+        : isTeacher
+        ? [
+            { label: 'Lớp học phần phụ trách', path: '/teacher/classes' },
+            { label: 'Tra cứu Sinh viên', path: '/admin/students' },
+          ]
+        : [
+            { label: 'Hồ sơ cá nhân', path: '/student' },
+          ],
+    };
+  }
+
+  // 17. Navigation: Đổi mật khẩu & Hồ sơ cá nhân
   if (text.includes('doi mat khau') || text.includes('cap nhat thong tin') || text.includes('ho so')) {
     return {
       reply:
@@ -421,18 +776,44 @@ export async function handleAiAssistantQuery({ message, user }) {
     };
   }
 
-  // Default fallback response with suggested prompts
+  // 18. Lời chào & Giới thiệu
+  if (
+    text.includes('xin chao') ||
+    text.includes('chao ban') ||
+    text.includes('hello') ||
+    text.includes('hi') ||
+    text.includes('ban la ai') ||
+    text.includes('tro ly ao')
+  ) {
+    return {
+      reply:
+        'Xin chào! Tôi là **EduMin AI Assistant**. Tôi có thể hỗ trợ bạn điều hướng và giải đáp về các nghiệp vụ trong hệ thống như: Bảng điểm & Trọng số, Điểm danh & Chuyên cần, Thời khóa biểu, Đăng ký học phần, Bài tập & Quiz, Quản lý sinh viên & Duyệt hồ sơ.',
+      intent: 'GREETING',
+      quickLinks: [
+        { label: 'Trang Tổng quan', path: isTeacher ? '/teacher' : isStudent ? '/student' : '/admin' },
+      ],
+    };
+  }
+
+  // Default fallback response for out-of-scope / non-existent / unrecognized features
   const suggestions = isTeacher
     ? ['Lịch dạy của tôi tuần này', 'Làm sao để cấu hình điểm giữa kỳ?', 'Danh sách lớp tôi phụ trách', 'Xem phản hồi từ sinh viên']
     : isStudent
     ? ['Thời khóa biểu của tôi', 'Đăng ký học phần ở đâu?', 'Xem điểm danh & chuyên cần', 'Xem bài tập & làm quiz']
-    : ['Thống kê hệ thống', 'Yêu cầu duyệt hồ sơ chờ xử lý', 'Quản lý tài khoản giảng viên', 'Quản lý lớp học phần'];
+    : ['Quản lý bảng điểm toàn trường', 'Thống kê hệ thống', 'Yêu cầu duyệt hồ sơ chờ xử lý', 'Quản lý lớp học phần'];
 
   return {
     reply:
-      `Xin chào ${user?.hoTen || 'bạn'}! Tôi là EduMin AI Assistant. Tôi có thể giúp bạn dẫn đường đến các tính năng, giải đáp cách thao tác, và tra cứu dữ liệu nhanh chóng trong hệ thống.\n\n` +
-      'Bạn có thể gõ câu hỏi tự nhiên hoặc bấm vào một trong các gợi ý bên dưới:',
-    intent: 'FALLBACK_HELP',
+      'Dạ, hiện tại hệ thống EduMin chưa hỗ trợ tính năng này hoặc không có mục đó trong phần quản lý của bạn.\n\n' +
+      'EduMin hiện tập trung hỗ trợ các nghiệp vụ quản lý đào tạo cốt lõi:\n' +
+      '• **Quản lý lớp học phần & Bảng điểm sinh viên**\n' +
+      '• **Cấu hình trọng số điểm & Đồng bộ bài Quiz**\n' +
+      '• **Điểm danh & Theo dõi chuyên cần**\n' +
+      '• **Thời khóa biểu & Lịch giảng dạy**\n' +
+      '• **Đăng ký học phần & Quản lý học phí**\n' +
+      '• **Bài tập trắc nghiệm & Tài liệu học tập**\n' +
+      '• **Quản lý danh sách sinh viên & Duyệt hồ sơ**',
+    intent: 'OUT_OF_SCOPE',
     suggestions,
     quickLinks: [
       { label: 'Trang Tổng quan', path: isTeacher ? '/teacher' : isStudent ? '/student' : '/admin' },

@@ -12,9 +12,11 @@ const SIZES = {
  * Accessible modal: closes on Escape and backdrop click, locks body scroll,
  * and renders a titled card. Used by every dialog in the app.
  */
-export function Modal({ open, onClose, title, children, size = 'md' }) {
+export function Modal({ open, isOpen, onClose, title, children, size = 'md' }) {
+  const isVisible = Boolean(open ?? isOpen);
+
   useEffect(() => {
-    if (!open) return undefined;
+    if (!isVisible) return undefined;
     const onKey = (e) => {
       if (e.key === 'Escape') onClose?.();
     };
@@ -24,9 +26,9 @@ export function Modal({ open, onClose, title, children, size = 'md' }) {
       document.removeEventListener('keydown', onKey);
       document.body.style.overflow = '';
     };
-  }, [open, onClose]);
+  }, [isVisible, onClose]);
 
-  if (!open) return null;
+  if (!isVisible) return null;
 
   return (
     <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 sm:p-6">

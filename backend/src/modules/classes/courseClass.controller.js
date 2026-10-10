@@ -35,7 +35,27 @@ export const students = asyncHandler(async (req, res) => {
 });
 
 export const updateStudentGrades = asyncHandler(async (req, res) => {
-  res.json(await service.updateStudentGrades(req.params.id, req.params.studentId, req.body.grades, req.user));
+  res.json(await service.updateStudentGrades(req.params.id, req.params.studentId, req.body.grades, req.user, req.body.reason));
+});
+
+export const adminGradebookOverview = asyncHandler(async (req, res) => {
+  res.json(await service.getAdminGradebookOverview(req.query));
+});
+
+export const toggleGradeLock = asyncHandler(async (req, res) => {
+  res.json(await service.toggleGradeLock(req.params.id, req.body, req.user));
+});
+
+export const lockAllGrades = asyncHandler(async (req, res) => {
+  res.json(await service.lockAllGrades(req.body, req.user));
+});
+
+export const gradeAuditLogs = asyncHandler(async (req, res) => {
+  res.json(await service.getGradeAuditLogs(req.params.id));
+});
+
+export const allGradeAuditLogs = asyncHandler(async (_req, res) => {
+  res.json(await service.getGradeAuditLogs());
 });
 
 export const updateGradeConfig = asyncHandler(async (req, res) => {

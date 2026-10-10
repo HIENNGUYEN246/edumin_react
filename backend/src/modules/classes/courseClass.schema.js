@@ -146,6 +146,7 @@ export const updateStudentGradesSchema = z.object({
     practical: manualGrade,
     final: manualGrade,
   }).strict().refine((grades) => Object.keys(grades).length > 0, 'Nhập ít nhất một điểm'),
+  reason: z.string().trim().optional(),
 });
 
 export const updateGradeConfigSchema = z

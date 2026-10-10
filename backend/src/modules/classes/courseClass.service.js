@@ -17,6 +17,7 @@ import { Student } from '../students/student.model.js';
 import { Enrollment } from '../enrollments/enrollment.model.js';
 import { Assignment, Submission } from '../assignments/assignment.model.js';
 import { Attendance } from '../attendance/attendance.model.js';
+import { GradeAuditLog } from './gradeAuditLog.model.js';
 import { sendClassAssignedEmail } from '../../lib/mailer.js';
 
 const POPULATE = [
@@ -645,18 +646,23 @@ export async function listClassStudents(classId, requester) {
   };
 }
 
-export async function updateStudentGrades(classId, studentId, grades, requester) {
+export async function updateStudentGrades(classId, studentId, grades, requester, reason) {
   const cls = mongoose.isValidObjectId(classId)
     ? await CourseClass.findById(classId)
     : await CourseClass.findOne({ id: classId });
   if (!cls) throw AppError.notFound('Không tìm thấy lớp học phần');
 
   if (requester.role === ROLES.TEACHER) {
+    if (cls.isGradeLocked) {
+      throw AppError.forbidden('Bảng điểm của lớp học phần này đã được Phòng Đào tạo chốt sổ và khóa. Giảng viên không thể chỉnh sửa.');
+    }
     const teacher = await Teacher.findById(requester.teacher);
     const teacherRefId = cls.teacherRef?._id ? String(cls.teacherRef._id) : String(cls.teacherRef);
     if (!teacher || teacherRefId !== String(teacher._id)) {
       throw AppError.forbidden('Bạn không phụ trách lớp này');
     }
+  } else if (requester.role !== ROLES.ADMIN) {
+    throw AppError.forbidden('Bạn không có quyền chỉnh sửa điểm');
   }
 
   const enrollment = await Enrollment.findOne({ classRef: cls._id, student: studentId });
@@ -665,7 +671,38 @@ export async function updateStudentGrades(classId, studentId, grades, requester)
   if (!enrollment.manualGrades) {
     enrollment.manualGrades = {};
   }
+
+  const COMPONENT_LABELS = {
+    attendance: 'Điểm chuyên cần',
+    midterm: 'Điểm giữa kỳ',
+    assignment: 'Điểm bài tập',
+    presentation: 'Điểm thuyết trình',
+    practical: 'Điểm thực hành',
+    final: 'Điểm cuối kỳ',
+  };
+
+  const studentDoc = await Student.findById(studentId).select('id hoTen').lean();
   for (const [key, value] of Object.entries(grades)) {
+    const oldScore = enrollment.manualGrades?.[key] ?? null;
+    const newScore = value === '' || value === undefined ? null : value;
+    if (oldScore !== newScore && (requester.role === ROLES.ADMIN || reason)) {
+      await GradeAuditLog.create({
+        classRef: cls._id,
+        classId: cls.id,
+        courseName: cls.courseName || '',
+        studentRef: studentId,
+        studentId: studentDoc?.id || 0,
+        studentName: studentDoc?.hoTen || 'Sinh viên',
+        component: key,
+        componentLabel: COMPONENT_LABELS[key] || key,
+        oldScore,
+        newScore,
+        reason: reason || (requester.role === ROLES.ADMIN ? 'Phòng Đào tạo điều chỉnh điểm số (phúc khảo / can thiệp)' : 'Giảng viên cập nhật điểm'),
+        performedByRef: requester._id,
+        performedByName: requester.hoTen || requester.name || requester.email || 'Admin',
+        performedByRole: requester.role,
+      });
+    }
     enrollment.set(`manualGrades.${key}`, value);
   }
 
@@ -834,4 +871,136 @@ export async function deleteClass(id) {
   }
   await CourseClass.deleteOne({ _id: cls._id });
   return { success: true };
+}
+
+export async function toggleGradeLock(classId, { lock } = {}, requester) {
+  const cls = mongoose.isValidObjectId(classId)
+    ? await CourseClass.findById(classId)
+    : await CourseClass.findOne({ id: classId });
+  if (!cls) throw AppError.notFound('Không tìm thấy lớp học phần');
+
+  const newLockState = lock !== undefined ? Boolean(lock) : !cls.isGradeLocked;
+  cls.isGradeLocked = newLockState;
+  cls.gradeLockedAt = newLockState ? new Date() : null;
+  cls.gradeLockedBy = newLockState ? requester._id : null;
+  await cls.save();
+
+  return {
+    classId: cls.id,
+    isGradeLocked: cls.isGradeLocked,
+    gradeLockedAt: cls.gradeLockedAt,
+    message: cls.isGradeLocked
+      ? `Đã chốt sổ và khóa bảng điểm lớp học phần ${cls.id}`
+      : `Đã mở khóa bảng điểm lớp học phần ${cls.id}`,
+  };
+}
+
+export async function lockAllGrades({ lock = true, department } = {}, requester) {
+  const filter = {};
+  if (department && department !== 'all') {
+    filter.department = department;
+  }
+  const result = await CourseClass.updateMany(filter, {
+    $set: {
+      isGradeLocked: Boolean(lock),
+      gradeLockedAt: lock ? new Date() : null,
+      gradeLockedBy: lock ? requester._id : null,
+    },
+  });
+
+  return {
+    modifiedCount: result.modifiedCount,
+    isGradeLocked: Boolean(lock),
+    message: lock
+      ? `Đã chốt sổ và khóa bảng điểm thành công cho ${result.modifiedCount} lớp học phần`
+      : `Đã mở khóa bảng điểm thành công cho ${result.modifiedCount} lớp học phần`,
+  };
+}
+
+export async function getGradeAuditLogs(classId) {
+  const filter = {};
+  if (classId) {
+    const cls = mongoose.isValidObjectId(classId)
+      ? await CourseClass.findById(classId).select('_id id')
+      : await CourseClass.findOne({ id: classId }).select('_id id');
+    if (cls) {
+      filter.$or = [{ classRef: cls._id }, { classId: cls.id }];
+    }
+  }
+  const logs = await GradeAuditLog.find(filter).sort({ createdAt: -1 }).limit(100).lean();
+  return logs;
+}
+
+export async function getAdminGradebookOverview({ department, teacherId, status, search } = {}) {
+  const filter = {};
+  if (department && department !== 'all') {
+    filter.department = department;
+  }
+  if (teacherId && teacherId !== 'all') {
+    if (mongoose.isValidObjectId(teacherId)) {
+      filter.teacherRef = teacherId;
+    } else {
+      filter.teacherId = Number(teacherId);
+    }
+  }
+  if (status === 'locked') {
+    filter.isGradeLocked = true;
+  } else if (status === 'open') {
+    filter.isGradeLocked = { $ne: true };
+  }
+  if (search) {
+    const s = String(search).trim();
+    filter.$or = [
+      { id: { $regex: s, $options: 'i' } },
+      { courseName: { $regex: s, $options: 'i' } },
+      { className: { $regex: s, $options: 'i' } },
+      { teacher: { $regex: s, $options: 'i' } },
+    ];
+  }
+
+  const classes = await CourseClass.find(filter).sort({ id: 1 }).lean();
+  const classIds = classes.map((c) => c._id);
+
+  // Group enrollments by classRef to compute stats
+  const enrollments = await Enrollment.find({ classRef: { $in: classIds } }).select('classRef finalScore manualGrades').lean();
+  const enrollmentsByClass = new Map();
+  for (const e of enrollments) {
+    const k = String(e.classRef);
+    if (!enrollmentsByClass.has(k)) enrollmentsByClass.set(k, []);
+    enrollmentsByClass.get(k).push(e);
+  }
+
+  const overview = classes.map((c) => {
+    const classEnrolls = enrollmentsByClass.get(String(c._id)) || [];
+    const totalStudents = classEnrolls.length;
+    const gradedStudents = classEnrolls.filter((e) => e.finalScore != null).length;
+    const scores = classEnrolls.map((e) => e.finalScore).filter((s) => s != null);
+    const avgGpa = scores.length > 0 ? Number((scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(2)) : null;
+
+    return {
+      _id: c._id,
+      id: c.id,
+      courseId: c.courseId,
+      courseName: c.courseName,
+      className: c.className,
+      department: c.department,
+      credits: c.credits,
+      teacher: c.teacher,
+      teacherId: c.teacherId,
+      isGradeLocked: Boolean(c.isGradeLocked),
+      gradeLockedAt: c.gradeLockedAt,
+      totalStudents,
+      gradedStudents,
+      avgGpa,
+      gradeWeights: c.gradeWeights,
+      completionRate: totalStudents > 0 ? Number(((gradedStudents / totalStudents) * 100).toFixed(1)) : 0,
+    };
+  });
+
+  return {
+    classes: overview,
+    totalClasses: overview.length,
+    lockedCount: overview.filter((c) => c.isGradeLocked).length,
+    openCount: overview.filter((c) => !c.isGradeLocked).length,
+  };
 }
