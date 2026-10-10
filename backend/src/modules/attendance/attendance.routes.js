@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import mongoose from 'mongoose';
 import { Attendance } from './attendance.model.js';
 import { Student } from '../students/student.model.js';
 import { CourseClass } from '../classes/courseClass.model.js';
@@ -22,16 +23,31 @@ router.get('/', async (req, res, next) => {
   try {
     const { regId, classId, studentId, date, courseId, teacherId } = req.query;
     const filter = {};
+    const andConditions = [];
+
     const targetClass = regId || classId;
     if (targetClass) {
-      filter.$or = [{ regId: String(targetClass) }, { classRef: targetClass }];
+      const targetStr = String(targetClass);
+      const isObjectId = mongoose.isValidObjectId(targetStr);
+      andConditions.push({
+        $or: isObjectId
+          ? [{ regId: targetStr }, { classRef: targetStr }]
+          : [{ regId: targetStr }],
+      });
     }
-    if (studentId) filter.studentId = Number(studentId);
+    if (studentId && !Number.isNaN(Number(studentId))) {
+      filter.studentId = Number(studentId);
+    }
     if (date) filter.date = String(date);
     if (courseId) filter.courseId = String(courseId);
     if (teacherId) {
       const parsedTeacherId = parseTeacherId(teacherId);
-      filter.$or = [{ teacherId: parsedTeacherId }, { teacherId: String(teacherId) }];
+      andConditions.push({
+        $or: [{ teacherId: parsedTeacherId }, { teacherId: String(teacherId) }],
+      });
+    }
+    if (andConditions.length > 0) {
+      filter.$and = andConditions;
     }
 
     const records = await Attendance.find(filter)

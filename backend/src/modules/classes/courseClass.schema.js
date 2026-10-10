@@ -57,6 +57,7 @@ export const baseClassSchema = z.object({
   teacherId: z.coerce.number().int().positive({ message: 'Chọn giáo viên phụ trách' }),
   room: z.string().trim().min(1, 'Nhập phòng học'),
   capacity: z.number().int().min(10, 'Sĩ số tối đa phải lớn hơn hoặc bằng 10'),
+  fee: z.coerce.number().min(0).optional(),
   schedules: z.array(scheduleSlot)
     .min(1, 'Cần ít nhất một buổi học')
     .refine((slots) => new Set(slots.map((slot) => `${slot.dayId}:${slot.shiftId}`)).size === slots.length, 'Lịch học không được trùng buổi'),
@@ -71,6 +72,8 @@ export const baseClassSchema = z.object({
     presentation: 0,
     final: 50,
   }),
+  midtermQuizId: z.string().nullable().optional(),
+  finalQuizId: z.string().nullable().optional(),
   status: z.enum(CLASS_STATUS),
 });
 
@@ -144,3 +147,16 @@ export const updateStudentGradesSchema = z.object({
     final: manualGrade,
   }).strict().refine((grades) => Object.keys(grades).length > 0, 'Nhập ít nhất một điểm'),
 });
+
+export const updateGradeConfigSchema = z
+  .object({
+    midtermQuizId: z.union([z.string().trim(), z.null()]).optional(),
+    finalQuizId: z.union([z.string().trim(), z.null()]).optional(),
+  })
+  .refine(
+    (data) => !data.midtermQuizId || !data.finalQuizId || data.midtermQuizId !== data.finalQuizId,
+    {
+      message: 'Không thể chọn cùng một bài Quiz cho cả Giữa kỳ và Cuối kỳ',
+      path: ['finalQuizId'],
+    }
+  );

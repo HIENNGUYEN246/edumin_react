@@ -131,19 +131,21 @@ export const GRADE_COMPONENTS = [
 ];
 
 export function calculateGpa(grades, weights = DEFAULT_GRADE_WEIGHTS) {
-  if (!grades) return null;
-  const currentWeights = { ...DEFAULT_GRADE_WEIGHTS, ...weights };
+  if (!grades || typeof grades !== 'object') return null;
+  const currentWeights = { ...DEFAULT_GRADE_WEIGHTS, ...(weights || {}) };
   let totalWeightedScore = 0;
   let totalWeight = 0;
   let hasAnyScore = false;
 
   for (const { key } of GRADE_COMPONENTS) {
-    const weight = Number(currentWeights[key] ?? 0);
+    const rawWeight = Number(currentWeights[key] ?? 0);
+    const weight = Number.isFinite(rawWeight) && rawWeight > 0 ? rawWeight : 0;
     if (weight <= 0) continue;
+
     const rawVal = grades[key];
     if (rawVal !== null && rawVal !== undefined && rawVal !== '') {
       const score = Number(rawVal);
-      if (!Number.isNaN(score)) {
+      if (Number.isFinite(score)) {
         totalWeightedScore += score * weight;
         totalWeight += weight;
         hasAnyScore = true;
@@ -153,14 +155,113 @@ export function calculateGpa(grades, weights = DEFAULT_GRADE_WEIGHTS) {
 
   if (!hasAnyScore || totalWeight <= 0) return null;
   const gpa = totalWeightedScore / totalWeight;
-  return Number(gpa.toFixed(2));
+  return Number.isFinite(gpa) ? Number(gpa.toFixed(2)) : null;
 }
 
 export function getGpaClassification(gpa) {
-  if (gpa == null) return { text: 'Chưa có điểm', tone: 'neutral' };
+  if (gpa == null || !Number.isFinite(gpa)) return { text: 'Chưa có điểm', tone: 'neutral' };
   if (gpa >= 8.5) return { text: 'Giỏi', tone: 'success', letter: 'A' };
   if (gpa >= 7.0) return { text: 'Khá', tone: 'primary', letter: 'B' };
   if (gpa >= 5.5) return { text: 'Trung bình', tone: 'warning', letter: 'C' };
   if (gpa >= 4.0) return { text: 'Yếu', tone: 'caution', letter: 'D' };
   return { text: 'Kém', tone: 'danger', letter: 'F' };
+}
+
+export const DEFAULT_CREDIT_PRICE = 500000; // 500.000 VNĐ / tín chỉ
+
+/**
+ * Calculate standard fee for a course based on its credits and credit price.
+ * If course already has a custom fee >= 0, returns that fee.
+ */
+export function calculateCourseFee(course, creditPrice = DEFAULT_CREDIT_PRICE) {
+  if (!course) return 0;
+  const rawCredits = Number(course.credits);
+  const credits = Number.isFinite(rawCredits) && rawCredits > 0 ? rawCredits : 0;
+  if (course.fee !== null && course.fee !== undefined && course.fee !== '') {
+    const customFee = Number(course.fee);
+    if (Number.isFinite(customFee) && customFee >= 0) {
+      return customFee;
+    }
+  }
+  const unitPrice = Number.isFinite(Number(creditPrice)) ? Number(creditPrice) : DEFAULT_CREDIT_PRICE;
+  return credits * unitPrice;
+}
+
+/**
+ * Smart default suggestion for grade weights based on course credits and name/type.
+ */
+export function suggestGradeWeights(course) {
+  if (!course) return { ...DEFAULT_GRADE_WEIGHTS };
+  if (course.gradeWeights && typeof course.gradeWeights === 'object') {
+    const sum = Object.values(course.gradeWeights).reduce((a, b) => a + (Number(b) || 0), 0);
+    if (Math.abs(sum - 100) < 0.01) {
+      return { ...course.gradeWeights };
+    }
+  }
+
+  const name = (course.name || '').toLowerCase();
+  const credits = Number(course.credits) || 3;
+
+  // Practical / Lab / Project courses
+  if (/(thực hành|thí nghiệm|đồ án|chuyên đề|thực tập|lab|project)/.test(name)) {
+    return {
+      attendance: 10,
+      homework: 20,
+      midterm: 10,
+      presentation: 20,
+      final: 40,
+    };
+  }
+
+  // 1-2 credits (light theoretical courses, no major assignments)
+  if (credits <= 2) {
+    return {
+      attendance: 10,
+      homework: 0,
+      midterm: 40,
+      presentation: 0,
+      final: 50,
+    };
+  }
+
+  // 4+ credits (heavy specialized courses)
+  if (credits >= 4) {
+    return {
+      attendance: 10,
+      homework: 15,
+      midterm: 25,
+      presentation: 0,
+      final: 50,
+    };
+  }
+
+  // Standard 3 credits course
+  return {
+    attendance: 10,
+    homework: 10,
+    midterm: 30,
+    presentation: 0,
+    final: 50,
+  };
+}
+
+/**
+ * Human-readable label for the suggested weight preset
+ */
+export function getWeightSuggestionLabel(course) {
+  if (!course) return 'Chuẩn 3 TC';
+  const name = (course.name || '').toLowerCase();
+  const credits = Number(course.credits) || 3;
+  if (course.gradeWeights && typeof course.gradeWeights === 'object') {
+    const sum = Object.values(course.gradeWeights).reduce((a, b) => a + (Number(b) || 0), 0);
+    if (Math.abs(sum - 100) < 0.01) {
+      return 'Theo môn học đã cấu hình';
+    }
+  }
+  if (/(thực hành|thí nghiệm|đồ án|chuyên đề|thực tập|lab|project)/.test(name)) {
+    return 'Môn thực hành / đồ án (10-20-10-20-40)';
+  }
+  if (credits <= 2) return `Môn ${credits} TC (10-0-40-0-50)`;
+  if (credits >= 4) return `Môn ${credits} TC (10-15-25-0-50)`;
+  return 'Chuẩn 3 TC (10-10-30-0-50)';
 }

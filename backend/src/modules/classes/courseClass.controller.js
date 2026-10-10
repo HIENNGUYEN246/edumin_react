@@ -38,6 +38,10 @@ export const updateStudentGrades = asyncHandler(async (req, res) => {
   res.json(await service.updateStudentGrades(req.params.id, req.params.studentId, req.body.grades, req.user));
 });
 
+export const updateGradeConfig = asyncHandler(async (req, res) => {
+  res.json(await service.updateGradeConfig(req.params.id, req.body, req.user));
+});
+
 export const create = asyncHandler(async (req, res) => {
   res.status(201).json(await service.createClass(req.body));
 });

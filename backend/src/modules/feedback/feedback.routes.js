@@ -1,10 +1,23 @@
 import { Router } from 'express';
+import mongoose from 'mongoose';
 import { Feedback } from './feedback.model.js';
 import { Student } from '../students/student.model.js';
 import { Teacher } from '../teachers/teacher.model.js';
 import { CourseClass } from '../classes/courseClass.model.js';
+import { User } from '../auth/user.model.js';
+import { verifyToken } from '../../lib/jwt.js';
+import { ROLES } from '../../lib/roles.js';
 
 const router = Router();
+
+const isStudentRole = (role) =>
+  role === 'student' || role === 'sinh-vien' || role === ROLES.STUDENT;
+
+const isTeacherRole = (role) =>
+  role === 'teacher' || role === 'giao-vien' || role === ROLES.TEACHER;
+
+const isAdminRole = (role) =>
+  role === 'admin' || role === 'dao-tao' || role === ROLES.ADMIN;
 
 const parseTeacherId = (val) => {
   if (val === null || val === undefined || val === '') return null;
@@ -39,7 +52,7 @@ router.get('/', async (req, res, next) => {
 
     const list = await Feedback.find(filter)
       .populate('studentRef', 'id hoTen name email avatar className department')
-      .populate('teacherRef', 'id hoTen name email avatar department')
+      .populate('teacherRef', 'id hoTen name email avatar department gender')
       .sort({ createdAt: -1 })
       .lean();
 
@@ -59,8 +72,10 @@ router.get('/', async (req, res, next) => {
 
       const tName = teacher?.hoTen || teacher?.name || item.teacherName || 'Giảng viên';
       const tCode = teacher?.id != null ? teacher.id : item.teacherId;
+      const tGender = teacher?.gender || item.teacherGender || '';
       const tAvatar =
         (typeof teacher?.avatar === 'string' ? teacher.avatar : teacher?.avatar?.url) ||
+        item.teacherAvatar ||
         '';
 
       const pad = (n) => String(n).padStart(2, '0');
@@ -73,6 +88,10 @@ router.get('/', async (req, res, next) => {
         }
       }
 
+      const respName = item.respondedByName || tName;
+      const respAvatar = item.respondedByAvatar || tAvatar;
+      const respRole = item.respondedByRole || (item.response ? 'teacher' : '');
+
       return {
         ...item,
         studentName: sName,
@@ -82,8 +101,12 @@ router.get('/', async (req, res, next) => {
         studentAvatar: item.isAnonymous ? '' : sAvatar,
         displayName: item.isAnonymous ? 'Sinh viên ẩn danh' : sName,
         teacherName: tName,
+        teacherGender: tGender,
         teacherId: tCode,
         teacherAvatar: tAvatar,
+        respondedByName: respName,
+        respondedByAvatar: respAvatar,
+        respondedByRole: respRole,
         createdAtFormatted: createdFormatted,
       };
     });
@@ -162,6 +185,10 @@ router.post('/', async (req, res, next) => {
       '';
 
     const finalTeacherName = teacher?.hoTen || resolvedClass?.teacher || teacherName || 'Giảng viên';
+    const finalTeacherGender = teacher?.gender || '';
+    const finalTeacherAvatar =
+      (typeof teacher?.avatar === 'string' ? teacher.avatar : teacher?.avatar?.url) ||
+      '';
     const finalCourseId = resolvedClass?.courseId || courseId || '';
     const finalCourseName = resolvedClass?.courseName || courseName || '';
     const finalRegId = resolvedClass?.id || regId || '';
@@ -177,6 +204,8 @@ router.post('/', async (req, res, next) => {
       teacherId: teacher?.id || finalTeacherId,
       teacherRef: teacher ? teacher._id : resolvedClass?.teacherRef || null,
       teacherName: finalTeacherName,
+      teacherGender: finalTeacherGender,
+      teacherAvatar: finalTeacherAvatar,
       courseId: finalCourseId,
       courseName: finalCourseName,
       regId: finalRegId,
@@ -214,15 +243,130 @@ router.post('/:id/reply', async (req, res, next) => {
       return res.status(404).json({ error: 'Không tìm thấy phản hồi' });
     }
 
+    // Role & Permission verification
+    const authHeader = String(req.headers.authorization || '');
+    let authenticatedUser = null;
+    if (authHeader.startsWith('Bearer ')) {
+      const token = authHeader.slice(7).trim();
+      try {
+        const payload = verifyToken(token);
+        if (payload?.sub) {
+          authenticatedUser = await User.findById(payload.sub);
+        }
+      } catch {
+        return res.status(401).json({ error: 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn' });
+      }
+    }
+
+    if (authenticatedUser) {
+      if (isStudentRole(authenticatedUser.role)) {
+        return res.status(403).json({ error: 'Sinh viên không có quyền phản hồi ý kiến đánh giá' });
+      }
+
+      if (isTeacherRole(authenticatedUser.role)) {
+        let currentTeacher = null;
+        if (authenticatedUser.teacher) {
+          currentTeacher = await Teacher.findById(authenticatedUser.teacher);
+        } else if (authenticatedUser.teacherId && mongoose.Types.ObjectId.isValid(authenticatedUser.teacherId)) {
+          currentTeacher = await Teacher.findById(authenticatedUser.teacherId);
+        } else {
+          currentTeacher = await Teacher.findOne({ email: authenticatedUser.email });
+        }
+
+        const userTeacherId = currentTeacher?.id ?? authenticatedUser.teacherId;
+        const userTeacherRef = currentTeacher?._id
+          ? String(currentTeacher._id)
+          : authenticatedUser.teacher
+          ? String(authenticatedUser.teacher)
+          : null;
+
+        const fbTeacherId = fb.teacherId;
+        const fbTeacherRef = fb.teacherRef ? String(fb.teacherRef) : null;
+
+        const isMatch =
+          (fbTeacherRef && userTeacherRef && fbTeacherRef === userTeacherRef) ||
+          (userTeacherId != null && fbTeacherId != null && String(userTeacherId) === String(fbTeacherId)) ||
+          (userTeacherRef && fbTeacherId != null && String(userTeacherRef) === String(fbTeacherId));
+
+        let isClassTeacher = false;
+        if (!isMatch && (fb.regId || fb.courseId)) {
+          const cls = await CourseClass.findOne({
+            $or: [{ id: fb.regId }, { courseId: fb.courseId }],
+          });
+          if (cls) {
+            if (
+              (cls.teacherRef && userTeacherRef && String(cls.teacherRef) === userTeacherRef) ||
+              (cls.teacherId != null && userTeacherId != null && String(cls.teacherId) === String(userTeacherId)) ||
+              (cls.teacher && currentTeacher?.hoTen && cls.teacher.trim().toLowerCase() === currentTeacher.hoTen.trim().toLowerCase())
+            ) {
+              isClassTeacher = true;
+            }
+          }
+        }
+
+        if (!isMatch && !isClassTeacher) {
+          return res.status(403).json({
+            error: 'Bạn không phải là giảng viên phụ trách lớp học phần này nên không thể gửi phản hồi',
+          });
+        }
+      } else if (!isAdminRole(authenticatedUser.role)) {
+        return res.status(403).json({ error: 'Bạn không có quyền phản hồi ý kiến đánh giá' });
+      }
+    }
+
+    // Resolve teacher data to guarantee avatar and name belong to the teacher
+    let teacherObj = null;
+    if (fb.teacherRef) {
+      teacherObj = await Teacher.findById(fb.teacherRef);
+    } else if (fb.teacherId) {
+      teacherObj = await Teacher.findOne({ id: fb.teacherId });
+    }
+
+    const tName = teacherObj?.hoTen || teacherObj?.name || fb.teacherName || 'Giảng viên';
+    const tAvatar =
+      (typeof teacherObj?.avatar === 'string' ? teacherObj.avatar : teacherObj?.avatar?.url) ||
+      fb.teacherAvatar ||
+      '';
+
     const now = new Date();
     const pad = (n) => String(n).padStart(2, '0');
     const respondedAt = `${pad(now.getHours())}:${pad(now.getMinutes())} ${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()}`;
 
+    const respondedByName =
+      (isTeacherRole(authenticatedUser?.role) ? (authenticatedUser.hoTen || authenticatedUser.name) : '') ||
+      tName;
+    const respondedByAvatar =
+      (isTeacherRole(authenticatedUser?.role) ? (authenticatedUser.avatar?.url || authenticatedUser.avatar) : '') ||
+      tAvatar;
+
+    const tGender = teacherObj?.gender || '';
+    if (!fb.teacherGender && tGender) {
+      fb.teacherGender = tGender;
+    }
+
     fb.response = response.trim();
     fb.respondedAt = respondedAt;
+    fb.respondedByName = respondedByName;
+    fb.respondedByAvatar = respondedByAvatar;
+    fb.respondedByRole = authenticatedUser?.role || 'teacher';
+    fb.respondedByRef = authenticatedUser?._id || (teacherObj ? teacherObj._id : null);
+    if (!fb.teacherAvatar && tAvatar) {
+      fb.teacherAvatar = tAvatar;
+    }
     await fb.save();
 
-    res.json({ success: true, message: 'Đã gửi phản hồi thành công!', feedback: fb });
+    res.json({
+      success: true,
+      message: 'Đã gửi phản hồi thành công!',
+      feedback: {
+        ...fb.toObject(),
+        teacherName: tName,
+        teacherGender: fb.teacherGender || tGender,
+        teacherAvatar: tAvatar,
+        respondedByName,
+        respondedByAvatar,
+      },
+    });
   } catch (error) {
     next(error);
   }

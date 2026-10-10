@@ -5,12 +5,17 @@ import { FormField, inputClass } from '../../../components/ui/FormField.jsx';
 import { SchedulePicker } from '../../../components/schedule/SchedulePicker.jsx';
 import {
   formatTeacherCode,
+  formatCurrency,
   getTodayDate,
   getNextDate,
   addWeeksToDate,
   addDaysToDate,
   DEFAULT_GRADE_WEIGHTS,
   GRADE_COMPONENTS,
+  DEFAULT_CREDIT_PRICE,
+  calculateCourseFee,
+  suggestGradeWeights,
+  getWeightSuggestionLabel,
 } from '../../../lib/format.js';
 import { teachersApi } from '../../../api/teachersApi.js';
 import { classesApi, CLASS_STATUSES } from '../../../api/classesApi.js';
@@ -24,6 +29,7 @@ const emptyForm = (courseId = '') => ({
   teacherId: '',
   room: '',
   capacity: '',
+  fee: '',
   schedules: [],
   studyStart: '',
   studyEnd: '',
@@ -40,6 +46,7 @@ const emptyForm = (courseId = '') => ({
 export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmit, saving }) {
   const [form, setForm] = useState(emptyForm(courseId));
   const [errors, setErrors] = useState({});
+  const [isCustomFee, setIsCustomFee] = useState(false);
 
   const targetCourseId = courseId || form.courseId;
   const todayStr = getTodayDate();
@@ -69,6 +76,7 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
   // Find the selected course and its department
   const selectedCourse = courses.find((c) => c.id === targetCourseId);
   const courseDepartment = selectedCourse?.department || '';
+  const autoFee = useMemo(() => calculateCourseFee(selectedCourse), [selectedCourse]);
 
   // Filter teachers strictly by the course's department
   const teachers = allTeachers.filter((t) => {
@@ -79,22 +87,32 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
 
   useEffect(() => {
     if (open) {
-      const defaultWeights = selectedCourse?.gradeWeights || DEFAULT_GRADE_WEIGHTS;
-      setForm(initial ? {
-        ...emptyForm(courseId),
-        ...initial,
-        registrationStart: initial.registrationStart ? String(initial.registrationStart).slice(0, 10) : '',
-        registrationEnd: initial.registrationEnd ? String(initial.registrationEnd).slice(0, 10) : '',
-        gradeWeights: initial.gradeWeights
-          ? { ...defaultWeights, ...initial.gradeWeights }
-          : { ...defaultWeights },
-      } : {
-        ...emptyForm(courseId),
-        gradeWeights: { ...defaultWeights },
-      });
+      const suggestedWeights = suggestGradeWeights(selectedCourse);
+      const calculatedAutoFee = calculateCourseFee(selectedCourse);
+      if (initial) {
+        const hasCustomFee = initial.fee !== undefined && initial.fee !== null && initial.fee !== '';
+        setIsCustomFee(hasCustomFee);
+        setForm({
+          ...emptyForm(courseId),
+          ...initial,
+          fee: hasCustomFee ? String(initial.fee) : (calculatedAutoFee > 0 ? String(calculatedAutoFee) : ''),
+          registrationStart: initial.registrationStart ? String(initial.registrationStart).slice(0, 10) : '',
+          registrationEnd: initial.registrationEnd ? String(initial.registrationEnd).slice(0, 10) : '',
+          gradeWeights: initial.gradeWeights
+            ? { ...suggestedWeights, ...initial.gradeWeights }
+            : { ...suggestedWeights },
+        });
+      } else {
+        setIsCustomFee(false);
+        setForm({
+          ...emptyForm(courseId),
+          fee: calculatedAutoFee > 0 ? String(calculatedAutoFee) : '',
+          gradeWeights: { ...suggestedWeights },
+        });
+      }
       setErrors({});
     }
-  }, [open, initial, courseId, selectedCourse?.gradeWeights]);
+  }, [open, initial, courseId, selectedCourse]);
 
   // Sync auto-generated code into form in create mode
   useEffect(() => {
@@ -120,6 +138,34 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
     const val = e.target.value;
     setForm((f) => ({ ...f, [name]: val }));
     if (errors[name]) setErrors((prev) => ({ ...prev, [name]: null }));
+  };
+
+  const handleCourseChange = (e) => {
+    const newCourseId = e.target.value;
+    const newCourse = courses.find((c) => c.id === newCourseId);
+    const suggested = suggestGradeWeights(newCourse);
+    const newAutoFee = calculateCourseFee(newCourse);
+
+    setForm((f) => ({
+      ...f,
+      courseId: newCourseId,
+      gradeWeights: { ...suggested },
+      fee: isCustomFee ? f.fee : (newAutoFee > 0 ? String(newAutoFee) : ''),
+    }));
+    if (errors.courseId) setErrors((prev) => ({ ...prev, courseId: null }));
+  };
+
+  const handleFeeChange = (e) => {
+    const val = e.target.value;
+    setIsCustomFee(val !== '');
+    setForm((f) => ({ ...f, fee: val }));
+    if (errors.fee) setErrors((prev) => ({ ...prev, fee: null }));
+  };
+
+  const handleApplyAutoFee = () => {
+    setIsCustomFee(false);
+    setForm((f) => ({ ...f, fee: autoFee > 0 ? String(autoFee) : '' }));
+    if (errors.fee) setErrors((prev) => ({ ...prev, fee: null }));
   };
 
   const handleRegistrationStartChange = (e) => {
@@ -219,11 +265,23 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
     ) {
       next.studyEnd = `Ngày kết thúc phải cách ngày bắt đầu ít nhất ${CLASS_DURATION_WEEKS} tuần`;
     }
-    if (totalWeight !== 100) {
+    if (Math.abs(totalWeight - 100) > 0.01) {
       next.gradeWeights = `Tổng trọng số các cột điểm phải bằng đúng 100% (hiện tại: ${totalWeight}%)`;
+    }
+    if (
+      form.fee !== '' &&
+      form.fee !== null &&
+      form.fee !== undefined &&
+      (Number.isNaN(Number(form.fee)) || Number(form.fee) < 0)
+    ) {
+      next.fee = 'Học phí phải là số lớn hơn hoặc bằng 0';
     }
     setErrors(next);
     if (Object.keys(next).length) return;
+
+    const finalFee = (form.fee !== '' && form.fee !== null && form.fee !== undefined)
+      ? Number(form.fee)
+      : autoFee;
 
     onSubmit({
       id: String(form.id || nextClassCode || '').trim(),
@@ -232,6 +290,7 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
       teacherId: form.teacherId ? Number(form.teacherId) : null,
       room: form.room.trim(),
       capacity: Number(form.capacity),
+      fee: finalFee,
       schedules: form.schedules,
       studyStart: form.studyStart,
       studyEnd: form.studyEnd,
@@ -283,7 +342,7 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
               </FormField>
             ) : (
               <FormField label="Học phần" error={errors.courseId} required>
-                <select className={inputClass} value={form.courseId} disabled={mode === 'edit'} required onChange={set('courseId')}>
+                <select className={inputClass} value={form.courseId} disabled={mode === 'edit'} required onChange={handleCourseChange}>
                   <option value="">-- Chọn học phần --</option>
                   {courses.map((c) => (
                     <option key={c.id} value={c.id}>
@@ -322,7 +381,7 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
                   <>
                     <option value="">-- Chọn giáo viên --</option>
                     {teachers.map((t) => (
-                      <option key={t._id} value={t.id}>
+                      <option key={t._id || t.id} value={t.id}>
                         {t.hoTen} ({formatTeacherCode(t.id)}){t.department ? ` - ${t.department}` : ''}
                       </option>
                     ))}
@@ -350,6 +409,57 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
                 value={form.capacity}
                 onChange={set('capacity')}
               />
+            </FormField>
+
+            <FormField
+              label={
+                <div className="flex items-center justify-between w-full">
+                  <span>Học phí (VND)</span>
+                  <button
+                    type="button"
+                    onClick={handleApplyAutoFee}
+                    className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 transition cursor-pointer"
+                    title="Tính tự động dựa trên số tín chỉ của môn học × 500.000đ"
+                  >
+                    <i className="fas fa-wand-magic-sparkles mr-1" />
+                    Tự động tính
+                  </button>
+                </div>
+              }
+              error={errors.fee}
+            >
+              <div className="relative">
+                <input
+                  type="number"
+                  min="0"
+                  step="10000"
+                  className={inputClass}
+                  placeholder={autoFee > 0 ? `Tự động: ${formatCurrency(autoFee)}` : 'Nhập học phí hoặc để trống'}
+                  value={form.fee}
+                  onChange={handleFeeChange}
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-gray-400 pointer-events-none">
+                  đ
+                </span>
+              </div>
+              <p className="mt-1 text-[11px] text-slate-500">
+                {form.fee === '' ? (
+                  <span className="text-emerald-700 font-medium">
+                    ✓ Để trống: Tự động tính {formatCurrency(autoFee)} ({selectedCourse?.credits || 0} TC × {formatCurrency(DEFAULT_CREDIT_PRICE)})
+                  </span>
+                ) : isCustomFee ? (
+                  <span>
+                    Số tiền tùy chỉnh ({formatCurrency(Number(form.fee) || 0)}).{' '}
+                    <button type="button" onClick={handleApplyAutoFee} className="text-indigo-600 underline font-medium cursor-pointer">
+                      Dùng định mức ({formatCurrency(autoFee)})
+                    </button>
+                  </span>
+                ) : (
+                  <span className="text-indigo-700 font-medium">
+                    Đã điền tự động theo {selectedCourse?.credits || 0} tín chỉ.
+                  </span>
+                )}
+              </p>
             </FormField>
 
             <FormField label="Trạng thái" error={errors.status} required>
@@ -469,27 +579,38 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
           </div>
 
           <div className="flex flex-wrap items-center gap-2 mb-3 text-xs">
-            <span className="text-slate-500 font-medium">Mẫu nhanh:</span>
+            <span className="text-slate-500 font-medium">Gợi ý & Mẫu:</span>
+            {selectedCourse && (
+              <button
+                type="button"
+                onClick={() => applyWeightPreset(suggestGradeWeights(selectedCourse))}
+                className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 font-semibold transition cursor-pointer flex items-center gap-1 shadow-2xs"
+                title="Tự động áp dụng khung trọng số chuẩn gợi ý cho học phần này"
+              >
+                <i className="fas fa-wand-magic-sparkles text-indigo-500 text-[11px]" />
+                Gợi ý cho môn ({getWeightSuggestionLabel(selectedCourse)})
+              </button>
+            )}
             <button
               type="button"
               onClick={() => applyWeightPreset({ attendance: 10, homework: 10, midterm: 30, presentation: 0, final: 50 })}
               className="px-2 py-1 rounded-lg bg-white hover:bg-indigo-50 border border-slate-200 text-slate-700 font-medium transition cursor-pointer"
             >
-              Chuẩn (10-10-30-50)
+              Chuẩn 3 TC (10-10-30-50)
             </button>
             <button
               type="button"
               onClick={() => applyWeightPreset({ attendance: 10, homework: 0, midterm: 40, presentation: 0, final: 50 })}
               className="px-2 py-1 rounded-lg bg-white hover:bg-indigo-50 border border-slate-200 text-slate-700 font-medium transition cursor-pointer"
             >
-              3 cột (10-40-50)
+              2 TC / 3 cột (10-40-50)
             </button>
             <button
               type="button"
-              onClick={() => applyWeightPreset({ attendance: 10, homework: 10, midterm: 20, presentation: 20, final: 40 })}
+              onClick={() => applyWeightPreset({ attendance: 10, homework: 20, midterm: 10, presentation: 20, final: 40 })}
               className="px-2 py-1 rounded-lg bg-white hover:bg-indigo-50 border border-slate-200 text-slate-700 font-medium transition cursor-pointer"
             >
-              Có thuyết trình (10-10-20-20-40)
+              Thực hành / Đồ án (10-20-10-20-40)
             </button>
           </div>
 

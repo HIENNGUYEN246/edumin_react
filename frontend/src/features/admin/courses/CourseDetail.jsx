@@ -52,6 +52,7 @@ export function CourseDetail() {
       mode: 'create',
       initial: {
         courseId: course?.id,
+        fee: course?.fee || ((course?.credits || 0) * 500000),
         gradeWeights: course?.gradeWeights,
       },
     });
@@ -66,6 +67,7 @@ export function CourseDetail() {
         teacherId: cls.teacherId || '',
         room: cls.room || '',
         capacity: cls.capacity || 0,
+        fee: cls.fee !== undefined ? cls.fee : (course?.fee || ((course?.credits || 0) * 500000)),
         schedules: cls.schedules || [],
         studyStart: cls.studyStart || '',
         studyEnd: cls.studyEnd || '',
@@ -267,6 +269,15 @@ export function CourseDetail() {
           {formatRegistrationDateTime(c.registrationStart)}
           {' – '}
           {formatRegistrationDateTime(c.registrationEnd, true)}
+        </span>
+      ),
+    },
+    {
+      key: 'fee',
+      header: 'Học phí',
+      render: (c) => (
+        <span className="font-semibold text-xs text-gray-700 whitespace-nowrap">
+          {formatCurrency(c.fee != null ? c.fee : (course?.fee || ((course?.credits || 0) * 500000)))}
         </span>
       ),
     },

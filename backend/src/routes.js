@@ -15,6 +15,7 @@ import feedbackRoutes from './modules/feedback/feedback.routes.js';
 import notificationRoutes from './modules/notifications/notification.routes.js';
 import profileRequestRoutes from './modules/profileRequests/profileRequest.routes.js';
 import tuitionRoutes from './modules/tuition/tuition.routes.js';
+import aiRoutes from './modules/ai/ai.routes.js';
 
 /**
  * Aggregate router. Feature modules register their sub-routers here.
@@ -37,5 +38,6 @@ apiRouter.use('/feedbacks', feedbackRoutes);
 apiRouter.use('/notifications', notificationRoutes);
 apiRouter.use('/profile-requests', profileRequestRoutes);
 apiRouter.use('/tuition', tuitionRoutes);
+apiRouter.use('/ai', aiRoutes);
 
 export default apiRouter;

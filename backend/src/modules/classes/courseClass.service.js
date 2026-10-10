@@ -13,13 +13,17 @@ import { ROLES } from '../../lib/roles.js';
 import { CourseClass } from './courseClass.model.js';
 import { Course } from '../courses/course.model.js';
 import { Teacher } from '../teachers/teacher.model.js';
+import { Student } from '../students/student.model.js';
 import { Enrollment } from '../enrollments/enrollment.model.js';
 import { Assignment, Submission } from '../assignments/assignment.model.js';
+import { Attendance } from '../attendance/attendance.model.js';
 import { sendClassAssignedEmail } from '../../lib/mailer.js';
 
 const POPULATE = [
   { path: 'courseRef', select: 'id name credits fee department' },
   { path: 'teacherRef', select: 'id hoTen avatar email phone education department' },
+  { path: 'midtermQuizId', select: '_id id title dueDate questions status' },
+  { path: 'finalQuizId', select: '_id id title dueDate questions status' },
 ];
 
 function isPastDue(assignment, now = new Date()) {
@@ -57,6 +61,12 @@ async function buildClassFields(payload) {
     throw AppError.badRequest('Lịch học không hợp lệ');
   }
 
+  const creditPrice = 500000;
+  const autoFee = (course.credits || 0) * creditPrice;
+  const fee = (payload.fee !== undefined && payload.fee !== null && payload.fee !== '')
+    ? Number(payload.fee)
+    : (course.fee != null && course.fee > 0 ? course.fee : autoFee);
+
   return {
     courseRef: course._id,
     courseId: course.id,
@@ -64,7 +74,7 @@ async function buildClassFields(payload) {
     className: payload.className?.trim() || '',
     department: course.department || '',
     credits: course.credits,
-    fee: course.fee,
+    fee,
     teacherRef: teacher?._id || null,
     teacherId: teacher?.id ?? null,
     teacher: teacher?.hoTen || '',
@@ -82,6 +92,8 @@ async function buildClassFields(payload) {
       presentation: 0,
       final: 50,
     },
+    midtermQuizId: payload.midtermQuizId ? payload.midtermQuizId : null,
+    finalQuizId: payload.finalQuizId ? payload.finalQuizId : null,
     status: payload.status || 'Nháp',
   };
 }
@@ -336,12 +348,15 @@ export async function updateClass(id, payload) {
     teacherId: payload.teacherId !== undefined ? payload.teacherId : cls.teacherId,
     room: payload.room !== undefined ? payload.room : cls.room,
     capacity: payload.capacity !== undefined ? payload.capacity : cls.capacity,
+    fee: payload.fee !== undefined ? payload.fee : cls.fee,
     schedules: payload.schedules || cls.schedules,
     studyStart: payload.studyStart !== undefined ? payload.studyStart : cls.studyStart,
     studyEnd: payload.studyEnd !== undefined ? payload.studyEnd : cls.studyEnd,
     registrationStart: payload.registrationStart !== undefined ? payload.registrationStart : cls.registrationStart,
     registrationEnd: payload.registrationEnd !== undefined ? payload.registrationEnd : cls.registrationEnd,
     gradeWeights: payload.gradeWeights !== undefined ? payload.gradeWeights : cls.gradeWeights,
+    midtermQuizId: payload.midtermQuizId !== undefined ? payload.midtermQuizId : cls.midtermQuizId,
+    finalQuizId: payload.finalQuizId !== undefined ? payload.finalQuizId : cls.finalQuizId,
     status: payload.status || cls.status,
   };
   if (
@@ -382,6 +397,7 @@ export async function updateClass(id, payload) {
 }
 
 export function calculateWeightedGpa(grades, weights) {
+  if (!grades) return null;
   const currentWeights = {
     attendance: 10,
     homework: 10,
@@ -396,11 +412,11 @@ export function calculateWeightedGpa(grades, weights) {
 
   for (const key of ['attendance', 'homework', 'midterm', 'presentation', 'final']) {
     const weight = Number(currentWeights[key] ?? 0);
-    if (weight <= 0) continue;
+    if (!Number.isFinite(weight) || weight <= 0) continue;
     const rawVal = grades[key];
     if (rawVal !== null && rawVal !== undefined && rawVal !== '') {
       const score = Number(rawVal);
-      if (!Number.isNaN(score)) {
+      if (!Number.isNaN(score) && Number.isFinite(score)) {
         totalWeightedScore += score * weight;
         totalWeight += weight;
         hasAnyScore = true;
@@ -409,7 +425,9 @@ export function calculateWeightedGpa(grades, weights) {
   }
 
   if (!hasAnyScore || totalWeight <= 0) return null;
-  return Number((totalWeightedScore / totalWeight).toFixed(2));
+  const gpa = totalWeightedScore / totalWeight;
+  if (!Number.isFinite(gpa) || Number.isNaN(gpa)) return null;
+  return Number(gpa.toFixed(2));
 }
 
 /**
@@ -417,6 +435,350 @@ export function calculateWeightedGpa(grades, weights) {
  * teach; admins may view any.
  */
 export async function listClassStudents(classId, requester) {
+  const cls = mongoose.isValidObjectId(classId)
+    ? await CourseClass.findById(classId).populate(POPULATE)
+    : await CourseClass.findOne({ id: classId }).populate(POPULATE);
+  if (!cls) throw AppError.notFound('Không tìm thấy lớp học phần');
+
+  if (requester.role === ROLES.TEACHER) {
+    const teacher = await Teacher.findById(requester.teacher);
+    if (!teacher || String(cls.teacherRef?._id || cls.teacherRef) !== String(teacher._id)) {
+      throw AppError.forbidden('Bạn không phụ trách lớp này');
+    }
+  }
+
+  const enrollments = await Enrollment.find({ classRef: cls._id })
+    .populate({ path: 'student', select: 'id hoTen email className department avatar' })
+    .lean();
+  const students = enrollments.map((enrollment) => enrollment.student).filter(Boolean);
+
+  // 1. Quizzes of this course
+  const allCourseQuizzes = await Assignment.find({
+    courseId: cls.courseId,
+    type: 'quiz',
+  }).select('_id id title dueDate questions status createdByRef').sort({ createdAt: -1 }).lean();
+
+  const midtermQuizIdStr = cls.midtermQuizId?._id ? String(cls.midtermQuizId._id) : (cls.midtermQuizId ? String(cls.midtermQuizId) : null);
+  const finalQuizIdStr = cls.finalQuizId?._id ? String(cls.finalQuizId._id) : (cls.finalQuizId ? String(cls.finalQuizId) : null);
+
+  const midtermQuiz = midtermQuizIdStr
+    ? allCourseQuizzes.find((q) => String(q._id) === midtermQuizIdStr) || await Assignment.findById(midtermQuizIdStr).lean()
+    : null;
+  const finalQuiz = finalQuizIdStr
+    ? allCourseQuizzes.find((q) => String(q._id) === finalQuizIdStr) || await Assignment.findById(finalQuizIdStr).lean()
+    : null;
+
+  // Regular homework quizzes: exclude midterm and final linked quizzes
+  const excludedQuizIds = new Set([midtermQuizIdStr, finalQuizIdStr].filter(Boolean));
+
+  const teacherRefIdStr = cls.teacherRef?._id ? String(cls.teacherRef._id) : (cls.teacherRef ? String(cls.teacherRef) : null);
+  const homeworkQuizAssignments = allCourseQuizzes.filter((q) => {
+    if (excludedQuizIds.has(String(q._id))) return false;
+    if (teacherRefIdStr && q.createdByRef && String(q.createdByRef) !== teacherRefIdStr) return false;
+    return true;
+  });
+
+  const homeworkQuizIds = homeworkQuizAssignments.map((a) => a._id);
+  const expiredHomeworkQuizIds = homeworkQuizAssignments
+    .filter((a) => isPastDue(a))
+    .map((a) => String(a._id));
+
+  // Submissions for homework and linked midterm/final quizzes
+  const allNeededQuizIds = Array.from(new Set([
+    ...homeworkQuizIds.map(String),
+    ...(midtermQuiz ? [String(midtermQuiz._id)] : []),
+    ...(finalQuiz ? [String(finalQuiz._id)] : []),
+  ])).map((id) => new mongoose.Types.ObjectId(id));
+
+  const submissions = allNeededQuizIds.length && students.length
+    ? await Submission.find({
+        assignmentRef: { $in: allNeededQuizIds },
+        student: { $in: students.map((s) => s._id) },
+      }).select('student assignmentRef score').lean()
+    : [];
+
+  const submissionsByStudentAndQuiz = new Map();
+  for (const submission of submissions) {
+    const key = `${submission.student}_${submission.assignmentRef}`;
+    submissionsByStudentAndQuiz.set(key, submission);
+  }
+
+  // 2. Attendance records for this class
+  const attendanceRecords = await Attendance.find({
+    $or: [{ classRef: cls._id }, { regId: cls.id }],
+  }).lean();
+
+  const weights = cls.gradeWeights || { attendance: 10, homework: 10, midterm: 30, presentation: 0, final: 50 };
+
+  const studentsWithGrades = enrollments
+    .filter((enrollment) => enrollment.student)
+    .map((enrollment) => {
+      const student = enrollment.student;
+      const sRefStr = String(student._id);
+      const sIdNum = Number(student.id);
+
+      // --- Attendance calculation ---
+      const studentAttRecords = attendanceRecords.filter((r) =>
+        (r.studentRef && String(r.studentRef) === sRefStr) ||
+        (r.studentId != null && Number(r.studentId) === sIdNum)
+      );
+
+      let present = 0;
+      let late = 0;
+      let excused = 0;
+      let absent = 0;
+      for (const r of studentAttRecords) {
+        if (r.status === 'Có mặt') present += 1;
+        else if (r.status === 'Đi muộn') late += 1;
+        else if (r.status === 'Vắng có phép') excused += 1;
+        else if (r.status === 'Vắng mặt') absent += 1;
+      }
+      const totalAtt = studentAttRecords.length;
+      const attRate = totalAtt > 0 ? Number((((present + 0.5 * late) / totalAtt) * 100).toFixed(1)) : 100;
+      const autoAttendanceScore = totalAtt > 0 ? Number((((present + 0.5 * late) / totalAtt) * 10).toFixed(1)) : null;
+
+      const manualAttendance = enrollment.manualGrades?.attendance ?? null;
+      const effectiveAttendance = manualAttendance !== null ? manualAttendance : autoAttendanceScore;
+
+      // --- Homework calculation ---
+      const hwScores = [];
+      const submittedHwQuizIds = new Set();
+      for (const a of homeworkQuizAssignments) {
+        const sub = submissionsByStudentAndQuiz.get(`${student._id}_${a._id}`);
+        if (sub) {
+          submittedHwQuizIds.add(String(a._id));
+          if (sub.score != null) hwScores.push(sub.score);
+        }
+      }
+      const missedHwQuizCount = expiredHomeworkQuizIds.filter((id) => !submittedHwQuizIds.has(id)).length;
+      const homeworkQuizCount = hwScores.length + missedHwQuizCount;
+      const homeworkGrade = homeworkQuizCount
+        ? Number((hwScores.reduce((sum, score) => sum + score, 0) / homeworkQuizCount).toFixed(1))
+        : null;
+
+      // --- Midterm calculation ---
+      let quizMidtermScore = null;
+      if (midtermQuiz) {
+        const sub = submissionsByStudentAndQuiz.get(`${student._id}_${midtermQuiz._id}`);
+        if (sub && sub.score != null) {
+          quizMidtermScore = sub.score;
+        } else if (isPastDue(midtermQuiz)) {
+          quizMidtermScore = 0;
+        }
+      }
+      const manualMidterm = enrollment.manualGrades?.midterm ?? null;
+      const effectiveMidterm = manualMidterm !== null ? manualMidterm : quizMidtermScore;
+
+      // --- Final calculation ---
+      let quizFinalScore = null;
+      if (finalQuiz) {
+        const sub = submissionsByStudentAndQuiz.get(`${student._id}_${finalQuiz._id}`);
+        if (sub && sub.score != null) {
+          quizFinalScore = sub.score;
+        } else if (isPastDue(finalQuiz)) {
+          quizFinalScore = 0;
+        }
+      }
+      const manualFinal = enrollment.manualGrades?.final ?? null;
+      const effectiveFinal = manualFinal !== null ? manualFinal : quizFinalScore;
+
+      const manualPresentation = enrollment.manualGrades?.presentation ?? null;
+
+      const studentGrades = {
+        attendance: effectiveAttendance,
+        midterm: effectiveMidterm,
+        final: effectiveFinal,
+        presentation: manualPresentation,
+        homework: homeworkGrade,
+      };
+
+      const finalScore = calculateWeightedGpa(studentGrades, weights);
+
+      return {
+        ...student,
+        manualGrades: enrollment.manualGrades || {},
+        effectiveGrades: studentGrades,
+        attendanceStats: {
+          total: totalAtt,
+          present,
+          late,
+          excused,
+          absent,
+          rate: attRate,
+          autoScore: autoAttendanceScore,
+          isOverridden: manualAttendance !== null,
+        },
+        quizMidterm: midtermQuiz ? {
+          quizId: String(midtermQuiz._id),
+          quizTitle: midtermQuiz.title,
+          score: quizMidtermScore,
+          isOverridden: manualMidterm !== null,
+        } : null,
+        quizFinal: finalQuiz ? {
+          quizId: String(finalQuiz._id),
+          quizTitle: finalQuiz.title,
+          score: quizFinalScore,
+          isOverridden: manualFinal !== null,
+        } : null,
+        homeworkGrade,
+        homeworkQuizCount,
+        homeworkQuizTotal: homeworkQuizAssignments.length,
+        finalScore,
+      };
+    });
+
+  return {
+    class: {
+      ...cls.toObject(),
+      enrolledCount: studentsWithGrades.length,
+      midtermQuiz: midtermQuiz ? { _id: midtermQuiz._id, title: midtermQuiz.title } : null,
+      finalQuiz: finalQuiz ? { _id: finalQuiz._id, title: finalQuiz.title } : null,
+    },
+    availableQuizzes: allCourseQuizzes.map((q) => ({
+      _id: q._id,
+      title: q.title,
+      dueDate: q.dueDate,
+      questionCount: q.questions?.length || 0,
+      status: q.status,
+    })),
+    students: studentsWithGrades,
+  };
+}
+
+export async function updateStudentGrades(classId, studentId, grades, requester) {
+  const cls = mongoose.isValidObjectId(classId)
+    ? await CourseClass.findById(classId)
+    : await CourseClass.findOne({ id: classId });
+  if (!cls) throw AppError.notFound('Không tìm thấy lớp học phần');
+
+  if (requester.role === ROLES.TEACHER) {
+    const teacher = await Teacher.findById(requester.teacher);
+    const teacherRefId = cls.teacherRef?._id ? String(cls.teacherRef._id) : String(cls.teacherRef);
+    if (!teacher || teacherRefId !== String(teacher._id)) {
+      throw AppError.forbidden('Bạn không phụ trách lớp này');
+    }
+  }
+
+  const enrollment = await Enrollment.findOne({ classRef: cls._id, student: studentId });
+  if (!enrollment) throw AppError.notFound('Sinh viên không thuộc lớp học phần này');
+
+  if (!enrollment.manualGrades) {
+    enrollment.manualGrades = {};
+  }
+  for (const [key, value] of Object.entries(grades)) {
+    enrollment.set(`manualGrades.${key}`, value);
+  }
+
+  // Calculate effective attendance if manual grade was cleared/null
+  let effectiveAttendance = enrollment.manualGrades?.attendance ?? null;
+  if (effectiveAttendance === null) {
+    const student = await Student.findById(studentId).select('id').lean();
+    if (student) {
+      const records = await Attendance.find({
+        $or: [{ classRef: cls._id }, { regId: cls.id }],
+        $and: [
+          {
+            $or: [
+              { studentRef: student._id },
+              { studentId: student.id },
+            ],
+          },
+        ],
+      }).lean();
+      if (records.length > 0) {
+        let present = 0;
+        let late = 0;
+        for (const r of records) {
+          if (r.status === 'Có mặt') present += 1;
+          else if (r.status === 'Đi muộn') late += 1;
+        }
+        effectiveAttendance = Number((((present + 0.5 * late) / records.length) * 10).toFixed(1));
+      }
+    }
+  }
+
+  // Calculate effective midterm if manual grade was cleared/null
+  let effectiveMidterm = enrollment.manualGrades?.midterm ?? null;
+  if (effectiveMidterm === null && cls.midtermQuizId) {
+    const sub = await Submission.findOne({
+      assignmentRef: cls.midtermQuizId,
+      student: studentId,
+    }).lean();
+    if (sub?.score != null) {
+      effectiveMidterm = sub.score;
+    } else {
+      const quiz = await Assignment.findById(cls.midtermQuizId).lean();
+      if (quiz && isPastDue(quiz)) effectiveMidterm = 0;
+    }
+  }
+
+  // Calculate effective final if manual grade was cleared/null
+  let effectiveFinal = enrollment.manualGrades?.final ?? null;
+  if (effectiveFinal === null && cls.finalQuizId) {
+    const sub = await Submission.findOne({
+      assignmentRef: cls.finalQuizId,
+      student: studentId,
+    }).lean();
+    if (sub?.score != null) {
+      effectiveFinal = sub.score;
+    } else {
+      const quiz = await Assignment.findById(cls.finalQuizId).lean();
+      if (quiz && isPastDue(quiz)) effectiveFinal = 0;
+    }
+  }
+
+  // Calculate effective homework from quizzes if not manually entered
+  let effectiveHomework = enrollment.manualGrades?.assignment ?? null;
+  if (effectiveHomework === null) {
+    const allCourseQuizzes = await Assignment.find({
+      courseId: cls.courseId,
+      type: 'quiz',
+    }).select('_id dueDate createdByRef').lean();
+    const excluded = new Set([
+      cls.midtermQuizId ? String(cls.midtermQuizId) : null,
+      cls.finalQuizId ? String(cls.finalQuizId) : null,
+    ].filter(Boolean));
+    const teacherRefStr = cls.teacherRef?._id ? String(cls.teacherRef._id) : (cls.teacherRef ? String(cls.teacherRef) : null);
+    const hwQuizzes = allCourseQuizzes.filter((q) => {
+      if (excluded.has(String(q._id))) return false;
+      if (teacherRefStr && q.createdByRef && String(q.createdByRef) !== teacherRefStr) return false;
+      return true;
+    });
+    if (hwQuizzes.length > 0) {
+      const hwIds = hwQuizzes.map((q) => q._id);
+      const subs = await Submission.find({
+        assignmentRef: { $in: hwIds },
+        student: studentId,
+      }).select('score assignmentRef').lean();
+      const submittedIds = new Set(subs.map((s) => String(s.assignmentRef)));
+      const scores = subs.map((s) => s.score).filter((s) => s != null);
+      const missedCount = hwQuizzes.filter((q) => isPastDue(q) && !submittedIds.has(String(q._id))).length;
+      const totalCount = scores.length + missedCount;
+      if (totalCount > 0) {
+        effectiveHomework = Number((scores.reduce((a, b) => a + b, 0) / totalCount).toFixed(1));
+      }
+    }
+  }
+
+  const weights = cls.gradeWeights || { attendance: 10, homework: 10, midterm: 30, presentation: 0, final: 50 };
+  const studentGrades = {
+    attendance: effectiveAttendance,
+    midterm: effectiveMidterm,
+    final: effectiveFinal,
+    presentation: enrollment.manualGrades?.presentation ?? null,
+    homework: effectiveHomework,
+  };
+  const finalScore = calculateWeightedGpa(studentGrades, weights);
+  enrollment.finalScore = finalScore;
+  await enrollment.save();
+  return {
+    manualGrades: enrollment.manualGrades.toObject(),
+    effectiveGrades: studentGrades,
+    finalScore,
+  };
+}
+
+export async function updateGradeConfig(classId, config, requester) {
   const cls = mongoose.isValidObjectId(classId)
     ? await CourseClass.findById(classId)
     : await CourseClass.findOne({ id: classId });
@@ -429,87 +791,38 @@ export async function listClassStudents(classId, requester) {
     }
   }
 
-  const enrollments = await Enrollment.find({ classRef: cls._id })
-    .populate({ path: 'student', select: 'id hoTen email className department avatar' })
-    .lean();
-  const students = enrollments.map((enrollment) => enrollment.student).filter(Boolean);
-  const quizAssignments = await Assignment.find({
-    courseId: cls.courseId,
-    type: 'quiz',
-    createdByRef: cls.teacherRef,
-  }).select('_id dueDate').lean();
-  const quizAssignmentIds = quizAssignments.map((assignment) => assignment._id);
-  const expiredQuizIds = quizAssignments.filter((assignment) => isPastDue(assignment)).map((assignment) => String(assignment._id));
-  const submissions = quizAssignmentIds.length && students.length
-    ? await Submission.find({
-      assignmentRef: { $in: quizAssignmentIds },
-      student: { $in: students.map((student) => student._id) },
-    }).select('student assignmentRef score').lean()
-    : [];
-  const gradesByStudent = new Map();
-  for (const submission of submissions) {
-    const key = String(submission.student);
-    const grade = gradesByStudent.get(key) || { scores: [], submittedAssignmentIds: new Set() };
-    grade.submittedAssignmentIds.add(String(submission.assignmentRef));
-    if (submission.score != null) grade.scores.push(submission.score);
-    gradesByStudent.set(key, grade);
-  }
-  const weights = cls.gradeWeights || { attendance: 10, homework: 10, midterm: 30, presentation: 0, final: 50 };
-  const studentsWithGrades = enrollments
-    .filter((enrollment) => enrollment.student)
-    .map((enrollment) => {
-      const grade = gradesByStudent.get(String(enrollment.student._id)) || { scores: [], submittedAssignmentIds: new Set() };
-      const missedQuizCount = expiredQuizIds.filter((assignmentId) => !grade.submittedAssignmentIds.has(assignmentId)).length;
-      const homeworkQuizCount = grade.scores.length + missedQuizCount;
-      const homeworkGrade = homeworkQuizCount
-        ? Number((grade.scores.reduce((sum, score) => sum + score, 0) / homeworkQuizCount).toFixed(1))
-        : null;
-      const studentGrades = {
-        attendance: enrollment.manualGrades?.attendance ?? null,
-        midterm: enrollment.manualGrades?.midterm ?? null,
-        final: enrollment.manualGrades?.final ?? null,
-        presentation: enrollment.manualGrades?.presentation ?? null,
-        homework: homeworkGrade,
-      };
-      const finalScore = calculateWeightedGpa(studentGrades, weights);
-      return {
-        ...enrollment.student,
-        manualGrades: enrollment.manualGrades || {},
-        homeworkGrade,
-        homeworkQuizCount,
-        homeworkQuizTotal: quizAssignments.length,
-        finalScore,
-      };
-    });
-  return { class: { ...cls.toObject(), enrolledCount: studentsWithGrades.length }, students: studentsWithGrades };
-}
-
-export async function updateStudentGrades(classId, studentId, grades, requester) {
-  const cls = await CourseClass.findById(classId);
-  if (!cls) throw AppError.notFound('Không tìm thấy lớp học phần');
-  const teacher = await Teacher.findById(requester.teacher);
-  if (!teacher || String(cls.teacherRef) !== String(teacher._id)) {
-    throw AppError.forbidden('Bạn không phụ trách lớp này');
+  if (config.midtermQuizId !== undefined) {
+    if (config.midtermQuizId) {
+      const quiz = await Assignment.findById(config.midtermQuizId);
+      if (!quiz) throw AppError.badRequest('Bài quiz giữa kỳ không tồn tại');
+      if (quiz.type !== 'quiz') throw AppError.badRequest('Bài tập phải là dạng quiz trắc nghiệm');
+      cls.midtermQuizId = quiz._id;
+    } else {
+      cls.midtermQuizId = null;
+    }
   }
 
-  const enrollment = await Enrollment.findOne({ classRef: cls._id, student: studentId });
-  if (!enrollment) throw AppError.notFound('Sinh viên không thuộc lớp học phần này');
-  for (const [key, value] of Object.entries(grades)) {
-    enrollment.set(`manualGrades.${key}`, value);
+  if (config.finalQuizId !== undefined) {
+    if (config.finalQuizId) {
+      const quiz = await Assignment.findById(config.finalQuizId);
+      if (!quiz) throw AppError.badRequest('Bài quiz cuối kỳ không tồn tại');
+      if (quiz.type !== 'quiz') throw AppError.badRequest('Bài tập phải là dạng quiz trắc nghiệm');
+      cls.finalQuizId = quiz._id;
+    } else {
+      cls.finalQuizId = null;
+    }
   }
 
-  const weights = cls.gradeWeights || { attendance: 10, homework: 10, midterm: 30, presentation: 0, final: 50 };
-  const studentGrades = {
-    attendance: enrollment.manualGrades?.attendance ?? null,
-    midterm: enrollment.manualGrades?.midterm ?? null,
-    final: enrollment.manualGrades?.final ?? null,
-    presentation: enrollment.manualGrades?.presentation ?? null,
-    homework: enrollment.manualGrades?.assignment ?? null,
+  if (cls.midtermQuizId && cls.finalQuizId && String(cls.midtermQuizId) === String(cls.finalQuizId)) {
+    throw AppError.badRequest('Không thể chọn cùng một bài Quiz cho cả Giữa kỳ và Cuối kỳ');
+  }
+
+  await cls.save();
+  return {
+    success: true,
+    midtermQuizId: cls.midtermQuizId,
+    finalQuizId: cls.finalQuizId,
   };
-  const finalScore = calculateWeightedGpa(studentGrades, weights);
-  enrollment.finalScore = finalScore;
-  await enrollment.save();
-  return { manualGrades: enrollment.manualGrades.toObject(), finalScore };
 }
 
 export async function deleteClass(id) {

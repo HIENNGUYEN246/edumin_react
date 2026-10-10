@@ -46,6 +46,10 @@ const courseClassSchema = new Schema(
       final: { type: Number, default: 50, min: 0, max: 100 },
     },
 
+    // Optional online quiz links for midterm and final exams
+    midtermQuizId: { type: Schema.Types.ObjectId, ref: 'Assignment', default: null },
+    finalQuizId: { type: Schema.Types.ObjectId, ref: 'Assignment', default: null },
+
     // Lifecycle: Nháp (draft, hidden) -> Đang mở (open to students) ->
     // Đã đóng (registration closed) / Đã hủy (cancelled).
     status: {

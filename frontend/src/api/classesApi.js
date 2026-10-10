@@ -13,6 +13,8 @@ export const classesApi = {
   students: (id) => http.get(`/classes/${id}/students`),
   updateStudentGrades: (classId, studentId, grades) =>
     http.patch(`/classes/${classId}/students/${studentId}/grades`, { grades }),
+  updateGradeConfig: (classId, config) =>
+    http.patch(`/classes/${classId}/grade-config`, config),
   studentGroups: () => http.get('/classes/student-groups'),
   nextCode: (courseId) => http.get(`/classes/next-code${courseId ? `?courseId=${encodeURIComponent(courseId)}` : ''}`),
 };

@@ -330,7 +330,8 @@ export function TeacherAttendance() {
   const studentAttendanceMap = useMemo(() => {
     const map = {};
     classAttendanceRecords.forEach((att) => {
-      const sId = att.studentId;
+      const sId = String(att.studentId?._id || att.studentId?.id || att.studentId || '');
+      if (!sId) return;
       if (!map[sId]) {
         map[sId] = { total: 0, present: 0, late: 0, excused: 0, absent: 0, scores: [], history: [] };
       }
@@ -351,7 +352,8 @@ export function TeacherAttendance() {
   // Student list enriched with statistics
   const studentSummaries = useMemo(() => {
     return students.map((s) => {
-      const stat = studentAttendanceMap[s.id] || { total: 0, present: 0, late: 0, excused: 0, absent: 0, scores: [], history: [] };
+      const sKey = String(s.id ?? s._id ?? '');
+      const stat = studentAttendanceMap[sKey] || studentAttendanceMap[s.id] || { total: 0, present: 0, late: 0, excused: 0, absent: 0, scores: [], history: [] };
       const rate = stat.total > 0 ? Math.round(((stat.present + stat.late * 0.5) / stat.total) * 100) : 100;
       const avgScore =
         stat.scores.length > 0
@@ -359,7 +361,7 @@ export function TeacherAttendance() {
           : null;
       const absentCount = stat.absent + stat.excused;
       const isAtRisk = stat.total >= 3 && rate < 80;
-      const history = stat.history.sort((a, b) => b.date.localeCompare(a.date));
+      const history = (stat.history || []).slice().sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
 
       return {
         ...s,

@@ -7,6 +7,10 @@ import { Course } from '../src/modules/courses/course.model.js';
 import { Teacher } from '../src/modules/teachers/teacher.model.js';
 import { User } from '../src/modules/auth/user.model.js';
 import { CourseClass } from '../src/modules/classes/courseClass.model.js';
+import { Student } from '../src/modules/students/student.model.js';
+import { Enrollment } from '../src/modules/enrollments/enrollment.model.js';
+import { Attendance } from '../src/modules/attendance/attendance.model.js';
+import { Assignment, Submission } from '../src/modules/assignments/assignment.model.js';
 import { currentDateTimeString, todayDateString } from '../src/lib/dateOnly.js';
 
 let adminToken;
@@ -451,5 +455,225 @@ describe('Course classes', () => {
       }));
     expect(res.status).toBe(201);
     expect(res.body.gradeWeights).toMatchObject(customWeights);
+  });
+
+  it('accepts custom tuition fee and auto-calculates fee when omitted', async () => {
+    // 1. Custom fee
+    const resCustom = await request(app)
+      .post('/api/classes')
+      .set(authHeader(adminToken))
+      .send(baseClass({
+        id: 'IT101-77',
+        room: 'D77',
+        fee: 2500000,
+      }));
+    expect(resCustom.status).toBe(201);
+    expect(resCustom.body.fee).toBe(2500000);
+
+    // 2. Default fee from course (IT101 has fee 1000000 in beforeEach)
+    const resAuto = await request(app)
+      .post('/api/classes')
+      .set(authHeader(adminToken))
+      .send(baseClass({
+        id: 'IT101-76',
+        teacherId: 95,
+        room: 'D76',
+        schedules: [{ dayId: '3', shiftId: 'S2' }],
+      }));
+    expect(resAuto.status).toBe(201);
+    expect(resAuto.body.fee).toBe(1000000);
+  });
+
+  it('auto-syncs attendance score from Attendance records into student list and allows override', async () => {
+    const courseDoc = await Course.findOne({ id: 'IT101' });
+    const teacherDoc = await Teacher.findOne({ id: 96 });
+
+    const cls = await CourseClass.create(baseClass({
+      id: 'IT101-ATT1',
+      room: 'D-ATT1',
+      courseRef: courseDoc._id,
+      teacherRef: teacherDoc._id,
+      teacherId: 96,
+      schedules: [{ dayId: '4', shiftId: 'S3' }],
+    }));
+
+    const studentUser = await User.create({ email: 'sv.att@edu.vn', role: ROLES.STUDENT, hoTen: 'Sinh viên Điểm danh' });
+    const student = await Student.create({
+      userId: studentUser._id,
+      id: 501,
+      email: 'sv.att@edu.vn',
+      hoTen: 'Sinh viên Điểm danh',
+    });
+
+    await Enrollment.create({
+      student: student._id,
+      classRef: cls._id,
+      classId: cls.id,
+    });
+
+    // 4 attendance sessions: 3 'Có mặt', 1 'Đi muộn' -> rate = (3 + 0.5*1)/4 = 3.5/4 = 87.5% -> 8.8/10
+    await Attendance.create([
+      { regId: cls.id, classRef: cls._id, studentId: 501, studentRef: student._id, date: '2026-10-01', status: 'Có mặt' },
+      { regId: cls.id, classRef: cls._id, studentId: 501, studentRef: student._id, date: '2026-10-02', status: 'Có mặt' },
+      { regId: cls.id, classRef: cls._id, studentId: 501, studentRef: student._id, date: '2026-10-03', status: 'Có mặt' },
+      { regId: cls.id, classRef: cls._id, studentId: 501, studentRef: student._id, date: '2026-10-04', status: 'Đi muộn' },
+    ]);
+
+    const resList = await request(app)
+      .get(`/api/classes/${cls._id}/students`)
+      .set(authHeader(adminToken));
+
+    expect(resList.status).toBe(200);
+    const studentData = resList.body.students.find((s) => String(s._id) === String(student._id));
+    expect(studentData).toBeDefined();
+    expect(studentData.attendanceStats.total).toBe(4);
+    expect(studentData.attendanceStats.present).toBe(3);
+    expect(studentData.attendanceStats.late).toBe(1);
+    expect(studentData.attendanceStats.autoScore).toBe(8.8);
+    expect(studentData.effectiveGrades.attendance).toBe(8.8);
+
+    // Verify teacher can manually override attendance grade
+    const { token: teacherToken } = await createUser({ role: ROLES.TEACHER, teacher: teacherDoc._id });
+    const resPatch = await request(app)
+      .patch(`/api/classes/${cls._id}/students/${student._id}/grades`)
+      .set(authHeader(teacherToken))
+      .send({ grades: { attendance: 9.5 } });
+    expect(resPatch.status).toBe(200);
+    expect(resPatch.body.manualGrades.attendance).toBe(9.5);
+    expect(resPatch.body.effectiveGrades.attendance).toBe(9.5);
+
+    // Query students again to verify override takes precedence
+    const resListAfter = await request(app)
+      .get(`/api/classes/${cls._id}/students`)
+      .set(authHeader(adminToken));
+    const studentAfter = resListAfter.body.students.find((s) => String(s._id) === String(student._id));
+    expect(studentAfter.attendanceStats.isOverridden).toBe(true);
+    expect(studentAfter.manualGrades.attendance).toBe(9.5);
+    expect(studentAfter.effectiveGrades.attendance).toBe(9.5);
+  });
+
+  it('links midterm and final to online Quiz, auto-syncs student scores, and allows override', async () => {
+    const courseDoc = await Course.findOne({ id: 'IT101' });
+    const teacherDoc = await Teacher.findOne({ id: 96 });
+
+    const cls = await CourseClass.create(baseClass({
+      id: 'IT101-QUIZ1',
+      room: 'D-QUIZ1',
+      courseRef: courseDoc._id,
+      teacherRef: teacherDoc._id,
+      teacherId: 96,
+      schedules: [{ dayId: '5', shiftId: 'S4' }],
+    }));
+
+    const midtermQuiz = await Assignment.create({
+      courseRef: courseDoc._id,
+      courseId: 'IT101',
+      type: 'quiz',
+      title: 'Bài thi giữa kỳ online',
+      dueDate: '2026-11-20',
+      status: 'Công khai',
+      createdByRef: teacherDoc._id,
+    });
+
+    const finalQuiz = await Assignment.create({
+      courseRef: courseDoc._id,
+      courseId: 'IT101',
+      type: 'quiz',
+      title: 'Bài thi trắc nghiệm cuối kỳ',
+      dueDate: '2026-12-20',
+      status: 'Công khai',
+      createdByRef: teacherDoc._id,
+    });
+
+    // Configure quiz links via PATCH /api/classes/:id/grade-config
+    const resConfig = await request(app)
+      .patch(`/api/classes/${cls._id}/grade-config`)
+      .set(authHeader(adminToken))
+      .send({
+        midtermQuizId: String(midtermQuiz._id),
+        finalQuizId: String(finalQuiz._id),
+      });
+
+    expect(resConfig.status).toBe(200);
+    expect(resConfig.body.success).toBe(true);
+    expect(String(resConfig.body.midtermQuizId)).toBe(String(midtermQuiz._id));
+
+    // Enroll student
+    const studentUser = await User.create({ email: 'sv.quiz@edu.vn', role: ROLES.STUDENT, hoTen: 'Sinh viên Quiz' });
+    const student = await Student.create({
+      userId: studentUser._id,
+      id: 502,
+      email: 'sv.quiz@edu.vn',
+      hoTen: 'Sinh viên Quiz',
+    });
+
+    await Enrollment.create({
+      student: student._id,
+      classRef: cls._id,
+      classId: cls.id,
+    });
+
+    // Student submits midterm quiz with score 8.5
+    await Submission.create({
+      assignmentRef: midtermQuiz._id,
+      student: student._id,
+      studentId: 502,
+      score: 8.5,
+    });
+
+    // Query students
+    const resList = await request(app)
+      .get(`/api/classes/${cls._id}/students`)
+      .set(authHeader(adminToken));
+
+    expect(resList.status).toBe(200);
+    const studentData = resList.body.students.find((s) => String(s._id) === String(student._id));
+    expect(studentData.quizMidterm.score).toBe(8.5);
+    expect(studentData.effectiveGrades.midterm).toBe(8.5);
+    expect(studentData.quizFinal.score).toBeNull();
+
+    // Teacher overrides midterm grade to 9.0
+    const { token: teacherToken } = await createUser({ role: ROLES.TEACHER, teacher: teacherDoc._id });
+    const resPatch = await request(app)
+      .patch(`/api/classes/${cls._id}/students/${student._id}/grades`)
+      .set(authHeader(teacherToken))
+      .send({ grades: { midterm: 9.0 } });
+    expect(resPatch.status).toBe(200);
+    expect(resPatch.body.manualGrades.midterm).toBe(9.0);
+    expect(resPatch.body.effectiveGrades.midterm).toBe(9.0);
+  });
+
+  it('rejects identical quiz for both midterm and final exam via PATCH /grade-config', async () => {
+    const courseDoc = await Course.findOne({ id: 'IT101' });
+    const teacherDoc = await Teacher.findOne({ id: 96 });
+
+    const cls = await CourseClass.create(baseClass({
+      id: 'IT101-DUPQ',
+      room: 'D-DUPQ',
+      courseRef: courseDoc._id,
+      teacherRef: teacherDoc._id,
+      teacherId: 96,
+      schedules: [{ dayId: '6', shiftId: 'S1' }],
+    }));
+
+    const quiz = await Assignment.create({
+      courseRef: courseDoc._id,
+      courseId: 'IT101',
+      type: 'quiz',
+      title: 'Bài quiz dùng chung',
+      status: 'Công khai',
+      createdByRef: teacherDoc._id,
+    });
+
+    const resConfig = await request(app)
+      .patch(`/api/classes/${cls._id}/grade-config`)
+      .set(authHeader(adminToken))
+      .send({
+        midtermQuizId: String(quiz._id),
+        finalQuizId: String(quiz._id),
+      });
+
+    expect(resConfig.status).toBe(400);
+    expect(resConfig.body.error.details?.[0]?.message || resConfig.body.error.message).toMatch(/Không thể chọn cùng một bài Quiz/i);
   });
 });

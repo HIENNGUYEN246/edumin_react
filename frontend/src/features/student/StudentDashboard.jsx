@@ -25,6 +25,16 @@ export function StudentDashboard() {
 
   const studentId = profile?.id ?? user?.studentId ?? user?.id;
 
+  const getTeacherTitle = useCallback((name, gender) => {
+    const cleanName = (name || '').trim();
+    if (!cleanName) return 'Thầy/Cô phụ trách';
+    if (/^(thầy|cô)\s+/i.test(cleanName)) return cleanName;
+    if (gender === 'Nữ') return `Cô ${cleanName}`;
+    if (gender === 'Nam') return `Thầy ${cleanName}`;
+    if (/\bthị\b/i.test(cleanName)) return `Cô ${cleanName}`;
+    return `Thầy ${cleanName}`;
+  }, []);
+
   const loadFeedbacks = useCallback(async () => {
     if (!studentId) return;
     try {
@@ -190,17 +200,37 @@ export function StudentDashboard() {
                   <p className="text-gray-700 italic leading-relaxed">&quot;{fb.feedbackText}&quot;</p>
 
                   {fb.response ? (
-                    <div className="mt-2 p-3 bg-indigo-50/70 border border-indigo-100 rounded-xl space-y-1">
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-indigo-700">Phản hồi từ Thầy/Cô:</span>
-                        <span className="text-[10px] text-gray-400">
-                          {fb.respondedAt ? new Date(fb.respondedAt).toLocaleString('vi-VN') : ''}
+                    <div className="mt-3 p-3.5 bg-indigo-50/80 border border-indigo-100 rounded-2xl space-y-2 text-xs">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2.5">
+                          <img
+                            src={
+                              fb.respondedByAvatar ||
+                              fb.teacherAvatar ||
+                              `https://ui-avatars.com/api/?name=${encodeURIComponent(fb.respondedByName || fb.teacherName || 'GV')}&background=4f46e5&color=fff`
+                            }
+                            alt=""
+                            className="w-7 h-7 rounded-full object-cover border border-indigo-200 shadow-2xs"
+                          />
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-bold text-indigo-900 text-xs">
+                              Phản hồi từ {getTeacherTitle(fb.respondedByName || fb.teacherName, fb.teacherGender)}
+                            </span>
+                            <span className="bg-indigo-100 text-indigo-700 text-[10px] font-bold px-2 py-0.2 rounded-full">
+                              Giảng viên phụ trách
+                            </span>
+                          </div>
+                        </div>
+                        <span className="text-[10px] text-gray-400 whitespace-nowrap">
+                          {fb.respondedAt || ''}
                         </span>
                       </div>
-                      <p className="text-gray-700">{fb.response}</p>
+                      <p className="text-gray-700 pl-9 leading-relaxed bg-white/70 p-2.5 rounded-xl border border-indigo-100/60 font-normal">
+                        {fb.response}
+                      </p>
                     </div>
                   ) : (
-                    <p className="text-[11px] text-amber-600 italic">⏳ Đang chờ Giảng viên xem và giải đáp...</p>
+                    <p className="text-[11px] text-amber-600 italic">⏳ Đang chờ Giảng viên xem và phản hồi...</p>
                   )}
                 </div>
               ))
