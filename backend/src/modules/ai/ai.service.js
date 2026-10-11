@@ -49,7 +49,7 @@ const OUT_OF_SCOPE_KEYWORDS = [
   'tuyen sinh', 'xet tuyen', 'thi tuyen sinh', 'nop ho so tuyen sinh',
   'cau lac bo', 'clb', 'doan hoi', 'hoi sinh vien', 'ngoai khoa', 'tinh nguyen', 'mua he xanh',
   'y te', 'kham suc khoe', 'bao hiem y te', 'bhyt', 'benh xa', 'thuoc men',
-  'chuyen nganh', 'chuyen khoa', 'bao luu', 'thoi hoc', 'rut ho so',
+  'bao luu', 'thoi hoc', 'rut ho so',
   'tot nghiep', 'xet tot nghiep', 'le tot nghiep', 'nhan bang', 'chung chi tot nghiep', 'bang dai hoc',
   'momo', 'zalopay', 'vnpay', 'quet the', 'vi dien tu', 'cong thanh toan',
   'cuu sinh vien', 'alumni',
@@ -61,52 +61,70 @@ const OUT_OF_SCOPE_KEYWORDS = [
 
 const PAGE_INFO = [
   {
-    path: '/admin/departments',
-    name: 'Quản lý khoa đào tạo',
-    keywords: ['quan ly khoa', 'khoa dao tao', 'danh sach khoa', 'cac khoa', 'bo mon'],
-    description: 'Bạn có thể xem danh sách các khoa, thêm khoa mới hoặc chỉnh sửa thông tin khoa trực tiếp trên màn hình.',
+    path: '/admin',
+    name: 'Tổng quan (Dashboard)',
+    keywords: ['tong quan', 'dashboard', 'trang chu', 'trang chu admin', 'thong ke', 'thong ke he thong', 'bao cao'],
+    description: 'Bạn có thể xem các chỉ số thống kê tổng quan về sinh viên, giảng viên, lớp học phần và biểu đồ phân tích trực tiếp trên màn hình.',
   },
   {
-    path: '/admin/students',
-    name: 'Quản lý sinh viên',
-    keywords: ['quan ly sinh vien', 'danh sach sinh vien', 'ho so sinh vien', 'sinh vien toan truong', 'them sinh vien'],
-    description: 'Bạn có thể tìm kiếm, lọc theo khoa/lớp hoặc thêm mới hồ sơ sinh viên trực tiếp trên màn hình.',
+    path: '/admin/departments',
+    name: 'Quản lý khoa',
+    keywords: ['quan ly khoa', 'khoa dao tao', 'danh sach khoa', 'cac khoa', 'bo mon', 'khoa', 'them khoa'],
+    description: 'Bạn có thể xem danh sách các khoa, thêm khoa mới hoặc chỉnh sửa thông tin khoa trực tiếp trên màn hình.',
   },
   {
     path: '/admin/teachers',
     name: 'Quản lý giáo viên',
-    keywords: ['quan ly giang vien', 'quan ly giao vien', 'danh sach giang vien', 'giao vien toan truong', 'them giang vien'],
+    keywords: ['quan ly giang vien', 'quan ly giao vien', 'danh sach giang vien', 'danh sach giao vien', 'giao vien toan truong', 'giang vien toan truong', 'them giang vien', 'them giao vien', 'ho so giang vien', 'ho so giao vien'],
     description: 'Bạn có thể tra cứu, phân công khoa hoặc thêm hồ sơ giảng viên trực tiếp trên bảng.',
+  },
+  {
+    path: '/admin/teacher-accounts',
+    name: 'Tài khoản giáo viên',
+    keywords: ['tai khoan giao vien', 'tai khoan giang vien', 'cap tai khoan giao vien', 'cap tai khoan giang vien', 'khoa tai khoan giao vien', 'phan quyen giao vien', 'reset mat khau giao vien'],
+    description: 'Bạn có thể quản lý tài khoản đăng nhập, trạng thái kích hoạt hoặc đặt lại mật khẩu cho giảng viên trực tiếp tại đây.',
+  },
+  {
+    path: '/admin/students',
+    name: 'Quản lý sinh viên',
+    keywords: ['quan ly sinh vien', 'danh sach sinh vien', 'ho so sinh vien', 'sinh vien toan truong', 'them sinh vien', 'tra cuu sinh vien'],
+    description: 'Bạn có thể tìm kiếm, lọc theo khoa/lớp hoặc thêm mới hồ sơ sinh viên trực tiếp trên màn hình.',
+  },
+  {
+    path: '/admin/student-accounts',
+    name: 'Tài khoản sinh viên',
+    keywords: ['tai khoan sinh vien', 'cap tai khoan sinh vien', 'khoa tai khoan sinh vien', 'kich hoat tai khoan sinh vien', 'reset mat khau sinh vien'],
+    description: 'Bạn có thể quản lý danh sách tài khoản sinh viên, trạng thái kích hoạt hoặc đặt lại mật khẩu trực tiếp tại đây.',
+  },
+  {
+    path: '/admin/courses',
+    name: 'Quản lý học phần',
+    keywords: ['quan ly hoc phan', 'hoc phan', 'quan ly mon hoc', 'danh muc hoc phan', 'danh sach hoc phan', 'danh muc mon hoc', 'danh sach mon hoc', 'mon hoc', 'tin chi', 'so tin chi', 'ma hoc phan', 'ma mon'],
+    description: 'Bạn có thể xem và quản lý danh mục học phần đào tạo, số tín chỉ và mã học phần trực tiếp trên màn hình.',
   },
   {
     path: '/admin/classes',
     name: 'Quản lý lớp học phần',
-    keywords: ['quan ly lop', 'lop hoc phan', 'mo lop', 'danh sach lop', 'tao lop'],
+    keywords: ['quan ly lop hoc phan', 'quan ly lop', 'lop hoc phan', 'mo lop', 'danh sach lop', 'tao lop', 'xep phong hoc', 'phan cong giang vien'],
     description: 'Bạn có thể tạo lớp học phần mới, xếp giảng viên, phòng học và thời khóa biểu trực tiếp trên màn hình.',
   },
   {
     path: '/admin/gradebook',
-    name: 'Quản lý bảng điểm toàn trường',
-    keywords: ['quan ly bang diem', 'bang diem toan truong', 'chot so diem', 'chot so', 'khoa bang diem', 'phuc khao', 'sua diem', 'audit log'],
-    description: 'Bạn có thể theo dõi bảng điểm tất cả các lớp, can thiệp sửa điểm phúc khảo kèm Audit Log, hoặc chốt sổ khóa bảng điểm toàn trường ngay tại đây.',
-  },
-  {
-    path: '/admin/courses',
-    name: 'Quản lý môn học',
-    keywords: ['quan ly mon hoc', 'danh muc mon hoc', 'danh sach mon hoc', 'mon hoc', 'tin chi'],
-    description: 'Bạn có thể xem và quản lý danh mục môn học, số tín chỉ và mã môn trực tiếp trên màn hình.',
-  },
-  {
-    path: '/admin/profile-requests',
-    name: 'Duyệt yêu cầu hồ sơ',
-    keywords: ['duyet yeu cau', 'yeu cau duyet', 'duyet ho so', 'cho duyet', 'cap nhat ho so'],
-    description: 'Bạn có thể xem xét, duyệt hàng loạt hoặc từ chối các yêu cầu cập nhật hồ sơ trực tiếp tại bảng yêu cầu.',
+    name: 'Quản lý bảng điểm',
+    keywords: ['quan ly bang diem', 'bang diem', 'xem diem', 'so diem', 'tra cuu diem', 'bang diem toan truong', 'chot so diem', 'chot so', 'khoa bang diem', 'khoa diem', 'phuc khao', 'sua diem', 'audit log', 'lich su sua diem'],
+    description: 'Bạn có thể theo dõi bảng điểm tất cả các lớp học phần toàn trường, can thiệp sửa điểm phúc khảo kèm Audit Log, hoặc chốt sổ khóa bảng điểm trực tiếp tại đây.',
   },
   {
     path: '/admin/feedbacks',
-    name: 'Quản lý đánh giá sinh viên',
-    keywords: ['quan ly danh gia', 'danh gia sinh vien', 'y kien sinh vien', 'phan hoi sinh vien'],
+    name: 'Ý kiến & Phản hồi',
+    keywords: ['y kien & phan hoi', 'y kien va phan hoi', 'y kien', 'phan hoi', 'quan ly danh gia', 'danh gia sinh vien', 'y kien sinh vien', 'phan hoi sinh vien', 'gop y', 'feedback'],
     description: 'Bạn có thể theo dõi toàn bộ các ý kiến đóng góp và đánh giá của sinh viên toàn trường tại đây.',
+  },
+  {
+    path: '/admin/profile-requests',
+    name: 'Duyệt yêu cầu',
+    keywords: ['duyet yeu cau', 'yeu cau duyet', 'duyet ho so', 'cho duyet', 'cap nhat ho so', 'yeu cau cap nhat', 'doi avatar', 'profile request'],
+    description: 'Bạn có thể xem xét, duyệt hàng loạt hoặc từ chối các yêu cầu cập nhật hồ sơ trực tiếp tại bảng yêu cầu.',
   },
   {
     path: '/accountant/tuition',
@@ -182,7 +200,11 @@ export async function handleAiAssistantQuery({ message, user, currentPath = '' }
   // 0. Location / Current Page Awareness
   if (currentPath) {
     const normPath = currentPath.toLowerCase().trim();
-    const currentPageMatch = PAGE_INFO.find((p) => normPath === p.path || normPath.startsWith(p.path + '/'));
+    const currentPageMatch =
+      PAGE_INFO.find((p) => normPath === p.path) ||
+      PAGE_INFO.filter((p) => p.path !== '/' && normPath.startsWith(p.path + '/')).sort(
+        (a, b) => b.path.length - a.path.length
+      )[0];
     if (currentPageMatch) {
       const isAskingAboutCurrentPage =
         currentPageMatch.keywords.some((kw) => text.includes(kw)) ||
@@ -201,26 +223,133 @@ export async function handleAiAssistantQuery({ message, user, currentPath = '' }
     }
   }
 
-  // 0b. Admin Gradebook Module (Phòng Đào Tạo)
-  if (
+  // 0b. Admin Gradebook Module (Phòng Đào Tạo) & Grade Inquiries
+  const isAdminGradebookSpecific =
     text.includes('quan ly bang diem') ||
     text.includes('bang diem toan truong') ||
     text.includes('chot so') ||
     text.includes('khoa bang diem') ||
+    text.includes('khoa diem') ||
     text.includes('phuc khao') ||
     text.includes('audit log') ||
     text.includes('lich su sua diem') ||
     text.includes('can thiep diem') ||
-    text.includes('chot so diem')
-  ) {
-    if (isAdmin) {
+    text.includes('chot so diem');
+
+  const isGeneralGradeInquiry =
+    text.includes('bang diem') ||
+    text.includes('so diem') ||
+    text.includes('xem diem') ||
+    text.includes('tra cuu diem') ||
+    text.includes('diem so') ||
+    text.includes('phan diem') ||
+    text.includes('diem sinh vien') ||
+    text.includes('diem cua sinh vien') ||
+    text.includes('nhap diem') ||
+    text.includes('gpa') ||
+    text.includes('diem thi') ||
+    text.includes('diem giua ky') ||
+    text.includes('diem cuoi ky') ||
+    text.includes('diem qua trinh') ||
+    text.includes('diem trung binh') ||
+    text.includes('diem tong ket') ||
+    text.includes('tinh diem') ||
+    text.includes('sua diem') ||
+    text.includes('cham diem') ||
+    text.includes('ket qua hoc tap') ||
+    text.includes('ket qua thi') ||
+    text === 'diem' ||
+    text.startsWith('diem ') ||
+    text.endsWith(' diem');
+
+  // 0b. Specific Student Grade Lookup ("xem điểm của [tên/mã]", "điểm của [tên]")
+  const isStudentSpecificGradeLookup =
+    text.includes('xem diem cua') ||
+    text.includes('diem cua sinh vien') ||
+    text.includes('diem cua') ||
+    text.startsWith('diem sv') ||
+    text.includes('tra cuu diem cua');
+
+  if (isStudentSpecificGradeLookup && !text.includes('diem danh')) {
+    const rawKeyword = rawText.replace(/^(xem điểm của sinh viên|xem điểm của|điểm của sinh viên|điểm của|điểm sv|tra cứu điểm của)\s*/i, '').trim();
+    let foundStudent = null;
+    let enrollments = [];
+
+    if (rawKeyword) {
+      const num = Number(rawKeyword);
+      const or = [{ hoTen: { $regex: rawKeyword, $options: 'i' } }, { email: { $regex: rawKeyword, $options: 'i' } }];
+      if (!Number.isNaN(num) && num > 0) {
+        or.push({ id: num });
+      }
+      foundStudent = await Student.findOne({ $or: or }).lean();
+      if (foundStudent) {
+        enrollments = await Enrollment.find({ student: foundStudent._id }).limit(5).lean();
+      }
+    }
+
+    if (foundStudent && enrollments.length > 0) {
+      const cards = enrollments.map((e) => ({
+        type: 'grade',
+        id: String(e._id),
+        title: `Học phần ${e.classId}`,
+        code: `Lớp ${e.classId}`,
+        subtitle: `Sinh viên: ${foundStudent.hoTen} (${foundStudent.id})`,
+        details: [
+          { label: 'Chuyên cần', value: e.manualGrades?.attendance ?? '-' },
+          { label: 'Giữa kỳ', value: e.manualGrades?.midterm ?? '-' },
+          { label: 'Cuối kỳ', value: e.manualGrades?.final ?? '-' },
+          { label: 'Điểm tổng kết (GPA)', value: e.finalScore ?? '-' },
+        ],
+        action: {
+          label: 'Xem chi tiết',
+          path: '/admin/gradebook',
+        },
+      }));
+
       return {
-        reply:
-          'Dạ, Quản trị viên (Phòng Đào tạo) có thể xem toàn cục bảng điểm tất cả các lớp, can thiệp sửa điểm phúc khảo kèm Audit Log, và chốt sổ khóa bảng điểm toàn trường tại trang "Quản lý bảng điểm".',
-        intent: 'NAV_ADMIN_GRADEBOOK',
-        quickLinks: [{ label: 'Quản lý Bảng điểm toàn trường', path: '/admin/gradebook' }],
+        reply: `Dưới đây là thông tin bảng điểm của sinh viên **${foundStudent.hoTen}** (MSSV: SV-${String(foundStudent.id).padStart(3, '0')}):`,
+        intent: 'SEARCH_STUDENT_GRADES',
+        cards,
+        data: { student: foundStudent, enrollments },
+        quickLinks: [
+          { label: 'Quản lý bảng điểm', path: '/admin/gradebook' },
+          { label: 'Quản lý sinh viên', path: '/admin/students' },
+        ],
+      };
+    } else if (foundStudent) {
+      return {
+        reply: `Tìm thấy sinh viên **${foundStudent.hoTen}** (MSSV: SV-${String(foundStudent.id).padStart(3, '0')}) nhưng sinh viên này hiện chưa có dữ liệu điểm học phần nào trong hệ thống.`,
+        intent: 'SEARCH_STUDENT_GRADES_EMPTY',
+        quickLinks: [
+          { label: 'Quản lý bảng điểm', path: '/admin/gradebook' },
+          { label: 'Quản lý sinh viên', path: '/admin/students' },
+        ],
+      };
+    } else {
+      return {
+        reply: `Không tìm thấy sinh viên nào khớp với từ khóa "${rawKeyword || 'yêu cầu'}". Bạn có thể tra cứu toàn bộ sinh viên tại trang Quản lý bảng điểm.`,
+        intent: 'SEARCH_STUDENT_GRADES_NOT_FOUND',
+        quickLinks: [
+          { label: 'Quản lý bảng điểm', path: '/admin/gradebook' },
+          { label: 'Quản lý sinh viên', path: '/admin/students' },
+        ],
       };
     }
+  }
+
+  if (
+    (isAdminGradebookSpecific || (isGeneralGradeInquiry && !isStudentSpecificGradeLookup && (isAdmin || (!isTeacher && !isStudent)))) &&
+    !text.includes('diem danh')
+  ) {
+    return {
+      reply:
+        'Dạ, Quản trị viên (Phòng Đào tạo) có thể xem toàn cục bảng điểm tất cả các lớp, can thiệp sửa điểm phúc khảo kèm Audit Log, và chốt sổ khóa bảng điểm toàn trường tại trang "Quản lý bảng điểm".',
+      intent: 'NAV_ADMIN_GRADEBOOK',
+      quickLinks: [
+        { label: 'Quản lý bảng điểm', path: '/admin/gradebook' },
+        { label: 'Quản lý Lớp học phần', path: '/admin/classes' },
+      ],
+    };
   }
 
   // 0c. Out-of-Scope / Unsupported Features Handling
@@ -327,9 +456,13 @@ export async function handleAiAssistantQuery({ message, user, currentPath = '' }
     }
     return {
       reply:
-        'Dạ, bạn có thể theo dõi danh sách lớp học phần, sĩ số và quản lý điểm số các môn tại mục "Quản lý lớp học phần".',
-      intent: 'NAV_GRADES',
-      quickLinks: [{ label: 'Quản lý Lớp học phần', path: '/admin/classes' }],
+        'Dạ, bạn có thể theo dõi danh sách lớp học phần và quản lý điểm số toàn trường tại mục "Quản lý bảng điểm".',
+      intent: 'NAV_ADMIN_GRADEBOOK',
+      quickLinks: [
+        { label: 'Quản lý bảng điểm', path: '/admin/gradebook' },
+        { label: 'Quản lý Bảng điểm toàn trường', path: '/admin/gradebook' },
+        { label: 'Quản lý Lớp học phần', path: '/admin/classes' },
+      ],
     };
   }
 
@@ -487,11 +620,23 @@ export async function handleAiAssistantQuery({ message, user, currentPath = '' }
 
   // 6. Navigation & Data: Ý kiến & Phản hồi sinh viên
   if (
+    text.includes('y kien phan hoi nao chua doc') ||
+    text.includes('phan hoi chua doc') ||
+    text.includes('phan hoi chua tra loi') ||
+    text.includes('chua phan hoi') ||
+    text.includes('y kien moi nhat') ||
+    text.includes('hom thu gop y') ||
+    text.includes('goi y tra loi') ||
+    text.includes('goi y phan hoi') ||
+    text.includes('mau cau tra loi') ||
+    text.includes('y kien & phan hoi') ||
+    text.includes('y kien va phan hoi') ||
     text.includes('y kien') ||
     text.includes('danh gia') ||
     text.includes('gop y') ||
     text.includes('phan hoi') ||
-    text.includes('feedback')
+    text.includes('feedback') ||
+    text.includes('khao sat')
   ) {
     if (isTeacher) {
       const teacherFilter = [];
@@ -518,11 +663,44 @@ export async function handleAiAssistantQuery({ message, user, currentPath = '' }
     }
 
     if (isAdmin) {
+      const isUnreadOnly = text.includes('chua doc') || text.includes('chua phan hoi') || text.includes('chua tra loi');
+      const filter = isUnreadOnly ? { response: { $in: [null, ''] } } : {};
+      const feedbacks = await Feedback.find(filter).sort({ createdAt: -1 }).limit(3).lean();
       const totalFeedbacks = await Feedback.countDocuments();
+      const unrepliedCount = await Feedback.countDocuments({ response: { $in: [null, ''] } });
+
+      const templates = [
+        'Cảm ơn bạn đã đóng góp ý kiến! Nhà trường và bộ môn đã ghi nhận để cải tiến chất lượng giảng dạy.',
+        'Phòng Đào tạo đã tiếp nhận phản ánh và sẽ phối hợp cùng khoa phụ trách để cải thiện sớm nhất.',
+        'Cảm ơn phản hồi tích cực của bạn! Chúc bạn học tập thật tốt trong học kỳ này.',
+      ];
+
+      const cards = feedbacks.map((fb) => ({
+        type: 'feedback',
+        id: String(fb._id || fb.id),
+        feedbackId: String(fb._id || fb.id),
+        title: fb.isAnonymous ? 'Sinh viên ẩn danh' : (fb.studentName || 'Sinh viên'),
+        code: `Đánh giá: ${fb.rating || 5} ⭐`,
+        subtitle: `Môn: ${fb.courseName || fb.courseId || 'Học phần'} • GV: ${fb.teacherName || 'Giảng viên'}`,
+        meta: `"${fb.feedbackText || ''}"`,
+        status: fb.response ? 'responded' : 'pending',
+        response: fb.response || null,
+        templates,
+        action: {
+          label: 'Xem chi tiết',
+          path: '/admin/feedbacks',
+        },
+      }));
+
       return {
-        reply: `Hệ thống hiện ghi nhận tổng cộng ${totalFeedbacks} đánh giá và ý kiến từ sinh viên toàn trường. Bạn có thể kiểm tra chi tiết tại trang Quản lý phản hồi.`,
+        reply: `Hệ thống ghi nhận tổng cộng ${totalFeedbacks} đánh giá từ sinh viên (${unrepliedCount} ý kiến chưa phản hồi). Dưới đây là các ý kiến mới nhất kèm mẫu câu gợi ý phản hồi nhanh:`,
         intent: 'NAV_ADMIN_FEEDBACKS',
-        quickLinks: [{ label: 'Quản lý Đánh giá sinh viên', path: '/admin/feedbacks' }],
+        cards,
+        data: { feedbacks, totalFeedbacks, unrepliedCount },
+        quickLinks: [
+          { label: 'Ý kiến & Phản hồi', path: '/admin/feedbacks' },
+          { label: 'Quản lý Đánh giá sinh viên', path: '/admin/feedbacks' },
+        ],
       };
     }
 
@@ -554,22 +732,80 @@ export async function handleAiAssistantQuery({ message, user, currentPath = '' }
 
   // 8. Data & Action: Yêu cầu duyệt hồ sơ (Admin)
   if (
+    text.includes('co yeu cau nao moi') ||
+    text.includes('yeu cau moi') ||
+    text.includes('yeu cau cho duyet') ||
+    text.includes('duyet nhanh') ||
+    text.includes('danh sach yeu cau') ||
+    text.includes('cho xu ly') ||
     text.includes('yeu cau duyet') ||
     text.includes('duyet yeu cau') ||
     text.includes('duyet ho so') ||
     text.includes('cho duyet') ||
     text.includes('cap nhat ho so') ||
+    text.includes('yeu cau cap nhat') ||
+    text.includes('doi avatar') ||
+    text.includes('anh dai dien') ||
     text.includes('profile request')
   ) {
     if (isAdmin) {
+      const matchPerson = rawText.match(/(?:duyệt yêu cầu của|duyệt hồ sơ của|yêu cầu của)\s+([^?.,]+)/i);
+      const query = { status: 'pending' };
+      if (matchPerson && matchPerson[1]) {
+        const candidate = matchPerson[1].trim();
+        if (candidate && !['hồ sơ', 'yêu cầu', 'mới', 'tôi', 'em'].includes(candidate.toLowerCase())) {
+          query.requesterName = { $regex: candidate, $options: 'i' };
+        }
+      }
+      const pendingList = await ProfileRequest.find(query).limit(4).sort({ createdAt: -1 }).lean();
       const pendingCount = await ProfileRequest.countDocuments({ status: 'pending' });
+
+      const cards = pendingList.map((r) => ({
+        type: 'approval',
+        id: String(r._id || r.id),
+        requestId: String(r._id || r.id),
+        title: r.requesterName || 'Người dùng',
+        code: `Yêu cầu #${String(r._id || r.id).slice(-4).toUpperCase()}`,
+        subtitle: r.type === 'avatar' ? 'Cập nhật ảnh đại diện' : r.type === 'profile' ? 'Cập nhật thông tin cá nhân' : 'Cập nhật hồ sơ & avatar',
+        meta: `Email: ${r.requesterEmail || ''} • ${r.requesterRole === 'giao-vien' ? 'Giảng viên' : 'Sinh viên'}`,
+        status: r.status,
+        details: [
+          { label: 'Người gửi', value: r.requesterName },
+          { label: 'Loại yêu cầu', value: r.type === 'avatar' ? 'Đổi avatar' : 'Cập nhật hồ sơ' },
+          { label: 'Trạng thái', value: 'Chờ duyệt' },
+        ],
+        action: {
+          label: 'Xem chi tiết',
+          path: '/admin/profile-requests',
+        },
+        actions: [
+          {
+            actionType: 'APPROVE_REQUEST',
+            label: 'Xác nhận duyệt nhanh',
+            icon: 'fas fa-check-circle',
+            variant: 'success',
+            payload: { requestId: String(r._id || r.id), requesterName: r.requesterName },
+          },
+          {
+            actionType: 'NAVIGATE',
+            label: 'Xem chi tiết',
+            path: '/admin/profile-requests',
+          },
+        ],
+      }));
+
       return {
         reply:
-          `Hệ thống hiện có ${pendingCount} yêu cầu cập nhật hồ sơ/ảnh đại diện đang ở trạng thái Chờ duyệt (Pending).\n` +
-          'Bạn có thể xem xét, duyệt nhanh hàng loạt hoặc từ chối tại trang Duyệt yêu cầu.',
+          pendingCount > 0
+            ? `Hệ thống hiện có ${pendingCount} yêu cầu cập nhật hồ sơ/ảnh đại diện đang ở trạng thái Chờ duyệt (Pending). Bạn có thể bấm [Xác nhận duyệt nhanh] ngay tại đây:`
+            : 'Hiện không có yêu cầu cập nhật hồ sơ nào đang chờ duyệt.',
         intent: 'QUERY_PENDING_REQUESTS',
-        data: { pendingCount },
-        quickLinks: [{ label: 'Duyệt yêu cầu cập nhật hồ sơ', path: '/admin/profile-requests' }],
+        cards,
+        data: { pendingCount, pendingList },
+        quickLinks: [
+          { label: 'Duyệt yêu cầu', path: '/admin/profile-requests' },
+          { label: 'Duyệt yêu cầu cập nhật hồ sơ', path: '/admin/profile-requests' },
+        ],
       };
     }
   }
@@ -578,8 +814,11 @@ export async function handleAiAssistantQuery({ message, user, currentPath = '' }
   if (
     text.includes('thong ke') ||
     text.includes('tong quan') ||
+    text.includes('dashboard') ||
+    text.includes('trang chu') ||
     text.includes('bao cao') ||
-    text.includes('so luong')
+    text.includes('so luong') ||
+    text.includes('so lieu')
   ) {
     if (isAdmin) {
       const [teacherCount, studentCount, classCount, deptCount] = await Promise.all([
@@ -598,14 +837,17 @@ export async function handleAiAssistantQuery({ message, user, currentPath = '' }
           `• Số Khoa đào tạo: ${deptCount}`,
         intent: 'QUERY_ADMIN_STATS',
         data: { teacherCount, studentCount, classCount, deptCount },
-        quickLinks: [{ label: 'Xem Báo cáo Tổng quan', path: '/admin' }],
+        quickLinks: [
+          { label: 'Tổng quan', path: '/admin' },
+          { label: 'Xem Báo cáo Tổng quan', path: '/admin' },
+        ],
       };
     }
   }
 
   // 10. Quick Search: Tìm kiếm sinh viên
-  if (text.startsWith('tim sinh vien') || text.startsWith('tim kiem sinh vien') || text.startsWith('sv ')) {
-    const keyword = rawText.replace(/^(tìm sinh viên|tìm kiếm sinh viên|sv)\s*/i, '').trim();
+  if (text.startsWith('tim sinh vien') || text.startsWith('tim kiem sinh vien') || text.startsWith('sv ') || text.includes('tim sinh vien') || text.startsWith('tim sv')) {
+    const keyword = rawText.replace(/^(tìm kiếm sinh viên|tìm sinh viên|tìm sv|sv)\s*/i, '').trim();
     if (keyword) {
       const num = Number(keyword);
       const or = [{ hoTen: { $regex: keyword, $options: 'i' } }, { email: { $regex: keyword, $options: 'i' } }];
@@ -618,9 +860,30 @@ export async function handleAiAssistantQuery({ message, user, currentPath = '' }
         const studentLines = found
           .map((s) => `• [SV-${String(s.id).padStart(3, '0')}] ${s.hoTen} - Lớp: ${s.className || 'Chưa xếp'} (${s.email || ''})`)
           .join('\n');
+
+        const cards = found.map((s) => ({
+          type: 'student',
+          id: s.id,
+          title: s.hoTen,
+          code: `SV-${String(s.id).padStart(3, '0')}`,
+          subtitle: `Lớp: ${s.className || 'Chưa xếp'} • Khoa: ${s.department || 'Chưa xác định'}`,
+          meta: s.email,
+          details: [
+            { label: 'MSSV', value: `SV-${String(s.id).padStart(3, '0')}` },
+            { label: 'Lớp', value: s.className || 'Chưa xếp' },
+            { label: 'Khoa', value: s.department || 'Chưa xác định' },
+            { label: 'Email', value: s.email || '' },
+          ],
+          action: {
+            label: 'Xem chi tiết',
+            path: '/admin/students',
+          },
+        }));
+
         return {
           reply: `Tìm thấy ${found.length} sinh viên phù hợp:\n\n${studentLines}`,
           intent: 'SEARCH_STUDENT',
+          cards,
           data: found,
           quickLinks: isAdmin ? [{ label: 'Quản lý Sinh viên', path: '/admin/students' }] : [],
         };
@@ -630,6 +893,70 @@ export async function handleAiAssistantQuery({ message, user, currentPath = '' }
         intent: 'SEARCH_STUDENT_EMPTY',
       };
     }
+  }
+
+  // 10.1 Quick Search: Lọc lớp / Tìm kiếm lớp học phần
+  const isFilterClass =
+    text.startsWith('loc lop') ||
+    text.startsWith('tim lop') ||
+    text.startsWith('tim kiem lop') ||
+    text.includes('loc lop') ||
+    text.includes('tim lop hoc phan');
+
+  if (isFilterClass) {
+    const rawKeyword = rawText.replace(/^(lọc danh sách lớp|lọc lớp học phần|lọc lớp|tìm lớp học phần|tìm lớp|tìm kiếm lớp)\s*/i, '').trim();
+    let query = {};
+    if (rawKeyword) {
+      const orConditions = [
+        { id: { $regex: rawKeyword, $options: 'i' } },
+        { courseName: { $regex: rawKeyword, $options: 'i' } },
+        { className: { $regex: rawKeyword, $options: 'i' } },
+        { department: { $regex: rawKeyword, $options: 'i' } },
+        { teacher: { $regex: rawKeyword, $options: 'i' } },
+      ];
+      if (/cntt/i.test(rawKeyword)) {
+        orConditions.push(
+          { department: { $regex: 'Công nghệ thông tin', $options: 'i' } },
+          { id: { $regex: 'IT', $options: 'i' } }
+        );
+      }
+      query = { $or: orConditions };
+    }
+    const foundClasses = await CourseClass.find(query).limit(4).lean();
+    if (foundClasses.length > 0) {
+      const cards = foundClasses.map((c) => ({
+        type: 'class',
+        id: c.id,
+        title: c.courseName || c.className || c.id,
+        code: `Lớp ${c.id}`,
+        subtitle: `GV: ${c.teacher || 'Chưa phân công'} • Phòng: ${c.room || 'TBA'}`,
+        meta: `${c.credits || 0} tín chỉ • Sĩ số: ${c.capacity || 'Không giới hạn'}`,
+        details: [
+          { label: 'Mã lớp', value: c.id },
+          { label: 'Môn học', value: c.courseName || 'Học phần' },
+          { label: 'Giảng viên', value: c.teacher || 'Chưa phân công' },
+          { label: 'Phòng học', value: c.room || 'TBA' },
+        ],
+        action: {
+          label: 'Xem chi tiết',
+          path: '/admin/classes',
+        },
+      }));
+
+      return {
+        reply: `Tìm thấy ${foundClasses.length} lớp học phần phù hợp${rawKeyword ? ` với từ khóa "${rawKeyword}"` : ''}:`,
+        intent: 'FILTER_CLASS',
+        cards,
+        data: foundClasses,
+        quickLinks: [{ label: 'Quản lý lớp học phần', path: '/admin/classes' }],
+      };
+    }
+
+    return {
+      reply: `Không tìm thấy lớp học phần nào phù hợp với từ khóa "${rawKeyword}".`,
+      intent: 'FILTER_CLASS_EMPTY',
+      quickLinks: [{ label: 'Quản lý lớp học phần', path: '/admin/classes' }],
+    };
   }
 
   // 11. Quick Search: Tìm kiếm giảng viên
@@ -663,10 +990,14 @@ export async function handleAiAssistantQuery({ message, user, currentPath = '' }
 
   // 12. Navigation: Lớp học phần
   if (
+    text.includes('quan ly lop hoc phan') ||
     text.includes('lop hoc phan') ||
     text.includes('quan ly lop') ||
     text.includes('mo lop') ||
-    text.includes('danh sach lop')
+    text.includes('danh sach lop') ||
+    text.includes('tao lop') ||
+    text.includes('xep phong hoc') ||
+    text.includes('phan cong giang vien')
   ) {
     if (isTeacher) {
       return {
@@ -685,49 +1016,123 @@ export async function handleAiAssistantQuery({ message, user, currentPath = '' }
   // 13. Navigation: Quản lý Khoa đào tạo
   if (
     text.includes('quan ly khoa') ||
+    text.includes('khoa dao tao') ||
     text.includes('danh sach khoa') ||
     text.includes('cac khoa') ||
     text.includes('bo mon') ||
-    text.includes('nganh hoc')
+    text.includes('them khoa') ||
+    text.includes('nganh hoc') ||
+    text === 'khoa' ||
+    text.startsWith('khoa ') ||
+    text.endsWith(' khoa')
   ) {
     return {
       reply: 'Dạ, bạn có thể xem và quản lý danh sách các khoa đào tạo tại mục "Quản lý khoa" ở menu bên trái.',
       intent: 'NAV_DEPARTMENTS',
-      quickLinks: [{ label: 'Quản lý Khoa', path: '/admin/departments' }],
+      quickLinks: [
+        { label: 'Quản lý khoa', path: '/admin/departments' },
+        { label: 'Quản lý Khoa', path: '/admin/departments' },
+      ],
     };
   }
 
-  // 14. Navigation: Quản lý Môn học
+  // 14. Navigation: Quản lý Môn học / Học phần
   if (
-    text.includes('quan ly mon hoc') ||
-    text.includes('danh muc mon hoc') ||
-    text.includes('danh sach mon hoc') ||
-    text.includes('mon hoc')
+    !text.includes('lop') &&
+    (text.includes('quan ly hoc phan') ||
+      text.includes('hoc phan') ||
+      text.includes('quan ly mon hoc') ||
+      text.includes('danh muc hoc phan') ||
+      text.includes('danh sach hoc phan') ||
+      text.includes('danh muc mon hoc') ||
+      text.includes('danh sach mon hoc') ||
+      text.includes('mon hoc') ||
+      text.includes('tin chi') ||
+      text.includes('so tin chi') ||
+      text.includes('ma hoc phan') ||
+      text.includes('ma mon') ||
+      text.includes('them hoc phan') ||
+      text.includes('them mon hoc'))
   ) {
     return {
-      reply: 'Dạ, bạn có thể xem và quản lý danh mục môn học, số tín chỉ và mã môn tại mục "Quản lý môn học" ở menu bên trái.',
+      reply: 'Dạ, bạn có thể xem và quản lý danh mục học phần đào tạo, số tín chỉ và mã học phần tại mục "Quản lý học phần" ở menu bên trái.',
       intent: 'NAV_COURSES',
-      quickLinks: [{ label: 'Quản lý Môn học', path: '/admin/courses' }],
+      quickLinks: [
+        { label: 'Quản lý học phần', path: '/admin/courses' },
+        { label: 'Quản lý Môn học', path: '/admin/courses' },
+      ],
+    };
+  }
+
+  // 14.1 Navigation: Tài khoản giáo viên
+  const isTeacherAccounts =
+    text.includes('tai khoan giao vien') ||
+    text.includes('tai khoan giang vien') ||
+    text.includes('cap tai khoan giao vien') ||
+    text.includes('cap tai khoan giang vien') ||
+    text.includes('khoa tai khoan giao vien') ||
+    text.includes('khoa tai khoan giang vien') ||
+    text.includes('mat khau giao vien') ||
+    text.includes('mat khau giang vien') ||
+    text.includes('phan quyen giao vien');
+
+  if (isTeacherAccounts) {
+    return {
+      reply: 'Dạ, bạn có thể quản lý danh sách tài khoản đăng nhập, trạng thái khóa/kích hoạt hoặc đặt lại mật khẩu cho giảng viên tại mục "Tài khoản giáo viên" ở menu bên trái.',
+      intent: 'NAV_TEACHER_ACCOUNTS',
+      quickLinks: [
+        { label: 'Tài khoản giáo viên', path: '/admin/teacher-accounts' },
+        { label: 'Quản lý giáo viên', path: '/admin/teachers' },
+      ],
     };
   }
 
   // 15. Navigation: Quản lý Giảng viên
   if (
     text.includes('danh sach giang vien') ||
+    text.includes('danh sach giao vien') ||
     text.includes('quan ly giang vien') ||
     text.includes('quan ly giao vien') ||
+    text.includes('giang vien toan truong') ||
+    text.includes('giao vien toan truong') ||
+    text.includes('them giang vien') ||
+    text.includes('them giao vien') ||
+    text.includes('ho so giang vien') ||
+    text.includes('ho so giao vien') ||
     text.includes('giang vien') ||
-    text.includes('giao vien')
+    text.includes('giao vien') ||
+    text === 'gv' ||
+    text.startsWith('gv ')
   ) {
     return {
       reply: 'Dạ, để xem danh sách giảng viên toàn trường, bạn có thể truy cập nhanh vào mục Quản lý giáo viên ở menu bên trái.',
       intent: 'NAV_TEACHERS',
       quickLinks: isAdmin
         ? [
-            { label: 'Quản lý Giảng viên', path: '/admin/teachers' },
-            { label: 'Tài khoản Giảng viên', path: '/admin/teacher-accounts' },
+            { label: 'Quản lý giáo viên', path: '/admin/teachers' },
+            { label: 'Tài khoản giáo viên', path: '/admin/teacher-accounts' },
           ]
-        : [{ label: 'Quản lý Giảng viên', path: '/admin/teachers' }],
+        : [{ label: 'Quản lý giáo viên', path: '/admin/teachers' }],
+    };
+  }
+
+  // 15.1 Navigation: Tài khoản sinh viên
+  const isStudentAccounts =
+    text.includes('tai khoan sinh vien') ||
+    text.includes('cap tai khoan sinh vien') ||
+    text.includes('khoa tai khoan sinh vien') ||
+    text.includes('kich hoat tai khoan sinh vien') ||
+    text.includes('reset mat khau sinh vien') ||
+    text.includes('mat khau sinh vien');
+
+  if (isStudentAccounts) {
+    return {
+      reply: 'Dạ, bạn có thể quản lý tài khoản đăng nhập, trạng thái kích hoạt hoặc đặt lại mật khẩu cho sinh viên tại mục "Tài khoản sinh viên" ở menu bên trái.',
+      intent: 'NAV_STUDENT_ACCOUNTS',
+      quickLinks: [
+        { label: 'Tài khoản sinh viên', path: '/admin/student-accounts' },
+        { label: 'Quản lý sinh viên', path: '/admin/students' },
+      ],
     };
   }
 
@@ -735,10 +1140,10 @@ export async function handleAiAssistantQuery({ message, user, currentPath = '' }
   if (
     text.includes('danh sach sinh vien') ||
     text.includes('quan ly sinh vien') ||
-    text.includes('tai khoan sinh vien') ||
     text.includes('ho so sinh vien') ||
     text.includes('sinh vien toan truong') ||
     text.includes('them sinh vien') ||
+    text.includes('tra cuu sinh vien') ||
     text.includes('sinh vien') ||
     text.includes('hoc sinh') ||
     text === 'sv' ||
@@ -791,6 +1196,28 @@ export async function handleAiAssistantQuery({ message, user, currentPath = '' }
       intent: 'GREETING',
       quickLinks: [
         { label: 'Trang Tổng quan', path: isTeacher ? '/teacher' : isStudent ? '/student' : '/admin' },
+      ],
+    };
+  }
+
+  if (isAdmin) {
+    return {
+      reply:
+        'Dạ, tôi chưa tìm thấy kết quả chính xác cho câu hỏi này. Bạn có thể thử các tác vụ quản trị nhanh dưới đây hoặc bấm vào đường dẫn để thao tác trực tiếp:',
+      intent: 'ADMIN_FALLBACK_SUGGESTIONS',
+      suggestions: [
+        'Tìm sinh viên Nguyễn Văn An',
+        'Lọc lớp CNTT',
+        'Có yêu cầu nào mới không?',
+        'Xem ý kiến phản hồi chưa đọc',
+      ],
+      quickLinks: [
+        { label: 'Thống kê hệ thống', path: '/admin' },
+        { label: 'Duyệt yêu cầu hồ sơ', path: '/admin/profile-requests' },
+        { label: 'Quản lý bảng điểm', path: '/admin/gradebook' },
+        { label: 'Tra cứu sinh viên', path: '/admin/students' },
+        { label: 'Ý kiến & Phản hồi', path: '/admin/feedbacks' },
+        { label: 'Quản lý lớp học phần', path: '/admin/classes' },
       ],
     };
   }

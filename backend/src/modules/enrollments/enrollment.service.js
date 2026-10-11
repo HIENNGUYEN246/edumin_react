@@ -25,7 +25,14 @@ export async function listMyEnrollments(user) {
   // Drop enrollments whose class was deleted; expose the class object as `class`.
   return enrollments
     .filter((e) => e.classRef)
-    .map((e) => ({ _id: e._id, classId: e.classId, enrolledAt: e.createdAt, class: e.classRef }));
+    .map((e) => ({
+      _id: e._id,
+      classId: e.classId,
+      enrolledAt: e.createdAt,
+      class: e.classRef,
+      manualGrades: e.manualGrades,
+      finalScore: e.finalScore,
+    }));
 }
 
 export async function enroll(user, classId) {

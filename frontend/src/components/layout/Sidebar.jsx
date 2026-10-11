@@ -16,8 +16,8 @@ export function Sidebar({ role }) {
   const pendingCount = reqData?.pendingCount ?? 0;
 
   return (
-    <aside className="w-64 bg-white border-r border-slate-200/80 flex-shrink-0 hidden md:flex flex-col overflow-y-auto custom-scrollbar shadow-2xs">
-      <nav className="p-3.5 space-y-1">
+    <aside className="w-64 bg-white border-r border-slate-200/80 flex-shrink-0 hidden md:flex flex-col justify-between overflow-y-auto custom-scrollbar shadow-2xs">
+      <nav className="p-3.5 space-y-1 flex-1">
         {items.map((item) => {
           const isApproval = item.to === '/admin/profile-requests';
           return (

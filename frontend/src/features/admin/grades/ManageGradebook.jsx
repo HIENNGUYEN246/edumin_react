@@ -39,6 +39,10 @@ export function ManageGradebook() {
   const [editScoreValue, setEditScoreValue] = useState('');
   const [editReason, setEditReason] = useState('');
 
+  // Class detail students filter state
+  const [studentSearchTerm, setStudentSearchTerm] = useState('');
+  const [studentGradeFilter, setStudentGradeFilter] = useState('all'); // 'all', 'completed', 'pending'
+
   // 1. Fetch departments for filter
   const { data: deptData } = useQuery({
     queryKey: ['departments', 'all'],
@@ -71,6 +75,28 @@ export function ManageGradebook() {
 
   const currentClass = classStudentsData?.class || null;
   const classStudents = classStudentsData?.students || [];
+
+  // Filtered students for class detail view
+  const filteredClassStudents = useMemo(() => {
+    return classStudents.filter((st) => {
+      if (studentSearchTerm.trim()) {
+        const term = studentSearchTerm.trim().toLowerCase();
+        const code = formatStudentCode(st.id).toLowerCase();
+        const rawId = String(st.id ?? '').toLowerCase();
+        const name = (st.hoTen || '').toLowerCase();
+        if (!code.includes(term) && !rawId.includes(term) && !name.includes(term)) {
+          return false;
+        }
+      }
+      if (studentGradeFilter === 'completed') {
+        return st.finalScore != null;
+      }
+      if (studentGradeFilter === 'pending') {
+        return st.finalScore == null;
+      }
+      return true;
+    });
+  }, [classStudents, studentSearchTerm, studentGradeFilter]);
 
   // 4. Fetch audit logs (either all or specific class)
   const { data: auditLogsData, isLoading: isLoadingAuditLogs, refetch: refetchAuditLogs } = useQuery({
@@ -289,16 +315,44 @@ export function ManageGradebook() {
               </div>
             </div>
 
-            {/* Search filter */}
-            <div className="relative min-w-[240px]">
-              <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs" />
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Tìm mã lớp, môn học, giảng viên..."
-                className="w-full rounded-xl border border-slate-200 bg-white pl-8 pr-3 py-1.5 text-xs outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-              />
+            {/* Search filter and reset */}
+            <div className="flex items-center gap-2">
+              <div className="relative min-w-[240px]">
+                <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs" />
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Tìm mã lớp, môn học, giảng viên..."
+                  className="w-full rounded-xl border border-slate-200 bg-white pl-8 pr-7 py-1.5 text-xs outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                />
+                {searchTerm && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchTerm('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs cursor-pointer"
+                    title="Xóa tìm kiếm"
+                  >
+                    <i className="fas fa-times" />
+                  </button>
+                )}
+              </div>
+
+              {(searchTerm || selectedDept !== 'all' || selectedStatus !== 'all') && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchTerm('');
+                    setSelectedDept('all');
+                    setSelectedStatus('all');
+                  }}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-600 hover:bg-slate-50 transition cursor-pointer"
+                  title="Đặt lại tất cả bộ lọc"
+                >
+                  <i className="fas fa-rotate-left text-[10px]" />
+                  <span>Đặt lại</span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -495,8 +549,97 @@ export function ManageGradebook() {
             </div>
           </div>
 
-          {/* Detailed Students Table */}
+          {/* Detailed Students Table & Filter Toolbar */}
           <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+            {/* Student Filter Toolbar */}
+            <div className="p-4 border-b border-slate-100 bg-slate-50/70 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-3">
+                {/* Quick Class Switcher */}
+                {classesList.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <label htmlFor="detail-class-select" className="text-xs font-bold text-slate-600 whitespace-nowrap">
+                      Lớp học phần:
+                    </label>
+                    <select
+                      id="detail-class-select"
+                      value={selectedClassId}
+                      onChange={(e) => {
+                        setSelectedClassId(e.target.value);
+                        setStudentSearchTerm('');
+                      }}
+                      className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 max-w-[280px] truncate"
+                    >
+                      {classesList.map((cls) => (
+                        <option key={cls._id || cls.id} value={cls._id || cls.id}>
+                          {cls.id} - {cls.courseName || cls.courseId} ({cls.isGradeLocked ? 'Đã khóa' : 'Đang mở'})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Status Filter */}
+                <div className="flex items-center gap-2">
+                  <label htmlFor="student-status-select" className="text-xs font-bold text-slate-600 whitespace-nowrap">
+                    Trạng thái điểm:
+                  </label>
+                  <select
+                    id="student-status-select"
+                    value={studentGradeFilter}
+                    onChange={(e) => setStudentGradeFilter(e.target.value)}
+                    className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                  >
+                    <option value="all">Tất cả sinh viên</option>
+                    <option value="completed">Đã có điểm tổng kết</option>
+                    <option value="pending">Chưa có điểm tổng kết</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Search filter and counter */}
+              <div className="flex items-center gap-2">
+                <div className="relative min-w-[240px]">
+                  <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs" />
+                  <input
+                    type="text"
+                    value={studentSearchTerm}
+                    onChange={(e) => setStudentSearchTerm(e.target.value)}
+                    placeholder="Tìm theo tên hoặc mã SV..."
+                    className="w-full rounded-xl border border-slate-200 bg-white pl-8 pr-7 py-1.5 text-xs outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                  />
+                  {studentSearchTerm && (
+                    <button
+                      type="button"
+                      onClick={() => setStudentSearchTerm('')}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs cursor-pointer"
+                      title="Xóa tìm kiếm"
+                    >
+                      <i className="fas fa-times" />
+                    </button>
+                  )}
+                </div>
+
+                {(studentSearchTerm || studentGradeFilter !== 'all') && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStudentSearchTerm('');
+                      setStudentGradeFilter('all');
+                    }}
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-600 hover:bg-slate-50 transition cursor-pointer"
+                    title="Đặt lại bộ lọc"
+                  >
+                    <i className="fas fa-rotate-left text-[10px]" />
+                    <span>Đặt lại</span>
+                  </button>
+                )}
+
+                <span className="text-xs font-medium text-slate-500 whitespace-nowrap pl-2 border-l border-slate-200">
+                  Hiển thị <strong className="text-slate-800 font-bold">{filteredClassStudents.length}</strong>/{classStudents.length} SV
+                </span>
+              </div>
+            </div>
+
             {isLoadingClassStudents ? (
               <div className="py-16 flex justify-center">
                 <Spinner />
@@ -505,6 +648,23 @@ export function ManageGradebook() {
               <div className="py-16 text-center text-slate-400">
                 <i className="fas fa-users-slash text-3xl mb-2 block" />
                 <span>Lớp học phần này chưa có sinh viên nào đăng ký.</span>
+              </div>
+            ) : filteredClassStudents.length === 0 ? (
+              <div className="py-16 text-center text-slate-400">
+                <i className="fas fa-filter-circle-xmark text-3xl mb-2 block text-slate-300" />
+                <p className="font-semibold text-slate-600 text-sm">Không tìm thấy sinh viên phù hợp</p>
+                <p className="text-xs text-slate-400 mt-1">Vui lòng thử điều chỉnh lại từ khóa tìm kiếm hoặc bộ lọc trạng thái điểm.</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStudentSearchTerm('');
+                    setStudentGradeFilter('all');
+                  }}
+                  className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition cursor-pointer"
+                >
+                  <i className="fas fa-rotate-left" />
+                  <span>Xóa bộ lọc</span>
+                </button>
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -523,7 +683,7 @@ export function ManageGradebook() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-xs">
-                    {classStudents.map((st) => {
+                    {filteredClassStudents.map((st) => {
                       const eff = st.effectiveGrades || {};
                       const gpa = st.finalScore != null ? Number(st.finalScore) : null;
                       const classification = getGpaClassification(gpa);

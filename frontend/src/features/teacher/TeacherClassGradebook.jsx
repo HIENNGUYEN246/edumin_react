@@ -270,6 +270,10 @@ export function TeacherClassGradebook() {
   const [selectedMidtermQuiz, setSelectedMidtermQuiz] = useState('');
   const [selectedFinalQuiz, setSelectedFinalQuiz] = useState('');
 
+  // Filters state
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'completed', 'pending'
+
   const classInfo = classQuery.data;
   const weights = useMemo(() => {
     return classInfo?.gradeWeights || DEFAULT_GRADE_WEIGHTS;
@@ -283,6 +287,51 @@ export function TeacherClassGradebook() {
   const students = useMemo(() => studentsQuery.data?.students || [], [studentsQuery.data?.students]);
   const availableQuizzes = useMemo(() => studentsQuery.data?.availableQuizzes || [], [studentsQuery.data?.availableQuizzes]);
   const classFromStudents = useMemo(() => studentsQuery.data?.class || null, [studentsQuery.data?.class]);
+
+  // Check if a student has all active component grades filled
+  const isStudentComplete = (st) => {
+    return activeComponents.every((comp) => {
+      if (comp.key === 'homework') return st.homeworkGrade != null;
+      if (comp.key === 'attendance') {
+        const val = st.manualGrades?.attendance ?? st.attendanceStats?.autoScore;
+        return val != null && val !== '';
+      }
+      if (comp.key === 'midterm') {
+        const val = st.manualGrades?.midterm ?? st.quizMidterm?.score;
+        return val != null && val !== '';
+      }
+      if (comp.key === 'final') {
+        const val = st.manualGrades?.final ?? st.quizFinal?.score;
+        return val != null && val !== '';
+      }
+      if (comp.key === 'presentation') {
+        const val = st.manualGrades?.presentation;
+        return val != null && val !== '';
+      }
+      return true;
+    });
+  };
+
+  const filteredStudents = useMemo(() => {
+    return students.filter((st) => {
+      if (searchTerm.trim()) {
+        const term = searchTerm.trim().toLowerCase();
+        const code = formatStudentCode(st.id).toLowerCase();
+        const rawId = String(st.id ?? '').toLowerCase();
+        const name = (st.hoTen || '').toLowerCase();
+        if (!code.includes(term) && !rawId.includes(term) && !name.includes(term)) {
+          return false;
+        }
+      }
+      if (statusFilter === 'completed') {
+        return isStudentComplete(st);
+      }
+      if (statusFilter === 'pending') {
+        return !isStudentComplete(st);
+      }
+      return true;
+    });
+  }, [students, searchTerm, statusFilter, activeComponents]);
 
   const quizConfig = useMemo(() => ({
     midtermQuiz: classFromStudents?.midtermQuiz || classInfo?.midtermQuizId,
@@ -426,6 +475,69 @@ export function TeacherClassGradebook() {
         )}
       </div>
 
+      {/* Teacher Gradebook Filter Toolbar */}
+      <div className="mb-4 p-4 rounded-2xl bg-white border border-gray-100 shadow-xs flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2">
+            <label htmlFor="teacher-status-filter" className="text-xs font-bold text-gray-600 whitespace-nowrap">
+              Trạng thái điểm:
+            </label>
+            <select
+              id="teacher-status-filter"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="rounded-xl border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+            >
+              <option value="all">Tất cả sinh viên</option>
+              <option value="completed">Đã nhập đủ điểm</option>
+              <option value="pending">Chưa nhập đủ điểm</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <div className="relative min-w-[260px]">
+            <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Tìm theo tên hoặc mã SV..."
+              className="w-full rounded-xl border border-gray-200 bg-white pl-8 pr-7 py-1.5 text-xs outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+            />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs cursor-pointer"
+                title="Xóa tìm kiếm"
+              >
+                <i className="fas fa-times" />
+              </button>
+            )}
+          </div>
+
+          {(searchTerm || statusFilter !== 'all') && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearchTerm('');
+                setStatusFilter('all');
+              }}
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-gray-200 bg-white text-xs font-semibold text-gray-600 hover:bg-gray-50 transition cursor-pointer"
+              title="Đặt lại bộ lọc"
+            >
+              <i className="fas fa-rotate-left text-[10px]" />
+              <span>Đặt lại</span>
+            </button>
+          )}
+
+          <span className="text-xs font-medium text-gray-500 whitespace-nowrap pl-2 border-l border-gray-200">
+            Hiển thị <strong className="text-gray-800 font-bold">{filteredStudents.length}</strong>/{students.length} SV
+          </span>
+        </div>
+      </div>
+
       <div className="overflow-x-auto custom-scrollbar rounded-2xl border border-gray-100 bg-white shadow-sm">
         <table className="min-w-[1100px] w-full text-sm">
           <thead>
@@ -494,8 +606,27 @@ export function TeacherClassGradebook() {
                   Chưa có sinh viên đăng ký lớp này.
                 </td>
               </tr>
+            ) : filteredStudents.length === 0 ? (
+              <tr>
+                <td colSpan={activeComponents.length + 4} className="px-4 py-10 text-center text-gray-400">
+                  <i className="fas fa-filter-circle-xmark text-3xl mb-2 block text-gray-300" />
+                  <p className="font-semibold text-gray-600 text-sm">Không tìm thấy sinh viên phù hợp</p>
+                  <p className="text-xs text-gray-400 mt-1">Vui lòng kiểm tra lại từ khóa tìm kiếm hoặc bộ lọc trạng thái điểm.</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchTerm('');
+                      setStatusFilter('all');
+                    }}
+                    className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition cursor-pointer"
+                  >
+                    <i className="fas fa-rotate-left" />
+                    <span>Xóa bộ lọc</span>
+                  </button>
+                </td>
+              </tr>
             ) : (
-              students.map((student) => (
+              filteredStudents.map((student) => (
                 <StudentGradeRow
                   key={student._id}
                   classId={id}

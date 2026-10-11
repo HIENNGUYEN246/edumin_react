@@ -235,4 +235,64 @@ describe('ManageGradebook (Admin Gradebook Management)', () => {
       expect(mockToast.success).toHaveBeenCalled();
     });
   });
+
+  it('filters students by name or code and by grade completion status in detail view', async () => {
+    const twoStudentsDetail = {
+      class: mockClassDetail.class,
+      students: [
+        {
+          _id: 's-1',
+          id: 2021001,
+          hoTen: 'Nguyễn Văn An',
+          effectiveGrades: { attendance: 9, homework: 8, midterm: 7.5, final: 8.5 },
+          finalScore: 8.2,
+        },
+        {
+          _id: 's-2',
+          id: 2021002,
+          hoTen: 'Trần Thị Bình',
+          effectiveGrades: { attendance: 8, homework: 7, midterm: 6, final: null },
+          finalScore: null,
+        },
+      ],
+    };
+    classesApi.students.mockResolvedValue(twoStudentsDetail);
+
+    renderWithClient(<ManageGradebook />);
+
+    await waitFor(() => {
+      expect(screen.getByText('CNTT01-01')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getAllByRole('button', { name: /Xem Bảng điểm/i })[0]);
+
+    await waitFor(() => {
+      expect(screen.getByText('Nguyễn Văn An')).toBeInTheDocument();
+      expect(screen.getByText('Trần Thị Bình')).toBeInTheDocument();
+    });
+
+    // 1. Search by student name
+    const searchInput = screen.getByPlaceholderText(/Tìm theo tên hoặc mã SV/i);
+    fireEvent.change(searchInput, { target: { value: 'Bình' } });
+
+    expect(screen.getByText('Trần Thị Bình')).toBeInTheDocument();
+    expect(screen.queryByText('Nguyễn Văn An')).not.toBeInTheDocument();
+
+    // Clear search
+    fireEvent.change(searchInput, { target: { value: '' } });
+    expect(screen.getByText('Nguyễn Văn An')).toBeInTheDocument();
+    expect(screen.getByText('Trần Thị Bình')).toBeInTheDocument();
+
+    // 2. Filter by completion status: "Đã có điểm tổng kết"
+    const statusSelect = screen.getByLabelText(/Trạng thái điểm/i);
+    fireEvent.change(statusSelect, { target: { value: 'completed' } });
+
+    expect(screen.getByText('Nguyễn Văn An')).toBeInTheDocument();
+    expect(screen.queryByText('Trần Thị Bình')).not.toBeInTheDocument();
+
+    // 3. Filter by completion status: "Chưa có điểm tổng kết"
+    fireEvent.change(statusSelect, { target: { value: 'pending' } });
+    expect(screen.getByText('Trần Thị Bình')).toBeInTheDocument();
+    expect(screen.queryByText('Nguyễn Văn An')).not.toBeInTheDocument();
+  });
 });

@@ -66,6 +66,8 @@ vi.mock('../../api/classesApi.js', () => ({
   },
 }));
 
+import { classesApi } from '../../api/classesApi.js';
+
 vi.mock('../../app/providers/ToastProvider.jsx', () => ({
   useToast: () => ({
     success: vi.fn(),
@@ -194,6 +196,67 @@ describe('TeacherClassGradebook - Smart Grades & Syncing', () => {
 
     // In Final dropdown, quiz-mid-1 reappears!
     expect(finalSelect.querySelector('option[value="quiz-mid-1"]')).not.toBeNull();
+  });
+
+  it('filters students by search input and completion status in teacher gradebook', async () => {
+    classesApi.students.mockResolvedValueOnce({
+      class: {
+        id: 'IT101-01',
+        midtermQuiz: { _id: 'quiz-mid-1', title: 'Quiz Giữa Kỳ 1' },
+        finalQuiz: null,
+      },
+      availableQuizzes: [],
+      students: [
+        {
+          _id: 's-01',
+          id: 101,
+          hoTen: 'Nguyễn Văn Sinh Viên',
+          manualGrades: { final: 8.5 },
+          attendanceStats: { autoScore: 9.5 },
+          quizMidterm: { score: 8.5 },
+          homeworkGrade: 9.0,
+        },
+        {
+          _id: 's-02',
+          id: 102,
+          hoTen: 'Trần Thị Thu Thảo',
+          manualGrades: { final: null }, // incomplete final
+          attendanceStats: { autoScore: 8.0 },
+          quizMidterm: { score: 7.0 },
+          homeworkGrade: 8.0,
+        },
+      ],
+    });
+
+    renderGradebook();
+
+    await screen.findByText('Nguyễn Văn Sinh Viên');
+    expect(screen.getByText('Trần Thị Thu Thảo')).toBeInTheDocument();
+
+    // 1. Search by student name
+    const searchInput = screen.getByPlaceholderText(/Tìm theo tên hoặc mã SV/i);
+    fireEvent.change(searchInput, { target: { value: 'Thảo' } });
+
+    expect(screen.getByText('Trần Thị Thu Thảo')).toBeInTheDocument();
+    expect(screen.queryByText('Nguyễn Văn Sinh Viên')).not.toBeInTheDocument();
+
+    // Reset search
+    fireEvent.change(searchInput, { target: { value: '' } });
+    expect(screen.getByText('Nguyễn Văn Sinh Viên')).toBeInTheDocument();
+    expect(screen.getByText('Trần Thị Thu Thảo')).toBeInTheDocument();
+
+    // 2. Filter by status: "Đã nhập đủ điểm"
+    const statusSelect = screen.getByLabelText(/Trạng thái điểm/i);
+    fireEvent.change(statusSelect, { target: { value: 'completed' } });
+
+    expect(screen.getByText('Nguyễn Văn Sinh Viên')).toBeInTheDocument();
+    expect(screen.queryByText('Trần Thị Thu Thảo')).not.toBeInTheDocument();
+
+    // 3. Filter by status: "Chưa nhập đủ điểm"
+    fireEvent.change(statusSelect, { target: { value: 'pending' } });
+
+    expect(screen.getByText('Trần Thị Thu Thảo')).toBeInTheDocument();
+    expect(screen.queryByText('Nguyễn Văn Sinh Viên')).not.toBeInTheDocument();
   });
 });
 
