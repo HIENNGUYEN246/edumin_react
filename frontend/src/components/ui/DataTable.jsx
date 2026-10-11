@@ -22,23 +22,38 @@ export function DataTable({
 }) {
   if (isLoading) return <Spinner />;
 
-  const isSelected = (row) => selectedKeys.includes(String(rowKey(row)));
+  const isKeySelected = (k) => {
+    const strK = String(k);
+    if (selectedKeys instanceof Set) {
+      return selectedKeys.has(k) || selectedKeys.has(strK);
+    }
+    return Array.isArray(selectedKeys) && (selectedKeys.includes(k) || selectedKeys.includes(strK));
+  };
+
+  const isSelected = (row) => isKeySelected(rowKey(row));
   const allRowKeys = rows.map((r) => String(rowKey(r)));
-  const allSelected = rows.length > 0 && allRowKeys.every((k) => selectedKeys.includes(k));
-  const partiallySelected = !allSelected && allRowKeys.some((k) => selectedKeys.includes(k));
+  const allSelected = rows.length > 0 && allRowKeys.every((k) => isKeySelected(k));
+  const partiallySelected = !allSelected && allRowKeys.some((k) => isKeySelected(k));
+
+  const selectedCount =
+    selectedKeys instanceof Set
+      ? selectedKeys.size
+      : Array.isArray(selectedKeys)
+      ? selectedKeys.length
+      : 0;
 
   const totalCols = columns.length + (selectable ? 1 : 0);
 
   return (
     <div className="space-y-2">
-      {selectable && selectedKeys.length > 0 && bulkActions && (
+      {selectable && selectedCount > 0 && bulkActions && (
         <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 bg-indigo-50 border border-indigo-200/80 rounded-2xl shadow-xs transition-all">
           <div className="flex items-center gap-2.5">
             <span className="px-2.5 py-0.5 rounded-full bg-indigo-600 text-white text-xs font-bold">
-              {selectedKeys.length}
+              {selectedCount}
             </span>
             <span className="text-sm font-semibold text-indigo-900">
-              Đã chọn {selectedKeys.length} mục
+              Đã chọn {selectedCount} mục
             </span>
           </div>
           <div className="flex items-center gap-2">

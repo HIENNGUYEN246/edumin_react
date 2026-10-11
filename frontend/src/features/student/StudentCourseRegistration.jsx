@@ -43,11 +43,27 @@ function groupByCourse(classes) {
 
 function ClassRow({ cls, state, onEnroll, pending }) {
   const full = cls.capacity > 0 && cls.enrolledCount >= cls.capacity;
-  const disabled = pending || state.enrolledThisClass || state.enrolledOtherInCourse || full;
+  const isTimeLocked =
+    cls.status !== 'Đang mở' ||
+    Boolean(
+      cls.registrationEnd &&
+      registrationDateTimeInput(cls.registrationEnd, true) < getCurrentDateTimeLocalWithSeconds()
+    );
+  const disabled = pending || state.enrolledThisClass || state.enrolledOtherInCourse || full || isTimeLocked;
 
   let action;
   if (state.enrolledThisClass) {
     action = <span className="text-xs font-bold text-emerald-600"><i className="fas fa-circle-check mr-1" />Đã đăng ký</span>;
+  } else if (isTimeLocked) {
+    action = (
+      <span
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-50 text-amber-700 text-xs font-bold border border-amber-200 cursor-not-allowed"
+        title="Thời hạn đăng ký đã kết thúc (khóa tự động / chỉ xem)"
+      >
+        <i className="fas fa-lock text-[10px]" />
+        Đã khóa (hết hạn)
+      </span>
+    );
   } else if (state.enrolledOtherInCourse) {
     action = <span className="text-xs text-gray-400">Đã đăng ký lớp khác</span>;
   } else if (full) {
@@ -58,7 +74,7 @@ function ClassRow({ cls, state, onEnroll, pending }) {
         type="button"
         onClick={() => onEnroll(cls)}
         disabled={disabled}
-        className="px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 disabled:opacity-60"
+        className="px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 disabled:opacity-60 cursor-pointer"
       >
         Đăng ký
       </button>
@@ -66,7 +82,7 @@ function ClassRow({ cls, state, onEnroll, pending }) {
   }
 
   return (
-    <div className={`flex flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3 rounded-2xl border transition-all ${state.enrolledThisClass ? 'border-emerald-300 bg-emerald-50/50 shadow-2xs' : 'border-gray-200/80 bg-white hover:border-indigo-200 hover:shadow-xs'}`}>
+    <div className={`flex flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3 rounded-2xl border transition-all ${state.enrolledThisClass ? 'border-emerald-300 bg-emerald-50/50 shadow-2xs' : isTimeLocked ? 'border-amber-200/80 bg-amber-50/20' : 'border-gray-200/80 bg-white hover:border-indigo-200 hover:shadow-xs'}`}>
       <div className="w-32 shrink-0">
         <span className="font-mono font-bold text-indigo-700 text-xs px-2 py-1 rounded-lg bg-indigo-50 border border-indigo-100/80 text-center block">
           {cls.id}
@@ -90,8 +106,8 @@ function ClassRow({ cls, state, onEnroll, pending }) {
       <span className="text-xs text-gray-500">
         Đăng ký: {formatRegistrationDateTime(cls.registrationStart)} – {formatRegistrationDateTime(cls.registrationEnd, true)}
       </span>
-      <span className="rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-bold text-emerald-700">
-        Trạng thái: {cls.status || 'Đang mở'}
+      <span className={`rounded-full px-2 py-1 text-[11px] font-bold ${isTimeLocked ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'bg-emerald-50 text-emerald-700'}`}>
+        Trạng thái: {isTimeLocked ? 'Đã hết hạn đăng ký' : (cls.status || 'Đang mở')}
       </span>
       {cls.department && (
         <span className="rounded-full bg-indigo-50/80 px-2 py-0.5 text-[11px] font-semibold text-indigo-700 border border-indigo-100">
@@ -237,31 +253,58 @@ export function StudentCourseRegistration() {
     {
       key: 'status',
       header: 'Trạng thái',
-      render: (e) => (
-        <span className={`text-xs font-semibold ${e.class?.status === 'Đang mở' ? 'text-emerald-700' : 'text-gray-500'}`}>
-          {e.class?.status || '—'}
-        </span>
-      ),
+      render: (e) => {
+        const isLocked = cancellationLocked(e.class);
+        return (
+          <span
+            className={`text-xs font-semibold ${
+              isLocked
+                ? 'text-amber-700'
+                : e.class?.status === 'Đang mở'
+                  ? 'text-emerald-700'
+                  : 'text-gray-500'
+            }`}
+          >
+            {isLocked ? (
+              <span className="inline-flex items-center gap-1 font-medium bg-amber-50 text-amber-700 px-2 py-0.5 rounded border border-amber-200">
+                <i className="fas fa-lock text-[10px]" />
+                Đã khóa (hết hạn)
+              </span>
+            ) : (
+              e.class?.status || '—'
+            )}
+          </span>
+        );
+      },
     },
     {
       key: 'action',
       header: '',
       className: 'text-right w-28',
-      render: (e) => (
-        <button
-          type="button"
-          onClick={() => doCancel(e)}
-          disabled={cancel.isPending || cancellationLocked(e.class)}
-          title={
-            cancellationLocked(e.class)
-              ? 'Lớp đã đóng đăng ký, không thể hủy học phần'
-              : undefined
-          }
-          className="px-3 py-1.5 rounded-lg bg-red-50 text-red-600 text-xs font-semibold hover:bg-red-100 disabled:opacity-60"
-        >
-          {cancellationLocked(e.class) ? 'Đã khóa' : 'Hủy'}
-        </button>
-      ),
+      render: (e) => {
+        const isLocked = cancellationLocked(e.class);
+        if (isLocked) {
+          return (
+            <span
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-gray-100 text-gray-500 text-xs font-medium cursor-not-allowed border border-gray-200"
+              title="Thời hạn đăng ký đã kết thúc — đã khóa tính năng hủy (chế độ chỉ xem / read-only)"
+            >
+              <i className="fas fa-lock text-[10px]" />
+              Đã khóa
+            </span>
+          );
+        }
+        return (
+          <button
+            type="button"
+            onClick={() => doCancel(e)}
+            disabled={cancel.isPending}
+            className="px-3 py-1.5 rounded-lg bg-red-50 text-red-600 text-xs font-semibold hover:bg-red-100 disabled:opacity-60 cursor-pointer"
+          >
+            Hủy
+          </button>
+        );
+      },
     },
   ];
 

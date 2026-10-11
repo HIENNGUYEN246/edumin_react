@@ -28,9 +28,10 @@ export function ManageProfileRequests() {
   // Reject Modal
   const [rejectModal, setRejectModal] = useState({ isOpen: false, targetId: null, isBulk: false, reason: '' });
 
+  // Clear selections when tab, role filter, or search changes, NOT when switching pages
   useEffect(() => {
     setSelectedIds([]);
-  }, [activeTab, filterRole, page, search]);
+  }, [activeTab, filterRole, search]);
 
   const params = useMemo(() => {
     const p = { page, limit: 10, search };
@@ -509,16 +510,20 @@ export function ManageProfileRequests() {
         }
         selectable
         selectedKeys={selectedIds}
-        onSelectKey={(key) =>
-          setSelectedIds((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]))
-        }
-        onSelectAll={(allKeys) =>
+        onSelectKey={(key) => {
+          const k = String(key);
           setSelectedIds((prev) =>
-            allKeys.every((k) => prev.includes(k))
-              ? prev.filter((k) => !allKeys.includes(k))
-              : Array.from(new Set([...prev, ...allKeys]))
-          )
-        }
+            prev.some((id) => String(id) === k) ? prev.filter((id) => String(id) !== k) : [...prev, k]
+          );
+        }}
+        onSelectAll={(allKeys) => {
+          const pageKeys = allKeys.map(String);
+          setSelectedIds((prev) =>
+            pageKeys.every((k) => prev.some((id) => String(id) === k))
+              ? prev.filter((id) => !pageKeys.includes(String(id)))
+              : Array.from(new Set([...prev.map(String), ...pageKeys]))
+          );
+        }}
         bulkActions={
           <>
             <button

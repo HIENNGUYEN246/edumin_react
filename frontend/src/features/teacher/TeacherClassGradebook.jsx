@@ -411,21 +411,69 @@ export function TeacherClassGradebook() {
             <button
               type="button"
               onClick={() => setIsQuizConfigOpen(true)}
-              className="whitespace-nowrap rounded-lg border border-indigo-200 bg-indigo-50/70 px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-100/80 transition cursor-pointer flex items-center gap-1.5"
+              className="whitespace-nowrap rounded-xl border border-indigo-200 bg-indigo-50/70 px-3.5 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-100/80 transition cursor-pointer flex items-center gap-1.5 shadow-2xs"
             >
               <i className="fas fa-sliders" />
               <span>Cấu hình thi (Quiz / Nhập tay)</span>
             </button>
             <button
               type="button"
-              onClick={() => navigate(`/teacher/classes/${id}/students`)}
-              className="whitespace-nowrap rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition cursor-pointer"
+              onClick={() => navigate('/teacher/classes')}
+              className="whitespace-nowrap rounded-xl border border-gray-200 bg-white px-3.5 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition cursor-pointer shadow-2xs flex items-center gap-1.5"
             >
-              <i className="fas fa-arrow-left mr-2" />Danh sách sinh viên
+              <i className="fas fa-arrow-left" />
+              <span>Quay lại lớp học phần</span>
             </button>
           </div>
         }
       />
+
+      {/* Navigation Tabs Bar for Course Class Detail */}
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-5 bg-slate-100/80 p-1.5 rounded-2xl border border-slate-200/80 shadow-2xs">
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+          {/* Tab 1: Sinh viên */}
+          <button
+            type="button"
+            onClick={() => navigate(`/teacher/classes/${id}/students`)}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-slate-700 hover:text-indigo-700 hover:bg-white transition cursor-pointer"
+          >
+            <i className="fas fa-users text-indigo-600" />
+            <span>Danh sách sinh viên ({students.length})</span>
+          </button>
+          {/* Tab 2: Danh sách điểm số (Active) */}
+          <button
+            type="button"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-white text-amber-700 shadow-xs border border-amber-200 cursor-default"
+          >
+            <i className="fas fa-table-list text-amber-500 text-sm" />
+            <span>Danh sách điểm số (Sổ điểm)</span>
+            <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-extrabold border border-amber-200">
+              Đang xem
+            </span>
+          </button>
+          {/* Tab 3: Điểm danh */}
+          <button
+            type="button"
+            onClick={() => navigate(`/teacher/attendance?classId=${id}`)}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-slate-700 hover:text-emerald-700 hover:bg-white transition cursor-pointer"
+          >
+            <i className="fa-solid fa-clipboard-user text-emerald-600" />
+            <span>Điểm danh buổi học</span>
+          </button>
+        </div>
+
+        {/* Back to all classes shortcut */}
+        <div className="hidden md:flex items-center gap-2 pr-2">
+          <button
+            type="button"
+            onClick={() => navigate('/teacher/classes')}
+            className="text-xs font-semibold text-slate-500 hover:text-slate-800 flex items-center gap-1.5 cursor-pointer"
+          >
+            <i className="fas fa-layer-group text-slate-400" />
+            <span>Tất cả lớp học phần</span>
+          </button>
+        </div>
+      </div>
 
       <div className="mb-4 p-3.5 rounded-2xl bg-indigo-50/60 border border-indigo-100/80 flex flex-wrap items-center justify-between gap-3 text-xs">
         <div className="flex flex-wrap items-center gap-2 text-indigo-900 font-semibold">

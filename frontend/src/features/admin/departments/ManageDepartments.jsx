@@ -31,10 +31,15 @@ export function ManageDepartments() {
   const { data, isLoading } = useDepartments(params);
   const { create, update, remove, bulkRemove } = useDepartmentMutations();
 
+  // Clear selections only when search filter changes, NOT when switching pages
   useEffect(() => {
     setSelectedIds([]);
     setLastClickedIndex(null);
-  }, [page, search]);
+  }, [search]);
+
+  useEffect(() => {
+    setLastClickedIndex(null);
+  }, [page]);
 
   const { data: teacherData } = useQuery({
     queryKey: ['teachers', { limit: 200 }],
@@ -96,16 +101,17 @@ export function ManageDepartments() {
     }
   };
 
-  const allCurrentRowIds = rows.map((r) => r._id);
-  const isAllSelected = rows.length > 0 && allCurrentRowIds.every((id) => selectedIds.includes(id));
-  const isSomeSelected = rows.length > 0 && allCurrentRowIds.some((id) => selectedIds.includes(id)) && !isAllSelected;
+  const allCurrentRowIds = rows.map((r) => String(r._id));
+  const isIdSelected = (id) => selectedIds.some((sId) => String(sId) === String(id));
+  const isAllSelected = rows.length > 0 && allCurrentRowIds.every((id) => isIdSelected(id));
+  const isSomeSelected = rows.length > 0 && allCurrentRowIds.some((id) => isIdSelected(id)) && !isAllSelected;
 
   const handleSelectAll = () => {
     setLastClickedIndex(null);
     if (isAllSelected) {
-      setSelectedIds((prev) => prev.filter((id) => !allCurrentRowIds.includes(id)));
+      setSelectedIds((prev) => prev.filter((id) => !allCurrentRowIds.includes(String(id))));
     } else {
-      setSelectedIds((prev) => Array.from(new Set([...prev, ...allCurrentRowIds])));
+      setSelectedIds((prev) => Array.from(new Set([...prev.map(String), ...allCurrentRowIds])));
     }
   };
 
@@ -117,25 +123,26 @@ export function ManageDepartments() {
     }
 
     const index = typeof rowIndex === 'number' ? rowIndex : rows.findIndex((r) => r._id === dept._id);
-    const isCurrentlyChecked = selectedIds.includes(dept._id);
+    const id = String(dept._id);
+    const isCurrentlyChecked = isIdSelected(id);
     const targetChecked = !isCurrentlyChecked;
 
     if (e.shiftKey && lastClickedIndex !== null && lastClickedIndex !== index && index >= 0) {
       const start = Math.min(lastClickedIndex, index);
       const end = Math.max(lastClickedIndex, index);
       const rangeRows = rows.slice(start, end + 1);
-      const rangeIds = rangeRows.map((r) => r._id);
+      const rangeIds = rangeRows.map((r) => String(r._id));
 
       if (targetChecked) {
-        setSelectedIds((prev) => Array.from(new Set([...prev, ...rangeIds])));
+        setSelectedIds((prev) => Array.from(new Set([...prev.map(String), ...rangeIds])));
       } else {
-        setSelectedIds((prev) => prev.filter((id) => !rangeIds.includes(id)));
+        setSelectedIds((prev) => prev.filter((prevId) => !rangeIds.includes(String(prevId))));
       }
     } else {
       if (targetChecked) {
-        setSelectedIds((prev) => (prev.includes(dept._id) ? prev : [...prev, dept._id]));
+        setSelectedIds((prev) => (isIdSelected(id) ? prev : [...prev, id]));
       } else {
-        setSelectedIds((prev) => prev.filter((id) => id !== dept._id));
+        setSelectedIds((prev) => prev.filter((prevId) => String(prevId) !== id));
       }
     }
 
@@ -206,7 +213,7 @@ export function ManageDepartments() {
       <div className="flex items-center justify-center select-none" onClick={(e) => e.stopPropagation()}>
         <input
           type="checkbox"
-          checked={selectedIds.includes(dept._id)}
+          checked={isIdSelected(dept._id)}
           onChange={() => {}}
           onClick={(e) => handleRowCheckboxClick(e, dept, rowIndex)}
           className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
@@ -331,14 +338,13 @@ export function ManageDepartments() {
         rows={rows}
         isLoading={isLoading}
         emptyText="Chưa có khoa nào"
-        rowClassName={(dept) => (selectedIds.includes(dept._id) ? 'bg-indigo-50/40' : '')}
+        rowClassName={(dept) => (isIdSelected(dept._id) ? 'bg-indigo-50/40' : '')}
       />
       <Pagination
         page={meta.page}
         pages={meta.pages}
         total={meta.total}
         onPageChange={(p) => {
-          setSelectedIds([]);
           setLastClickedIndex(null);
           setPage(p);
         }}

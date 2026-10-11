@@ -43,10 +43,19 @@ export function TeacherClassList() {
     },
     {
       key: 'action',
-      header: '',
-      className: 'text-right w-48',
+      header: 'Thao tác',
+      className: 'text-right w-72',
       render: (c) => (
         <div className="flex justify-end items-center gap-2">
+          <Link
+            to={`/teacher/classes/${c._id || c.id}/grades`}
+            className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 text-white text-xs font-semibold hover:from-amber-600 hover:to-amber-700 inline-flex items-center gap-1.5 shadow-xs hover:shadow transition active:scale-[0.98]"
+            aria-label={`Danh sách điểm số lớp ${c.id}`}
+            title="Xem và quản lý sổ điểm lớp học phần"
+          >
+            <i className="fas fa-table-list text-[11px]" />
+            <span>Điểm số</span>
+          </Link>
           <Link
             to={`/teacher/attendance?classId=${c._id}`}
             className="px-3 py-1.5 rounded-xl bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 inline-flex items-center gap-1.5 shadow-xs hover:shadow transition active:scale-[0.98]"
@@ -56,10 +65,11 @@ export function TeacherClassList() {
           </Link>
           <Link
             to={`/teacher/classes/${c._id || c.id}/students`}
-            className="px-3 py-1.5 rounded-xl bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 shadow-xs hover:shadow transition active:scale-[0.98]"
+            className="px-3 py-1.5 rounded-xl bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 shadow-xs hover:shadow transition active:scale-[0.98] inline-flex items-center gap-1.5"
             aria-label={`Danh sách sinh viên lớp ${c.id}`}
           >
-            Danh sách SV
+            <i className="fas fa-users text-[11px]" />
+            <span>Sinh viên</span>
           </Link>
         </div>
       ),

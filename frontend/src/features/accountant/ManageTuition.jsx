@@ -55,10 +55,10 @@ export function ManageTuition() {
   const [generateDueDate, setGenerateDueDate] = useState(getDefaultDueDate());
   const [isGenerating, setIsGenerating] = useState(false);
 
-  // Clear selections when filters change
+  // Clear selections when filters change, NOT when navigating pages
   useEffect(() => {
     setSelectedIds([]);
-  }, [page, search, selectedSemester, selectedClass, selectedStatus]);
+  }, [search, selectedSemester, selectedClass, selectedStatus]);
 
   // Query filter options
   const { data: semestersData } = useQuery({
@@ -92,17 +92,21 @@ export function ManageTuition() {
 
   // Select all / Select one
   const handleSelectKey = (key) => {
+    const k = String(key);
     setSelectedIds((prev) =>
-      prev.includes(key) ? prev.filter((id) => id !== key) : [...prev, key]
+      prev.some((id) => String(id) === k)
+        ? prev.filter((id) => String(id) !== k)
+        : [...prev, k]
     );
   };
 
   const handleSelectAll = (keysOnPage) => {
-    const allSelected = keysOnPage.every((k) => selectedIds.includes(k));
+    const pageKeys = keysOnPage.map(String);
+    const allSelected = pageKeys.every((k) => selectedIds.some((id) => String(id) === k));
     if (allSelected) {
-      setSelectedIds((prev) => prev.filter((k) => !keysOnPage.includes(k)));
+      setSelectedIds((prev) => prev.filter((k) => !pageKeys.includes(String(k))));
     } else {
-      setSelectedIds((prev) => Array.from(new Set([...prev, ...keysOnPage])));
+      setSelectedIds((prev) => Array.from(new Set([...prev.map(String), ...pageKeys])));
     }
   };
 

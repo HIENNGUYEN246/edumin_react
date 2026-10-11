@@ -49,14 +49,14 @@ describe('Attendance API', () => {
     expect(res.body.record.evaluation).toBe('Hăng hái phát biểu');
   });
 
-  it('fetches student attendance history', async () => {
+  it('fetches student attendance history with populated class info and normalized shift', async () => {
     await request(app)
       .post('/api/attendance/check-in')
       .send({
         classId: 'IT101-01',
         studentId: 1,
         date: '2026-10-01',
-        shiftId: '1',
+        shiftId: 'SI',
         status: 'Có mặt',
       });
 
@@ -65,6 +65,9 @@ describe('Attendance API', () => {
     expect(Array.isArray(res.body)).toBe(true);
     expect(res.body.length).toBeGreaterThan(0);
     expect(res.body[0].studentId).toBe(1);
+    expect(res.body[0].classId).toBe('IT101-01');
+    expect(res.body[0].shiftLabel).toBe('Ca 1 (07:00 - 09:15)');
+    expect(/^[0-9a-fA-F]{24}$/.test(res.body[0].classId)).toBe(false);
   });
   it('rejects attendance check-in for future dates', async () => {
     const res = await request(app)

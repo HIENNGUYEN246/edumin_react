@@ -5,8 +5,17 @@ const TOKEN_KEY = 'authToken';
 
 export const tokenStore = {
   get: () => (typeof window !== 'undefined' ? sessionStorage.getItem(TOKEN_KEY) : null),
-  set: (token) => sessionStorage.setItem(TOKEN_KEY, token),
-  clear: () => sessionStorage.removeItem(TOKEN_KEY),
+  set: (token) => {
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem(TOKEN_KEY, token);
+    }
+  },
+  clear: () => {
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(TOKEN_KEY);
+    }
+  },
 };
 
 /**

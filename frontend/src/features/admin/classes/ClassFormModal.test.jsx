@@ -235,4 +235,39 @@ describe('ClassFormModal registration date-time picker & validation', () => {
     expect(midtermWeight.value).toBe('30');
     expect(finalWeight.value).toBe('50');
   });
+
+  it('automatically calculates studyStart (+3 days buffer) and studyEnd (+15 weeks) when registrationEnd is chosen', () => {
+    renderModal();
+
+    const regEndInput = screen.getByLabelText(/Kết thúc đăng ký/i);
+    const studyStartInput = screen.getByLabelText(/Bắt đầu học/i);
+    const studyEndInput = screen.getByLabelText(/Kết thúc học/i);
+
+    fireEvent.change(regEndInput, { target: { value: '2026-11-20T17:45' } });
+
+    // registrationEnd: 2026-11-20 -> +3 days = 2026-11-23
+    expect(studyStartInput.value).toBe('2026-11-23');
+    // +15 weeks (105 days) from 2026-11-23 = 2027-03-08
+    expect(studyEndInput.value).toBe('2027-03-08');
+  });
+
+  it('allows switching buffer days using the quick buttons (+1, +2, +3 ngày)', () => {
+    renderModal();
+
+    const regEndInput = screen.getByLabelText(/Kết thúc đăng ký/i);
+    const studyStartInput = screen.getByLabelText(/Bắt đầu học/i);
+
+    fireEvent.change(regEndInput, { target: { value: '2026-11-20T17:45' } });
+    expect(studyStartInput.value).toBe('2026-11-23');
+
+    // Click "+1 ngày" button
+    const plus1Btn = screen.getByRole('button', { name: /\+1 ngày/i });
+    fireEvent.click(plus1Btn);
+    expect(studyStartInput.value).toBe('2026-11-21');
+
+    // Click "+2 ngày" button
+    const plus2Btn = screen.getByRole('button', { name: /\+2 ngày/i });
+    fireEvent.click(plus2Btn);
+    expect(studyStartInput.value).toBe('2026-11-22');
+  });
 });

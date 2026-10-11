@@ -92,8 +92,9 @@ export function StudentAttendance() {
   const [attendances, setAttendances] = useState([]);
   const [enrollments, setEnrollments] = useState([]);
   const [assignments, setAssignments] = useState([]);
-  const [filterCourse, setFilterCourse] = useState('all');
+  const [filterClass, setFilterClass] = useState('all');
   const [activeTab, setActiveTab] = useState('attendance'); // 'attendance' | 'grades'
+  const [expandedKeys, setExpandedKeys] = useState(() => new Set());
 
   const studentId = profile?.id ?? user?.studentId ?? user?.id;
 
@@ -147,54 +148,266 @@ export function StudentAttendance() {
     });
   }, [attendances, studentId, profile, user]);
 
-  // Distinct courses/classes for the filter dropdown
-  const courseOptions = useMemo(() => {
+  const isMongoId = (str) => /^[0-9a-fA-F]{24}$/.test(String(str || ''));
+
+  // Pre-index classes from enrollments & attendances for instant resolution
+  const classMap = useMemo(() => {
     const map = new Map();
     for (const e of enrollments) {
-      const classObj = e.class || {};
-      const key = classObj.courseId || classObj.id || e.classId;
+      const cls = e.class || {};
+      if (cls._id) map.set(String(cls._id), cls);
+      if (cls.id) map.set(String(cls.id), cls);
+      if (e.classId) map.set(String(e.classId), cls);
+    }
+    for (const a of attendances) {
+      if (a.classRef && typeof a.classRef === 'object') {
+        const cls = a.classRef;
+        if (cls._id) map.set(String(cls._id), cls);
+        if (cls.id) map.set(String(cls.id), cls);
+      }
+    }
+    return map;
+  }, [enrollments, attendances]);
+
+  // Distinct course classes for the dropdown filter
+  const classOptions = useMemo(() => {
+    const map = new Map();
+    for (const e of enrollments) {
+      const cls = e.class || {};
+      const classCode = cls.id || (!isMongoId(e.classId) ? e.classId : '');
+      const key = classCode || cls.courseId || e.classId;
       if (key && !map.has(key)) {
         map.set(key, {
           id: key,
-          classId: classObj.id || e.classId,
-          courseId: classObj.courseId || key,
-          courseName: classObj.courseName || classObj.name || key,
-          credits: classObj.credits,
+          classId: classCode,
+          courseId: cls.courseId || '',
+          courseName: cls.courseName || cls.name || '',
+          className: cls.className || '',
+          credits: cls.credits,
         });
       }
     }
     for (const a of myAttendances) {
-      const key = a.courseId || a.regId || a.courseName;
+      const cls =
+        (a.classRef && typeof a.classRef === 'object' ? a.classRef : null) ||
+        classMap.get(String(a.classId)) ||
+        classMap.get(String(a.regId));
+      const classCode = cls?.id || (!isMongoId(a.classId) ? a.classId : '') || (!isMongoId(a.regId) ? a.regId : '');
+      const key = classCode || a.courseId || a.regId;
       if (key && !map.has(key)) {
         map.set(key, {
           id: key,
-          classId: a.regId || key,
-          courseId: a.courseId || key,
-          courseName: a.courseName || a.courseId || key,
+          classId: classCode,
+          courseId: a.courseId || cls?.courseId || '',
+          courseName: a.courseName || cls?.courseName || a.courseId || '',
+          className: cls?.className || '',
         });
       }
     }
     return Array.from(map.values());
-  }, [enrollments, myAttendances]);
+  }, [enrollments, myAttendances, classMap]);
 
-  // Attendance records filtered by selected course
+  // Attendance records filtered by selected class or course
   const filteredList = useMemo(() => {
-    if (filterCourse === 'all') return myAttendances;
+    if (filterClass === 'all') return myAttendances;
     return myAttendances.filter((a) => {
+      const cls =
+        (a.classRef && typeof a.classRef === 'object' ? a.classRef : null) ||
+        classMap.get(String(a.classId)) ||
+        classMap.get(String(a.regId));
+      const code = cls?.id || (!isMongoId(a.classId) ? a.classId : '') || (!isMongoId(a.regId) ? a.regId : '');
+      const cId = a.courseId || cls?.courseId;
+      const cName = a.courseName || cls?.courseName;
       return (
-        a.courseId === filterCourse ||
-        a.regId === filterCourse ||
-        a.courseName === filterCourse ||
-        a.classId === filterCourse ||
-        (a.class && (a.class.id === filterCourse || a.class.courseId === filterCourse))
+        code === filterClass ||
+        a.regId === filterClass ||
+        a.classId === filterClass ||
+        cId === filterClass ||
+        cName === filterClass ||
+        (cls && (cls._id === filterClass || cls.id === filterClass))
       );
     });
-  }, [myAttendances, filterCourse]);
+  }, [myAttendances, filterClass, classMap]);
 
   // Attendance statistics recalculated dynamically for the active filter
   const stats = useMemo(() => {
     return calculateStudentAttendanceStats(filteredList);
   }, [filteredList]);
+
+  // Group attendance records by Course / Class (Card-based Accordion representation)
+  const groupedClasses = useMemo(() => {
+    const groupMap = new Map();
+
+    // 1. Seed groups from enrollments so all registered classes are recognized
+    for (const e of enrollments) {
+      const cls = e.class || {};
+      const classCode = cls.id || (!isMongoId(e.classId) ? e.classId : '');
+      const courseId = (!isMongoId(cls.courseId) ? cls.courseId : '') || (!isMongoId(e.courseId) ? e.courseId : '') || '';
+      const key = classCode || courseId || String(e.classId || e._id);
+      if (!key) continue;
+
+      const teacherName = typeof cls.teacher === 'object'
+        ? (cls.teacher?.hoTen || cls.teacher?.name || '')
+        : (cls.teacher || '');
+
+      groupMap.set(key, {
+        key,
+        classCode,
+        courseId,
+        courseName: cls.courseName || cls.name || courseId || 'Học phần',
+        className: cls.className || '',
+        teacherName,
+        teacherAvatar: typeof cls.teacher === 'object' ? (cls.teacher?.avatar?.url || cls.teacher?.avatar) : null,
+        credits: Number(cls.credits) || 3,
+        records: [],
+      });
+    }
+
+    // 2. Associate myAttendances to their corresponding group, or create new group
+    for (const a of myAttendances) {
+      const cls =
+        (a.classRef && typeof a.classRef === 'object' ? a.classRef : null) ||
+        classMap.get(String(a.classId)) ||
+        classMap.get(String(a.regId));
+
+      const recClassCode =
+        cls?.id ||
+        (!isMongoId(a.classId) ? a.classId : '') ||
+        (!isMongoId(a.classCode) ? a.classCode : '') ||
+        (!isMongoId(a.regId) ? a.regId : '');
+
+      const recCourseId =
+        (!isMongoId(a.courseId) ? a.courseId : '') ||
+        (!isMongoId(cls?.courseId) ? cls?.courseId : '') ||
+        '';
+
+      const recCourseName =
+        a.courseName ||
+        cls?.courseName ||
+        cls?.name ||
+        recCourseId ||
+        'Học phần';
+
+      const recTeacherName =
+        a.teacherName ||
+        (typeof cls?.teacher === 'object' ? (cls.teacher?.hoTen || cls.teacher?.name) : cls?.teacher) ||
+        '';
+
+      const recTeacherAvatar =
+        a.teacherAvatar ||
+        a.teacherRef?.avatar?.url ||
+        a.teacherRef?.avatar ||
+        (typeof cls?.teacher === 'object' ? (cls.teacher?.avatar?.url || cls.teacher?.avatar) : null);
+
+      // Find matching group
+      let matchedGroup = null;
+      for (const g of groupMap.values()) {
+        if (recClassCode && (g.classCode === recClassCode || g.key === recClassCode)) {
+          matchedGroup = g;
+          break;
+        }
+        if (recCourseId && (g.courseId === recCourseId || g.key === recCourseId)) {
+          matchedGroup = g;
+          break;
+        }
+        if (recCourseName && g.courseName && g.courseName.toLowerCase() === recCourseName.toLowerCase()) {
+          matchedGroup = g;
+          break;
+        }
+        if (cls && (g.key === String(cls._id) || g.key === String(cls.id))) {
+          matchedGroup = g;
+          break;
+        }
+      }
+
+      if (!matchedGroup) {
+        const key = recClassCode || recCourseId || (!isMongoId(a.regId) ? a.regId : '') || String(a._id || a.id);
+        matchedGroup = {
+          key,
+          classCode: recClassCode,
+          courseId: recCourseId,
+          courseName: recCourseName,
+          className: cls?.className || '',
+          teacherName: recTeacherName,
+          teacherAvatar: recTeacherAvatar,
+          credits: Number(cls?.credits) || 3,
+          records: [],
+        };
+        groupMap.set(key, matchedGroup);
+      }
+
+      if (!matchedGroup.teacherName && recTeacherName) {
+        matchedGroup.teacherName = recTeacherName;
+      }
+      if (!matchedGroup.teacherAvatar && recTeacherAvatar) {
+        matchedGroup.teacherAvatar = recTeacherAvatar;
+      }
+      if (!matchedGroup.classCode && recClassCode) {
+        matchedGroup.classCode = recClassCode;
+      }
+
+      matchedGroup.records.push(a);
+    }
+
+    // 3. Compute stats for each group and only retain groups that have records
+    return Array.from(groupMap.values())
+      .filter((g) => g.records.length > 0)
+      .map((g) => {
+        // Sort sessions by date descending
+        const sortedRecords = [...g.records].sort((x, y) => new Date(y.date || 0) - new Date(x.date || 0));
+        const groupStats = calculateStudentAttendanceStats(sortedRecords);
+        return {
+          ...g,
+          records: sortedRecords,
+          stats: groupStats,
+        };
+      });
+  }, [enrollments, myAttendances, classMap]);
+
+  // Displayed groups filtered by the selected class option
+  const displayedGroups = useMemo(() => {
+    if (filterClass === 'all') return groupedClasses;
+    return groupedClasses.filter((g) => {
+      return (
+        g.key === filterClass ||
+        g.classCode === filterClass ||
+        g.courseId === filterClass ||
+        g.courseName === filterClass
+      );
+    });
+  }, [groupedClasses, filterClass]);
+
+  const toggleExpand = useCallback((key) => {
+    setExpandedKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  }, []);
+
+  const expandAll = useCallback(() => {
+    setExpandedKeys(new Set(displayedGroups.map((g) => g.key)));
+  }, [displayedGroups]);
+
+  const collapseAll = useCallback(() => {
+    setExpandedKeys(new Set());
+  }, []);
+
+  // Auto-expand card if user filters to a specific class
+  useEffect(() => {
+    if (filterClass !== 'all') {
+      const targetGroup = displayedGroups.find(
+        (g) => g.key === filterClass || g.classCode === filterClass || g.courseId === filterClass || g.courseName === filterClass
+      );
+      if (targetGroup) {
+        setExpandedKeys(new Set([targetGroup.key]));
+      }
+    }
+  }, [filterClass, displayedGroups]);
 
   // Personal Gradebook: calculate component scores, GPA, and classifications for enrolled classes
   const personalGradebook = useMemo(() => {
@@ -324,11 +537,11 @@ export function StudentAttendance() {
 
   // Filtered personal gradebook rows
   const filteredPersonalGradebook = useMemo(() => {
-    if (filterCourse === 'all') return personalGradebook;
+    if (filterClass === 'all') return personalGradebook;
     return personalGradebook.filter(
-      (g) => g.courseId === filterCourse || g.classId === filterCourse || g.courseName === filterCourse
+      (g) => g.courseId === filterClass || g.classId === filterClass || g.courseName === filterClass
     );
-  }, [personalGradebook, filterCourse]);
+  }, [personalGradebook, filterClass]);
 
   return (
     <div className="space-y-6 pb-16">
@@ -433,29 +646,34 @@ export function StudentAttendance() {
           </button>
         </div>
 
-        {/* Course Filter Dropdown */}
+        {/* Class Filter Dropdown */}
         <div className="flex items-center gap-3">
-          <label htmlFor="student-course-filter" className="text-xs font-bold text-gray-500 whitespace-nowrap uppercase tracking-wider">
-            Lọc theo môn:
+          <label
+            htmlFor="student-class-filter"
+            className="text-xs font-bold text-gray-500 whitespace-nowrap uppercase tracking-wider flex items-center gap-1.5"
+          >
+            <i className="fas fa-filter text-indigo-500 text-xs" />
+            <span>Lớp học phần:</span>
           </label>
           <select
-            id="student-course-filter"
-            value={filterCourse}
-            onChange={(e) => setFilterCourse(e.target.value)}
-            className="border border-gray-200 rounded-xl px-3 py-2 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white shadow-2xs max-w-[280px] truncate"
+            id="student-class-filter"
+            aria-label="Lớp học phần (Lọc theo môn)"
+            value={filterClass}
+            onChange={(e) => setFilterClass(e.target.value)}
+            className="border border-gray-200 rounded-xl px-3 py-2 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white shadow-2xs max-w-[320px] truncate cursor-pointer"
           >
-            <option value="all">Tất cả các môn học</option>
-            {courseOptions.map((opt) => (
+            <option value="all">Tất cả lớp học phần ({classOptions.length})</option>
+            {classOptions.map((opt) => (
               <option key={opt.id} value={opt.id}>
-                {opt.classId ? `${opt.classId} · ` : ''}{opt.courseName || opt.courseId}
+                {opt.classId ? `${opt.classId} · ` : ''}{opt.courseName || opt.courseId}{opt.className && opt.className !== opt.classId ? ` (${opt.className})` : ''}
               </option>
             ))}
           </select>
-          {filterCourse !== 'all' && (
+          {filterClass !== 'all' && (
             <button
               type="button"
-              onClick={() => setFilterCourse('all')}
-              className="text-xs text-indigo-600 hover:text-indigo-800 font-bold underline cursor-pointer"
+              onClick={() => setFilterClass('all')}
+              className="text-xs text-indigo-600 hover:text-indigo-800 font-bold underline cursor-pointer whitespace-nowrap"
             >
               Xem tất cả
             </button>
@@ -463,110 +681,276 @@ export function StudentAttendance() {
         </div>
       </div>
 
-      {/* TAB 1: Attendance History Table */}
+      {/* TAB 1: Attendance History (Card-based Accordion View) */}
       {activeTab === 'attendance' && (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-xs overflow-hidden">
+        <div className="space-y-4">
           {loading ? (
-            <div className="p-16 flex justify-center">
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-xs p-16 flex justify-center">
               <Spinner />
             </div>
-          ) : filteredList.length === 0 ? (
-            <div className="p-16 text-center text-gray-400">
+          ) : displayedGroups.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-xs p-16 text-center text-gray-400">
               <i className="far fa-calendar-check text-4xl mb-3 block text-gray-300" />
               <p className="font-semibold text-gray-600 text-sm">Chưa có lượt điểm danh nào</p>
               <p className="text-xs text-gray-400 mt-1">Thông tin điểm danh từng buổi học sẽ xuất hiện tại đây.</p>
-              {filterCourse !== 'all' && (
+              {filterClass !== 'all' && (
                 <button
                   type="button"
-                  onClick={() => setFilterCourse('all')}
+                  onClick={() => setFilterClass('all')}
                   className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition cursor-pointer"
                 >
                   <i className="fas fa-rotate-left" />
-                  <span>Xem tất cả các môn</span>
+                  <span>Xem tất cả các lớp</span>
                 </button>
               )}
             </div>
           ) : (
-            <div className="overflow-x-auto custom-scrollbar">
-              <table className="w-full min-w-[760px] text-left text-sm text-gray-700">
-                <thead className="bg-gray-50/75 border-b border-gray-100 text-xs font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">
-                  <tr>
-                    <th className="px-5 py-3.5">Học phần & Lớp</th>
-                    <th className="px-5 py-3.5">Ngày học</th>
-                    <th className="px-5 py-3.5">Ca học</th>
-                    <th className="px-5 py-3.5 text-center">Trạng thái</th>
-                    <th className="px-5 py-3.5 text-center">Điểm số</th>
-                    <th className="px-5 py-3.5">Nhận xét của Giảng viên</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100 text-xs">
-                  {filteredList.map((row) => (
-                    <tr key={row._id || row.id} className="hover:bg-indigo-50/20 transition">
-                      <td className="px-5 py-3.5">
-                        <p className="font-bold text-gray-900 leading-tight">{row.courseName || row.courseId}</p>
-                        <div className="flex items-center gap-1.5 mt-1">
-                          {row.courseId && (
-                            <span className="font-mono text-[10px] font-bold bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded border border-indigo-100">
-                              {row.courseId}
-                            </span>
-                          )}
-                          {row.regId && (
-                            <span className="text-[11px] text-gray-500 font-mono">
-                              Lớp: {row.regId}
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-5 py-3.5 font-medium text-gray-800 whitespace-nowrap">
-                        {formatAttendanceDate(row.date)}
-                      </td>
-                      <td className="px-5 py-3.5 text-xs text-gray-500 whitespace-nowrap">
-                        {row.shiftLabel || getShiftLabel(row.shiftId)}
-                      </td>
-                      <td className="px-5 py-3.5 text-center whitespace-nowrap">
-                        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${getStatusBadgeClass(row.status)}`}>
-                          <i className={`fas ${getStatusIcon(row.status)}`} />
-                          {row.status}
-                        </span>
-                        {row.checkInTime && (
-                          <p className="text-[10px] text-gray-400 mt-0.5">Giờ vào: {row.checkInTime}</p>
-                        )}
-                      </td>
-                      <td className="px-5 py-3.5 text-center whitespace-nowrap">
-                        {row.score != null ? (
-                          <span className="inline-block bg-emerald-50 text-emerald-700 font-bold px-2.5 py-0.5 rounded-lg text-xs border border-emerald-200">
-                            {row.score}đ
-                          </span>
-                        ) : (
-                          <span className="text-gray-300 font-normal">—</span>
-                        )}
-                      </td>
-                      <td className="px-5 py-3.5">
-                        {row.evaluation ? (
-                          <div className="space-y-1">
-                            <p className="text-xs text-gray-800 italic leading-relaxed">
-                              &quot;{row.evaluation}&quot;
-                            </p>
-                            {row.teacherName && (
-                              <div className="flex items-center gap-1.5 text-[11px] text-gray-500 font-medium">
-                                <Avatar
-                                  src={row.teacherAvatar || row.teacherRef?.avatar?.url || row.teacherRef?.avatar}
-                                  name={row.teacherName}
-                                  size={18}
-                                />
-                                <span>GV: {row.teacherName}</span>
+            <>
+              {/* Group View Summary Toolbar */}
+              <div className="flex flex-wrap items-center justify-between gap-3 bg-white px-4 py-3 rounded-2xl border border-gray-200/80 shadow-2xs">
+                <div className="flex items-center gap-2 text-xs text-gray-600">
+                  <span className="font-bold text-gray-800 flex items-center gap-1.5">
+                    <i className="fas fa-layer-group text-indigo-500" />
+                    <span>{displayedGroups.length} môn học</span>
+                  </span>
+                  <span className="text-gray-300">•</span>
+                  <span>{filteredList.length} buổi học đã ghi nhận</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={expandAll}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl text-indigo-700 bg-indigo-50 hover:bg-indigo-100 transition cursor-pointer"
+                    title="Mở rộng tất cả các môn học"
+                  >
+                    <i className="fas fa-angles-down text-[11px]" />
+                    <span>Mở rộng tất cả</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={collapseAll}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl text-gray-600 bg-gray-100 hover:bg-gray-200 transition cursor-pointer"
+                    title="Thu gọn tất cả các môn học"
+                  >
+                    <i className="fas fa-angles-up text-[11px]" />
+                    <span>Thu gọn tất cả</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Course Cards / Accordion List */}
+              <div className="space-y-4">
+                {displayedGroups.map((group) => {
+                  const isExpanded = expandedKeys.has(group.key);
+                  const rate = group.stats.rate;
+                  let rateBadgeClass = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+                  let rateDotClass = 'bg-emerald-500';
+                  if (rate < 50) {
+                    rateBadgeClass = 'bg-rose-50 text-rose-700 border-rose-200';
+                    rateDotClass = 'bg-rose-500';
+                  } else if (rate < 80) {
+                    rateBadgeClass = 'bg-amber-50 text-amber-700 border-amber-200';
+                    rateDotClass = 'bg-amber-500';
+                  }
+
+                  return (
+                    <div
+                      key={group.key}
+                      className="bg-white rounded-2xl border border-gray-200/80 shadow-xs hover:shadow-md transition-all duration-200 overflow-hidden"
+                    >
+                      {/* Card Header (Accordion trigger) */}
+                      <div
+                        onClick={() => toggleExpand(group.key)}
+                        className="p-5 cursor-pointer select-none bg-gradient-to-r from-white via-white to-slate-50/50 hover:bg-slate-50/80 transition-colors"
+                      >
+                        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                          {/* Left: Course & Class Metadata */}
+                          <div className="flex items-start gap-3.5">
+                            <div className="w-11 h-11 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
+                              <i className="fas fa-book-open text-base" />
+                            </div>
+                            <div className="space-y-1.5">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <h4 className="text-base font-bold text-gray-900 leading-snug">
+                                  {group.courseName}
+                                </h4>
+                                {group.courseId && (
+                                  <span className="font-mono text-[11px] font-bold bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-md border border-indigo-100">
+                                    {group.courseId}
+                                  </span>
+                                )}
+                                {group.credits && (
+                                  <span className="text-[11px] font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-md">
+                                    {group.credits} tín chỉ
+                                  </span>
+                                )}
                               </div>
-                            )}
+
+                              <div className="flex flex-wrap items-center gap-3 text-xs text-gray-600">
+                                {group.classCode && (
+                                  <span className="inline-flex items-center gap-1.5 font-semibold text-slate-700 bg-slate-100 px-2.5 py-0.5 rounded-md border border-slate-200">
+                                    <i className="fas fa-layer-group text-slate-400 text-[10px]" />
+                                    <span>Lớp: {group.classCode}</span>
+                                  </span>
+                                )}
+                                {group.className && group.className !== group.classCode && (
+                                  <span className="text-gray-500 font-medium">
+                                    ({group.className})
+                                  </span>
+                                )}
+                                <span className="inline-flex items-center gap-1.5 text-gray-600 font-medium">
+                                  <Avatar
+                                    src={group.teacherAvatar}
+                                    name={group.teacherName || 'GV'}
+                                    size={20}
+                                    className="border border-gray-200 shadow-2xs"
+                                  />
+                                  <span>GV: <strong className="text-gray-800">{group.teacherName || 'Chưa phân công'}</strong></span>
+                                </span>
+                              </div>
+                            </div>
                           </div>
-                        ) : (
-                          <span className="text-gray-300 text-xs italic">Không có nhận xét</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+
+                          {/* Right: Summary Statistics & Expand Action */}
+                          <div className="flex flex-wrap items-center justify-between lg:justify-end gap-3 pt-3 lg:pt-0 border-t lg:border-t-0 border-gray-100">
+                            {/* Attendance statistics summary */}
+                            <div className="flex items-center gap-2 text-xs">
+                              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl font-bold border ${rateBadgeClass}`}>
+                                <span className={`w-2 h-2 rounded-full ${rateDotClass}`} />
+                                <span>{rate}%</span>
+                              </span>
+
+                              <div className="inline-flex items-center gap-2 bg-slate-100/80 border border-slate-200/60 px-3 py-1 rounded-xl text-xs">
+                                <span className="text-gray-600" title="Tổng số buổi">
+                                  <strong className="text-gray-900">{group.stats.total}</strong> buổi
+                                </span>
+                                <span className="text-gray-300">|</span>
+                                <span className="text-emerald-700 font-semibold" title="Có mặt">
+                                  <i className="fas fa-check text-[10px] mr-1" />
+                                  {group.stats.present}
+                                </span>
+                                <span className="text-amber-700 font-semibold" title="Đi muộn">
+                                  <i className="fas fa-clock text-[10px] mr-1" />
+                                  {group.stats.late}
+                                </span>
+                                <span className="text-rose-700 font-semibold" title="Vắng">
+                                  <i className="fas fa-times text-[10px] mr-1" />
+                                  {group.stats.absent}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Expand / Collapse Button */}
+                            <button
+                              type="button"
+                              aria-expanded={isExpanded}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleExpand(group.key);
+                              }}
+                              className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer ${
+                                isExpanded
+                                  ? 'bg-indigo-600 text-white hover:bg-indigo-700'
+                                  : 'bg-white text-indigo-600 border border-indigo-200 hover:bg-indigo-50'
+                              }`}
+                            >
+                              <span>{isExpanded ? 'Thu gọn' : `Xem chi tiết (${group.records.length} buổi)`}</span>
+                              <i className={`fas fa-chevron-down text-[10px] transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Collapsible Body: Inner Table for this specific course */}
+                      {isExpanded && (
+                        <div className="border-t border-gray-100 bg-slate-50/30">
+                          <div className="overflow-x-auto custom-scrollbar">
+                            <table className="w-full min-w-[700px] text-left text-sm text-gray-700">
+                              <thead className="bg-gray-100/70 border-b border-gray-100 text-[11px] font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                                <tr>
+                                  <th className="px-5 py-3 w-16 text-center">Buổi</th>
+                                  <th className="px-5 py-3">Ngày học</th>
+                                  <th className="px-5 py-3">Ca học</th>
+                                  <th className="px-5 py-3 text-center">Trạng thái</th>
+                                  <th className="px-5 py-3 text-center">Điểm số</th>
+                                  <th className="px-5 py-3">Nhận xét của Giảng viên</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-gray-100 text-xs bg-white">
+                                {group.records.map((row, idx) => {
+                                  const shiftDisplay = getShiftLabel(row.shiftId, row.shiftLabel);
+                                  const formattedDate = formatAttendanceDate(row.date);
+
+                                  return (
+                                    <tr key={row._id || row.id || idx} className="hover:bg-indigo-50/20 transition">
+                                      <td className="px-5 py-3.5 text-center font-bold text-gray-400">
+                                        #{group.records.length - idx}
+                                      </td>
+                                      <td className="px-5 py-3.5 font-medium text-gray-800 whitespace-nowrap">
+                                        <div className="flex items-center gap-1.5">
+                                          <i className="far fa-calendar-alt text-indigo-500 text-xs" />
+                                          <span>{formattedDate}</span>
+                                        </div>
+                                      </td>
+                                      <td className="px-5 py-3.5 text-xs text-gray-600 whitespace-nowrap">
+                                        <div className="flex items-center gap-1.5 font-medium">
+                                          <i className="far fa-clock text-amber-500 text-xs" />
+                                          <span>{shiftDisplay}</span>
+                                        </div>
+                                      </td>
+                                      <td className="px-5 py-3.5 text-center whitespace-nowrap">
+                                        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${getStatusBadgeClass(row.status)}`}>
+                                          <i className={`fas ${getStatusIcon(row.status)}`} />
+                                          {row.status || 'Có mặt'}
+                                        </span>
+                                        <div className="text-[10px] text-gray-500 mt-1 flex items-center justify-center gap-1">
+                                          <i className="fas fa-sign-in-alt text-[9px] text-gray-400" />
+                                          <span>Giờ vào: {row.checkInTime || (row.status === 'Có mặt' ? 'Đúng giờ' : '—')}</span>
+                                        </div>
+                                      </td>
+                                      <td className="px-5 py-3.5 text-center whitespace-nowrap">
+                                        {row.score != null ? (
+                                          <span className="inline-block bg-emerald-50 text-emerald-700 font-bold px-2.5 py-0.5 rounded-lg text-xs border border-emerald-200">
+                                            {row.score}đ
+                                          </span>
+                                        ) : (
+                                          <span className="text-gray-300 font-normal">—</span>
+                                        )}
+                                      </td>
+                                      <td className="px-5 py-3.5">
+                                        {row.evaluation ? (
+                                          <div className="space-y-1">
+                                            <p className="text-xs text-gray-800 italic leading-relaxed">
+                                              &quot;{row.evaluation}&quot;
+                                            </p>
+                                            {(row.teacherName || group.teacherName) && (
+                                              <div className="flex items-center gap-1.5 text-[11px] text-gray-500 font-medium">
+                                                <Avatar
+                                                  src={row.teacherAvatar || row.teacherRef?.avatar?.url || row.teacherRef?.avatar || group.teacherAvatar}
+                                                  name={row.teacherName || group.teacherName}
+                                                  size={18}
+                                                />
+                                                <span>GV: {row.teacherName || group.teacherName}</span>
+                                              </div>
+                                            )}
+                                          </div>
+                                        ) : (
+                                          <span className="text-gray-300 text-xs italic">Không có nhận xét</span>
+                                        )}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </>
           )}
         </div>
       )}

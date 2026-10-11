@@ -10,9 +10,7 @@ export const authApi = {
     return http.get('/auth/me');
   },
   async changePassword({ oldPassword, newPassword }) {
-    const result = await http.patch('/auth/me/password', { oldPassword, newPassword });
-    if (result?.token) tokenStore.set(result.token);
-    return result;
+    return http.patch('/auth/me/password', { oldPassword, newPassword });
   },
   registrationOptions() {
     return http.get('/auth/registration-options');

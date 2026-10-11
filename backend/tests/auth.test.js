@@ -70,6 +70,17 @@ describe('PATCH /api/auth/me/password', () => {
     // New password logs in.
     const relogin = await request(app).post('/api/auth/login').send({ email: 'p@edu.vn', password: 'NewPass2' });
     expect(relogin.status).toBe(200);
+
+    // Old password no longer works.
+    const oldLogin = await request(app).post('/api/auth/login').send({ email: 'p@edu.vn', password: 'OldPass1' });
+    expect(oldLogin.status).toBe(401);
+
+    // Verify in database that new password is encrypted with bcrypt and legacy password is unset
+    const { User } = await import('../src/modules/auth/user.model.js');
+    const updatedUser = await User.findOne({ email: 'p@edu.vn' }).select('+passwordHash +password');
+    expect(updatedUser.passwordHash).toMatch(/^\$2[aby]\$/);
+    expect(updatedUser.passwordHash).not.toBe('NewPass2');
+    expect(updatedUser.password).toBeUndefined();
   });
 
   it('rejects a wrong old password', async () => {

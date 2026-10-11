@@ -44,9 +44,15 @@ export function PersonManager({ config }) {
   const [resettingId, setResettingId] = useState(null);
   const showAccountActions = Boolean(config.showAccountActions);
 
+  // Clear selections only when queryKey, search or class filter changes, NOT when switching pages
   useEffect(() => {
     setSelectedIds([]);
-  }, [page, search, selectedClass]);
+    setLastClickedIndex(null);
+  }, [config.queryKey, search, selectedClass]);
+
+  useEffect(() => {
+    setLastClickedIndex(null);
+  }, [page]);
 
   const params = useMemo(
     () => ({ page, limit: 10, search, className: selectedClass || undefined }),
@@ -72,16 +78,17 @@ export function PersonManager({ config }) {
     ? rows.map((person, index) => ({ ...person, serialNumber: (meta.page - 1) * params.limit + index + 1 }))
     : rows;
 
-  const allCurrentRowIds = rows.map((r) => r._id);
-  const isAllSelected = rows.length > 0 && allCurrentRowIds.every((id) => selectedIds.includes(id));
-  const isSomeSelected = rows.length > 0 && allCurrentRowIds.some((id) => selectedIds.includes(id)) && !isAllSelected;
+  const allCurrentRowIds = rows.map((r) => String(r._id));
+  const isIdSelected = (id) => selectedIds.some((sId) => String(sId) === String(id));
+  const isAllSelected = rows.length > 0 && allCurrentRowIds.every((id) => isIdSelected(id));
+  const isSomeSelected = rows.length > 0 && allCurrentRowIds.some((id) => isIdSelected(id)) && !isAllSelected;
 
   const handleSelectAll = () => {
     setLastClickedIndex(null);
     if (isAllSelected) {
-      setSelectedIds((prev) => prev.filter((id) => !allCurrentRowIds.includes(id)));
+      setSelectedIds((prev) => prev.filter((id) => !allCurrentRowIds.includes(String(id))));
     } else {
-      setSelectedIds((prev) => Array.from(new Set([...prev, ...allCurrentRowIds])));
+      setSelectedIds((prev) => Array.from(new Set([...prev.map(String), ...allCurrentRowIds])));
     }
   };
 
@@ -94,25 +101,26 @@ export function PersonManager({ config }) {
     }
 
     const index = typeof rowIndex === 'number' ? rowIndex : tableRows.findIndex((r) => r._id === person._id);
-    const isCurrentlyChecked = selectedIds.includes(person._id);
+    const id = String(person._id);
+    const isCurrentlyChecked = isIdSelected(id);
     const targetChecked = !isCurrentlyChecked;
 
     if (e.shiftKey && lastClickedIndex !== null && lastClickedIndex !== index && index >= 0) {
       const start = Math.min(lastClickedIndex, index);
       const end = Math.max(lastClickedIndex, index);
       const rangeRows = tableRows.slice(start, end + 1);
-      const rangeIds = rangeRows.map((r) => r._id);
+      const rangeIds = rangeRows.map((r) => String(r._id));
 
       if (targetChecked) {
-        setSelectedIds((prev) => Array.from(new Set([...prev, ...rangeIds])));
+        setSelectedIds((prev) => Array.from(new Set([...prev.map(String), ...rangeIds])));
       } else {
-        setSelectedIds((prev) => prev.filter((id) => !rangeIds.includes(id)));
+        setSelectedIds((prev) => prev.filter((prevId) => !rangeIds.includes(String(prevId))));
       }
     } else {
       if (targetChecked) {
-        setSelectedIds((prev) => (prev.includes(person._id) ? prev : [...prev, person._id]));
+        setSelectedIds((prev) => (isIdSelected(id) ? prev : [...prev, id]));
       } else {
-        setSelectedIds((prev) => prev.filter((id) => id !== person._id));
+        setSelectedIds((prev) => prev.filter((prevId) => String(prevId) !== id));
       }
     }
 
@@ -493,7 +501,7 @@ export function PersonManager({ config }) {
       <div className="flex items-center justify-center select-none" onClick={(e) => e.stopPropagation()}>
         <input
           type="checkbox"
-          checked={selectedIds.includes(person._id)}
+          checked={isIdSelected(person._id)}
           onChange={() => {}}
           onClick={(e) => handleRowCheckboxClick(e, person, rowIndex)}
           className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
@@ -591,14 +599,13 @@ export function PersonManager({ config }) {
         rows={tableRows}
         isLoading={isLoading}
         emptyText="Chưa có dữ liệu"
-        rowClassName={(person) => (selectedIds.includes(person._id) ? 'bg-indigo-50/40' : '')}
+        rowClassName={(person) => (isIdSelected(person._id) ? 'bg-indigo-50/40' : '')}
       />
       <Pagination
         page={meta.page}
         pages={meta.pages}
         total={meta.total}
         onPageChange={(p) => {
-          setSelectedIds([]);
           setLastClickedIndex(null);
           setPage(p);
         }}

@@ -33,10 +33,15 @@ export function AccountManager({ config }) {
   const [selectedIds, setSelectedIds] = useState([]);
   const [lastClickedIndex, setLastClickedIndex] = useState(null);
 
+  // Clear selections only when role or search filter changes, NOT when switching pages
   useEffect(() => {
     setSelectedIds([]);
     setLastClickedIndex(null);
-  }, [page, search]);
+  }, [config.role, search]);
+
+  useEffect(() => {
+    setLastClickedIndex(null);
+  }, [page]);
 
   const rows = data?.data || [];
   const meta = data?.meta || { page: 1, pages: 1, total: 0 };
@@ -47,16 +52,17 @@ export function AccountManager({ config }) {
   const isStudentRole = config.role === 'sinh-vien';
   const isTeacherRole = config.role === 'giao-vien';
   const hideAvatar = Boolean(config.hideAvatar || isStudentRole || isTeacherRole);
-  const allCurrentRowIds = rows.map((r) => r._id);
-  const isAllSelected = rows.length > 0 && allCurrentRowIds.every((id) => selectedIds.includes(id));
-  const isSomeSelected = rows.length > 0 && allCurrentRowIds.some((id) => selectedIds.includes(id)) && !isAllSelected;
+  const allCurrentRowIds = rows.map((r) => String(r._id));
+  const isIdSelected = (id) => selectedIds.some((sId) => String(sId) === String(id));
+  const isAllSelected = rows.length > 0 && allCurrentRowIds.every((id) => isIdSelected(id));
+  const isSomeSelected = rows.length > 0 && allCurrentRowIds.some((id) => isIdSelected(id)) && !isAllSelected;
 
   const handleSelectAll = () => {
     setLastClickedIndex(null);
     if (isAllSelected) {
-      setSelectedIds((prev) => prev.filter((id) => !allCurrentRowIds.includes(id)));
+      setSelectedIds((prev) => prev.filter((id) => !allCurrentRowIds.includes(String(id))));
     } else {
-      setSelectedIds((prev) => Array.from(new Set([...prev, ...allCurrentRowIds])));
+      setSelectedIds((prev) => Array.from(new Set([...prev.map(String), ...allCurrentRowIds])));
     }
   };
 
@@ -68,25 +74,26 @@ export function AccountManager({ config }) {
     }
 
     const index = typeof rowIndex === 'number' ? rowIndex : tableRows.findIndex((r) => r._id === account._id);
-    const isCurrentlyChecked = selectedIds.includes(account._id);
+    const id = String(account._id);
+    const isCurrentlyChecked = isIdSelected(id);
     const targetChecked = !isCurrentlyChecked;
 
     if (e.shiftKey && lastClickedIndex !== null && lastClickedIndex !== index && index >= 0) {
       const start = Math.min(lastClickedIndex, index);
       const end = Math.max(lastClickedIndex, index);
       const rangeRows = tableRows.slice(start, end + 1);
-      const rangeIds = rangeRows.map((r) => r._id);
+      const rangeIds = rangeRows.map((r) => String(r._id));
 
       if (targetChecked) {
-        setSelectedIds((prev) => Array.from(new Set([...prev, ...rangeIds])));
+        setSelectedIds((prev) => Array.from(new Set([...prev.map(String), ...rangeIds])));
       } else {
-        setSelectedIds((prev) => prev.filter((id) => !rangeIds.includes(id)));
+        setSelectedIds((prev) => prev.filter((prevId) => !rangeIds.includes(String(prevId))));
       }
     } else {
       if (targetChecked) {
-        setSelectedIds((prev) => (prev.includes(account._id) ? prev : [...prev, account._id]));
+        setSelectedIds((prev) => (isIdSelected(id) ? prev : [...prev, id]));
       } else {
-        setSelectedIds((prev) => prev.filter((id) => id !== account._id));
+        setSelectedIds((prev) => prev.filter((prevId) => String(prevId) !== id));
       }
     }
 
@@ -192,7 +199,7 @@ export function AccountManager({ config }) {
       <div className="flex items-center justify-center select-none" onClick={(e) => e.stopPropagation()}>
         <input
           type="checkbox"
-          checked={selectedIds.includes(account._id)}
+          checked={isIdSelected(account._id)}
           onChange={() => {}}
           onClick={(e) => handleRowCheckboxClick(e, account, rowIndex)}
           className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
@@ -331,14 +338,13 @@ export function AccountManager({ config }) {
         rows={tableRows}
         isLoading={isLoading}
         emptyText="Chưa có tài khoản"
-        rowClassName={(account) => (selectedIds.includes(account._id) ? 'bg-indigo-50/40' : '')}
+        rowClassName={(account) => (isIdSelected(account._id) ? 'bg-indigo-50/40' : '')}
       />
       <Pagination
         page={meta.page}
         pages={meta.pages}
         total={meta.total}
         onPageChange={(p) => {
-          setSelectedIds([]);
           setLastClickedIndex(null);
           setPage(p);
         }}

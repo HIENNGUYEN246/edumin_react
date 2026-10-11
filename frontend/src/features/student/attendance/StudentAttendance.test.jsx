@@ -193,7 +193,7 @@ describe('StudentAttendance (Attendance & Personal Gradebook)', () => {
     expect(screen.getAllByText('Có mặt').length).toBeGreaterThan(0);
   });
 
-  it('filters attendance list and recalculates stats when selecting a course', async () => {
+  it('filters attendance list and recalculates stats when selecting a course class', async () => {
     renderComponent();
 
     await waitFor(() => {
@@ -201,18 +201,102 @@ describe('StudentAttendance (Attendance & Personal Gradebook)', () => {
       expect(screen.getAllByText(/Cơ sở dữ liệu/i).length).toBeGreaterThan(0);
     });
 
-    const select = screen.getByLabelText(/Lọc theo môn/i);
+    const select = screen.getByLabelText(/Lớp học phần|Lọc theo môn/i);
     expect(select).toBeInTheDocument();
 
-    // Select IT102 (Cơ sở dữ liệu)
-    fireEvent.change(select, { target: { value: 'IT102' } });
+    // Select CNTT02-01 (Lớp học phần Cơ sở dữ liệu)
+    fireEvent.change(select, { target: { value: 'CNTT02-01' } });
 
-    // Table should show IT102 record
-    expect(screen.getByText(/Lê Văn Cơ Sở/i)).toBeInTheDocument();
+    // Table should show CNTT02-01 record
+    expect(screen.getAllByText(/Lê Văn Cơ Sở/i).length).toBeGreaterThan(0);
     expect(screen.queryByText('Rất chủ động phát biểu')).not.toBeInTheDocument();
 
-    // Recalculates stats for IT102: 1 session, present = 1 (rate = 100%)
-    expect(screen.getByText('100%')).toBeInTheDocument();
+    // Recalculates stats for CNTT02-01: 1 session, present = 1 (rate = 100%)
+    expect(screen.getAllByText('100%').length).toBeGreaterThan(0);
+  });
+
+  it('sanitizes raw MongoDB ObjectIds and formats ca học and dates cleanly', async () => {
+    // Mock attendance record with raw 24-hex MongoDB ID
+    attendanceApi.getByStudent.mockResolvedValueOnce([
+      {
+        _id: '6abaddab1234567890123456',
+        studentId: 7,
+        regId: '6abaddab1234567890123456', // raw ObjectId as regId
+        courseId: 'IT101',
+        courseName: 'Lập trình Web',
+        date: '2026-10-01',
+        shiftId: 'SI', // legacy or Roman shift
+        shiftLabel: 'Ca SI',
+        status: 'Có mặt',
+        checkInTime: '07:05',
+      },
+    ]);
+
+    renderComponent();
+
+    await waitFor(() => {
+      expect(screen.getAllByText(/Lập trình Web/i).length).toBeGreaterThan(0);
+    });
+
+    // Should NOT expose raw 24-hex MongoDB ObjectId in the UI
+    expect(screen.queryByText(/6abaddab1234567890123456/)).not.toBeInTheDocument();
+
+    // Expand the card to view detailed sessions
+    const expandBtn = screen.getByRole('button', { name: /Xem chi tiết/i });
+    fireEvent.click(expandBtn);
+
+    // Ca học should be normalized from "Ca SI" to "Ca 1 (07:00 - 09:15)"
+    expect(screen.getByText(/Ca 1 \(07:00 - 09:15\)/i)).toBeInTheDocument();
+
+    // Date should be formatted cleanly (01/10/2026)
+    expect(screen.getByText(/01\/10\/2026/)).toBeInTheDocument();
+
+    // Check-in time should be rendered
+    expect(screen.getByText(/Giờ vào: 07:05/i)).toBeInTheDocument();
+  });
+
+  it('renders card-based accordion view grouped by course and supports expand/collapse', async () => {
+    renderComponent();
+
+    await waitFor(() => {
+      expect(screen.getAllByText(/Lập trình Web/i).length).toBeGreaterThan(0);
+      expect(screen.getAllByText(/Cơ sở dữ liệu/i).length).toBeGreaterThan(0);
+    });
+
+    // Check course cards summary header information
+    expect(screen.getByText(/2 môn học/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/Trần Văn Giáo Viên/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Lê Văn Cơ Sở/i).length).toBeGreaterThan(0);
+
+    // By default, detailed sessions inside the accordion are collapsed
+    expect(screen.queryByText('Rất chủ động phát biểu')).not.toBeInTheDocument();
+    expect(screen.queryByText('Làm bài lab tốt')).not.toBeInTheDocument();
+
+    // Click "Xem chi tiết" on the first course card (Lập trình Web)
+    const detailButtons = screen.getAllByRole('button', { name: /Xem chi tiết/i });
+    fireEvent.click(detailButtons[0]);
+
+    // Now Lập trình Web sessions are revealed
+    expect(screen.getByText(/Rất chủ động phát biểu/i)).toBeInTheDocument();
+    expect(screen.getByText(/Vào muộn 10 phút/i)).toBeInTheDocument();
+    // Cơ sở dữ liệu is still collapsed
+    expect(screen.queryByText(/Làm bài lab tốt/i)).not.toBeInTheDocument();
+
+    // Test "Mở rộng tất cả" button
+    const expandAllBtn = screen.getByRole('button', { name: /Mở rộng tất cả/i });
+    fireEvent.click(expandAllBtn);
+
+    // Both courses' details should now be visible
+    expect(screen.getByText(/Rất chủ động phát biểu/i)).toBeInTheDocument();
+    expect(screen.getByText(/Làm bài lab tốt/i)).toBeInTheDocument();
+
+    // Test "Thu gọn tất cả" button
+    const collapseAllBtn = screen.getByRole('button', { name: /Thu gọn tất cả/i });
+    fireEvent.click(collapseAllBtn);
+
+    // Both courses' details should now be collapsed again
+    expect(screen.queryByText(/Rất chủ động phát biểu/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Làm bài lab tốt/i)).not.toBeInTheDocument();
   });
 
   it('switches to Personal Gradebook tab and displays read-only component scores and GPA', async () => {

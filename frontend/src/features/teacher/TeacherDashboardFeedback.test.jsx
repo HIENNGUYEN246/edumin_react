@@ -146,4 +146,18 @@ describe('TeacherDashboard - Feedback 2-Way Chat Bubble & Smart Filters', () => 
     expect(screen.getByText(/"Thầy giảng rất dễ hiểu và tận tâm ạ!"/)).toBeInTheDocument();
     expect(screen.getByText(/"Em muốn xin thêm slide bài giảng tuần trước."/)).toBeInTheDocument();
   });
+
+  it('renders the Grades List widget on Teacher Dashboard with classes, weights, and gradebook link', async () => {
+    renderDashboard();
+
+    await waitFor(() => {
+      expect(screen.getByText('Danh sách điểm số & Bảng điểm các lớp phụ trách')).toBeInTheDocument();
+    });
+
+    expect(screen.getAllByText('Lập trình C++').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('IT101-01').length).toBeGreaterThan(0);
+    expect(screen.getByText('Vào sổ điểm')).toBeInTheDocument();
+    expect(screen.getByText('Xem nhanh điểm')).toBeInTheDocument();
+    expect(screen.getByText(/CC:/)).toBeInTheDocument();
+  });
 });

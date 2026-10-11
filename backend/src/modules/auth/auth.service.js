@@ -136,20 +136,33 @@ export async function requestProfileUpdate(user, updateData) {
 
 /** Change own password after verifying the old one; revokes old tokens. */
 export async function changeOwnPassword(userId, { oldPassword, newPassword }) {
-  const user = await User.findById(userId).select('+passwordHash');
+  const user = await User.findById(userId).select('+passwordHash +password');
   if (!user) throw AppError.notFound('Không tìm thấy tài khoản');
 
-  const ok = await comparePassword(oldPassword, user.passwordHash);
+  let ok = false;
+  if (user.passwordHash) {
+    ok = await comparePassword(oldPassword, user.passwordHash);
+  }
+  if (!ok && user.password) {
+    ok = String(user.password) === String(oldPassword);
+  }
   if (!ok) throw AppError.badRequest('Mật khẩu cũ không chính xác');
 
-  if (await comparePassword(newPassword, user.passwordHash)) {
+  if (user.passwordHash && (await comparePassword(newPassword, user.passwordHash))) {
+    throw AppError.badRequest('Mật khẩu mới không được trùng mật khẩu cũ');
+  }
+  if (user.password && String(user.password) === String(newPassword)) {
     throw AppError.badRequest('Mật khẩu mới không được trùng mật khẩu cũ');
   }
 
+  // Mã hóa mật khẩu mới bằng bcrypt trước khi lưu vào Database
   user.passwordHash = await hashPassword(newPassword);
+  user.set('password', undefined);
   user.tokenVersion = (user.tokenVersion ?? 0) + 1;
   await user.save();
 
-  // Issue a fresh token so the current session keeps working.
-  return { token: signToken(user) };
+  return {
+    message: 'Đổi mật khẩu thành công. Vui lòng đăng nhập lại bằng mật khẩu mới.',
+    token: signToken(user),
+  };
 }

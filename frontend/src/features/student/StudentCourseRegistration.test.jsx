@@ -69,13 +69,16 @@ const mockOpenClasses = [
   },
 ];
 
+let mockOpenClassesList = mockOpenClasses;
+let mockMyEnrollmentsList = [];
+
 vi.mock('./useEnrollments.js', () => ({
   useOpenClasses: () => ({
-    data: { data: mockOpenClasses },
+    data: { data: mockOpenClassesList },
     isLoading: false,
   }),
   useMyEnrollments: () => ({
-    data: { data: [] },
+    data: { data: mockMyEnrollmentsList },
     isLoading: false,
   }),
   useEnrollmentMutations: () => ({
@@ -100,6 +103,8 @@ function renderWithClient() {
 describe('StudentCourseRegistration Department Filtering', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockOpenClassesList = mockOpenClasses;
+    mockMyEnrollmentsList = [];
     mockUser = {
       id: 'u-sv1',
       role: 'sinh-vien',
@@ -144,5 +149,88 @@ describe('StudentCourseRegistration Department Filtering', () => {
 
     renderWithClient();
     expect(screen.getByText(/Hiện không có lớp học phần nào đang mở đăng ký cho Khoa Xây Dựng/i)).toBeInTheDocument();
+  });
+});
+
+describe('StudentCourseRegistration Auto Time-Lock & Read-only behavior', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUser = {
+      id: 'u-sv1',
+      role: 'sinh-vien',
+      khoa: 'Khoa Hóa Học',
+      department: 'Khoa Hóa Học',
+    };
+    mockProfile = {
+      id: 201,
+      hoTen: 'Nguyễn Hóa Học',
+      department: 'Khoa Hóa Học',
+    };
+  });
+
+  it('locks registration button and shows expired status badge when registrationEnd has passed', () => {
+    mockOpenClassesList = [
+      {
+        _id: 'class-hoa-expired',
+        id: 'HOA101-99',
+        courseId: 'HOA101',
+        courseName: 'Hóa Học Cơ Bản',
+        department: 'Khoa Hóa Học',
+        credits: 3,
+        fee: 1500000,
+        status: 'Đang mở',
+        registrationStart: '2026-01-01T08:00',
+        registrationEnd: '2026-01-10T17:00', // In the past!
+        enrolledCount: 5,
+        capacity: 30,
+        schedules: [{ dayId: '2', shiftId: 'S1' }],
+        room: 'A101',
+      },
+    ];
+    mockMyEnrollmentsList = [];
+
+    renderWithClient();
+
+    // The class is visible
+    expect(screen.getByText('HOA101-99')).toBeInTheDocument();
+
+    // Button should be locked
+    const lockedBtn = screen.getByText(/Đã khóa \(hết hạn\)/i);
+    expect(lockedBtn).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Đăng ký$/i })).not.toBeInTheDocument();
+
+    // Status should be expired
+    expect(screen.getByText(/Trạng thái: Đã hết hạn đăng ký/i)).toBeInTheDocument();
+  });
+
+  it('locks cancellation button into read-only mode when enrolled class registration has expired', () => {
+    mockOpenClassesList = [];
+    mockMyEnrollmentsList = [
+      {
+        _id: 'enr-1',
+        classId: 'HOA101-01',
+        class: {
+          _id: 'class-hoa-1',
+          id: 'HOA101-01',
+          courseId: 'HOA101',
+          courseName: 'Hóa Học Cơ Bản',
+          status: 'Đang mở',
+          registrationStart: '2026-01-01T08:00',
+          registrationEnd: '2026-01-10T17:00', // In the past!
+          fee: 1500000,
+        },
+      },
+    ];
+
+    renderWithClient();
+
+    // Status column shows lock badge
+    expect(screen.getByText(/Đã khóa \(hết hạn\)/i)).toBeInTheDocument();
+
+    // Action column shows disabled "Đã khóa" badge instead of clickable Cancel button
+    const lockedAction = screen.getByTitle(/Thời hạn đăng ký đã kết thúc — đã khóa tính năng hủy/i);
+    expect(lockedAction).toBeInTheDocument();
+    expect(lockedAction).toHaveTextContent(/Đã khóa/i);
+    expect(screen.queryByRole('button', { name: /^Hủy$/i })).not.toBeInTheDocument();
   });
 });

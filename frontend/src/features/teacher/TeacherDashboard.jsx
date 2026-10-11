@@ -5,15 +5,27 @@ import { Modal } from '../../components/ui/Modal.jsx';
 import { Spinner } from '../../components/ui/Spinner.jsx';
 import { useAuth } from '../../app/providers/AuthProvider.jsx';
 import { useToast } from '../../app/providers/ToastProvider.jsx';
-import { formatTeacherCode, formatStudentCode } from '../../lib/format.js';
+import {
+  formatTeacherCode,
+  formatStudentCode,
+  DEFAULT_GRADE_WEIGHTS,
+  calculateGpa,
+  getGpaClassification,
+} from '../../lib/format.js';
 import { useMyTeacherClasses } from './useTeacherClasses.js';
 import { feedbackApi } from '../../api/feedbackApi.js';
+import { classesApi } from '../../api/classesApi.js';
 
 export function TeacherDashboard() {
   const toast = useToast();
   const { user, profile } = useAuth();
   const { data } = useMyTeacherClasses();
-  const classCount = data?.data?.length ?? 0;
+  const teacherClasses = useMemo(() => data?.data || [], [data]);
+  const classCount = teacherClasses.length;
+
+  const [previewClassId, setPreviewClassId] = useState(null);
+  const [previewStudents, setPreviewStudents] = useState([]);
+  const [loadingPreview, setLoadingPreview] = useState(false);
 
   const [feedbacks, setFeedbacks] = useState([]);
   const [loadingFeedbacks, setLoadingFeedbacks] = useState(false);
@@ -28,6 +40,39 @@ export function TeacherDashboard() {
   const [savingReply, setSavingReply] = useState(false);
 
   const teacherId = profile?.id ?? user?.teacherId ?? user?.id;
+
+  const teacherGradeStats = useMemo(() => {
+    const totalClasses = teacherClasses.length;
+    const lockedCount = teacherClasses.filter((c) => Boolean(c.gradeLock)).length;
+    const openCount = totalClasses - lockedCount;
+    const totalStudents = teacherClasses.reduce(
+      (sum, c) => sum + (c.studentCount ?? c.students?.length ?? 0),
+      0
+    );
+    return { totalClasses, lockedCount, openCount, totalStudents };
+  }, [teacherClasses]);
+
+  const handleTogglePreview = async (classItem) => {
+    const classId = classItem._id || classItem.id;
+    if (previewClassId === classId) {
+      setPreviewClassId(null);
+      setPreviewStudents([]);
+      return;
+    }
+    setPreviewClassId(classId);
+    try {
+      setLoadingPreview(true);
+      const res = await classesApi.students(classId);
+      const studentList = res?.data?.students || res?.students || (Array.isArray(res?.data) ? res.data : []);
+      setPreviewStudents(studentList);
+    } catch {
+      toast.error('Không thể tải danh sách điểm sinh viên của lớp này');
+      setPreviewStudents([]);
+    } finally {
+      setLoadingPreview(false);
+    }
+  };
+
 
   const getTeacherTitle = useCallback(
     (name, gender) => {
@@ -226,6 +271,245 @@ export function TeacherDashboard() {
           { label: 'Số lớp phụ trách', value: classCount },
         ]}
       />
+
+      {/* Teacher Grades & Gradebook Overview Widget */}
+      <div id="grades-section" className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-2xs space-y-5">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600">
+              <i className="fas fa-graduation-cap text-lg" />
+            </div>
+            <div>
+              <h4 className="text-base font-bold text-slate-800">
+                Danh sách điểm số & Bảng điểm các lớp phụ trách
+              </h4>
+              <p className="text-xs text-gray-400">
+                Theo dõi trực quan cơ cấu trọng số, trạng thái khóa sổ điểm và điểm số sinh viên của các lớp học phần
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="px-3 py-1.5 bg-indigo-50 text-indigo-700 text-xs font-bold rounded-xl border border-indigo-100 flex items-center gap-1.5">
+              <i className="fas fa-layer-group text-indigo-500" />
+              <span>{teacherGradeStats.totalClasses} Lớp học phần</span>
+            </span>
+            <span className="px-3 py-1.5 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-xl border border-emerald-100 flex items-center gap-1.5">
+              <i className="fas fa-unlock text-emerald-500" />
+              <span>{teacherGradeStats.openCount} Đang mở vào điểm</span>
+            </span>
+            {teacherGradeStats.lockedCount > 0 && (
+              <span className="px-3 py-1.5 bg-slate-100 text-slate-700 text-xs font-bold rounded-xl border border-slate-200 flex items-center gap-1.5">
+                <i className="fas fa-lock text-slate-500" />
+                <span>{teacherGradeStats.lockedCount} Đã khóa</span>
+              </span>
+            )}
+          </div>
+        </div>
+
+        {teacherClasses.length === 0 ? (
+          <div className="p-8 text-center text-gray-400 bg-slate-50 rounded-xl border border-dashed border-gray-200">
+            <i className="fas fa-chalkboard-user text-3xl mb-2 text-gray-300" />
+            <p className="font-semibold text-gray-600 text-xs">Bạn chưa được phân công phụ trách lớp học phần nào</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto custom-scrollbar">
+            <table className="w-full min-w-[760px] text-left text-xs text-slate-700">
+              <thead className="bg-slate-50/80 border-b border-slate-100 text-[11px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">
+                <tr>
+                  <th className="px-4 py-3">Lớp học phần</th>
+                  <th className="px-4 py-3 text-center">Tín chỉ</th>
+                  <th className="px-4 py-3 text-center">Sĩ số</th>
+                  <th className="px-4 py-3">Cơ cấu trọng số (CC / BT / GK / CK)</th>
+                  <th className="px-4 py-3 text-center">Trạng thái sổ điểm</th>
+                  <th className="px-4 py-3 text-right">Thao tác</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {teacherClasses.map((cls) => {
+                  const classId = cls._id || cls.id;
+                  const displayCode = cls.id || classId;
+                  const displayName = cls.courseName || cls.name || displayCode;
+                  const weights = cls.gradeWeights || DEFAULT_GRADE_WEIGHTS;
+                  const isLocked = Boolean(cls.gradeLock);
+                  const isPreviewing = previewClassId === classId;
+
+                  return (
+                    <tr key={classId} className="hover:bg-slate-50/60 transition">
+                      <td className="px-4 py-3.5">
+                        <div className="font-bold text-slate-900 text-sm">{displayName}</div>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <span className="font-mono text-[10px] font-bold bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded border border-indigo-100">
+                            {displayCode}
+                          </span>
+                          {cls.courseId && cls.courseId !== displayCode && (
+                            <span className="text-[10px] text-gray-400">({cls.courseId})</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3.5 text-center font-semibold text-slate-700">
+                        {cls.credits ? `${cls.credits} TC` : '—'}
+                      </td>
+                      <td className="px-4 py-3.5 text-center">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 font-bold text-xs">
+                          <i className="fas fa-users text-[10px] text-slate-400" />
+                          <span>{cls.studentCount ?? cls.students?.length ?? 0}</span>
+                        </span>
+                      </td>
+                      <td className="px-4 py-3.5 text-slate-600">
+                        <div className="inline-flex items-center gap-1.5 font-medium text-[11px] bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200/60">
+                          <span title="Chuyên cần">CC: <strong className="text-slate-800">{weights.attendance ?? 10}%</strong></span>
+                          <span className="text-slate-300">|</span>
+                          <span title="Bài tập">BT: <strong className="text-slate-800">{weights.homework ?? 10}%</strong></span>
+                          <span className="text-slate-300">|</span>
+                          <span title="Giữa kỳ">GK: <strong className="text-slate-800">{weights.midterm ?? 30}%</strong></span>
+                          <span className="text-slate-300">|</span>
+                          <span title="Cuối kỳ">CK: <strong className="text-slate-800">{weights.final ?? 50}%</strong></span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3.5 text-center whitespace-nowrap">
+                        {isLocked ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                            <i className="fas fa-lock text-[10px]" />
+                            <span>Đã khóa</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <i className="fas fa-unlock text-[10px]" />
+                            <span>Mở nhập điểm</span>
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3.5 text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleTogglePreview(cls)}
+                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition shadow-2xs cursor-pointer ${
+                              isPreviewing
+                                ? 'bg-indigo-600 text-white'
+                                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                            }`}
+                          >
+                            <i className={`fas ${isPreviewing ? 'fa-chevron-up' : 'fa-eye'} text-[10px]`} />
+                            <span>{isPreviewing ? 'Đóng xem nhanh' : 'Xem nhanh điểm'}</span>
+                          </button>
+                          <a
+                            href={`/teacher/classes/${classId}/gradebook`}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition shadow-2xs"
+                          >
+                            <i className="fas fa-table-cells text-[10px]" />
+                            <span>Vào sổ điểm</span>
+                          </a>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Quick Preview Panel if a class is selected */}
+        {previewClassId && (
+          <div className="p-4 bg-slate-50/80 rounded-2xl border border-indigo-100 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <i className="fas fa-list-check text-indigo-600 text-sm" />
+                <h5 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                  Xem nhanh điểm sinh viên · Lớp {previewClassId}
+                </h5>
+              </div>
+              <a
+                href={`/teacher/classes/${previewClassId}/gradebook`}
+                className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1"
+              >
+                <span>Mở trang Sổ điểm đầy đủ</span>
+                <i className="fas fa-arrow-right text-[10px]" />
+              </a>
+            </div>
+
+            {loadingPreview ? (
+              <div className="py-8 flex justify-center">
+                <Spinner />
+              </div>
+            ) : previewStudents.length === 0 ? (
+              <p className="text-xs text-gray-500 italic py-2">
+                Chưa có sinh viên nào đăng ký vào lớp học phần này.
+              </p>
+            ) : (
+              <div className="overflow-x-auto max-h-72 custom-scrollbar bg-white rounded-xl border border-slate-200/80">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-100/80 sticky top-0 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                    <tr>
+                      <th className="px-3 py-2 text-center w-12">STT</th>
+                      <th className="px-3 py-2">Mã SV</th>
+                      <th className="px-3 py-2">Họ và tên</th>
+                      <th className="px-3 py-2 text-center">Chuyên cần</th>
+                      <th className="px-3 py-2 text-center">Bài tập</th>
+                      <th className="px-3 py-2 text-center">Giữa kỳ</th>
+                      <th className="px-3 py-2 text-center">Cuối kỳ</th>
+                      <th className="px-3 py-2 text-center">Điểm TB (GPA)</th>
+                      <th className="px-3 py-2 text-center">Xếp loại</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {previewStudents.map((st, idx) => {
+                      const selClass = teacherClasses.find((c) => (c._id || c.id) === previewClassId) || {};
+                      const weights = selClass.gradeWeights || DEFAULT_GRADE_WEIGHTS;
+                      const grades = {
+                        attendance: st.manualGrades?.attendance ?? st.attendanceStats?.autoScore,
+                        homework: st.homeworkGrade,
+                        midterm: st.manualGrades?.midterm ?? st.quizMidterm?.score,
+                        presentation: st.manualGrades?.presentation,
+                        final: st.manualGrades?.final ?? st.quizFinal?.score,
+                      };
+                      const gpa = calculateGpa(grades, weights);
+                      const clsInfo = getGpaClassification(gpa);
+
+                      return (
+                        <tr key={st._id || st.id || idx} className="hover:bg-indigo-50/20">
+                          <td className="px-3 py-2 text-center text-slate-400 font-bold">{idx + 1}</td>
+                          <td className="px-3 py-2 font-mono font-bold text-slate-700">
+                            {formatStudentCode(st.id)}
+                          </td>
+                          <td className="px-3 py-2 font-medium text-slate-900">{st.hoTen}</td>
+                          <td className="px-3 py-2 text-center font-medium text-slate-700">
+                            {grades.attendance != null ? grades.attendance : '—'}
+                          </td>
+                          <td className="px-3 py-2 text-center font-medium text-slate-700">
+                            {grades.homework != null ? grades.homework : '—'}
+                          </td>
+                          <td className="px-3 py-2 text-center font-medium text-slate-700">
+                            {grades.midterm != null ? grades.midterm : '—'}
+                          </td>
+                          <td className="px-3 py-2 text-center font-medium text-slate-700">
+                            {grades.final != null ? grades.final : '—'}
+                          </td>
+                          <td className="px-3 py-2 text-center font-black text-indigo-700">
+                            {gpa != null ? gpa.toFixed(2) : '—'}
+                          </td>
+                          <td className="px-3 py-2 text-center whitespace-nowrap">
+                            <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                              clsInfo.tone === 'success' ? 'bg-emerald-50 text-emerald-700' :
+                              clsInfo.tone === 'primary' ? 'bg-blue-50 text-blue-700' :
+                              clsInfo.tone === 'warning' ? 'bg-amber-50 text-amber-700' :
+                              'bg-rose-50 text-rose-700'
+                            }`}>
+                              {clsInfo.text}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Student Feedback & Evaluation Section */}
       <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-2xs space-y-5">

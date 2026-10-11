@@ -1,24 +1,69 @@
 import { useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { authApi } from '../../api/authApi.js';
+import { tokenStore } from '../../api/http.js';
 import { Modal } from '../ui/Modal.jsx';
 import { FormField, inputClass } from '../ui/FormField.jsx';
 import { useToast } from '../../app/providers/ToastProvider.jsx';
+import { useAuth } from '../../app/providers/AuthProvider.jsx';
 
 const EMPTY = { oldPassword: '', newPassword: '', confirmPassword: '' };
 
 export function ChangePasswordModal({ open, onClose }) {
   const toast = useToast();
+  let navigate = null;
+  try {
+    navigate = useNavigate();
+  } catch {}
+
+  let logout = null;
+  try {
+    const auth = useAuth();
+    logout = auth?.logout;
+  } catch {}
+
+  const queryClient = useQueryClient();
   const [form, setForm] = useState(EMPTY);
   const [errors, setErrors] = useState({});
 
   const mutation = useMutation({
-    mutationFn: authApi.changePassword,
+    mutationFn: (vars) => authApi.changePassword(vars),
     onSuccess: () => {
-      toast.success('Đã đổi mật khẩu thành công');
+      toast.success('Đổi mật khẩu thành công. Vui lòng đăng nhập lại bằng mật khẩu mới.');
       setForm(EMPTY);
       setErrors({});
       onClose?.();
+
+      // 1. Tự động xóa token/session cũ (clear localStorage & sessionStorage)
+      tokenStore.clear();
+      if (typeof window !== 'undefined') {
+        try {
+          sessionStorage.clear();
+          localStorage.removeItem('authToken');
+          localStorage.removeItem('authUser');
+          localStorage.removeItem('authProfile');
+          localStorage.removeItem('authLockInfo');
+        } catch {}
+      }
+
+      // 2. Clear queryClient cache & logout
+      try {
+        queryClient.clear();
+      } catch {}
+
+      if (logout) {
+        try {
+          logout();
+        } catch {}
+      }
+
+      // 3. Điều hướng người dùng về trang Login để đăng nhập lại
+      if (navigate) {
+        navigate('/login', { replace: true });
+      } else if (typeof window !== 'undefined') {
+        window.location.href = '/login';
+      }
     },
     onError: (error) => {
       // Surface the server message on the old-password field when relevant.

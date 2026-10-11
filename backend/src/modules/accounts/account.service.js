@@ -114,6 +114,7 @@ export async function resetPassword(id) {
 
   const tempPassword = generateTempPassword();
   user.passwordHash = await hashPassword(tempPassword);
+  user.set('password', undefined);
   user.tokenVersion = (user.tokenVersion ?? 0) + 1;
   await user.save();
   return { tempPassword };

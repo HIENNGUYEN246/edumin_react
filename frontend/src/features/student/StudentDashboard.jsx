@@ -3,7 +3,12 @@ import { PageHeader } from '../../components/ui/PageHeader.jsx';
 import { ProfileCard } from '../../components/account/ProfileCard.jsx';
 import { useAuth } from '../../app/providers/AuthProvider.jsx';
 import { useToast } from '../../app/providers/ToastProvider.jsx';
-import { formatStudentCode } from '../../lib/format.js';
+import {
+  formatStudentCode,
+  calculateGpa,
+  getGpaClassification,
+  DEFAULT_GRADE_WEIGHTS,
+} from '../../lib/format.js';
 import { useMyEnrollments } from './useEnrollments.js';
 import { feedbackApi } from '../../api/feedbackApi.js';
 
@@ -24,6 +29,92 @@ export function StudentDashboard() {
   const [submitting, setSubmitting] = useState(false);
 
   const studentId = profile?.id ?? user?.studentId ?? user?.id;
+
+  // Student personal grades & overall GPA stats
+  const studentGradebook = useMemo(() => {
+    return enrollments.map((enr) => {
+      const cls = enr.class || {};
+      const classId = cls.id || enr.classId;
+      const courseId = cls.courseId || '';
+      const courseName = cls.courseName || cls.name || courseId || classId;
+      const credits = Number(cls.credits) || 3;
+      const teacherName = typeof cls.teacher === 'object'
+        ? (cls.teacher?.hoTen || cls.teacher?.name)
+        : (cls.teacher || 'Chưa phân công');
+      const weights = cls.gradeWeights || DEFAULT_GRADE_WEIGHTS;
+
+      const manual = enr.manualGrades || {};
+      const compGrades = {
+        attendance: manual.attendance ?? null,
+        homework: manual.assignment ?? manual.homework ?? null,
+        midterm: manual.midterm ?? null,
+        presentation: manual.presentation ?? null,
+        final: manual.final ?? null,
+      };
+
+      const gpa = enr.finalScore != null ? Number(enr.finalScore) : calculateGpa(compGrades, weights);
+      const classification = getGpaClassification(gpa);
+
+      let gpa4 = null;
+      let letterGrade = '—';
+      if (gpa != null) {
+        if (gpa >= 8.5) { gpa4 = 4.0; letterGrade = 'A'; }
+        else if (gpa >= 7.0) { gpa4 = 3.0; letterGrade = 'B'; }
+        else if (gpa >= 5.5) { gpa4 = 2.0; letterGrade = 'C'; }
+        else if (gpa >= 4.0) { gpa4 = 1.0; letterGrade = 'D'; }
+        else { gpa4 = 0.0; letterGrade = 'F'; }
+      }
+
+      const isPassed = gpa != null ? gpa >= 4.0 : null;
+
+      return {
+        enrollmentId: enr._id,
+        classId,
+        courseId,
+        courseName,
+        credits,
+        teacherName,
+        weights,
+        compGrades,
+        gpa,
+        gpa4,
+        letterGrade,
+        classification,
+        isPassed,
+      };
+    });
+  }, [enrollments]);
+
+  const studentGradeStats = useMemo(() => {
+    const completedCourses = studentGradebook.filter((g) => g.gpa != null);
+    const totalCredits = studentGradebook.reduce((sum, g) => sum + g.credits, 0);
+    const passedCredits = completedCourses.reduce((sum, g) => sum + (g.isPassed ? g.credits : 0), 0);
+
+    if (completedCourses.length === 0) {
+      return {
+        gpa10: null,
+        gpa4: null,
+        totalCredits,
+        passedCredits: 0,
+        classification: { text: 'Đang học', tone: 'neutral' },
+      };
+    }
+
+    const totalWeighted10 = completedCourses.reduce((sum, g) => sum + g.gpa * g.credits, 0);
+    const totalCompCredits = completedCourses.reduce((sum, g) => sum + g.credits, 0);
+    const gpa10 = totalCompCredits > 0 ? Number((totalWeighted10 / totalCompCredits).toFixed(2)) : null;
+
+    const totalWeighted4 = completedCourses.reduce((sum, g) => sum + (g.gpa4 ?? 0) * g.credits, 0);
+    const gpa4 = totalCompCredits > 0 ? Number((totalWeighted4 / totalCompCredits).toFixed(2)) : null;
+
+    return {
+      gpa10,
+      gpa4,
+      totalCredits,
+      passedCredits,
+      classification: getGpaClassification(gpa10),
+    };
+  }, [studentGradebook]);
 
   const getTeacherTitle = useCallback((name, gender) => {
     const cleanName = (name || '').trim();
@@ -120,6 +211,169 @@ export function StudentDashboard() {
           { label: 'Học phần đã đăng ký', value: enrolledCount },
         ]}
       />
+
+      {/* Student Personal Gradebook Widget */}
+      <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-2xs space-y-5">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600">
+              <i className="fas fa-graduation-cap text-lg" />
+            </div>
+            <div>
+              <h4 className="text-base font-bold text-slate-800">
+                Bảng điểm Cá nhân & Điểm tổng kết học phần
+              </h4>
+              <p className="text-xs text-gray-400">
+                Xem trực tiếp điểm thành phần, điểm tổng kết môn và xếp loại học lực của các môn đang học
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="px-3 py-1.5 bg-indigo-50 text-indigo-700 text-xs font-bold rounded-xl border border-indigo-100 flex items-center gap-1.5">
+              <i className="fas fa-star text-indigo-500" />
+              <span>GPA Thang 10: <strong>{studentGradeStats.gpa10 != null ? studentGradeStats.gpa10.toFixed(2) : '—'}</strong></span>
+            </span>
+            <span className="px-3 py-1.5 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-xl border border-emerald-100 flex items-center gap-1.5">
+              <i className="fas fa-award text-emerald-500" />
+              <span>GPA Thang 4: <strong>{studentGradeStats.gpa4 != null ? studentGradeStats.gpa4.toFixed(2) : '—'}</strong></span>
+            </span>
+            <span className="px-3 py-1.5 bg-amber-50 text-amber-700 text-xs font-bold rounded-xl border border-amber-100 flex items-center gap-1.5">
+              <i className="fas fa-medal text-amber-500" />
+              <span>Xếp loại: <strong>{studentGradeStats.classification.text}</strong></span>
+            </span>
+            <a
+              href="/student/attendance"
+              className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition flex items-center gap-1.5"
+            >
+              <i className="fas fa-calendar-check text-xs" />
+              <span>Chi tiết điểm danh & sổ điểm</span>
+            </a>
+          </div>
+        </div>
+
+        {studentGradebook.length === 0 ? (
+          <div className="p-8 text-center text-gray-400 bg-slate-50 rounded-xl border border-dashed border-gray-200">
+            <i className="fas fa-book-open text-3xl mb-2 text-gray-300" />
+            <p className="font-semibold text-gray-600 text-xs">Bạn chưa đăng ký môn học nào trong học kỳ này</p>
+            <a
+              href="/student/registration"
+              className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 transition"
+            >
+              <i className="fas fa-plus" />
+              <span>Đăng ký học phần ngay</span>
+            </a>
+          </div>
+        ) : (
+          <div className="overflow-x-auto custom-scrollbar">
+            <table className="w-full min-w-[760px] text-left text-xs text-slate-700">
+              <thead className="bg-slate-50/80 border-b border-slate-100 text-[11px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">
+                <tr>
+                  <th className="px-4 py-3">Môn học & Lớp</th>
+                  <th className="px-4 py-3">Giảng viên</th>
+                  <th className="px-3 py-3 text-center">Chuyên cần</th>
+                  <th className="px-3 py-3 text-center">Bài tập / Quiz</th>
+                  <th className="px-3 py-3 text-center">Giữa kỳ</th>
+                  <th className="px-3 py-3 text-center">Cuối kỳ</th>
+                  <th className="px-3 py-3 text-center">Tổng kết (Thang 10)</th>
+                  <th className="px-3 py-3 text-center">Thang 4 / Chữ</th>
+                  <th className="px-3 py-3 text-center">Trạng thái & Xếp loại</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {studentGradebook.map((row) => {
+                  return (
+                    <tr key={row.enrollmentId || row.classId} className="hover:bg-slate-50/60 transition">
+                      <td className="px-4 py-3.5">
+                        <div className="font-bold text-slate-900 text-sm leading-tight">{row.courseName}</div>
+                        <div className="flex items-center gap-1.5 mt-1">
+                          <span className="font-mono text-[10px] font-bold bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded border border-indigo-100">
+                            {row.classId}
+                          </span>
+                          <span className="text-[10px] text-gray-500 font-medium">
+                            {row.credits} tín chỉ
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3.5 font-medium text-slate-800 whitespace-nowrap">
+                        <span className="inline-flex items-center gap-1.5">
+                          <i className="fas fa-user-tie text-indigo-400 text-xs" />
+                          <span>{row.teacherName}</span>
+                        </span>
+                      </td>
+                      <td className="px-3 py-3.5 text-center font-medium text-slate-700">
+                        {row.compGrades.attendance != null ? (
+                          <span className="font-semibold text-slate-800">{row.compGrades.attendance}</span>
+                        ) : (
+                          <span className="text-gray-300">—</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-3.5 text-center font-medium text-slate-700">
+                        {row.compGrades.homework != null ? (
+                          <span className="font-semibold text-slate-800">{row.compGrades.homework}</span>
+                        ) : (
+                          <span className="text-gray-300">—</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-3.5 text-center font-medium text-slate-700">
+                        {row.compGrades.midterm != null ? (
+                          <span className="font-semibold text-slate-800">{row.compGrades.midterm}</span>
+                        ) : (
+                          <span className="text-gray-300">—</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-3.5 text-center font-medium text-slate-700">
+                        {row.compGrades.final != null ? (
+                          <span className="font-semibold text-slate-800">{row.compGrades.final}</span>
+                        ) : (
+                          <span className="text-gray-300">—</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-3.5 text-center whitespace-nowrap">
+                        {row.gpa != null ? (
+                          <span className="inline-block bg-indigo-50 text-indigo-700 font-black px-2.5 py-1 rounded-lg text-xs border border-indigo-200">
+                            {row.gpa.toFixed(2)}
+                          </span>
+                        ) : (
+                          <span className="text-gray-300">—</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-3.5 text-center whitespace-nowrap">
+                        {row.gpa4 != null ? (
+                          <span className="font-bold text-slate-800">
+                            {row.gpa4.toFixed(1)} <span className="text-indigo-600 font-extrabold">({row.letterGrade})</span>
+                          </span>
+                        ) : (
+                          <span className="text-gray-300">—</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-3.5 text-center whitespace-nowrap">
+                        {row.gpa == null ? (
+                          <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                            Đang học
+                          </span>
+                        ) : (
+                          <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                            row.classification.tone === 'success'
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              : row.classification.tone === 'primary'
+                              ? 'bg-blue-50 text-blue-700 border-blue-200'
+                              : row.classification.tone === 'warning'
+                              ? 'bg-amber-50 text-amber-700 border-amber-200'
+                              : 'bg-rose-50 text-rose-700 border-rose-200'
+                          }`}>
+                            {row.isPassed ? `Đạt · ${row.classification.text}` : 'Học lại'}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
 
       {/* Feedback Section */}
       <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-2xs space-y-5">

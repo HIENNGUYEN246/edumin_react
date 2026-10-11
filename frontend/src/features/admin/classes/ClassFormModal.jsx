@@ -6,6 +6,8 @@ import { SchedulePicker } from '../../../components/schedule/SchedulePicker.jsx'
 import {
   formatTeacherCode,
   formatCurrency,
+  formatDate,
+  addDaysToDate,
   getTodayDate,
   getNextDate,
   getCurrentDateTimeLocal,
@@ -179,6 +181,36 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
     const val = e.target.value;
     setForm((f) => ({ ...f, registrationStart: val }));
     setErrors((prev) => ({ ...prev, registrationStart: '', registrationEnd: '' }));
+  };
+
+  const handleRegistrationEndChange = (e) => {
+    const val = e.target.value;
+    setForm((f) => {
+      const updated = { ...f, registrationEnd: val };
+      if (val) {
+        // Tự động tính toán ngày bắt đầu học dựa trên thời hạn đăng ký (+3 ngày trừ hao)
+        // Áp dụng khi tạo mới hoặc khi chưa có studyStart, hoặc khi studyStart diễn ra trước/trùng hạn chót đăng ký
+        const regDateOnly = val.slice(0, 10);
+        if (mode === 'create' || !f.studyStart || f.studyStart <= regDateOnly) {
+          const autoStudyStart = addDaysToDate(val, 3);
+          updated.studyStart = autoStudyStart;
+          updated.studyEnd = addWeeksToDate(autoStudyStart, CLASS_DURATION_WEEKS);
+        }
+      }
+      return updated;
+    });
+    setErrors((prev) => ({ ...prev, registrationEnd: '', studyStart: '', studyEnd: '' }));
+  };
+
+  const applyBufferDaysToStudyStart = (days = 3) => {
+    if (!form.registrationEnd) return;
+    const newStart = addDaysToDate(form.registrationEnd, days);
+    setForm((f) => ({
+      ...f,
+      studyStart: newStart,
+      studyEnd: addWeeksToDate(newStart, CLASS_DURATION_WEEKS),
+    }));
+    setErrors((prev) => ({ ...prev, studyStart: '', studyEnd: '' }));
   };
 
   const totalWeight = useMemo(() => {
@@ -520,7 +552,12 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
                 onChange={handleRegistrationStartChange}
               />
             </FormField>
-            <FormField label="Kết thúc đăng ký (ngày, giờ)" error={errors.registrationEnd} required>
+            <FormField
+              label="Kết thúc đăng ký (ngày, giờ)"
+              error={errors.registrationEnd}
+              required
+              hint="Tự động cộng 3 ngày trừ hao để thiết lập thời gian khóa học (15 tuần)"
+            >
               <input
                 type="datetime-local"
                 required
@@ -531,16 +568,42 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
                 }
                 className={inputClass}
                 value={form.registrationEnd}
-                onChange={set('registrationEnd')}
+                onChange={handleRegistrationEndChange}
               />
             </FormField>
           </div>
         </div>
 
         <div className="bg-slate-50/60 p-4 rounded-2xl border border-gray-100">
-          <div className="text-xs font-bold uppercase tracking-wider text-indigo-700 mb-3 flex items-center gap-1.5">
-            <i className="far fa-calendar text-indigo-500" />
-            <span>Thời gian đào tạo (Tối thiểu {CLASS_DURATION_WEEKS} tuần)</span>
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+            <div className="text-xs font-bold uppercase tracking-wider text-indigo-700 flex items-center gap-1.5">
+              <i className="far fa-calendar text-indigo-500" />
+              <span>Thời gian đào tạo (Tối thiểu {CLASS_DURATION_WEEKS} tuần)</span>
+            </div>
+            {form.registrationEnd && (
+              <div className="flex items-center gap-1.5 text-xs">
+                <span className="text-[11px] text-slate-500 font-medium">Trừ hao tự động:</span>
+                {[1, 2, 3].map((days) => {
+                  const targetStart = addDaysToDate(form.registrationEnd, days);
+                  const isCurrent = form.studyStart === targetStart;
+                  return (
+                    <button
+                      key={days}
+                      type="button"
+                      onClick={() => applyBufferDaysToStudyStart(days)}
+                      className={`px-2 py-0.5 rounded-md text-[11px] font-semibold border transition cursor-pointer ${
+                        isCurrent
+                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs'
+                          : 'bg-white text-slate-600 border-gray-200 hover:bg-indigo-50 hover:text-indigo-700'
+                      }`}
+                      title={`Kỳ học sau ${days} ngày (${formatDate(targetStart)})`}
+                    >
+                      +{days} ngày ({formatDate(targetStart)})
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <FormField label="Bắt đầu học" error={errors.studyStart} required>

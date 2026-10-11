@@ -35,25 +35,31 @@ export function ManageCourses() {
   const [selectedIds, setSelectedIds] = useState([]);
   const [lastClickedIndex, setLastClickedIndex] = useState(null);
 
+  // Clear selections only when search filter changes, NOT when switching pages
   useEffect(() => {
     setSelectedIds([]);
     setLastClickedIndex(null);
-  }, [page, search]);
+  }, [search]);
+
+  useEffect(() => {
+    setLastClickedIndex(null);
+  }, [page]);
 
   const rows = data?.data || [];
   const meta = data?.meta || { page: 1, pages: 1, total: 0 };
   const departments = deptData?.data || [];
 
-  const allCurrentRowIds = rows.map((r) => r._id);
-  const isAllSelected = rows.length > 0 && allCurrentRowIds.every((id) => selectedIds.includes(id));
-  const isSomeSelected = rows.length > 0 && allCurrentRowIds.some((id) => selectedIds.includes(id)) && !isAllSelected;
+  const allCurrentRowIds = rows.map((r) => String(r._id));
+  const isIdSelected = (id) => selectedIds.some((sId) => String(sId) === String(id));
+  const isAllSelected = rows.length > 0 && allCurrentRowIds.every((id) => isIdSelected(id));
+  const isSomeSelected = rows.length > 0 && allCurrentRowIds.some((id) => isIdSelected(id)) && !isAllSelected;
 
   const handleSelectAll = () => {
     setLastClickedIndex(null);
     if (isAllSelected) {
-      setSelectedIds((prev) => prev.filter((id) => !allCurrentRowIds.includes(id)));
+      setSelectedIds((prev) => prev.filter((id) => !allCurrentRowIds.includes(String(id))));
     } else {
-      setSelectedIds((prev) => Array.from(new Set([...prev, ...allCurrentRowIds])));
+      setSelectedIds((prev) => Array.from(new Set([...prev.map(String), ...allCurrentRowIds])));
     }
   };
 
@@ -65,25 +71,26 @@ export function ManageCourses() {
     }
 
     const index = typeof rowIndex === 'number' ? rowIndex : rows.findIndex((r) => r._id === course._id);
-    const isCurrentlyChecked = selectedIds.includes(course._id);
+    const id = String(course._id);
+    const isCurrentlyChecked = isIdSelected(id);
     const targetChecked = !isCurrentlyChecked;
 
     if (e.shiftKey && lastClickedIndex !== null && lastClickedIndex !== index && index >= 0) {
       const start = Math.min(lastClickedIndex, index);
       const end = Math.max(lastClickedIndex, index);
       const rangeRows = rows.slice(start, end + 1);
-      const rangeIds = rangeRows.map((r) => r._id);
+      const rangeIds = rangeRows.map((r) => String(r._id));
 
       if (targetChecked) {
-        setSelectedIds((prev) => Array.from(new Set([...prev, ...rangeIds])));
+        setSelectedIds((prev) => Array.from(new Set([...prev.map(String), ...rangeIds])));
       } else {
-        setSelectedIds((prev) => prev.filter((id) => !rangeIds.includes(id)));
+        setSelectedIds((prev) => prev.filter((prevId) => !rangeIds.includes(String(prevId))));
       }
     } else {
       if (targetChecked) {
-        setSelectedIds((prev) => (prev.includes(course._id) ? prev : [...prev, course._id]));
+        setSelectedIds((prev) => (isIdSelected(id) ? prev : [...prev, id]));
       } else {
-        setSelectedIds((prev) => prev.filter((id) => id !== course._id));
+        setSelectedIds((prev) => prev.filter((prevId) => String(prevId) !== id));
       }
     }
 
@@ -262,7 +269,7 @@ export function ManageCourses() {
       <div className="flex items-center justify-center select-none" onClick={(e) => e.stopPropagation()}>
         <input
           type="checkbox"
-          checked={selectedIds.includes(c._id)}
+          checked={isIdSelected(c._id)}
           onChange={() => {}}
           onClick={(e) => handleRowCheckboxClick(e, c, rowIndex)}
           className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
@@ -377,14 +384,13 @@ export function ManageCourses() {
         isLoading={isLoading}
         emptyText="Chưa có môn học nào trong danh mục"
         onRowClick={(c) => navigate(`/admin/courses/${c._id}`)}
-        rowClassName={(c) => (selectedIds.includes(c._id) ? 'bg-indigo-50/40' : '')}
+        rowClassName={(c) => (isIdSelected(c._id) ? 'bg-indigo-50/40' : '')}
       />
       <Pagination
         page={meta.page}
         pages={meta.pages}
         total={meta.total}
         onPageChange={(p) => {
-          setSelectedIds([]);
           setLastClickedIndex(null);
           setPage(p);
         }}

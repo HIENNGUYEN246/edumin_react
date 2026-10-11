@@ -18,6 +18,76 @@ const getTodayStr = () => {
   const pad = (n) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 };
+const normalizeShiftLabel = (sId, sLabel) => {
+  if (sLabel && /\(\d{2}:\d{2}\s*-\s*\d{2}:\d{2}\)/.test(sLabel)) return sLabel;
+  const norm = String(sId || sLabel || '').trim().toLowerCase();
+  if (norm === 's1' || norm === 'si' || norm === '1' || norm === 'ca si' || norm === 'ca s1') return 'Ca 1 (07:00 - 09:15)';
+  if (norm === 's2' || norm === 'sii' || norm === '2' || norm === 'ca sii' || norm === 'ca s2') return 'Ca 2 (09:30 - 11:45)';
+  if (norm === 'c1' || norm === 'ci' || norm === '3' || norm === 'ca ci' || norm === 'ca c1') return 'Ca 3 (12:30 - 14:45)';
+  if (norm === 'c2' || norm === 'cii' || norm === '4' || norm === 'ca cii' || norm === 'ca c2') return 'Ca 4 (15:00 - 17:15)';
+  if (norm === 't1' || norm === 'ti' || norm === '5' || norm === 'ca ti' || norm === 'ca t1') return 'Ca 5 (18:00 - 20:15)';
+  return sLabel || (sId ? `Ca ${sId}` : '');
+};
+
+const formatAttendanceRecords = async (records) => {
+  const unlinkedClassCodes = [
+    ...new Set(
+      records
+        .filter((r) => !r.classRef && r.regId)
+        .map((r) => String(r.regId))
+    ),
+  ];
+
+  const classMapById = new Map();
+  if (unlinkedClassCodes.length > 0) {
+    const objectIds = unlinkedClassCodes.filter((c) => mongoose.isValidObjectId(c));
+    const stringCodes = unlinkedClassCodes.filter((c) => !mongoose.isValidObjectId(c));
+    const orClauses = [];
+    if (objectIds.length > 0) orClauses.push({ _id: { $in: objectIds } });
+    if (stringCodes.length > 0) orClauses.push({ id: { $in: stringCodes } });
+
+    if (orClauses.length > 0) {
+      const foundClasses = await CourseClass.find({ $or: orClauses }).lean();
+      for (const cls of foundClasses) {
+        classMapById.set(String(cls._id), cls);
+        classMapById.set(String(cls.id), cls);
+      }
+    }
+  }
+
+  return records.map((r) => {
+    const sAvatar =
+      r.studentAvatar ||
+      r.avatar ||
+      (typeof r.studentRef?.avatar === 'string' ? r.studentRef?.avatar : r.studentRef?.avatar?.url) ||
+      '';
+    const classObj = r.classRef || classMapById.get(String(r.regId)) || null;
+    const isMongoId = mongoose.isValidObjectId(String(r.regId || ''));
+    const resolvedClassCode =
+      classObj?.id ||
+      (!isMongoId ? r.regId : '') ||
+      '';
+    const resolvedClassName = classObj?.className || '';
+    const resolvedCourseName = r.courseName || classObj?.courseName || '';
+    const resolvedCourseId = r.courseId || classObj?.courseId || '';
+    const resolvedShift = normalizeShiftLabel(r.shiftId, r.shiftLabel);
+
+    return {
+      ...r,
+      classRef: classObj,
+      classId: resolvedClassCode || r.regId,
+      classCode: resolvedClassCode,
+      className: resolvedClassName,
+      courseId: resolvedCourseId,
+      courseName: resolvedCourseName,
+      regId: resolvedClassCode || r.regId,
+      shiftLabel: resolvedShift,
+      studentAvatar: sAvatar,
+      avatar: sAvatar,
+    };
+  });
+};
+
 // GET /api/attendance
 router.get('/', async (req, res, next) => {
   try {
@@ -52,21 +122,11 @@ router.get('/', async (req, res, next) => {
 
     const records = await Attendance.find(filter)
       .populate('studentRef', 'id hoTen name email avatar')
+      .populate('classRef', 'id className courseId courseName schedules room department')
       .sort({ date: -1, shiftId: 1 })
       .lean();
 
-    const formatted = records.map((r) => {
-      const sAvatar =
-        r.studentAvatar ||
-        r.avatar ||
-        (typeof r.studentRef?.avatar === 'string' ? r.studentRef?.avatar : r.studentRef?.avatar?.url) ||
-        '';
-      return {
-        ...r,
-        studentAvatar: sAvatar,
-        avatar: sAvatar,
-      };
-    });
+    const formatted = await formatAttendanceRecords(records);
 
     res.json(formatted);
   } catch (error) {
@@ -112,8 +172,13 @@ router.post('/check-in', async (req, res, next) => {
       $or: [{ id: numericStudentId }, { email: studentEmail }],
     });
     const classObj = await CourseClass.findOne({
-      $or: [{ id: regIdStr }, { _id: classCode.match(/^[0-9a-fA-F]{24}$/) ? classCode : null }],
+      $or: [
+        { id: regIdStr },
+        ...(mongoose.isValidObjectId(classCode) ? [{ _id: classCode }] : []),
+      ],
     });
+    const canonicalRegId = classObj?.id || (mongoose.isValidObjectId(regIdStr) ? '' : regIdStr) || regIdStr;
+    const resolvedShiftLabel = normalizeShiftLabel(shiftIdStr, shiftLabel);
 
     const studentAvatarResolved =
       studentAvatar ||
@@ -122,21 +187,28 @@ router.post('/check-in', async (req, res, next) => {
       '';
 
     let record = await Attendance.findOne({
-      regId: regIdStr,
-      studentId: numericStudentId,
-      date: dateStr,
-      shiftId: shiftIdStr,
+      $or: [
+        { regId: regIdStr, studentId: numericStudentId, date: dateStr, shiftId: shiftIdStr },
+        ...(canonicalRegId !== regIdStr ? [{ regId: canonicalRegId, studentId: numericStudentId, date: dateStr, shiftId: shiftIdStr }] : []),
+        ...(classObj ? [{ classRef: classObj._id, studentId: numericStudentId, date: dateStr, shiftId: shiftIdStr }] : []),
+      ],
     });
 
     if (record) {
+      record.regId = canonicalRegId;
       record.status = status || 'Có mặt';
       record.checkInTime = checkInTime || record.checkInTime || new Date().toLocaleTimeString('vi-VN');
       record.checkedBy = 'student';
+      if (resolvedShiftLabel) record.shiftLabel = resolvedShiftLabel;
       if (studentAvatarResolved) {
         record.studentAvatar = studentAvatarResolved;
         record.avatar = studentAvatarResolved;
       }
-      if (classObj && !record.classRef) record.classRef = classObj._id;
+      if (classObj) {
+        record.classRef = classObj._id;
+        if (!record.courseId) record.courseId = classObj.courseId || '';
+        if (!record.courseName) record.courseName = classObj.courseName || '';
+      }
       if (student && !record.studentRef) record.studentRef = student._id;
       record.timestamp = Date.now();
       await record.save();
@@ -146,7 +218,7 @@ router.post('/check-in', async (req, res, next) => {
     const id = `ATT_${Date.now()}_${numericStudentId}`;
     record = await Attendance.create({
       id,
-      regId: regIdStr,
+      regId: canonicalRegId,
       classRef: classObj?._id || null,
       courseId: courseId || classObj?.courseId || '',
       courseName: courseName || classObj?.courseName || '',
@@ -158,7 +230,7 @@ router.post('/check-in', async (req, res, next) => {
       avatar: studentAvatarResolved,
       date: dateStr,
       shiftId: shiftIdStr,
-      shiftLabel: shiftLabel || '',
+      shiftLabel: resolvedShiftLabel,
       status: status || 'Có mặt',
       checkInTime: checkInTime || new Date().toLocaleTimeString('vi-VN'),
       checkedBy: 'student',
@@ -214,8 +286,13 @@ router.post('/record', async (req, res, next) => {
       $or: [{ id: numericStudentId }, { email: studentEmail }],
     });
     const classObj = await CourseClass.findOne({
-      $or: [{ id: regIdStr }, { _id: classCode.match(/^[0-9a-fA-F]{24}$/) ? classCode : null }],
+      $or: [
+        { id: regIdStr },
+        ...(mongoose.isValidObjectId(classCode) ? [{ _id: classCode }] : []),
+      ],
     });
+    const canonicalRegId = classObj?.id || (mongoose.isValidObjectId(regIdStr) ? '' : regIdStr) || regIdStr;
+    const resolvedShiftLabel = normalizeShiftLabel(shiftIdStr, shiftLabel);
 
     const resolvedAvatar =
       studentAvatar ||
@@ -228,13 +305,15 @@ router.post('/record', async (req, res, next) => {
     const evaluatedAt = `${pad(now.getHours())}:${pad(now.getMinutes())} ${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()}`;
 
     let record = await Attendance.findOne({
-      regId: regIdStr,
-      studentId: numericStudentId,
-      date: dateStr,
-      shiftId: shiftIdStr,
+      $or: [
+        { regId: regIdStr, studentId: numericStudentId, date: dateStr, shiftId: shiftIdStr },
+        ...(canonicalRegId !== regIdStr ? [{ regId: canonicalRegId, studentId: numericStudentId, date: dateStr, shiftId: shiftIdStr }] : []),
+        ...(classObj ? [{ classRef: classObj._id, studentId: numericStudentId, date: dateStr, shiftId: shiftIdStr }] : []),
+      ],
     });
 
     if (record) {
+      record.regId = canonicalRegId;
       record.status = status || record.status || 'Có mặt';
       if (score !== null && score !== undefined && score !== '') {
         record.score = Number(score);
@@ -249,12 +328,17 @@ router.post('/record', async (req, res, next) => {
         record.studentAvatar = resolvedAvatar;
         record.avatar = resolvedAvatar;
       }
+      if (resolvedShiftLabel) record.shiftLabel = resolvedShiftLabel;
       record.teacherId = teacherId != null ? parseTeacherId(teacherId) : record.teacherId;
       record.teacherName = teacherName || record.teacherName || '';
       record.evaluatedAt = evaluatedAt;
       record.checkedBy = checkedBy || 'teacher';
       record.timestamp = Date.now();
-      if (classObj && !record.classRef) record.classRef = classObj._id;
+      if (classObj) {
+        record.classRef = classObj._id;
+        if (!record.courseId) record.courseId = classObj.courseId || '';
+        if (!record.courseName) record.courseName = classObj.courseName || '';
+      }
       if (student && !record.studentRef) record.studentRef = student._id;
       await record.save();
       return res.json({ success: true, message: 'Đã lưu đánh giá và điểm danh!', record });
@@ -263,7 +347,7 @@ router.post('/record', async (req, res, next) => {
     const id = `ATT_${Date.now()}_${numericStudentId}`;
     record = await Attendance.create({
       id,
-      regId: regIdStr,
+      regId: canonicalRegId,
       classRef: classObj?._id || null,
       courseId: courseId || classObj?.courseId || '',
       courseName: courseName || classObj?.courseName || '',
@@ -275,7 +359,7 @@ router.post('/record', async (req, res, next) => {
       avatar: resolvedAvatar,
       date: dateStr,
       shiftId: shiftIdStr,
-      shiftLabel: shiftLabel || '',
+      shiftLabel: resolvedShiftLabel,
       status: status || 'Có mặt',
       checkedBy: checkedBy || 'teacher',
       score: score !== null && score !== undefined && score !== '' ? Number(score) : null,
@@ -328,8 +412,13 @@ router.post('/bulk', async (req, res, next) => {
     const evaluatedAt = `${pad(now.getHours())}:${pad(now.getMinutes())} ${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()}`;
 
     const classObj = await CourseClass.findOne({
-      $or: [{ id: regIdStr }, { _id: classCode.match(/^[0-9a-fA-F]{24}$/) ? classCode : null }],
+      $or: [
+        { id: regIdStr },
+        ...(mongoose.isValidObjectId(classCode) ? [{ _id: classCode }] : []),
+      ],
     });
+    const canonicalRegId = classObj?.id || (mongoose.isValidObjectId(regIdStr) ? '' : regIdStr) || regIdStr;
+    const resolvedShiftLabel = normalizeShiftLabel(shiftIdStr, shiftLabel);
 
     const savedRecords = [];
 
@@ -338,10 +427,11 @@ router.post('/bulk', async (req, res, next) => {
       const numericStudentId = Number(item.studentId);
 
       let record = await Attendance.findOne({
-        regId: regIdStr,
-        studentId: numericStudentId,
-        date: dateStr,
-        shiftId: shiftIdStr,
+        $or: [
+          { regId: regIdStr, studentId: numericStudentId, date: dateStr, shiftId: shiftIdStr },
+          ...(canonicalRegId !== regIdStr ? [{ regId: canonicalRegId, studentId: numericStudentId, date: dateStr, shiftId: shiftIdStr }] : []),
+          ...(classObj ? [{ classRef: classObj._id, studentId: numericStudentId, date: dateStr, shiftId: shiftIdStr }] : []),
+        ],
       });
 
       const student = await Student.findOne({
@@ -354,6 +444,7 @@ router.post('/bulk', async (req, res, next) => {
         '';
 
       if (record) {
+        record.regId = canonicalRegId;
         record.status = item.status || record.status || 'Có mặt';
         if (item.score !== undefined && item.score !== null && item.score !== '') {
           record.score = Number(item.score);
@@ -368,12 +459,17 @@ router.post('/bulk', async (req, res, next) => {
           record.studentAvatar = resolvedAvatar;
           record.avatar = resolvedAvatar;
         }
+        if (resolvedShiftLabel) record.shiftLabel = resolvedShiftLabel;
         record.teacherId = teacherId != null ? parseTeacherId(teacherId) : record.teacherId;
         record.teacherName = teacherName || record.teacherName || '';
         record.evaluatedAt = evaluatedAt;
         record.checkedBy = checkedBy || 'teacher';
         record.timestamp = Date.now();
-        if (classObj && !record.classRef) record.classRef = classObj._id;
+        if (classObj) {
+          record.classRef = classObj._id;
+          if (!record.courseId) record.courseId = classObj.courseId || '';
+          if (!record.courseName) record.courseName = classObj.courseName || '';
+        }
         if (student && !record.studentRef) record.studentRef = student._id;
         await record.save();
         savedRecords.push(record);
@@ -381,7 +477,7 @@ router.post('/bulk', async (req, res, next) => {
         const id = `ATT_${Date.now()}_${numericStudentId}_${Math.floor(Math.random() * 1000)}`;
         const created = await Attendance.create({
           id,
-          regId: regIdStr,
+          regId: canonicalRegId,
           classRef: classObj?._id || null,
           courseId: courseId || item.courseId || classObj?.courseId || '',
           courseName: courseName || item.courseName || classObj?.courseName || '',
@@ -393,7 +489,7 @@ router.post('/bulk', async (req, res, next) => {
           avatar: resolvedAvatar,
           date: dateStr,
           shiftId: shiftIdStr,
-          shiftLabel: shiftLabel || item.shiftLabel || '',
+          shiftLabel: resolvedShiftLabel || item.shiftLabel || '',
           status: item.status || 'Có mặt',
           checkedBy: checkedBy || 'teacher',
           score: item.score !== undefined && item.score !== null && item.score !== '' ? Number(item.score) : null,
@@ -424,21 +520,11 @@ router.get('/student/:studentId', async (req, res, next) => {
     const studentId = Number(req.params.studentId);
     const records = await Attendance.find({ studentId })
       .populate('studentRef', 'id hoTen name email avatar')
+      .populate('classRef', 'id className courseId courseName schedules room department')
       .sort({ date: -1, shiftId: 1 })
       .lean();
 
-    const formatted = records.map((r) => {
-      const sAvatar =
-        r.studentAvatar ||
-        r.avatar ||
-        (typeof r.studentRef?.avatar === 'string' ? r.studentRef?.avatar : r.studentRef?.avatar?.url) ||
-        '';
-      return {
-        ...r,
-        studentAvatar: sAvatar,
-        avatar: sAvatar,
-      };
-    });
+    const formatted = await formatAttendanceRecords(records);
 
     res.json(formatted);
   } catch (error) {
