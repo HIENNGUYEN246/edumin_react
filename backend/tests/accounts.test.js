@@ -78,9 +78,10 @@ describe('Accounts', () => {
     expect(lock.status).toBe(200);
     expect(lock.body.status).toBe('Locked');
 
-    // The victim's existing token is now invalid.
+    // The victim's existing token now receives 423 with lock reason.
     const me = await request(app).get('/api/auth/me').set(authHeader(token));
-    expect([401, 423]).toContain(me.status);
+    expect(me.status).toBe(423);
+    expect(me.body.error.message).toContain('Vi phạm');
   });
 
   it('prevents an admin from locking themselves', async () => {

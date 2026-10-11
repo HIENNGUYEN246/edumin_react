@@ -22,11 +22,11 @@ export const authenticate = asyncHandler(async (req, _res, next) => {
 
   const user = await User.findById(payload.sub);
   if (!user) throw AppError.unauthorized('Tài khoản không còn tồn tại');
+  if (user.status === 'Locked') {
+    throw AppError.locked(user.lockReason ? `Tài khoản đã bị khóa: ${user.lockReason}` : 'Tài khoản đã bị khóa');
+  }
   if ((user.tokenVersion ?? 0) !== (payload.tokenVersion ?? 0)) {
     throw AppError.unauthorized('Phiên đăng nhập đã hết hiệu lực, vui lòng đăng nhập lại');
-  }
-  if (user.status === 'Locked') {
-    throw AppError.locked(user.lockReason || 'Tài khoản đã bị khóa');
   }
 
   if (!user.teacher && user.teacherId) user.teacher = user.teacherId;

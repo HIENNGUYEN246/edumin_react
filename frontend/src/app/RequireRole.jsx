@@ -9,11 +9,13 @@ import { roleHome } from './navConfig.js';
  * authorization is still the real enforcement; this is UX routing only.
  */
 export function RequireRole({ role, children }) {
-  const { isAuthenticated, isLoading, user } = useAuth();
+  const { isAuthenticated, isLoading, user, lockInfo } = useAuth();
 
-  if (isLoading) return <Spinner label="Đang kiểm tra phiên đăng nhập..." />;
+  if (isLoading && !lockInfo && !user) return <Spinner label="Đang kiểm tra phiên đăng nhập..." />;
+  // When an account is locked, keep the user on their current screen so the lock modal displays over it.
+  if (lockInfo) return children;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
-  if (role && user.role !== role) return <Navigate to={roleHome(user.role)} replace />;
+  if (role && user?.role !== role) return <Navigate to={roleHome(user?.role)} replace />;
 
   return children;
 }
