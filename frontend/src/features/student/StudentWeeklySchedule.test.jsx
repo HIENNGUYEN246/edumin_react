@@ -28,7 +28,7 @@ describe('StudentWeeklySchedule', () => {
     render(<StudentWeeklySchedule classes={classes} />);
 
     expect(screen.getByText('Lịch học theo tuần')).toBeInTheDocument();
-    expect(screen.getByText(/3 buổi học mỗi tuần/)).toBeInTheDocument();
+    expect(screen.getByText(/3 buổi học trong tuần này/)).toBeInTheDocument();
     expect(screen.getAllByText('Nhập môn lập trình')).toHaveLength(3);
     expect(screen.getAllByText('Phòng A101')).toHaveLength(3);
     expect(screen.getAllByText('Trần Minh Quân')).toHaveLength(3);
@@ -74,7 +74,15 @@ describe('StudentWeeklySchedule', () => {
       .forEach((header) => {
         expect(header).toHaveTextContent(/\/10\/2026/);
       });
-    expect(screen.getByText(/1 buổi học mỗi tuần/)).toBeInTheDocument();
+    expect(screen.getByText(/1 buổi học trong tuần này/)).toBeInTheDocument();
     expect(screen.getAllByText('Nhập môn lập trình')).toHaveLength(1);
+  });
+
+  it('uses teaching labels when displaying the teacher weekly schedule', () => {
+    render(<StudentWeeklySchedule classes={classes} audience="teacher" />);
+
+    expect(screen.getByText('Lịch dạy theo tuần')).toBeInTheDocument();
+    expect(screen.getByText(/1 lớp học phần/)).toBeInTheDocument();
+    expect(screen.getByText(/3 buổi dạy trong tuần này/)).toBeInTheDocument();
   });
 });

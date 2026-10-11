@@ -11,7 +11,7 @@ export function StudentTimetable() {
 
   return (
     <div>
-      <PageHeader title="Thời khóa biểu" subtitle="Lịch học các lớp bạn đã đăng ký" />
+      <PageHeader title="Thời khóa biểu" />
       {classes.length === 0 ? (
         <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-8 text-center text-gray-400">
           Bạn chưa đăng ký học phần nào.

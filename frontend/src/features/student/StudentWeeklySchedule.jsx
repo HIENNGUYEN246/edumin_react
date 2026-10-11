@@ -135,7 +135,7 @@ function ScheduleCard({ cls, shift }) {
   );
 }
 
-export function StudentWeeklySchedule({ classes = [] }) {
+export function StudentWeeklySchedule({ classes = [], audience = 'student' }) {
   const [selectedDate, setSelectedDate] = useState(() => toDateInputValue(new Date()));
   const dates = useMemo(() => getWeekDates(selectedDate), [selectedDate]);
   const today = toDateInputValue(new Date());
@@ -153,6 +153,8 @@ export function StudentWeeklySchedule({ classes = [] }) {
       )
     );
   }, 0);
+  const classLabel = audience === 'teacher' ? 'lớp học phần' : 'học phần';
+  const sessionLabel = audience === 'teacher' ? 'buổi dạy' : 'buổi học';
 
   function moveWeek(offset) {
     const date = new Date(`${selectedDate}T12:00:00`);
@@ -164,9 +166,12 @@ export function StudentWeeklySchedule({ classes = [] }) {
     <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       <div className="flex flex-col gap-4 border-b border-slate-200 px-5 py-4 xl:flex-row xl:items-center xl:justify-between">
         <div>
-          <h2 className="text-lg font-bold text-slate-900">Lịch học theo tuần</h2>
+          <h2 className="text-lg font-bold text-slate-900">
+            {audience === 'teacher' ? 'Lịch dạy theo tuần' : 'Lịch học theo tuần'}
+          </h2>
           <p className="mt-1 text-sm text-slate-500">
-            Tuần {formatWeekRange(dates)} · {classes.length} học phần · {sessions} buổi học mỗi tuần
+            Tuần {formatWeekRange(dates)} · {classes.length} {classLabel} · {sessions}{' '}
+            {sessionLabel} trong tuần này
           </p>
         </div>
 
