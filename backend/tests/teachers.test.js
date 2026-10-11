@@ -279,4 +279,26 @@ describe('Teachers', () => {
     expect(updateRes.body.education).toBe('Tiến sĩ');
     expect(updateRes.body.department).toBe('Khoa Ngôn Ngữ Anh');
   });
+
+  it('accepts education containing academic titles with hyphens, parentheses, and dots', async () => {
+    const validEducations = [
+      'Giáo sư - Tiến sĩ (GS.TS)',
+      'Phó Giáo sư - Tiến sĩ (PGS.TS)',
+      'Tiến sĩ (TS / Ph.D)',
+      'Bác sĩ chuyên khoa (BS.CK)',
+    ];
+
+    for (let i = 0; i < validEducations.length; i++) {
+      const edu = validEducations[i];
+      const res = await request(app)
+        .post('/api/teachers')
+        .set(authHeader(adminToken))
+        .send(validTeacherPayload({
+          email: `teacher.edu${i}@university.edu.vn`,
+          education: edu,
+        }));
+      expect(res.status).toBe(201);
+      expect(res.body.education).toBe(edu);
+    }
+  });
 });

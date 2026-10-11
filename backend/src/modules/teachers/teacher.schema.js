@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 const PERSON_NAME_PATTERN = /^[\p{L}\p{M}]+(?: [\p{L}\p{M}]+)*$/u;
+const EDUCATION_PATTERN = /^[\p{L}\p{M}0-9().\/-]+(?: [\p{L}\p{M}0-9().\/-]+)*$/u;
 const ADDRESS_PATTERN = /^[\p{L}\p{M}\p{N}]+(?:[./-][\p{L}\p{M}\p{N}]+)*(?:(?: |, )[\p{L}\p{M}\p{N}]+(?:[./-][\p{L}\p{M}\p{N}]+)*)*$/u;
 
 function isValidAdultBirthDate(value) {
@@ -45,7 +46,12 @@ const base = {
   gender: z.union([z.enum(['Nam', 'Nữ', 'Khác']), z.null(), z.undefined(), z.literal('')]).transform((v) => v || 'Nam'),
   address: z.string().max(200, 'Địa chỉ tối đa 200 ký tự').regex(ADDRESS_PATTERN, 'Địa chỉ không hợp lệ').optional(),
   phone: z.string().regex(/^0\d{9}$/, 'Số điện thoại phải gồm 10 chữ số và bắt đầu bằng 0').optional(),
-  education: z.string().min(2, 'Trình độ phải có ít nhất 2 ký tự').max(80, 'Trình độ tối đa 80 ký tự').regex(PERSON_NAME_PATTERN, 'Trình độ chỉ gồm chữ và một khoảng trắng giữa các từ').optional(),
+  education: z
+    .string()
+    .min(2, 'Trình độ phải có ít nhất 2 ký tự')
+    .max(80, 'Trình độ tối đa 80 ký tự')
+    .regex(EDUCATION_PATTERN, 'Trình độ chỉ gồm chữ cái, khoảng trắng và các ký tự (. - /)')
+    .optional(),
   departmentId: z.string().min(1, 'Khoa là bắt buộc').refine((value) => value === value.trim(), 'Khoa không hợp lệ').optional(),
 };
 

@@ -98,3 +98,94 @@ describe('PersonFormModal DOB restrictions', () => {
   });
 });
 
+describe('PersonFormModal education validation', () => {
+  it('accepts valid academic titles like "Giáo sư - Tiến sĩ (GS.TS)" without error', () => {
+    const fields = [
+      {
+        name: 'education',
+        label: 'Trình độ',
+        type: 'select',
+        required: true,
+        validation: 'education',
+        maxLength: 80,
+        options: [
+          { value: 'Giáo sư - Tiến sĩ (GS.TS)', label: 'Giáo sư - Tiến sĩ (GS.TS)' },
+          { value: 'Phó Giáo sư - Tiến sĩ', label: 'Phó Giáo sư - Tiến sĩ (PGS.TS)' },
+        ],
+      },
+    ];
+
+    const initial = { education: '' };
+    const onSubmit = vi.fn();
+
+    render(
+      <PersonFormModal
+        open={true}
+        mode="create"
+        title="Thêm giảng viên"
+        initial={initial}
+        fields={fields}
+        departments={[]}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+      />
+    );
+
+    const select = screen.getByLabelText(/Trình độ/i);
+    fireEvent.change(select, { target: { value: 'Giáo sư - Tiến sĩ (GS.TS)' } });
+    fireEvent.blur(select);
+
+    // Should not show validation error
+    expect(screen.queryByText(/Trình độ chỉ gồm/i)).not.toBeInTheDocument();
+
+    const submitBtn = screen.getByRole('button', { name: /Lưu|Thêm/i });
+    fireEvent.click(submitBtn);
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ education: 'Giáo sư - Tiến sĩ (GS.TS)' }),
+      expect.any(Function)
+    );
+  });
+
+  it('rejects education containing forbidden symbols like exclamation mark', () => {
+    const fields = [
+      {
+        name: 'education',
+        label: 'Trình độ',
+        type: 'text',
+        required: true,
+        validation: 'education',
+        maxLength: 80,
+      },
+    ];
+
+    const initial = { education: '' };
+    const onSubmit = vi.fn();
+
+    render(
+      <PersonFormModal
+        open={true}
+        mode="create"
+        title="Thêm giảng viên"
+        initial={initial}
+        fields={fields}
+        departments={[]}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+      />
+    );
+
+    const input = screen.getByLabelText(/Trình độ/i);
+    fireEvent.change(input, { target: { value: 'Tiến sĩ!' } });
+    fireEvent.blur(input);
+
+    expect(screen.getByText(/Trình độ chỉ gồm chữ cái, khoảng trắng và các ký tự/i)).toBeInTheDocument();
+
+    const submitBtn = screen.getByRole('button', { name: /Lưu|Thêm/i });
+    fireEvent.click(submitBtn);
+
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+});
+
+

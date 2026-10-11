@@ -75,6 +75,7 @@ const teacherConfig = {
       type: 'select',
       required: true,
       validation: 'education',
+      maxLength: 80,
       placeholder: '-- Chọn trình độ học vị --',
       options: TEACHER_EDUCATION_LEVELS,
       section: 'work',

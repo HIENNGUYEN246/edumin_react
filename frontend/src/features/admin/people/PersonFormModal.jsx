@@ -4,6 +4,7 @@ import { FormField, inputClass } from '../../../components/ui/FormField.jsx';
 import { Avatar } from '../../../components/ui/Avatar.jsx';
 
 const PERSON_NAME_PATTERN = /^[\p{L}\p{M}]+(?: [\p{L}\p{M}]+)*$/u;
+const EDUCATION_PATTERN = /^[\p{L}\p{M}0-9().\/-]+(?: [\p{L}\p{M}0-9().\/-]+)*$/u;
 const ADDRESS_PATTERN = /^[\p{L}\p{M}\p{N}]+(?:[./-][\p{L}\p{M}\p{N}]+)*(?:(?: |, )[\p{L}\p{M}\p{N}]+(?:[./-][\p{L}\p{M}\p{N}]+)*)*$/u;
 
 function getPersonAge(value) {
@@ -105,8 +106,9 @@ function getFieldError(field, rawValue, departments) {
     return 'Email nội bộ phải có đuôi edu.vn';
   }
   if (field.validation === 'education') {
-    if (value.length < 2 || value.length > field.maxLength) return `Trình độ phải từ 2 đến ${field.maxLength} ký tự`;
-    if (!PERSON_NAME_PATTERN.test(value)) return 'Trình độ chỉ gồm chữ và một khoảng trắng giữa các từ';
+    const maxLen = field.maxLength || 80;
+    if (value.length < 2 || value.length > maxLen) return `Trình độ phải từ 2 đến ${maxLen} ký tự`;
+    if (!EDUCATION_PATTERN.test(value)) return 'Trình độ chỉ gồm chữ cái, khoảng trắng và các ký tự (. - /)';
   }
   if (field.validation === 'studentClass') {
     if (value.length < 2 || value.length > field.maxLength) return `Lớp phải từ 2 đến ${field.maxLength} ký tự`;
@@ -256,6 +258,10 @@ export function PersonFormModal({
           {field.type === 'select' ? (
             <select className={inputClass} value={form[field.name] || ''} onChange={set(field.name)} onBlur={() => validateField(field)}>
               <option value="">{field.placeholder || 'Chọn...'}</option>
+              {form[field.name] &&
+                !(field.name === 'departmentId' ? departments : field.options || []).some(
+                  (opt) => String(opt.id ?? opt.value) === String(form[field.name])
+                ) && <option value={form[field.name]}>{form[field.name]} (Hiện tại)</option>}
               {(field.name === 'departmentId' ? departments : field.options || []).map((opt) => (
                 <option key={opt.id ?? opt.value} value={opt.id ?? opt.value}>
                   {opt.name ?? opt.label}
