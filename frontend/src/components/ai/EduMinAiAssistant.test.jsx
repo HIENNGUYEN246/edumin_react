@@ -12,7 +12,9 @@ vi.mock('react-router-dom', async () => {
   };
 });
 
-let mockCurrentUser = { role: 'giao-vien', hoTen: 'Trần Minh Quân' };
+import { ROLES } from '../../app/navConfig.js';
+
+let mockCurrentUser = { role: 'sinh-vien', hoTen: 'Trần Minh Quân' };
 
 vi.mock('../../app/providers/AuthProvider.jsx', () => ({
   useAuth: () => ({
@@ -47,7 +49,7 @@ import { feedbackApi } from '../../api/feedbackApi.js';
 describe('EduMinAiAssistant', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockCurrentUser = { role: 'giao-vien', hoTen: 'Trần Minh Quân' };
+    mockCurrentUser = { role: 'sinh-vien', hoTen: 'Trần Minh Quân' };
     aiApi.suggestions.mockResolvedValue({
       success: true,
       suggestions: [
@@ -256,12 +258,13 @@ describe('EduMinAiAssistant', () => {
   });
 
   it('correctly prioritizes "Điểm số" over "Sinh viên" when asked about "phần điểm sinh viên"', async () => {
+    mockCurrentUser = { role: 'giao-vien', hoTen: 'Trần Minh Quân' };
     // When apiResult is null/offline, tests verify getSmartAiResponse disambiguation
     aiApi.query.mockRejectedValueOnce(new Error('Network offline'));
 
     render(
       <MemoryRouter>
-        <EduMinAiAssistant />
+        <EduMinAiAssistant forceRender={true} />
       </MemoryRouter>
     );
 
@@ -339,7 +342,7 @@ describe('EduMinAiAssistant', () => {
 
     render(
       <MemoryRouter initialEntries={['/admin']}>
-        <EduMinAiAssistant />
+        <EduMinAiAssistant forceRender={true} />
       </MemoryRouter>
     );
 
@@ -369,7 +372,7 @@ describe('EduMinAiAssistant', () => {
 
     render(
       <MemoryRouter initialEntries={['/admin']}>
-        <EduMinAiAssistant />
+        <EduMinAiAssistant forceRender={true} />
       </MemoryRouter>
     );
 
@@ -402,7 +405,7 @@ describe('EduMinAiAssistant', () => {
 
     render(
       <MemoryRouter initialEntries={['/admin']}>
-        <EduMinAiAssistant />
+        <EduMinAiAssistant forceRender={true} />
       </MemoryRouter>
     );
 
@@ -428,7 +431,7 @@ describe('EduMinAiAssistant', () => {
 
     render(
       <MemoryRouter initialEntries={['/admin']}>
-        <EduMinAiAssistant />
+        <EduMinAiAssistant forceRender={true} />
       </MemoryRouter>
     );
 
@@ -455,7 +458,7 @@ describe('EduMinAiAssistant', () => {
 
     render(
       <MemoryRouter initialEntries={['/admin']}>
-        <EduMinAiAssistant />
+        <EduMinAiAssistant forceRender={true} />
       </MemoryRouter>
     );
 
@@ -481,7 +484,7 @@ describe('EduMinAiAssistant', () => {
 
     render(
       <MemoryRouter initialEntries={['/admin']}>
-        <EduMinAiAssistant />
+        <EduMinAiAssistant forceRender={true} />
       </MemoryRouter>
     );
 
@@ -511,7 +514,7 @@ describe('EduMinAiAssistant', () => {
 
     render(
       <MemoryRouter initialEntries={['/admin']}>
-        <EduMinAiAssistant />
+        <EduMinAiAssistant forceRender={true} />
       </MemoryRouter>
     );
 
@@ -545,7 +548,7 @@ describe('EduMinAiAssistant', () => {
 
     render(
       <MemoryRouter initialEntries={['/admin']}>
-        <EduMinAiAssistant />
+        <EduMinAiAssistant forceRender={true} />
       </MemoryRouter>
     );
 
@@ -627,6 +630,7 @@ describe('getSmartAiResponse - Comprehensive Admin Menu & Intent Matcher', () =>
   });
 
   it('supports docking mode and dispatches edumin_ai_layout_change event', async () => {
+    mockCurrentUser = { role: 'sinh-vien', hoTen: 'Nguyễn Văn An' };
     const layoutEventListener = vi.fn();
     window.addEventListener('edumin_ai_layout_change', layoutEventListener);
 
@@ -659,6 +663,7 @@ describe('getSmartAiResponse - Comprehensive Admin Menu & Intent Matcher', () =>
   });
 
   it('supports toggling translucent see-through mode and flipping position left/right', async () => {
+    mockCurrentUser = { role: 'sinh-vien', hoTen: 'Nguyễn Văn An' };
     render(
       <MemoryRouter>
         <EduMinAiAssistant />
@@ -682,6 +687,72 @@ describe('getSmartAiResponse - Comprehensive Admin Menu & Intent Matcher', () =>
     await waitFor(() => {
       expect(dialog.className).toContain('left-4 sm:left-6');
     });
+  });
+});
+
+describe('Role-based rendering authorization for EduMinAiAssistant', () => {
+  it('renders EduMin AI Assistant for Student role (sinh-vien)', () => {
+    mockCurrentUser = { role: 'sinh-vien', hoTen: 'Nguyễn Văn An' };
+    render(
+      <MemoryRouter>
+        <EduMinAiAssistant />
+      </MemoryRouter>
+    );
+    expect(screen.getByRole('button', { name: /Mở trợ lý ảo EduMin/i })).toBeInTheDocument();
+  });
+
+  it('renders EduMin AI Assistant for Student role (ROLES.STUDENT)', () => {
+    mockCurrentUser = { role: ROLES.STUDENT, hoTen: 'Nguyễn Văn An' };
+    render(
+      <MemoryRouter>
+        <EduMinAiAssistant />
+      </MemoryRouter>
+    );
+    expect(screen.getByRole('button', { name: /Mở trợ lý ảo EduMin/i })).toBeInTheDocument();
+  });
+
+  it('does NOT render EduMin AI Assistant for Admin role (dao-tao)', () => {
+    mockCurrentUser = { role: 'dao-tao', hoTen: 'Quản trị viên' };
+    const { container } = render(
+      <MemoryRouter>
+        <EduMinAiAssistant />
+      </MemoryRouter>
+    );
+    expect(screen.queryByRole('button', { name: /Mở trợ lý ảo EduMin/i })).not.toBeInTheDocument();
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it('does NOT render EduMin AI Assistant for Teacher role (giao-vien)', () => {
+    mockCurrentUser = { role: 'giao-vien', hoTen: 'Trần Minh Quân' };
+    const { container } = render(
+      <MemoryRouter>
+        <EduMinAiAssistant />
+      </MemoryRouter>
+    );
+    expect(screen.queryByRole('button', { name: /Mở trợ lý ảo EduMin/i })).not.toBeInTheDocument();
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it('does NOT render EduMin AI Assistant for Accountant role (ke-toan)', () => {
+    mockCurrentUser = { role: 'ke-toan', hoTen: 'Kế toán viên' };
+    const { container } = render(
+      <MemoryRouter>
+        <EduMinAiAssistant />
+      </MemoryRouter>
+    );
+    expect(screen.queryByRole('button', { name: /Mở trợ lý ảo EduMin/i })).not.toBeInTheDocument();
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it('does NOT render EduMin AI Assistant when unauthenticated', () => {
+    mockCurrentUser = null;
+    const { container } = render(
+      <MemoryRouter>
+        <EduMinAiAssistant />
+      </MemoryRouter>
+    );
+    expect(screen.queryByRole('button', { name: /Mở trợ lý ảo EduMin/i })).not.toBeInTheDocument();
+    expect(container).toBeEmptyDOMElement();
   });
 });
 

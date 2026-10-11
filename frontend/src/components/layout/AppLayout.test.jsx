@@ -5,11 +5,13 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '../../app/providers/ToastProvider.jsx';
 import { AppLayout } from './AppLayout.jsx';
 
+let mockUser = { role: 'dao-tao', hoTen: 'Quản trị viên' };
+
 vi.mock('../../app/providers/AuthProvider.jsx', () => ({
   useAuth: () => ({
-    user: { role: 'dao-tao', hoTen: 'Quản trị viên' },
-    profile: { hoTen: 'Quản trị viên' },
-    isAuthenticated: true,
+    user: mockUser,
+    profile: mockUser,
+    isAuthenticated: !!mockUser,
   }),
 }));
 
@@ -20,8 +22,9 @@ vi.mock('../../api/aiApi.js', () => ({
   },
 }));
 
-describe('AppLayout with EduMinAiAssistant', () => {
-  it('renders AppLayout and displays EduMinAiAssistant floating trigger', () => {
+describe('AppLayout with EduMinAiAssistant role-based rendering', () => {
+  it('does NOT render EduMinAiAssistant floating trigger for Admin (dao-tao)', () => {
+    mockUser = { role: 'dao-tao', hoTen: 'Quản trị viên' };
     const queryClient = new QueryClient();
     render(
       <QueryClientProvider client={queryClient}>
@@ -38,7 +41,48 @@ describe('AppLayout with EduMinAiAssistant', () => {
     );
 
     expect(screen.getByText('Admin Page Content')).toBeInTheDocument();
-    const aiButton = screen.getByRole('button', { name: /Mở trợ lý ảo EduMin/i });
-    expect(aiButton).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Mở trợ lý ảo EduMin/i })).not.toBeInTheDocument();
+  });
+
+  it('does NOT render EduMinAiAssistant floating trigger for Teacher (giao-vien)', () => {
+    mockUser = { role: 'giao-vien', hoTen: 'Trần Minh Quân' };
+    const queryClient = new QueryClient();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ToastProvider>
+          <MemoryRouter initialEntries={['/teacher']}>
+            <Routes>
+              <Route element={<AppLayout />}>
+                <Route path="/teacher" element={<div>Teacher Page Content</div>} />
+              </Route>
+            </Routes>
+          </MemoryRouter>
+        </ToastProvider>
+      </QueryClientProvider>
+    );
+
+    expect(screen.getByText('Teacher Page Content')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Mở trợ lý ảo EduMin/i })).not.toBeInTheDocument();
+  });
+
+  it('renders EduMinAiAssistant floating trigger for Student (sinh-vien)', () => {
+    mockUser = { role: 'sinh-vien', hoTen: 'Nguyễn Văn An' };
+    const queryClient = new QueryClient();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ToastProvider>
+          <MemoryRouter initialEntries={['/student']}>
+            <Routes>
+              <Route element={<AppLayout />}>
+                <Route path="/student" element={<div>Student Page Content</div>} />
+              </Route>
+            </Routes>
+          </MemoryRouter>
+        </ToastProvider>
+      </QueryClientProvider>
+    );
+
+    expect(screen.getByText('Student Page Content')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Mở trợ lý ảo EduMin/i })).toBeInTheDocument();
   });
 });

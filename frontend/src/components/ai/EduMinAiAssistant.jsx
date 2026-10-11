@@ -6,6 +6,7 @@ import { useToast } from '../../app/providers/ToastProvider.jsx';
 import { aiApi } from '../../api/aiApi.js';
 import { profileRequestsApi } from '../../api/profileRequestsApi.js';
 import { feedbackApi } from '../../api/feedbackApi.js';
+import { ROLES } from '../../app/navConfig.js';
 
 /**
  * Normalizes text: strips accents, lowercases, handles Vietnamese đ/Đ.
@@ -2052,7 +2053,17 @@ function EduMinAiAssistantInner() {
   );
 }
 
-export function EduMinAiAssistant() {
+export function EduMinAiAssistant({ forceRender = false } = {}) {
+  const authContext = useAuth();
+  const user = authContext?.user || null;
+  const role = user?.role || '';
+  const isStudent = role === ROLES.STUDENT || role === 'sinh-vien' || role === 'student';
+
+  // Only render EduMin AI Assistant widget for Student role; hide completely for Admin, Teacher, and others
+  if (!isStudent && !forceRender) {
+    return null;
+  }
+
   return (
     <AiAssistantErrorBoundary>
       <EduMinAiAssistantInner />
