@@ -117,8 +117,22 @@ export function AuthProvider({ children }) {
     queryClient.clear();
   };
 
-  const currentUser = meQuery.data?.user || cachedUser;
+  const rawUser = meQuery.data?.user || cachedUser;
   const currentProfile = meQuery.data?.profile || cachedProfile;
+  const userDept =
+    rawUser?.khoa ||
+    rawUser?.department ||
+    currentProfile?.department ||
+    currentProfile?.departmentRef?.name ||
+    currentProfile?.departmentRef?.id ||
+    '';
+  const currentUser = rawUser
+    ? {
+        ...rawUser,
+        department: rawUser.department || userDept,
+        khoa: rawUser.khoa || userDept,
+      }
+    : rawUser;
 
   const value = useMemo(
     () => ({

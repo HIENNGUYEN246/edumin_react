@@ -44,12 +44,18 @@ export function useCourseOptions() {
   };
 
   if (isTeacher) {
-    const teacherDept = profile?.department || user?.department;
+    const teacherDept = user?.khoa || user?.department || profile?.department || profile?.departmentRef?.name || profile?.departmentRef?.id;
     let availableCourses = [];
     if (teacherDept) {
       // Teachers only assign courses belonging to their department
+      const clean = (s) => String(s || '').trim().toLowerCase().replace(/^khoa\s+/i, '');
+      const norm = (s) => String(s || '').trim().toLowerCase();
+      const match = (cDept) => {
+        if (!cDept) return false;
+        return norm(cDept) === norm(teacherDept) || clean(cDept) === clean(teacherDept);
+      };
       availableCourses = (allCourses.data?.data || [])
-        .filter((c) => !c.department || c.department === teacherDept)
+        .filter((c) => match(c.department))
         .map((c) => ({ id: c.id, name: c.name, department: c.department }));
     } else {
       const classCourses = uniqueCourses(teacherClasses.data?.data || []);

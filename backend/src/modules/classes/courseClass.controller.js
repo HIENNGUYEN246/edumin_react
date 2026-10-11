@@ -5,8 +5,8 @@ export const list = asyncHandler(async (req, res) => {
   res.json(await service.listClasses(req.query, req.user));
 });
 
-export const listOpen = asyncHandler(async (_req, res) => {
-  res.json({ data: await service.listOpenClasses() });
+export const listOpen = asyncHandler(async (req, res) => {
+  res.json({ data: await service.listOpenClasses(req.user) });
 });
 
 export const listByCourse = asyncHandler(async (req, res) => {

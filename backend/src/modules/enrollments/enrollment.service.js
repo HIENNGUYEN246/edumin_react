@@ -7,9 +7,13 @@ import { sendClassAssignedEmail } from '../../lib/mailer.js';
 import { Enrollment } from './enrollment.model.js';
 import { CourseClass } from '../classes/courseClass.model.js';
 import { Student } from '../students/student.model.js';
+import { buildDepartmentMatcher } from '../../lib/department.js';
 
 async function requireStudent(user) {
-  const student = await Student.findById(user.student);
+  let student = user.student ? await Student.findById(user.student).populate('departmentRef', 'id name') : null;
+  if (!student && user._id) {
+    student = await Student.findOne({ userId: user._id }).populate('departmentRef', 'id name');
+  }
   if (!student) throw AppError.notFound('Không tìm thấy hồ sơ sinh viên');
   return student;
 }
@@ -38,7 +42,7 @@ export async function listMyEnrollments(user) {
 export async function enroll(user, classId) {
   await closeExpiredClasses();
   const student = await requireStudent(user);
-  const target = await CourseClass.findById(classId);
+  const target = await CourseClass.findById(classId).populate('courseRef');
   if (!target) throw AppError.notFound('Không tìm thấy lớp học phần');
 
   // A class is open for registration solely based on its status.
@@ -47,6 +51,16 @@ export async function enroll(user, classId) {
   }
   if (!isRegistrationWindowActive(target)) {
     throw AppError.conflict('Chưa đến thời gian đăng ký lớp học phần');
+  }
+
+  // Department check: student can only enroll in classes belonging to their own department
+  const studentDept = student.department || user.department || user.khoa || student.departmentRef?.name || student.departmentRef?.id;
+  const classDept = target.department || target.courseRef?.department;
+  if (studentDept && classDept) {
+    const matchDept = await buildDepartmentMatcher(studentDept, student.departmentRef);
+    if (!matchDept(classDept)) {
+      throw AppError.badRequest('Bạn chỉ có thể đăng ký các lớp học phần thuộc khoa của mình');
+    }
   }
 
   const existing = await Enrollment.findOne({ student: student._id, classRef: target._id });

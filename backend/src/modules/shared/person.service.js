@@ -77,6 +77,8 @@ export async function createPersonWithAccount({
     });
 
     user[userLink] = profile._id;
+    user.department = dept?.name || profileData.department || '';
+    user.khoa = user.department;
     await user.save();
 
     // Trigger auto email notification

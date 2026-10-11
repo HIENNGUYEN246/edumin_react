@@ -13,6 +13,8 @@ const userSchema = new Schema(
     role: { type: String, required: true, enum: ALL_ROLES, default: ROLES.ADMIN },
     hoTen: { type: String, default: '' },
     avatar: { type: fileMetaSchema, default: () => ({}) },
+    department: { type: String, default: '' },
+    khoa: { type: String, default: '' },
     status: { type: String, enum: ['Active', 'Locked'], default: 'Active' },
     lockReason: { type: String, default: '' },
     // Bumped on password change / lock / reset to revoke previously issued JWTs.
@@ -30,6 +32,8 @@ userSchema.pre('save', function (next) {
   if (!this.teacherId && this.teacher) this.teacherId = this.teacher;
   if (!this.student && this.studentId) this.student = this.studentId;
   if (!this.studentId && this.student) this.studentId = this.student;
+  if (!this.department && this.khoa) this.department = this.khoa;
+  if (!this.khoa && this.department) this.khoa = this.department;
   next();
 });
 
@@ -43,6 +47,8 @@ userSchema.methods.toPublic = function toPublic() {
   if (!obj.teacherId && obj.teacher) obj.teacherId = obj.teacher;
   if (!obj.student && obj.studentId) obj.student = obj.studentId;
   if (!obj.studentId && obj.student) obj.studentId = obj.student;
+  if (!obj.department && obj.khoa) obj.department = obj.khoa;
+  if (!obj.khoa && obj.department) obj.khoa = obj.department;
   return obj;
 };
 

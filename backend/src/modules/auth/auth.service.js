@@ -43,13 +43,35 @@ export async function login({ email, password }) {
 
   const token = signToken(user);
   const profile = await loadProfile(user);
-  return { token, user: user.toPublic(), profile };
+  const userPublic = user.toPublic();
+  const dept = profile?.department || profile?.departmentRef?.name || profile?.departmentRef?.id || user.department || user.khoa || '';
+  if (dept) {
+    userPublic.department = dept;
+    userPublic.khoa = dept;
+    if (!user.department || !user.khoa) {
+      user.department = dept;
+      user.khoa = dept;
+      await user.save().catch(() => {});
+    }
+  }
+  return { token, user: userPublic, profile };
 }
 
 /** Current user with role profile. */
 export async function getMe(user) {
   const profile = await loadProfile(user);
-  return { user: user.toPublic(), profile };
+  const userPublic = user.toPublic();
+  const dept = profile?.department || profile?.departmentRef?.name || profile?.departmentRef?.id || user.department || user.khoa || '';
+  if (dept) {
+    userPublic.department = dept;
+    userPublic.khoa = dept;
+    if (!user.department || !user.khoa) {
+      user.department = dept;
+      user.khoa = dept;
+      await user.save().catch(() => {});
+    }
+  }
+  return { user: userPublic, profile };
 }
 
 /** Update the authenticated user's own avatar (admin/teacher/student). */

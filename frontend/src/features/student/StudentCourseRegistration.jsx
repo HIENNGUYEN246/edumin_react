@@ -11,8 +11,17 @@ import {
   formatRegistrationDateTime,
   registrationDateTimeInput,
 } from '../../lib/format.js';
+import { useAuth } from '../../app/providers/AuthProvider.jsx';
 import { useOpenClasses, useMyEnrollments, useEnrollmentMutations } from './useEnrollments.js';
 import { ScheduleRoomBadge } from '../../components/schedule/ScheduleBadge.jsx';
+
+function matchDepartment(classDept, userDept) {
+  if (!userDept) return true;
+  if (!classDept) return false;
+  const clean = (s) => String(s || '').trim().toLowerCase().replace(/^khoa\s+/i, '');
+  const norm = (s) => String(s || '').trim().toLowerCase();
+  return norm(classDept) === norm(userDept) || clean(classDept) === clean(userDept);
+}
 
 /** Group a flat class list into [{ courseId, courseName, credits, classes }]. */
 function groupByCourse(classes) {
@@ -84,6 +93,11 @@ function ClassRow({ cls, state, onEnroll, pending }) {
       <span className="rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-bold text-emerald-700">
         Trạng thái: {cls.status || 'Đang mở'}
       </span>
+      {cls.department && (
+        <span className="rounded-full bg-indigo-50/80 px-2 py-0.5 text-[11px] font-semibold text-indigo-700 border border-indigo-100">
+          Khoa: {cls.department}
+        </span>
+      )}
       <span className="ml-auto">{action}</span>
     </div>
   );
@@ -92,9 +106,23 @@ function ClassRow({ cls, state, onEnroll, pending }) {
 export function StudentCourseRegistration() {
   const toast = useToast();
   const confirm = useConfirm();
+  const { user, profile } = useAuth();
   const { data: openData, isLoading } = useOpenClasses();
   const { data: mineData } = useMyEnrollments();
   const { enroll, cancel } = useEnrollmentMutations();
+
+  const studentDept =
+    user?.khoa ||
+    user?.department ||
+    profile?.department ||
+    profile?.departmentRef?.name ||
+    profile?.departmentRef?.id ||
+    '';
+
+  const deptCandidates = useMemo(
+    () => [user?.khoa, user?.department, profile?.department, profile?.departmentRef?.name, profile?.departmentRef?.id].filter(Boolean),
+    [user, profile]
+  );
 
   const enrollments = useMemo(() => mineData?.data || [], [mineData]);
   const enrolledClassIds = useMemo(() => new Set(enrollments.map((e) => e.class?._id)), [enrollments]);
@@ -103,7 +131,17 @@ export function StudentCourseRegistration() {
     [enrollments]
   );
 
-  const groups = useMemo(() => groupByCourse(openData?.data || []), [openData]);
+  const filteredOpenClasses = useMemo(() => {
+    const raw = openData?.data || [];
+    if (deptCandidates.length === 0) return raw;
+    return raw.filter((cls) => {
+      const classDept = cls.department || cls.courseRef?.department;
+      if (!classDept) return false;
+      return deptCandidates.some((candidate) => matchDepartment(classDept, candidate));
+    });
+  }, [openData, deptCandidates]);
+
+  const groups = useMemo(() => groupByCourse(filteredOpenClasses), [filteredOpenClasses]);
 
   const doEnroll = async (cls) => {
     try {
@@ -232,11 +270,21 @@ export function StudentCourseRegistration() {
   return (
     <div className="space-y-8">
       <div>
-        <PageHeader title="Đăng ký học phần" subtitle="Chọn một lớp cho mỗi học phần bạn muốn học" />
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+          <PageHeader title="Đăng ký học phần" subtitle="Chọn một lớp cho mỗi học phần bạn muốn học" />
+          {studentDept && (
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-indigo-50 border border-indigo-100 text-xs font-bold text-indigo-700 shadow-2xs">
+              <i className="fas fa-building-columns text-indigo-500" />
+              <span>Khoa: {studentDept}</span>
+            </div>
+          )}
+        </div>
 
         {groups.length === 0 ? (
           <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-10 text-center text-gray-400">
-            Hiện không có lớp nào đang mở đăng ký.
+            {studentDept
+              ? `Hiện không có lớp học phần nào đang mở đăng ký cho ${studentDept}.`
+              : 'Hiện không có lớp nào đang mở đăng ký.'}
           </div>
         ) : (
           <div className="space-y-4">
@@ -246,7 +294,14 @@ export function StudentCourseRegistration() {
                 <section key={group.courseId} className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
                   <div className="flex items-center justify-between px-5 py-4 bg-gradient-to-r from-indigo-50 to-violet-50 border-b border-gray-100">
                     <div>
-                      <p className="text-xs font-bold uppercase tracking-wider text-indigo-500">{group.courseId} · {group.credits} tín chỉ</p>
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <p className="text-xs font-bold uppercase tracking-wider text-indigo-500">{group.courseId} · {group.credits} tín chỉ</p>
+                        {group.department && (
+                          <span className="text-[11px] font-semibold text-slate-600 bg-white/90 px-2 py-0.2 rounded border border-slate-200/80">
+                            Khoa: {group.department}
+                          </span>
+                        )}
+                      </div>
                       <h3 className="text-base font-extrabold text-gray-900">{group.courseName}</h3>
                     </div>
                     {registeredInCourse && (

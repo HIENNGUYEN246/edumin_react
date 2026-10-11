@@ -19,6 +19,7 @@ import { Assignment, Submission } from '../assignments/assignment.model.js';
 import { Attendance } from '../attendance/attendance.model.js';
 import { GradeAuditLog } from './gradeAuditLog.model.js';
 import { sendClassAssignedEmail } from '../../lib/mailer.js';
+import { buildDepartmentMatcher } from '../../lib/department.js';
 
 const POPULATE = [
   { path: 'courseRef', select: 'id name credits fee department' },
@@ -147,7 +148,20 @@ export async function listClasses(query, requester) {
     filter.courseId = query.courseId;
   }
   if (query.status) filter.status = query.status;
-  if (query.department) filter.department = query.department;
+  if (query.department) {
+    filter.department = query.department;
+  } else if (requester?.role === ROLES.STUDENT) {
+    let student = null;
+    if (requester.student) student = await Student.findById(requester.student).populate('departmentRef', 'id name').lean();
+    if (!student && requester._id) student = await Student.findOne({ userId: requester._id }).populate('departmentRef', 'id name').lean();
+    const studentDept = student?.department || requester.department || requester.khoa || student?.departmentRef?.name || student?.departmentRef?.id;
+    if (studentDept) {
+      const matchDept = await buildDepartmentMatcher(studentDept, student?.departmentRef);
+      if (matchDept.acceptedList?.length > 0) {
+        filter.department = { $in: matchDept.acceptedList.map((d) => new RegExp(`^${d}$`, 'i')) };
+      }
+    }
+  }
 
   const result = await paginate(CourseClass, { filter, page, limit, skip, sort, populate: POPULATE });
   result.data = await withEnrolledCount(result.data);
@@ -199,11 +213,48 @@ export async function listClassesByCourse(courseId) {
 }
 
 /** Classes currently within their registration window, with enrolled counts. */
-export async function listOpenClasses() {
+export async function listOpenClasses(requester) {
   const now = new Date();
   await closeExpiredClasses(now);
-  const classes = await CourseClass.find({ status: 'Đang mở' }).populate(POPULATE).lean();
-  return withEnrolledCount(classes.filter((cls) => isRegistrationWindowActive(cls, now)));
+  let classes = await CourseClass.find({ status: 'Đang mở' }).populate(POPULATE).lean();
+  classes = classes.filter((cls) => isRegistrationWindowActive(cls, now));
+
+  // Department scoping: students and teachers only see open classes of their department
+  if (requester?.role === ROLES.STUDENT) {
+    let student = null;
+    if (requester.student) {
+      student = await Student.findById(requester.student).populate('departmentRef', 'id name').lean();
+    }
+    if (!student && requester._id) {
+      student = await Student.findOne({ userId: requester._id }).populate('departmentRef', 'id name').lean();
+    }
+    const studentDept = student?.department || requester.department || requester.khoa || student?.departmentRef?.name || student?.departmentRef?.id;
+    if (studentDept) {
+      const matchDept = await buildDepartmentMatcher(studentDept, student?.departmentRef);
+      classes = classes.filter((cls) => {
+        const classDept = cls.department || cls.courseRef?.department;
+        return classDept && matchDept(classDept);
+      });
+    }
+  } else if (requester?.role === ROLES.TEACHER) {
+    let teacher = null;
+    if (requester.teacher) {
+      teacher = await Teacher.findById(requester.teacher).populate('departmentRef', 'id name').lean();
+    }
+    if (!teacher && requester._id) {
+      teacher = await Teacher.findOne({ userId: requester._id }).populate('departmentRef', 'id name').lean();
+    }
+    const teacherDept = teacher?.department || requester.department || requester.khoa || teacher?.departmentRef?.name || teacher?.departmentRef?.id;
+    if (teacherDept) {
+      const matchDept = await buildDepartmentMatcher(teacherDept, teacher?.departmentRef);
+      classes = classes.filter((cls) => {
+        const classDept = cls.department || cls.courseRef?.department;
+        return classDept && matchDept(classDept);
+      });
+    }
+  }
+
+  return withEnrolledCount(classes);
 }
 
 export async function getClass(id) {
