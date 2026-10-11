@@ -67,7 +67,8 @@ export function Header() {
   };
 
   return (
-    <header className="w-full bg-white/95 backdrop-blur-md z-40 flex items-center justify-between px-6 py-3 border-b border-slate-200/80 shadow-2xs flex-shrink-0">
+    <>
+      <header className="w-full bg-white/95 backdrop-blur-md z-40 flex items-center justify-between px-6 py-3 border-b border-slate-200/80 shadow-2xs flex-shrink-0">
       <div className="flex items-center gap-3">
         <div className="bg-gradient-to-tr from-indigo-600 to-indigo-700 p-2 rounded-xl shadow-xs shadow-indigo-500/20 text-white flex items-center justify-center">
           <i className="fas fa-graduation-cap text-lg" />
@@ -143,10 +144,10 @@ export function Header() {
         className="hidden"
         onChange={handleAvatarChange}
       />
-
-      <ChangePasswordModal open={showPassword} onClose={() => setShowPassword(false)} />
     </header>
-  );
+    <ChangePasswordModal open={showPassword} onClose={() => setShowPassword(false)} />
+  </>
+);
 }
 
 export default Header;

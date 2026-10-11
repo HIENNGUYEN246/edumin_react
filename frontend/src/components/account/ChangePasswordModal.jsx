@@ -46,7 +46,7 @@ export function ChangePasswordModal({ open, onClose }) {
   };
 
   return (
-    <Modal open={open} onClose={onClose} title="Đổi mật khẩu" size="sm">
+    <Modal open={open} onClose={onClose} title="Đổi mật khẩu" size="sm" zIndex="z-50">
       <form onSubmit={submit} className="space-y-4">
         <FormField label="Mật khẩu cũ" error={errors.oldPassword} required>
           <input type="password" className={inputClass} value={form.oldPassword} onChange={update('oldPassword')} />
