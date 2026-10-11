@@ -2053,13 +2053,59 @@ function EduMinAiAssistantInner() {
   );
 }
 
+/**
+ * Accurately determines if the AI Assistant should be displayed:
+ * - Always hidden on Admin, Teacher, and Accountant pages/roles
+ * - Always shown when role is Student (sinh-vien / student) OR currently on a Student page (/student/*)
+ */
+export function shouldShowAiAssistant(user, pathname = '') {
+  const normPath = String(pathname || '').toLowerCase();
+  const normRole = String(user?.role || '').toLowerCase();
+
+  // 1. Explicitly block if on Admin, Teacher, or Accountant pages
+  if (
+    normPath.startsWith('/admin') ||
+    normPath.startsWith('/teacher') ||
+    normPath.startsWith('/accountant') ||
+    normPath.startsWith('/pdt') ||
+    normPath.startsWith('/gv')
+  ) {
+    return false;
+  }
+
+  // 2. Explicitly block if logged in as Admin, Teacher, or Accountant
+  if (
+    normRole === 'dao-tao' ||
+    normRole === 'admin' ||
+    normRole === 'giao-vien' ||
+    normRole === 'teacher' ||
+    normRole === 'ke-toan' ||
+    normRole === 'accountant'
+  ) {
+    return false;
+  }
+
+  // 3. Show if user has Student role (sinh-vien / student) OR is on a student route (/student/*)
+  const isStudentRole =
+    normRole === 'sinh-vien' ||
+    normRole === 'student' ||
+    normRole === (ROLES?.STUDENT || 'sinh-vien');
+
+  const isStudentRoute =
+    normPath.startsWith('/student') ||
+    normPath.startsWith('/sv');
+
+  return isStudentRole || isStudentRoute;
+}
+
 export function EduMinAiAssistant({ forceRender = false } = {}) {
   const authContext = useAuth();
   const user = authContext?.user || null;
-  const role = user?.role || '';
-  const isStudent = role === ROLES.STUDENT || role === 'sinh-vien' || role === 'student';
+  const location = useLocation();
+  const pathname = location?.pathname || '';
+  const isStudent = shouldShowAiAssistant(user, pathname);
 
-  // Only render EduMin AI Assistant widget for Student role; hide completely for Admin, Teacher, and others
+  // Only render EduMin AI Assistant widget for Student role or student pages; hide completely for Admin, Teacher, and others
   if (!isStudent && !forceRender) {
     return null;
   }

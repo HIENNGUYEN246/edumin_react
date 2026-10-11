@@ -316,7 +316,7 @@ describe('EduMinAiAssistant', () => {
 
     render(
       <MemoryRouter initialEntries={['/admin/departments']}>
-        <EduMinAiAssistant />
+        <EduMinAiAssistant forceRender={true} />
       </MemoryRouter>
     );
 
@@ -744,10 +744,52 @@ describe('Role-based rendering authorization for EduMinAiAssistant', () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it('does NOT render EduMin AI Assistant when unauthenticated', () => {
+  it('renders EduMin AI Assistant for Student role (student)', () => {
+    mockCurrentUser = { role: 'student', hoTen: 'Nguyễn Văn An' };
+    render(
+      <MemoryRouter initialEntries={['/student']}>
+        <EduMinAiAssistant />
+      </MemoryRouter>
+    );
+    expect(screen.getByRole('button', { name: /Mở trợ lý ảo EduMin/i })).toBeInTheDocument();
+  });
+
+  it('renders EduMin AI Assistant on student path (/student/attendance) regardless of minor case variation', () => {
+    mockCurrentUser = { role: 'STUDENT', hoTen: 'Nguyễn Văn An' };
+    render(
+      <MemoryRouter initialEntries={['/student/attendance']}>
+        <EduMinAiAssistant />
+      </MemoryRouter>
+    );
+    expect(screen.getByRole('button', { name: /Mở trợ lý ảo EduMin/i })).toBeInTheDocument();
+  });
+
+  it('does NOT render EduMin AI Assistant on Admin path (/admin/gradebook)', () => {
+    mockCurrentUser = { role: 'dao-tao', hoTen: 'Quản trị viên' };
+    const { container } = render(
+      <MemoryRouter initialEntries={['/admin/gradebook']}>
+        <EduMinAiAssistant />
+      </MemoryRouter>
+    );
+    expect(screen.queryByRole('button', { name: /Mở trợ lý ảo EduMin/i })).not.toBeInTheDocument();
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it('does NOT render EduMin AI Assistant on Teacher path (/teacher/classes)', () => {
+    mockCurrentUser = { role: 'giao-vien', hoTen: 'Trần Minh Quân' };
+    const { container } = render(
+      <MemoryRouter initialEntries={['/teacher/classes']}>
+        <EduMinAiAssistant />
+      </MemoryRouter>
+    );
+    expect(screen.queryByRole('button', { name: /Mở trợ lý ảo EduMin/i })).not.toBeInTheDocument();
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it('does NOT render EduMin AI Assistant when unauthenticated and not on student page', () => {
     mockCurrentUser = null;
     const { container } = render(
-      <MemoryRouter>
+      <MemoryRouter initialEntries={['/login']}>
         <EduMinAiAssistant />
       </MemoryRouter>
     );
