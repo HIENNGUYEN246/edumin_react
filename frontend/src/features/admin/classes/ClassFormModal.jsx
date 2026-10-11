@@ -8,8 +8,9 @@ import {
   formatCurrency,
   getTodayDate,
   getNextDate,
+  getCurrentDateTimeLocal,
   addWeeksToDate,
-  addDaysToDate,
+  registrationDateTimeInput,
   DEFAULT_GRADE_WEIGHTS,
   GRADE_COMPONENTS,
   DEFAULT_CREDIT_PRICE,
@@ -22,6 +23,7 @@ import { classesApi, CLASS_STATUSES } from '../../../api/classesApi.js';
 import { coursesApi } from '../../../api/coursesApi.js';
 
 const CLASS_DURATION_WEEKS = 15;
+
 const emptyForm = (courseId = '') => ({
   id: '',
   courseId: courseId || '',
@@ -90,14 +92,19 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
       const suggestedWeights = suggestGradeWeights(selectedCourse);
       const calculatedAutoFee = calculateCourseFee(selectedCourse);
       if (initial) {
-        const hasCustomFee = initial.fee !== undefined && initial.fee !== null && initial.fee !== '';
+        const hasCustomFee =
+          initial.fee !== undefined && initial.fee !== null && initial.fee !== '';
         setIsCustomFee(hasCustomFee);
         setForm({
           ...emptyForm(courseId),
           ...initial,
-          fee: hasCustomFee ? String(initial.fee) : (calculatedAutoFee > 0 ? String(calculatedAutoFee) : ''),
-          registrationStart: initial.registrationStart ? String(initial.registrationStart).slice(0, 10) : '',
-          registrationEnd: initial.registrationEnd ? String(initial.registrationEnd).slice(0, 10) : '',
+          fee: hasCustomFee
+            ? String(initial.fee)
+            : calculatedAutoFee > 0
+              ? String(calculatedAutoFee)
+              : '',
+          registrationStart: registrationDateTimeInput(initial.registrationStart),
+          registrationEnd: registrationDateTimeInput(initial.registrationEnd, true),
           gradeWeights: initial.gradeWeights
             ? { ...suggestedWeights, ...initial.gradeWeights }
             : { ...suggestedWeights },
@@ -150,7 +157,7 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
       ...f,
       courseId: newCourseId,
       gradeWeights: { ...suggested },
-      fee: isCustomFee ? f.fee : (newAutoFee > 0 ? String(newAutoFee) : ''),
+      fee: isCustomFee ? f.fee : newAutoFee > 0 ? String(newAutoFee) : '',
     }));
     if (errors.courseId) setErrors((prev) => ({ ...prev, courseId: null }));
   };
@@ -170,12 +177,7 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
 
   const handleRegistrationStartChange = (e) => {
     const val = e.target.value;
-    const autoEnd = val ? addDaysToDate(val, 7) : '';
-    setForm((f) => ({
-      ...f,
-      registrationStart: val,
-      registrationEnd: autoEnd || f.registrationEnd,
-    }));
+    setForm((f) => ({ ...f, registrationStart: val }));
     setErrors((prev) => ({ ...prev, registrationStart: '', registrationEnd: '' }));
   };
 
@@ -226,7 +228,11 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
     if (!form.className.trim()) next.className = 'Vui lòng nhập tên lớp học phần';
     if (!form.teacherId) next.teacherId = 'Vui lòng chọn giáo viên phụ trách';
     if (!form.room.trim()) next.room = 'Vui lòng nhập phòng học';
-    if (form.capacity === '' || !Number.isInteger(Number(form.capacity)) || Number(form.capacity) < 10) {
+    if (
+      form.capacity === '' ||
+      !Number.isInteger(Number(form.capacity)) ||
+      Number(form.capacity) < 10
+    ) {
       next.capacity = 'Sĩ số tối đa phải là số nguyên lớn hơn hoặc bằng 10';
     }
     if (!form.registrationStart) next.registrationStart = 'Vui lòng chọn ngày bắt đầu đăng ký';
@@ -234,8 +240,9 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
     if (!form.studyStart) next.studyStart = 'Vui lòng chọn ngày bắt đầu học';
     if (!form.studyEnd) next.studyEnd = 'Vui lòng chọn ngày kết thúc học';
     if (!form.schedules.length) next.schedules = 'Chọn ít nhất một buổi học';
+    const currentDateTime = getCurrentDateTimeLocal();
     const today = getTodayDate();
-    if (mode === 'create' && form.registrationStart && form.registrationStart < today) {
+    if (mode === 'create' && form.registrationStart && form.registrationStart < currentDateTime) {
       next.registrationStart = 'Thời gian bắt đầu đăng ký không được ở quá khứ';
     }
     if (
@@ -248,12 +255,9 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
     if (mode === 'create' && form.studyStart && form.studyStart < today) {
       next.studyStart = 'Ngày bắt đầu học không được ở quá khứ';
     }
-    if (
-      form.studyStart &&
-      form.registrationEnd &&
-      form.studyStart <= form.registrationEnd
-    ) {
-      next.studyStart = 'Thời điểm bắt đầu học bắt buộc phải diễn ra sau thời điểm kết thúc đăng ký';
+    if (form.studyStart && form.registrationEnd && form.studyStart <= form.registrationEnd) {
+      next.studyStart =
+        'Thời điểm bắt đầu học bắt buộc phải diễn ra sau thời điểm kết thúc đăng ký';
     }
     if (form.studyEnd && form.studyStart && form.studyEnd < form.studyStart) {
       next.studyEnd = 'Ngày kết thúc phải sau ngày bắt đầu';
@@ -279,30 +283,37 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
     setErrors(next);
     if (Object.keys(next).length) return;
 
-    const finalFee = (form.fee !== '' && form.fee !== null && form.fee !== undefined)
-      ? Number(form.fee)
-      : autoFee;
+    const finalFee =
+      form.fee !== '' && form.fee !== null && form.fee !== undefined ? Number(form.fee) : autoFee;
 
-    onSubmit({
-      id: String(form.id || nextClassCode || '').trim(),
-      courseId: targetCourseId,
-      className: form.className.trim(),
-      teacherId: form.teacherId ? Number(form.teacherId) : null,
-      room: form.room.trim(),
-      capacity: Number(form.capacity),
-      fee: finalFee,
-      schedules: form.schedules,
-      studyStart: form.studyStart,
-      studyEnd: form.studyEnd,
-      registrationStart: form.registrationStart,
-      registrationEnd: form.registrationEnd,
-      gradeWeights: form.gradeWeights || DEFAULT_GRADE_WEIGHTS,
-      status: form.status,
-    }, setErrors);
+    onSubmit(
+      {
+        id: String(form.id || nextClassCode || '').trim(),
+        courseId: targetCourseId,
+        className: form.className.trim(),
+        teacherId: form.teacherId ? Number(form.teacherId) : null,
+        room: form.room.trim(),
+        capacity: Number(form.capacity),
+        fee: finalFee,
+        schedules: form.schedules,
+        studyStart: form.studyStart,
+        studyEnd: form.studyEnd,
+        registrationStart: form.registrationStart,
+        registrationEnd: form.registrationEnd,
+        gradeWeights: form.gradeWeights || DEFAULT_GRADE_WEIGHTS,
+        status: form.status,
+      },
+      setErrors
+    );
   };
 
   return (
-    <Modal open={open} onClose={onClose} title={mode === 'create' ? 'Mở lớp học phần mới' : 'Chỉnh sửa thông tin lớp học phần'} size="xl">
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={mode === 'create' ? 'Mở lớp học phần mới' : 'Chỉnh sửa thông tin lớp học phần'}
+      size="xl"
+    >
       <form onSubmit={submit} noValidate className="space-y-5">
         <div className="bg-slate-50/60 p-4 rounded-2xl border border-gray-100">
           <div className="text-xs font-bold uppercase tracking-wider text-indigo-700 mb-3 flex items-center gap-1.5">
@@ -310,16 +321,18 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
             <span>Thông tin lớp học phần</span>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <FormField
-              label="Mã lớp học phần"
-              error={errors.id}
-            >
+            <FormField label="Mã lớp học phần" error={errors.id}>
               <div className="relative">
                 <input
                   className={`${inputClass} bg-white text-gray-700 font-mono font-bold cursor-not-allowed`}
                   value={
                     mode === 'create'
-                      ? form.id || (nextCodeLoading ? 'Đang tạo mã...' : targetCourseId ? 'Đang sinh mã...' : 'Tự động tạo khi chọn môn')
+                      ? form.id ||
+                        (nextCodeLoading
+                          ? 'Đang tạo mã...'
+                          : targetCourseId
+                            ? 'Đang sinh mã...'
+                            : 'Tự động tạo khi chọn môn')
                       : form.id
                   }
                   disabled
@@ -342,7 +355,13 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
               </FormField>
             ) : (
               <FormField label="Học phần" error={errors.courseId} required>
-                <select className={inputClass} value={form.courseId} disabled={mode === 'edit'} required onChange={handleCourseChange}>
+                <select
+                  className={inputClass}
+                  value={form.courseId}
+                  disabled={mode === 'edit'}
+                  required
+                  onChange={handleCourseChange}
+                >
                   <option value="">-- Chọn học phần --</option>
                   {courses.map((c) => (
                     <option key={c.id} value={c.id}>
@@ -363,11 +382,7 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
               />
             </FormField>
 
-            <FormField
-              label="Giáo viên phụ trách"
-              error={errors.teacherId}
-              required
-            >
+            <FormField label="Giáo viên phụ trách" error={errors.teacherId} required>
               <select
                 className={inputClass}
                 value={form.teacherId}
@@ -382,7 +397,8 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
                     <option value="">-- Chọn giáo viên --</option>
                     {teachers.map((t) => (
                       <option key={t._id || t.id} value={t.id}>
-                        {t.hoTen} ({formatTeacherCode(t.id)}){t.department ? ` - ${t.department}` : ''}
+                        {t.hoTen} ({formatTeacherCode(t.id)})
+                        {t.department ? ` - ${t.department}` : ''}
                       </option>
                     ))}
                     {teachers.length === 0 && (
@@ -434,7 +450,11 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
                   min="0"
                   step="10000"
                   className={inputClass}
-                  placeholder={autoFee > 0 ? `Tự động: ${formatCurrency(autoFee)}` : 'Nhập học phí hoặc để trống'}
+                  placeholder={
+                    autoFee > 0
+                      ? `Tự động: ${formatCurrency(autoFee)}`
+                      : 'Nhập học phí hoặc để trống'
+                  }
                   value={form.fee}
                   onChange={handleFeeChange}
                 />
@@ -445,12 +465,17 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
               <p className="mt-1 text-[11px] text-slate-500">
                 {form.fee === '' ? (
                   <span className="text-emerald-700 font-medium">
-                    ✓ Để trống: Tự động tính {formatCurrency(autoFee)} ({selectedCourse?.credits || 0} TC × {formatCurrency(DEFAULT_CREDIT_PRICE)})
+                    ✓ Để trống: Tự động tính {formatCurrency(autoFee)} (
+                    {selectedCourse?.credits || 0} TC × {formatCurrency(DEFAULT_CREDIT_PRICE)})
                   </span>
                 ) : isCustomFee ? (
                   <span>
                     Số tiền tùy chỉnh ({formatCurrency(Number(form.fee) || 0)}).{' '}
-                    <button type="button" onClick={handleApplyAutoFee} className="text-indigo-600 underline font-medium cursor-pointer">
+                    <button
+                      type="button"
+                      onClick={handleApplyAutoFee}
+                      className="text-indigo-600 underline font-medium cursor-pointer"
+                    >
                       Dùng định mức ({formatCurrency(autoFee)})
                     </button>
                   </span>
@@ -481,28 +506,29 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <FormField
-              label="Bắt đầu đăng ký"
+              label="Bắt đầu đăng ký (ngày, giờ)"
               error={errors.registrationStart}
               required
             >
               <input
-                type="date"
+                type="datetime-local"
                 required
-                min={mode === 'create' ? todayStr : undefined}
+                step="60"
+                min={mode === 'create' ? getCurrentDateTimeLocal() : undefined}
                 className={inputClass}
                 value={form.registrationStart}
                 onChange={handleRegistrationStartChange}
               />
             </FormField>
-            <FormField
-              label="Kết thúc đăng ký"
-              error={errors.registrationEnd}
-              required
-            >
+            <FormField label="Kết thúc đăng ký (ngày, giờ)" error={errors.registrationEnd} required>
               <input
-                type="date"
+                type="datetime-local"
                 required
-                min={form.registrationStart ? getNextDate(form.registrationStart) : (mode === 'create' ? todayStr : undefined)}
+                step="60"
+                min={
+                  form.registrationStart ||
+                  (mode === 'create' ? getCurrentDateTimeLocal() : undefined)
+                }
                 className={inputClass}
                 value={form.registrationEnd}
                 onChange={set('registrationEnd')}
@@ -517,18 +543,16 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
             <span>Thời gian đào tạo (Tối thiểu {CLASS_DURATION_WEEKS} tuần)</span>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <FormField
-              label="Bắt đầu học"
-              error={errors.studyStart}
-              required
-            >
+            <FormField label="Bắt đầu học" error={errors.studyStart} required>
               <input
                 type="date"
                 required
                 min={
                   form.registrationEnd
                     ? getNextDate(form.registrationEnd)
-                    : (mode === 'create' ? todayStr : undefined)
+                    : mode === 'create'
+                      ? todayStr
+                      : undefined
                 }
                 className={inputClass}
                 value={form.studyStart}
@@ -537,11 +561,7 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
               />
             </FormField>
 
-            <FormField
-              label="Kết thúc học"
-              error={errors.studyEnd}
-              required
-            >
+            <FormField label="Kết thúc học" error={errors.studyEnd} required>
               <input
                 type="date"
                 required
@@ -568,11 +588,13 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
               <span>Cấu hình trọng số điểm (%)</span>
             </div>
             <div className="flex items-center gap-2">
-              <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full border ${
-                totalWeight === 100
-                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                  : 'bg-rose-50 text-rose-700 border-rose-200'
-              }`}>
+              <span
+                className={`text-xs font-bold px-2.5 py-0.5 rounded-full border ${
+                  totalWeight === 100
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                    : 'bg-rose-50 text-rose-700 border-rose-200'
+                }`}
+              >
                 Tổng: {totalWeight}% {totalWeight === 100 ? '✓ Hợp lệ' : '(Cần đúng 100%)'}
               </span>
             </div>
@@ -593,21 +615,45 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
             )}
             <button
               type="button"
-              onClick={() => applyWeightPreset({ attendance: 10, homework: 10, midterm: 30, presentation: 0, final: 50 })}
+              onClick={() =>
+                applyWeightPreset({
+                  attendance: 10,
+                  homework: 10,
+                  midterm: 30,
+                  presentation: 0,
+                  final: 50,
+                })
+              }
               className="px-2 py-1 rounded-lg bg-white hover:bg-indigo-50 border border-slate-200 text-slate-700 font-medium transition cursor-pointer"
             >
               Chuẩn 3 TC (10-10-30-50)
             </button>
             <button
               type="button"
-              onClick={() => applyWeightPreset({ attendance: 10, homework: 0, midterm: 40, presentation: 0, final: 50 })}
+              onClick={() =>
+                applyWeightPreset({
+                  attendance: 10,
+                  homework: 0,
+                  midterm: 40,
+                  presentation: 0,
+                  final: 50,
+                })
+              }
               className="px-2 py-1 rounded-lg bg-white hover:bg-indigo-50 border border-slate-200 text-slate-700 font-medium transition cursor-pointer"
             >
               2 TC / 3 cột (10-40-50)
             </button>
             <button
               type="button"
-              onClick={() => applyWeightPreset({ attendance: 10, homework: 20, midterm: 10, presentation: 20, final: 40 })}
+              onClick={() =>
+                applyWeightPreset({
+                  attendance: 10,
+                  homework: 20,
+                  midterm: 10,
+                  presentation: 20,
+                  final: 40,
+                })
+              }
               className="px-2 py-1 rounded-lg bg-white hover:bg-indigo-50 border border-slate-200 text-slate-700 font-medium transition cursor-pointer"
             >
               Thực hành / Đồ án (10-20-10-20-40)
@@ -616,8 +662,14 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
 
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
             {GRADE_COMPONENTS.map((comp) => (
-              <div key={comp.key} className="bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-2xs">
-                <label className="block text-xs font-semibold text-slate-700 mb-1 truncate" title={comp.label}>
+              <div
+                key={comp.key}
+                className="bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-2xs"
+              >
+                <label
+                  className="block text-xs font-semibold text-slate-700 mb-1 truncate"
+                  title={comp.label}
+                >
                   {comp.label}
                 </label>
                 <div className="relative">
@@ -631,7 +683,9 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
                     value={form.gradeWeights?.[comp.key] ?? 0}
                     onChange={(e) => handleGradeWeightChange(comp.key, e.target.value)}
                   />
-                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-400 pointer-events-none">%</span>
+                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-400 pointer-events-none">
+                    %
+                  </span>
                 </div>
               </div>
             ))}
@@ -655,10 +709,18 @@ export function ClassFormModal({ open, mode, courseId, initial, onClose, onSubmi
         </div>
 
         <div className="flex justify-end gap-3 pt-2">
-          <button type="button" onClick={onClose} className="px-4 py-2 rounded-xl text-sm font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 transition">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 rounded-xl text-sm font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 transition"
+          >
             Hủy
           </button>
-          <button type="submit" disabled={saving} className="px-5 py-2 rounded-xl text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 shadow-xs hover:shadow disabled:opacity-60 transition active:scale-[0.98]">
+          <button
+            type="submit"
+            disabled={saving}
+            className="px-5 py-2 rounded-xl text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 shadow-xs hover:shadow disabled:opacity-60 transition active:scale-[0.98]"
+          >
             {saving ? 'Đang lưu...' : 'Lưu'}
           </button>
         </div>

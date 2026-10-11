@@ -42,21 +42,20 @@ export function getCurrentDateTimeLocalWithSeconds(now = new Date()) {
 }
 
 export function formatRegistrationDateTime(value, isEnd = false) {
-  void isEnd;
   if (!value) return '—';
-  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    const [year, month, day] = value.split('-');
-    return `${day}/${month}/${year}`;
-  }
-  const [date, time] = String(value).split('T');
+  const normalizedValue = registrationDateTimeInput(value, isEnd);
+  const [date, time] = normalizedValue.split('T');
   const [year, month, day] = date.split('-');
-  return time ? `${day}/${month}/${year} ${time.slice(0, 5)}` : `${day}/${month}/${year}`;
+  return `${day}/${month}/${year} ${time.slice(0, 5)}`;
 }
 
 export function registrationDateTimeInput(value, isEnd = false) {
-  void isEnd;
   if (!value) return '';
-  return String(value).slice(0, 10);
+  const stringValue = String(value);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(stringValue)) {
+    return `${stringValue}T${isEnd ? '23:59' : '00:00'}`;
+  }
+  return stringValue.slice(0, 16);
 }
 
 export function getNextDate(dateStr) {
@@ -183,7 +182,9 @@ export function calculateCourseFee(course, creditPrice = DEFAULT_CREDIT_PRICE) {
       return customFee;
     }
   }
-  const unitPrice = Number.isFinite(Number(creditPrice)) ? Number(creditPrice) : DEFAULT_CREDIT_PRICE;
+  const unitPrice = Number.isFinite(Number(creditPrice))
+    ? Number(creditPrice)
+    : DEFAULT_CREDIT_PRICE;
   return credits * unitPrice;
 }
 

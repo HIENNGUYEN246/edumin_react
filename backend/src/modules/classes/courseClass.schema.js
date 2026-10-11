@@ -98,7 +98,15 @@ function studyStartAfterRegistrationEnd(data) {
 
 function registrationPeriodIsValid(data) {
   if (!data.registrationStart || !data.registrationEnd) return true;
-  return data.registrationEnd > data.registrationStart;
+  const start =
+    /^\d{4}-\d{2}-\d{2}$/.test(data.registrationStart)
+      ? `${data.registrationStart}T00:00`
+      : data.registrationStart;
+  const end =
+    /^\d{4}-\d{2}-\d{2}$/.test(data.registrationEnd)
+      ? `${data.registrationEnd}T23:59`
+      : data.registrationEnd;
+  return end > start;
 }
 
 export const createClassSchema = baseClassSchema

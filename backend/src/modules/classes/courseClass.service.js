@@ -302,7 +302,10 @@ export async function createClass(payload) {
   } else if (fields.registrationStart && fields.registrationStart.slice(0, 10) < todayDateString()) {
     throw AppError.badRequest('Thời gian bắt đầu đăng ký không được ở quá khứ');
   }
-  if (fields.registrationEnd <= fields.registrationStart) {
+  if (
+    normalizeRegistrationDateTime(fields.registrationEnd, true) <=
+    normalizeRegistrationDateTime(fields.registrationStart)
+  ) {
     throw AppError.badRequest('Thời gian kết thúc đăng ký phải sau thời gian bắt đầu đăng ký');
   }
   if (fields.studyStart && fields.registrationEnd) {
@@ -363,7 +366,8 @@ export async function updateClass(id, payload) {
   if (
     merged.registrationStart &&
     merged.registrationEnd &&
-    merged.registrationEnd <= merged.registrationStart
+    normalizeRegistrationDateTime(merged.registrationEnd, true) <=
+    normalizeRegistrationDateTime(merged.registrationStart)
   ) {
     throw AppError.badRequest('Thời gian kết thúc đăng ký phải sau thời gian bắt đầu đăng ký');
   }

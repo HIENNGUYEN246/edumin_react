@@ -388,6 +388,26 @@ describe('Course classes', () => {
     expect(res.body.registrationEnd).toBe(regEnd);
   });
 
+  it('accepts a date-only registration window that starts and ends on the same day', async () => {
+    const regDate = addCalendarDays(todayDateString(), 2);
+    const studyStart = addCalendarDays(regDate, 1);
+    const res = await request(app)
+      .post('/api/classes')
+      .set(authHeader(adminToken))
+      .send(baseClass({
+        id: 'IT101-10',
+        room: 'D11',
+        registrationStart: regDate,
+        registrationEnd: regDate,
+        studyStart,
+        studyEnd: addCalendarDays(studyStart, 105),
+      }));
+
+    expect(res.status).toBe(201);
+    expect(res.body.registrationStart).toBe(regDate);
+    expect(res.body.registrationEnd).toBe(regDate);
+  });
+
   it('rejects assigning a teacher from a different department to the course class', async () => {
     // IT101 has department: 'CNTT'
     const user = await User.create({ email: 'gv.kinhte@edu.vn', passwordHash: 'x', role: ROLES.TEACHER, hoTen: 'GV Kinh Tế' });
