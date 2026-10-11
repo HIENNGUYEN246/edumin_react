@@ -11,7 +11,7 @@ export function TeacherSchedule() {
 
   return (
     <div>
-      <PageHeader title="Lịch dạy" subtitle="Các lớp học phần bạn phụ trách" />
+      <PageHeader title="Lịch dạy" />
       {classes.length === 0 ? (
         <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-8 text-center text-gray-400">
           Bạn chưa được phân công lớp nào.
