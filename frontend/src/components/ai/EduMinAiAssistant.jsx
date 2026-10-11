@@ -2054,48 +2054,30 @@ function EduMinAiAssistantInner() {
 }
 
 /**
- * Accurately determines if the AI Assistant should be displayed:
- * - Always hidden on Admin, Teacher, and Accountant pages/roles
- * - Always shown when role is Student (sinh-vien / student) OR currently on a Student page (/student/*)
+ * Determines if the AI Assistant should be displayed:
+ * - Available for all authenticated system roles: Admin, Teacher, and Student
+ * - Hidden on unauthenticated public routes such as /login
  */
 export function shouldShowAiAssistant(user, pathname = '') {
   const normPath = String(pathname || '').toLowerCase();
-  const normRole = String(user?.role || '').toLowerCase();
 
-  // 1. Explicitly block if on Admin, Teacher, or Accountant pages
-  if (
+  // Hide on public/login routes
+  if (normPath === '/login' || normPath.startsWith('/login')) {
+    return false;
+  }
+
+  // Show whenever user is authenticated (Admin, Teacher, Student, Accountant)
+  if (user) {
+    return true;
+  }
+
+  // Also show on internal app routes if session exists
+  return (
     normPath.startsWith('/admin') ||
     normPath.startsWith('/teacher') ||
-    normPath.startsWith('/accountant') ||
-    normPath.startsWith('/pdt') ||
-    normPath.startsWith('/gv')
-  ) {
-    return false;
-  }
-
-  // 2. Explicitly block if logged in as Admin, Teacher, or Accountant
-  if (
-    normRole === 'dao-tao' ||
-    normRole === 'admin' ||
-    normRole === 'giao-vien' ||
-    normRole === 'teacher' ||
-    normRole === 'ke-toan' ||
-    normRole === 'accountant'
-  ) {
-    return false;
-  }
-
-  // 3. Show if user has Student role (sinh-vien / student) OR is on a student route (/student/*)
-  const isStudentRole =
-    normRole === 'sinh-vien' ||
-    normRole === 'student' ||
-    normRole === (ROLES?.STUDENT || 'sinh-vien');
-
-  const isStudentRoute =
     normPath.startsWith('/student') ||
-    normPath.startsWith('/sv');
-
-  return isStudentRole || isStudentRoute;
+    normPath.startsWith('/accountant')
+  );
 }
 
 export function EduMinAiAssistant({ forceRender = false } = {}) {
@@ -2103,10 +2085,10 @@ export function EduMinAiAssistant({ forceRender = false } = {}) {
   const user = authContext?.user || null;
   const location = useLocation();
   const pathname = location?.pathname || '';
-  const isStudent = shouldShowAiAssistant(user, pathname);
+  const showAi = shouldShowAiAssistant(user, pathname);
 
-  // Only render EduMin AI Assistant widget for Student role or student pages; hide completely for Admin, Teacher, and others
-  if (!isStudent && !forceRender) {
+  // Render for Admin, Teacher, Student on all system pages; hide on login/public pages
+  if (!showAi && !forceRender) {
     return null;
   }
 

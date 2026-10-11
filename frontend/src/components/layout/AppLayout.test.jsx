@@ -22,8 +22,8 @@ vi.mock('../../api/aiApi.js', () => ({
   },
 }));
 
-describe('AppLayout with EduMinAiAssistant role-based rendering', () => {
-  it('does NOT render EduMinAiAssistant floating trigger for Admin (dao-tao)', () => {
+describe('AppLayout with EduMinAiAssistant for Admin, Teacher, and Student', () => {
+  it('renders EduMinAiAssistant floating trigger for Admin (dao-tao) on /admin', () => {
     mockUser = { role: 'dao-tao', hoTen: 'Quản trị viên' };
     const queryClient = new QueryClient();
     render(
@@ -41,10 +41,10 @@ describe('AppLayout with EduMinAiAssistant role-based rendering', () => {
     );
 
     expect(screen.getByText('Admin Page Content')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Mở trợ lý ảo EduMin/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Mở trợ lý ảo EduMin/i })).toBeInTheDocument();
   });
 
-  it('does NOT render EduMinAiAssistant floating trigger for Teacher (giao-vien)', () => {
+  it('renders EduMinAiAssistant floating trigger for Teacher (giao-vien) on /teacher', () => {
     mockUser = { role: 'giao-vien', hoTen: 'Trần Minh Quân' };
     const queryClient = new QueryClient();
     render(
@@ -62,10 +62,10 @@ describe('AppLayout with EduMinAiAssistant role-based rendering', () => {
     );
 
     expect(screen.getByText('Teacher Page Content')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Mở trợ lý ảo EduMin/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Mở trợ lý ảo EduMin/i })).toBeInTheDocument();
   });
 
-  it('renders EduMinAiAssistant floating trigger for Student (sinh-vien)', () => {
+  it('renders EduMinAiAssistant floating trigger for Student (sinh-vien) on /student', () => {
     mockUser = { role: 'sinh-vien', hoTen: 'Nguyễn Văn An' };
     const queryClient = new QueryClient();
     render(

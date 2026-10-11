@@ -711,37 +711,24 @@ describe('Role-based rendering authorization for EduMinAiAssistant', () => {
     expect(screen.getByRole('button', { name: /Mở trợ lý ảo EduMin/i })).toBeInTheDocument();
   });
 
-  it('does NOT render EduMin AI Assistant for Admin role (dao-tao)', () => {
+  it('renders EduMin AI Assistant for Admin role (dao-tao)', () => {
     mockCurrentUser = { role: 'dao-tao', hoTen: 'Quản trị viên' };
-    const { container } = render(
-      <MemoryRouter>
+    render(
+      <MemoryRouter initialEntries={['/admin']}>
         <EduMinAiAssistant />
       </MemoryRouter>
     );
-    expect(screen.queryByRole('button', { name: /Mở trợ lý ảo EduMin/i })).not.toBeInTheDocument();
-    expect(container).toBeEmptyDOMElement();
+    expect(screen.getByRole('button', { name: /Mở trợ lý ảo EduMin/i })).toBeInTheDocument();
   });
 
-  it('does NOT render EduMin AI Assistant for Teacher role (giao-vien)', () => {
+  it('renders EduMin AI Assistant for Teacher role (giao-vien)', () => {
     mockCurrentUser = { role: 'giao-vien', hoTen: 'Trần Minh Quân' };
-    const { container } = render(
-      <MemoryRouter>
+    render(
+      <MemoryRouter initialEntries={['/teacher']}>
         <EduMinAiAssistant />
       </MemoryRouter>
     );
-    expect(screen.queryByRole('button', { name: /Mở trợ lý ảo EduMin/i })).not.toBeInTheDocument();
-    expect(container).toBeEmptyDOMElement();
-  });
-
-  it('does NOT render EduMin AI Assistant for Accountant role (ke-toan)', () => {
-    mockCurrentUser = { role: 'ke-toan', hoTen: 'Kế toán viên' };
-    const { container } = render(
-      <MemoryRouter>
-        <EduMinAiAssistant />
-      </MemoryRouter>
-    );
-    expect(screen.queryByRole('button', { name: /Mở trợ lý ảo EduMin/i })).not.toBeInTheDocument();
-    expect(container).toBeEmptyDOMElement();
+    expect(screen.getByRole('button', { name: /Mở trợ lý ảo EduMin/i })).toBeInTheDocument();
   });
 
   it('renders EduMin AI Assistant for Student role (student)', () => {
@@ -754,7 +741,7 @@ describe('Role-based rendering authorization for EduMinAiAssistant', () => {
     expect(screen.getByRole('button', { name: /Mở trợ lý ảo EduMin/i })).toBeInTheDocument();
   });
 
-  it('renders EduMin AI Assistant on student path (/student/attendance) regardless of minor case variation', () => {
+  it('renders EduMin AI Assistant on student path (/student/attendance)', () => {
     mockCurrentUser = { role: 'STUDENT', hoTen: 'Nguyễn Văn An' };
     render(
       <MemoryRouter initialEntries={['/student/attendance']}>
@@ -764,29 +751,7 @@ describe('Role-based rendering authorization for EduMinAiAssistant', () => {
     expect(screen.getByRole('button', { name: /Mở trợ lý ảo EduMin/i })).toBeInTheDocument();
   });
 
-  it('does NOT render EduMin AI Assistant on Admin path (/admin/gradebook)', () => {
-    mockCurrentUser = { role: 'dao-tao', hoTen: 'Quản trị viên' };
-    const { container } = render(
-      <MemoryRouter initialEntries={['/admin/gradebook']}>
-        <EduMinAiAssistant />
-      </MemoryRouter>
-    );
-    expect(screen.queryByRole('button', { name: /Mở trợ lý ảo EduMin/i })).not.toBeInTheDocument();
-    expect(container).toBeEmptyDOMElement();
-  });
-
-  it('does NOT render EduMin AI Assistant on Teacher path (/teacher/classes)', () => {
-    mockCurrentUser = { role: 'giao-vien', hoTen: 'Trần Minh Quân' };
-    const { container } = render(
-      <MemoryRouter initialEntries={['/teacher/classes']}>
-        <EduMinAiAssistant />
-      </MemoryRouter>
-    );
-    expect(screen.queryByRole('button', { name: /Mở trợ lý ảo EduMin/i })).not.toBeInTheDocument();
-    expect(container).toBeEmptyDOMElement();
-  });
-
-  it('does NOT render EduMin AI Assistant when unauthenticated and not on student page', () => {
+  it('does NOT render EduMin AI Assistant when unauthenticated on /login', () => {
     mockCurrentUser = null;
     const { container } = render(
       <MemoryRouter initialEntries={['/login']}>

@@ -10,7 +10,7 @@ import { EduMinAiAssistant, shouldShowAiAssistant } from '../ai/EduMinAiAssistan
 export function AppLayout() {
   const { user } = useAuth();
   const location = useLocation();
-  const isStudent = shouldShowAiAssistant(user, location?.pathname);
+  const showAi = shouldShowAiAssistant(user, location?.pathname);
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-slate-50/60">
@@ -23,7 +23,7 @@ export function AppLayout() {
           </Suspense>
         </main>
       </div>
-      {isStudent && <EduMinAiAssistant />}
+      {showAi && <EduMinAiAssistant />}
     </div>
   );
 }
