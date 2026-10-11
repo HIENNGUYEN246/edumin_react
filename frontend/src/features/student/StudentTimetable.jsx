@@ -1,6 +1,6 @@
 import { PageHeader } from '../../components/ui/PageHeader.jsx';
 import { Spinner } from '../../components/ui/Spinner.jsx';
-import { ScheduleGrid } from '../../components/schedule/ScheduleGrid.jsx';
+import { StudentWeeklySchedule } from './StudentWeeklySchedule.jsx';
 import { useMyEnrollments } from './useEnrollments.js';
 
 export function StudentTimetable() {
@@ -17,7 +17,7 @@ export function StudentTimetable() {
           Bạn chưa đăng ký học phần nào.
         </div>
       ) : (
-        <ScheduleGrid classes={classes} />
+        <StudentWeeklySchedule classes={classes} />
       )}
     </div>
   );
