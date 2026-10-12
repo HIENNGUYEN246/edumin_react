@@ -7,9 +7,13 @@ export const ROLES = {
 
 export const ROLE_LABEL = {
   [ROLES.ADMIN]: 'Phòng Đào Tạo',
+  admin: 'Phòng Đào Tạo',
   [ROLES.TEACHER]: 'Giáo viên',
+  teacher: 'Giáo viên',
   [ROLES.STUDENT]: 'Sinh viên',
+  student: 'Sinh viên',
   [ROLES.ACCOUNTANT]: 'Phòng Kế Toán',
+  accountant: 'Phòng Kế Toán',
 };
 
 /** Sidebar navigation per role. `end` marks exact-match links. */
@@ -46,9 +50,9 @@ export const NAV_BY_ROLE = {
 };
 
 export function roleHome(role) {
-  if (role === ROLES.ADMIN) return '/admin';
-  if (role === ROLES.ACCOUNTANT) return '/accountant';
-  if (role === ROLES.TEACHER) return '/teacher';
-  if (role === ROLES.STUDENT) return '/student';
+  if (role === ROLES.ADMIN || role === 'admin') return '/admin';
+  if (role === ROLES.ACCOUNTANT || role === 'accountant') return '/accountant';
+  if (role === ROLES.TEACHER || role === 'teacher') return '/teacher';
+  if (role === ROLES.STUDENT || role === 'student') return '/student';
   return '/login';
 }

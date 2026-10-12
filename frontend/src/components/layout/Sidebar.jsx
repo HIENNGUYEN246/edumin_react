@@ -4,12 +4,22 @@ import { NAV_BY_ROLE } from '../../app/navConfig.js';
 import { profileRequestsApi } from '../../api/profileRequestsApi.js';
 
 export function Sidebar({ role }) {
-  const items = NAV_BY_ROLE[role] || [];
+  const normalizedRole =
+    role === 'student'
+      ? 'sinh-vien'
+      : role === 'teacher'
+      ? 'giao-vien'
+      : role === 'admin'
+      ? 'dao-tao'
+      : role === 'accountant'
+      ? 'ke-toan'
+      : role;
+  const items = NAV_BY_ROLE[normalizedRole] || NAV_BY_ROLE[role] || [];
 
   const { data: reqData } = useQuery({
     queryKey: ['profile-requests', 'pending-count'],
     queryFn: () => profileRequestsApi.list({ status: 'pending', limit: 1 }),
-    enabled: role === 'dao-tao',
+    enabled: normalizedRole === 'dao-tao',
     refetchInterval: 20000,
   });
 

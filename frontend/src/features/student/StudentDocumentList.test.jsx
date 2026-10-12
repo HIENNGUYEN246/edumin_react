@@ -172,6 +172,8 @@ describe('StudentDocumentList (Grouped by Class)', () => {
     downloadDocument.mockResolvedValueOnce();
     renderComponent();
 
+    expect(await screen.findByText('Slide Bài giảng Chương 1 - HTML & CSS')).toBeInTheDocument();
+
     const downloadButtons = await screen.findAllByRole('button', { name: /Tải về/i });
     expect(downloadButtons.length).toBeGreaterThan(0);
 

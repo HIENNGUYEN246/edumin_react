@@ -19,7 +19,7 @@ import { Assignment, Submission } from '../assignments/assignment.model.js';
 import { Attendance } from '../attendance/attendance.model.js';
 import { GradeAuditLog } from './gradeAuditLog.model.js';
 import { sendClassAssignedEmail } from '../../lib/mailer.js';
-import { buildDepartmentMatcher } from '../../lib/department.js';
+import { buildDepartmentMatcher, isGeneralEducation } from '../../lib/department.js';
 
 const POPULATE = [
   { path: 'courseRef', select: 'id name credits fee department' },
@@ -228,12 +228,28 @@ export async function listOpenClasses(requester) {
     if (!student && requester._id) {
       student = await Student.findOne({ userId: requester._id }).populate('departmentRef', 'id name').lean();
     }
-    const studentDept = student?.department || requester.department || requester.khoa || student?.departmentRef?.name || student?.departmentRef?.id;
+    const studentDept =
+      student?.department ||
+      requester.department ||
+      requester.khoa ||
+      student?.departmentRef?.name ||
+      student?.departmentRef?.id ||
+      student?.major ||
+      student?.majorId ||
+      requester.major ||
+      requester.majorId;
+
     if (studentDept) {
       const matchDept = await buildDepartmentMatcher(studentDept, student?.departmentRef);
       classes = classes.filter((cls) => {
         const classDept = cls.department || cls.courseRef?.department;
         return classDept && matchDept(classDept);
+      });
+    } else {
+      // If student has no department/major configured, strictly only show general education classes!
+      classes = classes.filter((cls) => {
+        const classDept = cls.department || cls.courseRef?.department;
+        return isGeneralEducation(classDept);
       });
     }
   } else if (requester?.role === ROLES.TEACHER) {

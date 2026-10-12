@@ -4,6 +4,7 @@ import { useAuth } from '../../app/providers/AuthProvider.jsx';
 import { Header } from './Header.jsx';
 import { Sidebar } from './Sidebar.jsx';
 import { Spinner } from '../ui/Spinner.jsx';
+import { ErrorBoundary } from '../ui/ErrorBoundary.jsx';
 import { EduMinAiAssistant, shouldShowAiAssistant } from '../ai/EduMinAiAssistant.jsx';
 
 /** Shared shell for all three roles. Sidebar content is role-driven. */
@@ -18,9 +19,11 @@ export function AppLayout() {
       <div className="flex flex-1 overflow-hidden relative">
         <Sidebar role={user?.role} />
         <main className="flex-1 overflow-y-auto custom-scrollbar p-5 md:p-7 pb-28">
-          <Suspense fallback={<Spinner />}>
-            <Outlet />
-          </Suspense>
+          <ErrorBoundary>
+            <Suspense fallback={<Spinner />}>
+              <Outlet />
+            </Suspense>
+          </ErrorBoundary>
         </main>
       </div>
       {showAi && <EduMinAiAssistant />}

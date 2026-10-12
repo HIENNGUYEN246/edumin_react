@@ -1,7 +1,17 @@
 import { Navigate } from 'react-router-dom';
 import { useAuth } from './providers/AuthProvider.jsx';
 import { Spinner } from '../components/ui/Spinner.jsx';
-import { roleHome } from './navConfig.js';
+import { ROLES, roleHome } from './navConfig.js';
+
+function isRoleMatch(expectedRole, userRole) {
+  if (!expectedRole || !userRole) return false;
+  if (expectedRole === userRole) return true;
+  if (expectedRole === ROLES.STUDENT && (userRole === 'student' || userRole === 'sinh-vien')) return true;
+  if (expectedRole === ROLES.TEACHER && (userRole === 'teacher' || userRole === 'giao-vien')) return true;
+  if (expectedRole === ROLES.ADMIN && (userRole === 'admin' || userRole === 'dao-tao')) return true;
+  if (expectedRole === ROLES.ACCOUNTANT && (userRole === 'accountant' || userRole === 'ke-toan')) return true;
+  return false;
+}
 
 /**
  * Route guard. Waits for the session to resolve, redirects unauthenticated
@@ -15,7 +25,7 @@ export function RequireRole({ role, children }) {
   // When an account is locked, keep the user on their current screen so the lock modal displays over it.
   if (lockInfo) return children;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
-  if (role && user?.role !== role) return <Navigate to={roleHome(user?.role)} replace />;
+  if (role && !isRoleMatch(role, user?.role)) return <Navigate to={roleHome(user?.role)} replace />;
 
   return children;
 }

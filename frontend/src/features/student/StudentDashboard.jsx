@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { PageHeader } from '../../components/ui/PageHeader.jsx';
 import { ProfileCard } from '../../components/account/ProfileCard.jsx';
+import { Spinner } from '../../components/ui/Spinner.jsx';
+import { ErrorBoundary } from '../../components/ui/ErrorBoundary.jsx';
 import { useAuth } from '../../app/providers/AuthProvider.jsx';
 import { useToast } from '../../app/providers/ToastProvider.jsx';
 import {
@@ -12,11 +14,17 @@ import {
 import { useMyEnrollments } from './useEnrollments.js';
 import { feedbackApi } from '../../api/feedbackApi.js';
 
-export function StudentDashboard() {
+export function StudentDashboardInner() {
   const toast = useToast();
   const { user, profile } = useAuth();
-  const { data: enrollData } = useMyEnrollments();
-  const enrollments = useMemo(() => enrollData?.data || [], [enrollData]);
+  const { data: enrollData, isLoading: isEnrollLoading } = useMyEnrollments();
+
+  // Safely extract enrollments whether API returns { data: [...] } or direct array
+  const enrollments = useMemo(() => {
+    if (Array.isArray(enrollData)) return enrollData;
+    if (Array.isArray(enrollData?.data)) return enrollData.data;
+    return [];
+  }, [enrollData]);
   const enrolledCount = enrollments.length;
 
   const [feedbacks, setFeedbacks] = useState([]);
@@ -28,96 +36,142 @@ export function StudentDashboard() {
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  const studentId = profile?.id ?? user?.studentId ?? user?.id;
+  const studentId = profile?.id ?? user?.studentId ?? user?.id ?? user?._id;
 
-  // Student personal grades & overall GPA stats
+  // Student personal grades & overall GPA stats with full null-safety
   const studentGradebook = useMemo(() => {
-    return enrollments.map((enr) => {
-      const cls = enr.class || {};
-      const classId = cls.id || enr.classId;
-      const courseId = cls.courseId || '';
-      const courseName = cls.courseName || cls.name || courseId || classId;
-      const credits = Number(cls.credits) || 3;
-      const teacherName = typeof cls.teacher === 'object'
-        ? (cls.teacher?.hoTen || cls.teacher?.name)
-        : (cls.teacher || 'Chưa phân công');
-      const weights = cls.gradeWeights || DEFAULT_GRADE_WEIGHTS;
+    try {
+      if (!Array.isArray(enrollments)) return [];
+      return enrollments
+        .map((enr) => {
+          if (!enr) return null;
+          const cls = enr?.class || {};
+          const classId = cls?.id || enr?.classId || '';
+          const courseId = cls?.courseId || '';
+          const courseName = cls?.courseName || cls?.name || courseId || classId || 'Học phần';
+          const credits = Number(cls?.credits) || 3;
+          const teacherName =
+            typeof cls?.teacher === 'object'
+              ? cls?.teacher?.hoTen || cls?.teacher?.name || 'Chưa phân công'
+              : cls?.teacher || 'Chưa phân công';
+          const weights =
+            cls?.gradeWeights && typeof cls.gradeWeights === 'object'
+              ? cls.gradeWeights
+              : DEFAULT_GRADE_WEIGHTS;
 
-      const manual = enr.manualGrades || {};
-      const compGrades = {
-        attendance: manual.attendance ?? null,
-        homework: manual.assignment ?? manual.homework ?? null,
-        midterm: manual.midterm ?? null,
-        presentation: manual.presentation ?? null,
-        final: manual.final ?? null,
-      };
+          const manual = enr?.manualGrades || {};
+          const compGrades = {
+            attendance: manual?.attendance ?? null,
+            homework: manual?.assignment ?? manual?.homework ?? null,
+            midterm: manual?.midterm ?? null,
+            presentation: manual?.presentation ?? null,
+            final: manual?.final ?? null,
+          };
 
-      const gpa = enr.finalScore != null ? Number(enr.finalScore) : calculateGpa(compGrades, weights);
-      const classification = getGpaClassification(gpa);
+          const gpa =
+            enr?.finalScore != null && !isNaN(enr.finalScore)
+              ? Number(enr.finalScore)
+              : calculateGpa(compGrades, weights);
+          const classification = getGpaClassification(gpa) || { text: 'Chưa có điểm', tone: 'neutral' };
 
-      let gpa4 = null;
-      let letterGrade = '—';
-      if (gpa != null) {
-        if (gpa >= 8.5) { gpa4 = 4.0; letterGrade = 'A'; }
-        else if (gpa >= 7.0) { gpa4 = 3.0; letterGrade = 'B'; }
-        else if (gpa >= 5.5) { gpa4 = 2.0; letterGrade = 'C'; }
-        else if (gpa >= 4.0) { gpa4 = 1.0; letterGrade = 'D'; }
-        else { gpa4 = 0.0; letterGrade = 'F'; }
-      }
+          let gpa4 = null;
+          let letterGrade = '—';
+          if (gpa != null && Number.isFinite(gpa)) {
+            if (gpa >= 8.5) {
+              gpa4 = 4.0;
+              letterGrade = 'A';
+            } else if (gpa >= 7.0) {
+              gpa4 = 3.0;
+              letterGrade = 'B';
+            } else if (gpa >= 5.5) {
+              gpa4 = 2.0;
+              letterGrade = 'C';
+            } else if (gpa >= 4.0) {
+              gpa4 = 1.0;
+              letterGrade = 'D';
+            } else {
+              gpa4 = 0.0;
+              letterGrade = 'F';
+            }
+          }
 
-      const isPassed = gpa != null ? gpa >= 4.0 : null;
+          const isPassed = gpa != null && Number.isFinite(gpa) ? gpa >= 4.0 : null;
 
-      return {
-        enrollmentId: enr._id,
-        classId,
-        courseId,
-        courseName,
-        credits,
-        teacherName,
-        weights,
-        compGrades,
-        gpa,
-        gpa4,
-        letterGrade,
-        classification,
-        isPassed,
-      };
-    });
+          return {
+            enrollmentId: enr?._id || classId,
+            classId,
+            courseId,
+            courseName,
+            credits,
+            teacherName,
+            weights,
+            compGrades,
+            gpa,
+            gpa4,
+            letterGrade,
+            classification,
+            isPassed,
+          };
+        })
+        .filter(Boolean);
+    } catch (err) {
+      console.error('Lỗi tính bảng điểm sinh viên:', err);
+      return [];
+    }
   }, [enrollments]);
 
   const studentGradeStats = useMemo(() => {
-    const completedCourses = studentGradebook.filter((g) => g.gpa != null);
-    const totalCredits = studentGradebook.reduce((sum, g) => sum + g.credits, 0);
-    const passedCredits = completedCourses.reduce((sum, g) => sum + (g.isPassed ? g.credits : 0), 0);
+    try {
+      const safeGradebook = Array.isArray(studentGradebook) ? studentGradebook : [];
+      const completedCourses = safeGradebook.filter((g) => g && g.gpa != null && Number.isFinite(g.gpa));
+      const totalCredits = safeGradebook.reduce((sum, g) => sum + (Number(g?.credits) || 0), 0);
+      const passedCredits = completedCourses.reduce(
+        (sum, g) => sum + (g?.isPassed ? Number(g?.credits) || 0 : 0),
+        0
+      );
 
-    if (completedCourses.length === 0) {
+      if (completedCourses.length === 0) {
+        return {
+          gpa10: null,
+          gpa4: null,
+          totalCredits,
+          passedCredits: 0,
+          classification: { text: 'Đang học', tone: 'neutral' },
+        };
+      }
+
+      const totalWeighted10 = completedCourses.reduce((sum, g) => sum + (g.gpa ?? 0) * (Number(g?.credits) || 0), 0);
+      const totalCompCredits = completedCourses.reduce((sum, g) => sum + (Number(g?.credits) || 0), 0);
+      const gpa10 = totalCompCredits > 0 ? Number((totalWeighted10 / totalCompCredits).toFixed(2)) : null;
+
+      const totalWeighted4 = completedCourses.reduce(
+        (sum, g) => sum + (g.gpa4 ?? 0) * (Number(g?.credits) || 0),
+        0
+      );
+      const gpa4 = totalCompCredits > 0 ? Number((totalWeighted4 / totalCompCredits).toFixed(2)) : null;
+
+      return {
+        gpa10,
+        gpa4,
+        totalCredits,
+        passedCredits,
+        classification: getGpaClassification(gpa10) || { text: 'Chưa có điểm', tone: 'neutral' },
+      };
+    } catch (err) {
+      console.error('Lỗi tính thống kê GPA:', err);
       return {
         gpa10: null,
         gpa4: null,
-        totalCredits,
+        totalCredits: 0,
         passedCredits: 0,
         classification: { text: 'Đang học', tone: 'neutral' },
       };
     }
-
-    const totalWeighted10 = completedCourses.reduce((sum, g) => sum + g.gpa * g.credits, 0);
-    const totalCompCredits = completedCourses.reduce((sum, g) => sum + g.credits, 0);
-    const gpa10 = totalCompCredits > 0 ? Number((totalWeighted10 / totalCompCredits).toFixed(2)) : null;
-
-    const totalWeighted4 = completedCourses.reduce((sum, g) => sum + (g.gpa4 ?? 0) * g.credits, 0);
-    const gpa4 = totalCompCredits > 0 ? Number((totalWeighted4 / totalCompCredits).toFixed(2)) : null;
-
-    return {
-      gpa10,
-      gpa4,
-      totalCredits,
-      passedCredits,
-      classification: getGpaClassification(gpa10),
-    };
   }, [studentGradebook]);
 
   const getTeacherTitle = useCallback((name, gender) => {
-    const cleanName = (name || '').trim();
+    const rawName = typeof name === 'object' ? name?.hoTen || name?.name || '' : name || '';
+    const cleanName = String(rawName).trim();
     if (!cleanName) return 'Thầy/Cô phụ trách';
     if (/^(thầy|cô)\s+/i.test(cleanName)) return cleanName;
     if (gender === 'Nữ') return `Cô ${cleanName}`;
@@ -130,9 +184,11 @@ export function StudentDashboard() {
     if (!studentId) return;
     try {
       const res = await feedbackApi.list({ studentId });
-      setFeedbacks(Array.isArray(res) ? res : res?.data || []);
-    } catch {
-      // Ignore
+      const items = Array.isArray(res) ? res : res?.data || [];
+      setFeedbacks(Array.isArray(items) ? items : []);
+    } catch (err) {
+      console.warn('Lỗi tải danh sách phản hồi:', err);
+      setFeedbacks([]);
     }
   }, [studentId]);
 
@@ -142,8 +198,8 @@ export function StudentDashboard() {
 
   // Set default selected course
   useEffect(() => {
-    if (!selectedCourse && enrollments.length > 0) {
-      const firstClassId = enrollments[0].class?.id || enrollments[0].classId;
+    if (!selectedCourse && Array.isArray(enrollments) && enrollments.length > 0) {
+      const firstClassId = enrollments[0]?.class?.id || enrollments[0]?.classId;
       if (firstClassId) {
         setSelectedCourse(firstClassId);
       }
@@ -157,20 +213,30 @@ export function StudentDashboard() {
       return;
     }
 
-    const currentEnr = enrollments.find(
-      (enr) => (enr.class?.id || enr.classId) === selectedCourse
-    );
+    const currentEnr = Array.isArray(enrollments)
+      ? enrollments.find((enr) => (enr?.class?.id || enr?.classId) === selectedCourse)
+      : null;
     const classObj = currentEnr?.class;
 
     try {
       setSubmitting(true);
+      const teacherName =
+        typeof classObj?.teacher === 'object'
+          ? classObj?.teacher?.hoTen || classObj?.teacher?.name || 'Giảng viên'
+          : classObj?.teacher || 'Giảng viên';
+
       await feedbackApi.submit({
         studentId,
         studentName: profile?.hoTen || user?.hoTen || 'Sinh viên',
         studentEmail: profile?.email || user?.email || '',
-        studentAvatar: typeof profile?.avatar === 'string' ? profile?.avatar : profile?.avatar?.url || '',
+        studentAvatar:
+          typeof profile?.avatar === 'string'
+            ? profile.avatar
+            : profile?.avatar?.url ||
+              (typeof user?.avatar === 'string' ? user.avatar : user?.avatar?.url) ||
+              '',
         teacherId: classObj?.teacherId || null,
-        teacherName: classObj?.teacher || 'Giảng viên',
+        teacherName,
         courseId: classObj?.courseId || '',
         courseName: classObj?.courseName || '',
         regId: classObj?.id || selectedCourse,
@@ -200,14 +266,29 @@ export function StudentDashboard() {
     <div className="space-y-6">
       <PageHeader title="Tổng quan" subtitle="Thông tin học tập của bạn" />
 
+      {/* Profile Card Widget */}
       <ProfileCard
         user={user}
         profile={profile}
-        code={profile?.id != null ? formatStudentCode(profile.id) : ''}
+        code={
+          profile?.id != null
+            ? formatStudentCode(profile.id)
+            : user?.studentId
+            ? formatStudentCode(user.studentId)
+            : ''
+        }
         fields={[
           { label: 'Lớp sinh hoạt', value: profile?.className || 'Chưa phân lớp' },
-          { label: 'Khoa', value: profile?.department },
-          { label: 'Hệ đào tạo', value: profile?.education },
+          {
+            label: 'Khoa',
+            value:
+              profile?.department ||
+              profile?.departmentRef?.name ||
+              user?.department ||
+              user?.khoa ||
+              'Chưa cập nhật',
+          },
+          { label: 'Hệ đào tạo', value: profile?.education || 'Chính quy' },
           { label: 'Học phần đã đăng ký', value: enrolledCount },
         ]}
       />
@@ -232,15 +313,27 @@ export function StudentDashboard() {
           <div className="flex flex-wrap items-center gap-2">
             <span className="px-3 py-1.5 bg-indigo-50 text-indigo-700 text-xs font-bold rounded-xl border border-indigo-100 flex items-center gap-1.5">
               <i className="fas fa-star text-indigo-500" />
-              <span>GPA Thang 10: <strong>{studentGradeStats.gpa10 != null ? studentGradeStats.gpa10.toFixed(2) : '—'}</strong></span>
+              <span>
+                GPA Thang 10:{' '}
+                <strong>
+                  {studentGradeStats?.gpa10 != null ? studentGradeStats.gpa10.toFixed(2) : '—'}
+                </strong>
+              </span>
             </span>
             <span className="px-3 py-1.5 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-xl border border-emerald-100 flex items-center gap-1.5">
               <i className="fas fa-award text-emerald-500" />
-              <span>GPA Thang 4: <strong>{studentGradeStats.gpa4 != null ? studentGradeStats.gpa4.toFixed(2) : '—'}</strong></span>
+              <span>
+                GPA Thang 4:{' '}
+                <strong>
+                  {studentGradeStats?.gpa4 != null ? studentGradeStats.gpa4.toFixed(2) : '—'}
+                </strong>
+              </span>
             </span>
             <span className="px-3 py-1.5 bg-amber-50 text-amber-700 text-xs font-bold rounded-xl border border-amber-100 flex items-center gap-1.5">
               <i className="fas fa-medal text-amber-500" />
-              <span>Xếp loại: <strong>{studentGradeStats.classification.text}</strong></span>
+              <span>
+                Xếp loại: <strong>{studentGradeStats?.classification?.text || 'Đang học'}</strong>
+              </span>
             </span>
             <a
               href="/student/attendance"
@@ -252,12 +345,16 @@ export function StudentDashboard() {
           </div>
         </div>
 
-        {studentGradebook.length === 0 ? (
+        {isEnrollLoading ? (
+          <div className="py-12 flex justify-center items-center">
+            <Spinner label="Đang tải dữ liệu điểm học phần..." />
+          </div>
+        ) : !Array.isArray(studentGradebook) || studentGradebook.length === 0 ? (
           <div className="p-8 text-center text-gray-400 bg-slate-50 rounded-xl border border-dashed border-gray-200">
             <i className="fas fa-book-open text-3xl mb-2 text-gray-300" />
             <p className="font-semibold text-gray-600 text-xs">Bạn chưa đăng ký môn học nào trong học kỳ này</p>
             <a
-              href="/student/registration"
+              href="/student/course-registration"
               className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 transition"
             >
               <i className="fas fa-plus" />
@@ -282,55 +379,58 @@ export function StudentDashboard() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {studentGradebook.map((row) => {
+                  if (!row) return null;
                   return (
-                    <tr key={row.enrollmentId || row.classId} className="hover:bg-slate-50/60 transition">
+                    <tr key={row?.enrollmentId || row?.classId} className="hover:bg-slate-50/60 transition">
                       <td className="px-4 py-3.5">
-                        <div className="font-bold text-slate-900 text-sm leading-tight">{row.courseName}</div>
+                        <div className="font-bold text-slate-900 text-sm leading-tight">
+                          {row?.courseName || 'Học phần'}
+                        </div>
                         <div className="flex items-center gap-1.5 mt-1">
                           <span className="font-mono text-[10px] font-bold bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded border border-indigo-100">
-                            {row.classId}
+                            {row?.classId}
                           </span>
                           <span className="text-[10px] text-gray-500 font-medium">
-                            {row.credits} tín chỉ
+                            {row?.credits} tín chỉ
                           </span>
                         </div>
                       </td>
                       <td className="px-4 py-3.5 font-medium text-slate-800 whitespace-nowrap">
                         <span className="inline-flex items-center gap-1.5">
                           <i className="fas fa-user-tie text-indigo-400 text-xs" />
-                          <span>{row.teacherName}</span>
+                          <span>{row?.teacherName || 'Chưa phân công'}</span>
                         </span>
                       </td>
                       <td className="px-3 py-3.5 text-center font-medium text-slate-700">
-                        {row.compGrades.attendance != null ? (
+                        {row?.compGrades?.attendance != null ? (
                           <span className="font-semibold text-slate-800">{row.compGrades.attendance}</span>
                         ) : (
                           <span className="text-gray-300">—</span>
                         )}
                       </td>
                       <td className="px-3 py-3.5 text-center font-medium text-slate-700">
-                        {row.compGrades.homework != null ? (
+                        {row?.compGrades?.homework != null ? (
                           <span className="font-semibold text-slate-800">{row.compGrades.homework}</span>
                         ) : (
                           <span className="text-gray-300">—</span>
                         )}
                       </td>
                       <td className="px-3 py-3.5 text-center font-medium text-slate-700">
-                        {row.compGrades.midterm != null ? (
+                        {row?.compGrades?.midterm != null ? (
                           <span className="font-semibold text-slate-800">{row.compGrades.midterm}</span>
                         ) : (
                           <span className="text-gray-300">—</span>
                         )}
                       </td>
                       <td className="px-3 py-3.5 text-center font-medium text-slate-700">
-                        {row.compGrades.final != null ? (
+                        {row?.compGrades?.final != null ? (
                           <span className="font-semibold text-slate-800">{row.compGrades.final}</span>
                         ) : (
                           <span className="text-gray-300">—</span>
                         )}
                       </td>
                       <td className="px-3 py-3.5 text-center whitespace-nowrap">
-                        {row.gpa != null ? (
+                        {row?.gpa != null ? (
                           <span className="inline-block bg-indigo-50 text-indigo-700 font-black px-2.5 py-1 rounded-lg text-xs border border-indigo-200">
                             {row.gpa.toFixed(2)}
                           </span>
@@ -339,30 +439,33 @@ export function StudentDashboard() {
                         )}
                       </td>
                       <td className="px-3 py-3.5 text-center whitespace-nowrap">
-                        {row.gpa4 != null ? (
+                        {row?.gpa4 != null ? (
                           <span className="font-bold text-slate-800">
-                            {row.gpa4.toFixed(1)} <span className="text-indigo-600 font-extrabold">({row.letterGrade})</span>
+                            {row.gpa4.toFixed(1)}{' '}
+                            <span className="text-indigo-600 font-extrabold">({row?.letterGrade})</span>
                           </span>
                         ) : (
                           <span className="text-gray-300">—</span>
                         )}
                       </td>
                       <td className="px-3 py-3.5 text-center whitespace-nowrap">
-                        {row.gpa == null ? (
+                        {row?.gpa == null ? (
                           <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
                             Đang học
                           </span>
                         ) : (
-                          <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
-                            row.classification.tone === 'success'
-                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                              : row.classification.tone === 'primary'
-                              ? 'bg-blue-50 text-blue-700 border-blue-200'
-                              : row.classification.tone === 'warning'
-                              ? 'bg-amber-50 text-amber-700 border-amber-200'
-                              : 'bg-rose-50 text-rose-700 border-rose-200'
-                          }`}>
-                            {row.isPassed ? `Đạt · ${row.classification.text}` : 'Học lại'}
+                          <span
+                            className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                              row?.classification?.tone === 'success'
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                : row?.classification?.tone === 'primary'
+                                ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                : row?.classification?.tone === 'warning'
+                                ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                : 'bg-rose-50 text-rose-700 border-rose-200'
+                            }`}
+                          >
+                            {row?.isPassed ? `Đạt · ${row?.classification?.text || ''}` : 'Học lại'}
                           </span>
                         )}
                       </td>
@@ -384,15 +487,17 @@ export function StudentDashboard() {
             </div>
             <div>
               <h4 className="text-base font-bold text-gray-800">Ý kiến đóng góp & Phản hồi Giảng viên</h4>
-              <p className="text-xs text-gray-400">Gửi góp ý về phương pháp giảng dạy, học liệu và đánh giá chất lượng học phần</p>
+              <p className="text-xs text-gray-400">
+                Gửi góp ý về phương pháp giảng dạy, học liệu và đánh giá chất lượng học phần
+              </p>
             </div>
           </div>
 
-          {feedbacks.length > 0 && (
+          {feedbacks?.length > 0 && (
             <button
               type="button"
               onClick={() => setShowHistory(!showHistory)}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
                 showHistory
                   ? 'bg-indigo-600 text-white shadow-xs'
                   : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'
@@ -411,64 +516,78 @@ export function StudentDashboard() {
               <button
                 type="button"
                 onClick={() => setShowHistory(false)}
-                className="text-indigo-600 hover:underline text-xs font-bold"
+                className="text-indigo-600 hover:underline text-xs font-bold cursor-pointer"
               >
                 + Viết phản hồi mới
               </button>
             </div>
 
-            {feedbacks.length === 0 ? (
+            {!Array.isArray(feedbacks) || feedbacks.length === 0 ? (
               <p className="text-xs text-gray-400 text-center py-4">Chưa có góp ý nào</p>
             ) : (
               feedbacks.map((fb) => (
                 <div
-                  key={fb._id || fb.id}
+                  key={fb?._id || fb?.id}
                   className="p-4 bg-gray-50/75 rounded-2xl border border-gray-100 space-y-2 text-xs"
                 >
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-bold text-gray-800">{fb.courseName || fb.courseId}</span>
-                      {fb.regId && (
+                      <span className="font-bold text-gray-800">
+                        {fb?.courseName || fb?.courseId || 'Học phần'}
+                      </span>
+                      {fb?.regId && (
                         <span className="px-1.5 py-0.5 rounded text-[10px] bg-indigo-50 text-indigo-600 font-semibold border border-indigo-100">
                           Mã lớp: {fb.regId}
                         </span>
                       )}
                       <span className="text-gray-300">•</span>
-                      <span className="text-gray-500 font-medium">GV: {fb.teacherName || 'Chưa phân công'}</span>
+                      <span className="text-gray-500 font-medium">
+                        GV: {fb?.teacherName || 'Chưa phân công'}
+                      </span>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="text-[10px] text-gray-400">
-                        {fb.createdAtFormatted || (fb.createdAt ? new Date(fb.createdAt).toLocaleDateString('vi-VN') : '')}
+                        {fb?.createdAtFormatted ||
+                          (fb?.createdAt ? new Date(fb.createdAt).toLocaleDateString('vi-VN') : '')}
                       </span>
                       <div className="flex items-center text-amber-400 text-xs">
                         {[1, 2, 3, 4, 5].map((s) => (
                           <i
                             key={s}
-                            className={`fas fa-star ${s <= fb.rating ? 'text-amber-400' : 'text-gray-200'}`}
+                            className={`fas fa-star ${
+                              s <= (Number(fb?.rating) || 0) ? 'text-amber-400' : 'text-gray-200'
+                            }`}
                           />
                         ))}
                       </div>
                     </div>
                   </div>
 
-                  <p className="text-gray-700 italic leading-relaxed">&quot;{fb.feedbackText}&quot;</p>
+                  <p className="text-gray-700 italic leading-relaxed">&quot;{fb?.feedbackText}&quot;</p>
 
-                  {fb.response ? (
+                  {fb?.response ? (
                     <div className="mt-3 p-3.5 bg-indigo-50/80 border border-indigo-100 rounded-2xl space-y-2 text-xs">
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2.5">
                           <img
                             src={
-                              fb.respondedByAvatar ||
-                              fb.teacherAvatar ||
-                              `https://ui-avatars.com/api/?name=${encodeURIComponent(fb.respondedByName || fb.teacherName || 'GV')}&background=4f46e5&color=fff`
+                              fb?.respondedByAvatar ||
+                              fb?.teacherAvatar ||
+                              `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                                typeof fb?.respondedByName === 'string'
+                                  ? fb.respondedByName
+                                  : typeof fb?.teacherName === 'string'
+                                  ? fb.teacherName
+                                  : 'GV'
+                              )}&background=4f46e5&color=fff`
                             }
                             alt=""
                             className="w-7 h-7 rounded-full object-cover border border-indigo-200 shadow-2xs"
                           />
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <span className="font-bold text-indigo-900 text-xs">
-                              Phản hồi từ {getTeacherTitle(fb.respondedByName || fb.teacherName, fb.teacherGender)}
+                              Phản hồi từ{' '}
+                              {getTeacherTitle(fb?.respondedByName || fb?.teacherName, fb?.teacherGender)}
                             </span>
                             <span className="bg-indigo-100 text-indigo-700 text-[10px] font-bold px-2 py-0.2 rounded-full">
                               Giảng viên phụ trách
@@ -476,7 +595,7 @@ export function StudentDashboard() {
                           </div>
                         </div>
                         <span className="text-[10px] text-gray-400 whitespace-nowrap">
-                          {fb.respondedAt || ''}
+                          {fb?.respondedAt || ''}
                         </span>
                       </div>
                       <p className="text-gray-700 pl-9 leading-relaxed bg-white/70 p-2.5 rounded-xl border border-indigo-100/60 font-normal">
@@ -502,16 +621,22 @@ export function StudentDashboard() {
                   onChange={(e) => setSelectedCourse(e.target.value)}
                   className="w-full border border-gray-200 rounded-xl px-3 py-2 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
                 >
-                  {enrollments.length === 0 ? (
+                  {!Array.isArray(enrollments) || enrollments.length === 0 ? (
                     <option value="">Chưa đăng ký môn học nào</option>
                   ) : (
                     enrollments.map((enr) => {
-                      const c = enr.class;
-                      const classId = c?.id || enr.classId;
+                      const c = enr?.class;
+                      const classId = c?.id || enr?.classId;
                       const courseName = c?.courseName || c?.courseId || classId;
-                      const teacherName = c?.teacher ? ` - GV: ${c.teacher}` : '';
+                      const teacherName = c?.teacher
+                        ? ` - GV: ${
+                            typeof c.teacher === 'object'
+                              ? c.teacher?.hoTen || c.teacher?.name || ''
+                              : c.teacher
+                          }`
+                        : '';
                       return (
-                        <option key={enr._id || classId} value={classId}>
+                        <option key={enr?._id || classId} value={classId}>
                           {courseName} ({classId}){teacherName}
                         </option>
                       );
@@ -530,7 +655,7 @@ export function StudentDashboard() {
                       key={q}
                       type="button"
                       onClick={() => setFeedbackQuality(q)}
-                      className={`flex-1 py-2 rounded-xl text-xs font-bold transition border ${
+                      className={`flex-1 py-2 rounded-xl text-xs font-bold transition border cursor-pointer ${
                         feedbackQuality === q
                           ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
                           : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
@@ -558,7 +683,7 @@ export function StudentDashboard() {
                     key={star}
                     type="button"
                     onClick={() => setFeedbackRating(star)}
-                    className="p-1 text-xl hover:scale-125 transition-transform"
+                    className="p-1 text-xl hover:scale-125 transition-transform cursor-pointer"
                     title={`${star} sao`}
                   >
                     <i
@@ -598,7 +723,7 @@ export function StudentDashboard() {
               <button
                 type="submit"
                 disabled={submitting}
-                className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition shadow-xs disabled:opacity-50 flex items-center gap-1.5"
+                className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition shadow-xs disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
               >
                 {submitting ? 'Đang gửi...' : 'Gửi góp ý'}
               </button>
@@ -610,5 +735,18 @@ export function StudentDashboard() {
   );
 }
 
-export default StudentDashboard;
+/**
+ * Default exported StudentDashboard wrapped in ErrorBoundary for guaranteed runtime crash prevention.
+ */
+export function StudentDashboard(props) {
+  return (
+    <ErrorBoundary
+      title="Không thể hiển thị Trang Sinh viên"
+      message="Đã có sự cố khi xử lý thông tin học tập của sinh viên. Vui lòng thử tải lại trang hoặc kiểm tra kết nối mạng."
+    >
+      <StudentDashboardInner {...props} />
+    </ErrorBoundary>
+  );
+}
 
+export default StudentDashboard;

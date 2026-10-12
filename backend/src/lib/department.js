@@ -19,6 +19,38 @@ export function stripDeptPrefix(str) {
   return norm.replace(/^khoa\s+/i, '').trim();
 }
 
+export const KNOWN_DEPARTMENT_GROUPS = [
+  ['cntt', 'công nghệ thông tin', 'khoa công nghệ thông tin', 'it', 'information technology'],
+  ['nna', 'ngôn ngữ anh', 'khoa ngôn ngữ anh', 'tiếng anh', 'english'],
+  ['cntp', 'công nghiệp thực phẩm', 'khoa công nghiệp thực phẩm', 'thực phẩm', 'food technology'],
+  ['hoa', 'hóa học', 'khoa hóa học', 'hóa', 'chemistry'],
+  ['xd', 'xây dựng', 'khoa xây dựng', 'civil engineering'],
+  ['qtkd', 'quản trị kinh doanh', 'khoa quản trị kinh doanh', 'business administration'],
+  ['khcb', 'khoa học cơ bản', 'khoa khoa học cơ bản', 'đại cương', 'khoa đại cương'],
+];
+
+export const GENERAL_DEPT_KEYWORDS = [
+  'đại cương',
+  'khoa đại cương',
+  'giáo dục đại cương',
+  'khoa học cơ bản',
+  'khoa cơ bản',
+  'toàn trường',
+  'chung',
+  'lý luận chính trị',
+  'giáo dục thể chất',
+  'quốc phòng',
+  'general',
+];
+
+export function isGeneralEducation(dept) {
+  if (!dept) return false;
+  const raw = typeof dept === 'object' ? (dept.name || dept.id || '') : String(dept);
+  const norm = normalizeDept(raw);
+  const stripped = stripDeptPrefix(raw);
+  return GENERAL_DEPT_KEYWORDS.some((k) => norm.includes(k) || stripped.includes(k));
+}
+
 /**
  * Build a department matcher for a given user department (string or Department object).
  * Returns an asynchronous matcher function `matcher(targetDept)` with `.accepted` and `.acceptedList`.
@@ -50,6 +82,18 @@ export async function buildDepartmentMatcher(userDept, departmentRef = null) {
     addVariants(departmentRef.name);
   }
 
+  // Expand with known alias groups
+  for (const group of KNOWN_DEPARTMENT_GROUPS) {
+    const hasOverlap = group.some((alias) => accepted.has(normalizeDept(alias)) || accepted.has(stripDeptPrefix(alias)));
+    if (hasOverlap) {
+      for (const alias of group) {
+        accepted.add(normalizeDept(alias));
+        const s = stripDeptPrefix(alias);
+        if (s) accepted.add(s);
+      }
+    }
+  }
+
   try {
     const Department = mongoose.models.Department || mongoose.model('Department');
     const allDepts = await Department.find({}).lean();
@@ -70,6 +114,7 @@ export async function buildDepartmentMatcher(userDept, departmentRef = null) {
 
   const matcher = (targetDept) => {
     if (!targetDept) return false;
+    if (isGeneralEducation(targetDept)) return true;
     const raw = typeof targetDept === 'object' ? (targetDept.name || targetDept.id || '') : String(targetDept);
     const norm = normalizeDept(raw);
     if (!norm) return false;
@@ -92,6 +137,14 @@ export function isSameDepartment(deptA, deptB) {
   if (a === b) return true;
   const strippedA = stripDeptPrefix(a);
   const strippedB = stripDeptPrefix(b);
-  return Boolean(strippedA && strippedB && strippedA === strippedB);
+  if (Boolean(strippedA && strippedB && strippedA === strippedB)) return true;
+
+  for (const group of KNOWN_DEPARTMENT_GROUPS) {
+    const matchA = group.some((alias) => normalizeDept(alias) === a || stripDeptPrefix(alias) === strippedA);
+    const matchB = group.some((alias) => normalizeDept(alias) === b || stripDeptPrefix(alias) === strippedB);
+    if (matchA && matchB) return true;
+  }
+
+  return false;
 }
 

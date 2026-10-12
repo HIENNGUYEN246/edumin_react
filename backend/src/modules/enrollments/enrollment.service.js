@@ -23,7 +23,13 @@ export async function listMyEnrollments(user) {
   await closeExpiredClasses();
   const student = await requireStudent(user);
   const enrollments = await Enrollment.find({ student: student._id })
-    .populate({ path: 'classRef' })
+    .populate({
+      path: 'classRef',
+      populate: [
+        { path: 'courseRef', select: 'id name credits fee department prerequisites description' },
+        { path: 'teacherRef', select: 'id hoTen avatar email phone education department' },
+      ],
+    })
     .sort({ createdAt: -1 })
     .lean();
   // Drop enrollments whose class was deleted; expose the class object as `class`.
@@ -79,6 +85,16 @@ export async function enroll(user, classId) {
   const sameCourse = current.find((e) => e.classRef && e.classRef.courseId === target.courseId);
   if (sameCourse) {
     throw AppError.conflict('Bạn đã đăng ký một lớp của học phần này');
+  }
+
+  // Credit limit check: maximum 25 credits per semester
+  const MAX_CREDITS = 25;
+  const currentCredits = current.reduce((sum, e) => sum + (Number(e.classRef?.credits) || 0), 0);
+  const targetCredits = Number(target.credits) || 0;
+  if (currentCredits + targetCredits > MAX_CREDITS) {
+    throw AppError.badRequest(
+      `Vượt quá giới hạn tín chỉ tối đa (${MAX_CREDITS} tín chỉ/học kỳ). Hiện tại: ${currentCredits} tín chỉ, lớp này: ${targetCredits} tín chỉ.`
+    );
   }
 
   // Reject if the new class clashes with any already-enrolled class slot.

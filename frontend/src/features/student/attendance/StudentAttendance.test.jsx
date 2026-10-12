@@ -229,6 +229,7 @@ describe('StudentAttendance (Attendance & Personal Gradebook)', () => {
         shiftLabel: 'Ca SI',
         status: 'Có mặt',
         checkInTime: '07:05',
+        note: 'Đi học đúng giờ',
       },
     ]);
 
@@ -322,4 +323,110 @@ describe('StudentAttendance (Attendance & Personal Gradebook)', () => {
     expect(screen.getAllByText('Khá').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Đạt').length).toBeGreaterThan(0);
   });
+
+  it('renders read-only attendance matrix and detailed table matching LMS design, strictly disabled from edits', async () => {
+    renderComponent();
+
+    await waitFor(() => {
+      expect(screen.getAllByText(/Lập trình Web/i).length).toBeGreaterThan(0);
+    });
+
+    // Expand the first course card (Lập trình Web)
+    const detailButtons = screen.getAllByRole('button', { name: /Xem chi tiết/i });
+    fireEvent.click(detailButtons[0]);
+
+    // Check Read-only badge and label
+    expect(screen.getAllByText(/Chỉ xem \(Read-only\)/i).length).toBeGreaterThan(0);
+    expect(screen.getByText(/Ma trận chuyên cần trực quan/i)).toBeInTheDocument();
+
+    // Check optimized table headers (redundant status & standalone score columns removed to maximize evaluation space)
+    expect(screen.getByRole('columnheader', { name: /^buổi$/i })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: /thời gian & ca học/i })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: /đánh giá & ghi chú của giảng viên/i })).toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: /^trạng thái$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: /^điểm số$/i })).not.toBeInTheDocument();
+
+    // Verify session data rows are rendered
+    expect(screen.getAllByText(/#1/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/#2/i).length).toBeGreaterThan(0);
+
+    // Verify evaluation & teacher feedback
+    expect(screen.getByText(/Rất chủ động phát biểu/i)).toBeInTheDocument();
+    expect(screen.getByText(/Vào muộn 10 phút/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/\(GV: Trần Văn Giáo Viên\)/i).length).toBe(2);
+
+    // Verify score badges
+    expect(screen.getByText('10đ')).toBeInTheDocument();
+    expect(screen.getByText('8đ')).toBeInTheDocument();
+
+    // Verify footer disclaimer
+    expect(screen.getByText(/Bảng chi tiết ghi chú & đánh giá từ Giảng viên · Dữ liệu chỉ xem \(Read-only\)/i)).toBeInTheDocument();
+
+    // Verify that there are NO interactive buttons or selects inside the session matrix to change status
+    // All attendance cells must be purely read-only indicators without change handlers
+    const actionButtons = screen.queryByRole('button', { name: /Thay đổi trạng thái|Điểm danh ngay/i });
+    expect(actionButtons).not.toBeInTheDocument();
+  });
+
+  it('hides sessions without notes in detailed table and displays empty state when no notes exist', async () => {
+    // 3 sessions: 1 with note, 1 with score, 1 without note or score
+    attendanceApi.getByStudent.mockResolvedValueOnce([
+      {
+        _id: 'att-x1',
+        studentId: 7,
+        regId: 'CNTT01-01',
+        courseId: 'IT101',
+        courseName: 'Lập trình Web',
+        date: '2026-10-01',
+        shiftId: '1',
+        status: 'Có mặt',
+        note: 'Học tốt, xung phong giải bài tập',
+      },
+      {
+        _id: 'att-x2',
+        studentId: 7,
+        regId: 'CNTT01-01',
+        courseId: 'IT101',
+        courseName: 'Lập trình Web',
+        date: '2026-10-08',
+        shiftId: '1',
+        status: 'Có mặt',
+        // No note, no score
+      },
+      {
+        _id: 'att-x3',
+        studentId: 7,
+        regId: 'CNTT01-01',
+        courseId: 'IT101',
+        courseName: 'Lập trình Web',
+        date: '2026-10-15',
+        shiftId: '1',
+        status: 'Có mặt',
+        score: 9.5,
+      },
+    ]);
+
+    renderComponent();
+
+    await waitFor(() => {
+      expect(screen.getAllByText(/Lập trình Web/i).length).toBeGreaterThan(0);
+    });
+
+    const detailButtons = screen.getAllByRole('button', { name: /Xem chi tiết/i });
+    fireEvent.click(detailButtons[0]);
+
+    // Timeline matrix strip shows all 3 sessions (#1, #2, #3)
+    expect(screen.getByText(/Ma trận chuyên cần trực quan \(3 buổi học\)/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/#1/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/#2/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/#3/i).length).toBeGreaterThan(0);
+
+    // Detailed table should only show sessions with notes or score
+    expect(screen.getByText(/Học tốt, xung phong giải bài tập/i)).toBeInTheDocument();
+    expect(screen.getByText('9.5đ')).toBeInTheDocument();
+
+    // Footer shows 2 out of 3 sessions
+    expect(screen.getByText(/Hiển thị 2 \/ 3 buổi học có ghi chú/i)).toBeInTheDocument();
+  });
 });
+

@@ -130,6 +130,14 @@ describe('Enrollments', () => {
     expect(res.body.error.message).toMatch(/đủ sĩ số/);
   });
 
+  it('rejects enrolling when exceeding maximum credit limit of 25 credits', async () => {
+    const { token } = await makeStudent();
+    const heavyClass = await makeClass('IT101-01', [{ dayId: '2', shiftId: 'S1' }], { credits: 26 });
+    const res = await request(app).post('/api/enrollments').set(authHeader(token)).send({ classId: heavyClass._id });
+    expect(res.status).toBe(400);
+    expect(res.body.error.message).toMatch(/giới hạn tín chỉ tối đa/i);
+  });
+
   it('lists my enrollments and lets me cancel', async () => {
     const { token } = await makeStudent();
     const cls = await makeClass('IT101-01', [{ dayId: '2', shiftId: 'S1' }]);
