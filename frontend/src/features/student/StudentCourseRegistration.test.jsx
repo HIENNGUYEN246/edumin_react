@@ -18,6 +18,10 @@ vi.mock('../../app/providers/ConfirmProvider.jsx', () => ({
   useConfirm: () => vi.fn().mockResolvedValue(true),
 }));
 
+let mockAuthLoading = false;
+let mockIsOpenLoading = false;
+let mockIsMineLoading = false;
+
 let mockUser = {
   id: 'u-sv1',
   role: 'sinh-vien',
@@ -35,6 +39,7 @@ vi.mock('../../app/providers/AuthProvider.jsx', () => ({
   useAuth: () => ({
     user: mockUser,
     profile: mockProfile,
+    isLoading: mockAuthLoading,
   }),
 }));
 
@@ -76,12 +81,14 @@ const mockCancelMutateAsync = vi.fn();
 
 vi.mock('./useEnrollments.js', () => ({
   useOpenClasses: () => ({
-    data: { data: mockOpenClassesList },
-    isLoading: false,
+    data: mockOpenClassesList ? { data: mockOpenClassesList } : undefined,
+    isLoading: mockIsOpenLoading,
+    isPending: mockIsOpenLoading,
   }),
   useMyEnrollments: () => ({
-    data: { data: mockMyEnrollmentsList },
-    isLoading: false,
+    data: mockMyEnrollmentsList ? { data: mockMyEnrollmentsList } : undefined,
+    isLoading: mockIsMineLoading,
+    isPending: mockIsMineLoading,
   }),
   useEnrollmentMutations: () => ({
     enroll: { mutateAsync: mockEnrollMutateAsync, isPending: false },
@@ -105,6 +112,9 @@ function renderWithClient() {
 describe('StudentCourseRegistration Department Filtering', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockAuthLoading = false;
+    mockIsOpenLoading = false;
+    mockIsMineLoading = false;
     mockOpenClassesList = mockOpenClasses;
     mockMyEnrollmentsList = [];
     mockUser = {
@@ -831,6 +841,25 @@ describe('StudentCourseRegistration Course Details Modal & General Education Fil
     await vi.waitFor(() => {
       expect(mockCancelMutateAsync).toHaveBeenCalledWith('class-cntt-1');
     });
+  });
+
+  it('displays loading state and prevents premature empty state while data or context is loading', () => {
+    mockIsOpenLoading = true;
+    mockOpenClassesList = undefined;
+    mockMyEnrollmentsList = undefined;
+
+    renderWithClient();
+
+    // 1. Heading displays loading indicator instead of 0
+    expect(screen.getByText(/\(Đang tải\.\.\.\)/i)).toBeInTheDocument();
+
+    // 2. Enrolled classes table displays loading text
+    expect(screen.getByText(/Đang tải danh sách học phần đã đăng ký/i)).toBeInTheDocument();
+
+    // 3. Premature empty warning is NOT shown
+    expect(screen.queryByText(/Hiện không có lớp nào đang mở đăng ký/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Hiện không có lớp học phần nào đang mở đăng ký cho/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Chưa đăng ký học phần nào/i)).not.toBeInTheDocument();
   });
 });
 

@@ -7,6 +7,9 @@ import { ProfileRequest } from '../src/modules/profileRequests/profileRequest.mo
 import { Feedback } from '../src/modules/feedback/feedback.model.js';
 import { ROLES } from '../src/lib/roles.js';
 import { signToken } from '../src/lib/jwt.js';
+import { createTeacher } from '../src/modules/teachers/teacher.service.js';
+import { createStudent } from '../src/modules/students/student.service.js';
+import { detectIntent, findStudentByName, BUSINESS_RESERVED_WORDS } from '../src/modules/ai/ai.service.js';
 
 describe('AI Assistant API', () => {
   let app;
@@ -14,6 +17,8 @@ describe('AI Assistant API', () => {
   beforeEach(async () => {
     app = createApp();
     await seed({ withSamples: true });
+    await createTeacher({ hoTen: 'Trần Đình', email: 'dinh.tran@edu.vn', departmentId: 'NNA', password: 'Password123!' });
+    await createStudent({ hoTen: 'Quyền Huế Trân', email: 'quyen@student.edu.vn', departmentId: 'NNA', className: '13A1', password: 'Password123!' });
   });
 
   it('rejects query without token with 401', async () => {
@@ -334,5 +339,396 @@ describe('AI Assistant API', () => {
     expect(res.body.suggestions.length).toBeGreaterThan(0);
     expect(res.body.quickLinks.length).toBe(6);
   });
+
+  it('answers class student count query for teacher or student', async () => {
+    const teacherUser = await User.findOne({ email: 'quan.tran@edu.vn' });
+    const token = signToken(teacherUser);
+
+    const res = await request(app)
+      .post('/api/ai/query')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ message: 'Sĩ số của lớp IT101-01 là bao nhiêu?' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.intent).toBe('QUERY_CLASS_STUDENT_COUNT');
+    expect(res.body.reply).toContain('IT101-01');
+    expect(res.body.reply).toContain('Sĩ số hiện tại');
+  });
+
+  it('answers teacher info and schedule query', async () => {
+    const studentUser = await User.findOne({ email: 'an.nguyen@edu.vn' });
+    const token = signToken(studentUser);
+
+    const res = await request(app)
+      .post('/api/ai/query')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ message: 'Thầy Trần Minh Quân dạy môn gì?' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.intent).toBe('QUERY_TEACHER_INFO');
+    expect(res.body.reply).toContain('Trần Minh Quân');
+  });
+
+  it('answers room and timetable query for a specific class', async () => {
+    const studentUser = await User.findOne({ email: 'an.nguyen@edu.vn' });
+    const token = signToken(studentUser);
+
+    const res = await request(app)
+      .post('/api/ai/query')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ message: 'Lớp IT101-01 học ở phòng nào?' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.intent).toBe('QUERY_CLASS_ROOM_SCHEDULE');
+    expect(res.body.reply).toContain('Phòng học:');
+    expect(res.body.reply).toContain('A101');
+  });
+
+  it('suggests available courses for student based on major and enrollment status', async () => {
+    const studentUser = await User.findOne({ email: 'an.nguyen@edu.vn' });
+    const token = signToken(studentUser);
+
+    const res = await request(app)
+      .post('/api/ai/query')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ message: 'Gợi ý các môn học tôi nên đăng ký' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.intent).toBe('SUGGEST_COURSES');
+    expect(res.body.reply).toContain('Gợi ý học phần');
+  });
+
+  it('checks schedule clash for enrolled classes', async () => {
+    const studentUser = await User.findOne({ email: 'an.nguyen@edu.vn' });
+    const token = signToken(studentUser);
+
+    const res = await request(app)
+      .post('/api/ai/query')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ message: 'Kiểm tra xem lịch học của tôi có bị trùng lịch không' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.intent).toBe('CHECK_SCHEDULE_CONFLICT');
+    expect(res.body.reply).toBeDefined();
+  });
+
+  it('handles natural conversational student query for "Quyền Huế Trân"', async () => {
+    const adminUser = await User.findOne({ role: ROLES.ADMIN });
+    const token = signToken(adminUser);
+
+    const res = await request(app)
+      .post('/api/ai/query')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ message: 'có thông tin gì về bạn Quyền Huế Trân không ?' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.intent).toBe('SEARCH_STUDENT');
+    expect(Array.isArray(res.body.cards)).toBe(true);
+    expect(res.body.cards.length).toBeGreaterThan(0);
+    expect(res.body.cards[0].title).toBe('Quyền Huế Trân');
+    expect(res.body.cards[0].type).toBe('student');
+    expect(res.body.cards[0].details.some((d) => d.label === 'MSSV')).toBe(true);
+  });
+
+  it('handles natural conversational teacher query for "thầy Đình"', async () => {
+    const adminUser = await User.findOne({ role: ROLES.ADMIN });
+    const token = signToken(adminUser);
+
+    const res = await request(app)
+      .post('/api/ai/query')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ message: 'bạn tìm giùm mình thầy Đình nha' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.intent).toBe('SEARCH_TEACHER');
+    expect(Array.isArray(res.body.cards)).toBe(true);
+    expect(res.body.cards.length).toBeGreaterThan(0);
+    expect(res.body.cards[0].title).toBe('Trần Đình');
+    expect(res.body.cards[0].type).toBe('teacher');
+    expect(res.body.cards[0].details.some((d) => d.label === 'Mã GV')).toBe(true);
+  });
+
+  it('handles direct personnel lookup for raw name "Huê Trân" with real-time status and card details', async () => {
+    const adminUser = await User.findOne({ role: ROLES.ADMIN });
+    const token = signToken(adminUser);
+
+    const res = await request(app)
+      .post('/api/ai/query')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ message: 'Huê Trân' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.intent).toBe('SEARCH_STUDENT');
+    expect(Array.isArray(res.body.cards)).toBe(true);
+    expect(res.body.cards[0].title).toBe('Quyền Huế Trân');
+    expect(res.body.cards[0].details.some((d) => d.label === 'Trạng thái')).toBe(true);
+  });
+
+  it('integrates real-time pageContext to search on-screen personnel records', async () => {
+    const adminUser = await User.findOne({ role: ROLES.ADMIN });
+    const token = signToken(adminUser);
+
+    const res = await request(app)
+      .post('/api/ai/query')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        message: 'Lê Văn Test',
+        pageContext: {
+          students: [
+            {
+              id: 99,
+              hoTen: 'Lê Văn Test',
+              code: 'SV-099',
+              className: 'CNTT-K20',
+              department: 'Khoa CNTT',
+              email: 'test@student.edu.vn',
+              status: 'Đang học',
+            },
+          ],
+        },
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.intent).toBe('SEARCH_STUDENT');
+    expect(res.body.cards[0].title).toBe('Lê Văn Test');
+    expect(res.body.cards[0].code).toBe('SV-099');
+  });
+
+  it('handles conversational student grade inquiry for "cho mình xem tình hình điểm của em Trân được không?" with full in-chat summary', async () => {
+    const adminUser = await User.findOne({ role: ROLES.ADMIN });
+    const token = signToken(adminUser);
+
+    const res = await request(app)
+      .post('/api/ai/query')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ message: 'cho mình xem tình hình điểm của em Trân được không?' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.intent).toBe('SEARCH_STUDENT_GRADES');
+    expect(res.body.reply).toContain('Quyền Huế Trân');
+    expect(res.body.reply).toContain('Chuyên cần');
+    expect(res.body.reply).toContain('Bài tập');
+    expect(res.body.reply).toContain('Giữa kỳ');
+    expect(res.body.reply).toContain('Cuối kỳ');
+    expect(res.body.reply).toContain('Điểm tổng kết (GPA)');
+    expect(res.body.reply).toContain('Trạng thái');
+
+    expect(Array.isArray(res.body.cards)).toBe(true);
+    expect(res.body.cards.length).toBeGreaterThan(0);
+    expect(res.body.cards[0].type).toBe('grade');
+    expect(res.body.cards[0].subtitle).toContain('Quyền Huế Trân');
+    expect(res.body.cards[0].details.some((d) => d.label === 'Chuyên cần')).toBe(true);
+    expect(res.body.cards[0].details.some((d) => d.label === 'Bài tập')).toBe(true);
+    expect(res.body.cards[0].details.some((d) => d.label === 'Giữa kỳ')).toBe(true);
+    expect(res.body.cards[0].details.some((d) => d.label === 'Cuối kỳ')).toBe(true);
+    expect(res.body.cards[0].details.some((d) => d.label === 'Điểm tổng kết (GPA)')).toBe(true);
+    expect(res.body.cards[0].details.some((d) => d.label === 'Trạng thái')).toBe(true);
+  });
+
+  it('handles conversational student grade inquiry by student code "bạn ơi cho mình xin kết quả học tập của SV-002 với nha"', async () => {
+    const adminUser = await User.findOne({ role: ROLES.ADMIN });
+    const token = signToken(adminUser);
+
+    const res = await request(app)
+      .post('/api/ai/query')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ message: 'bạn ơi cho mình xin kết quả học tập của SV-002 với nha' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.intent).toBe('SEARCH_STUDENT_GRADES');
+    expect(res.body.reply).toContain('SV-002');
+    expect(res.body.cards[0].subtitle).toContain('SV-002');
+  });
+
+  it('resolves on-screen student grades from pageContext when querying grades', async () => {
+    const adminUser = await User.findOne({ role: ROLES.ADMIN });
+    const token = signToken(adminUser);
+
+    const res = await request(app)
+      .post('/api/ai/query')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        message: 'xem điểm của bạn Đặng Gia Huy',
+        pageContext: {
+          currentClass: { id: 'ENG201-01', courseName: 'Tiếng Anh Thương Mại' },
+          students: [
+            {
+              id: 77,
+              hoTen: 'Đặng Gia Huy',
+              code: 'SV-077',
+              attendance: 10,
+              homework: 9.5,
+              midterm: 9.0,
+              final: 9.2,
+              finalScore: 9.3,
+              status: 'Đạt',
+            },
+          ],
+        },
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.intent).toBe('SEARCH_STUDENT_GRADES');
+    expect(res.body.reply).toContain('Đặng Gia Huy');
+    expect(res.body.cards[0].title).toBe('Tiếng Anh Thương Mại');
+    expect(res.body.cards[0].details.find((d) => d.label === 'Điểm tổng kết (GPA)').value).toBe('9.3');
+  });
+
+  it('handles natural grade filtering and sorting query "lọc cho mình những môn có điểm cao nhất đi"', async () => {
+    const studentUser = await User.findOne({ email: 'an.nguyen@edu.vn' });
+    const token = signToken(studentUser);
+
+    const res = await request(app)
+      .post('/api/ai/query')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ message: 'lọc cho mình những môn có điểm cao nhất đi' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.intent).toBe('FILTER_SORT_GRADES');
+    expect(res.body.actionTrigger).toBeDefined();
+    expect(res.body.actionTrigger.action).toBe('filter_grades');
+    expect(res.body.actionTrigger.direction).toBe('desc');
+    expect(res.body.reply).toContain('| STT | Mã HP | Tên học phần |');
+    expect(res.body.reply).toContain('GPA');
+    expect(Array.isArray(res.body.suggestions)).toBe(true);
+  });
+
+  it('handles natural query for courses grade summary "xem điểm các môn"', async () => {
+    const studentUser = await User.findOne({ email: 'an.nguyen@edu.vn' });
+    const token = signToken(studentUser);
+
+    const res = await request(app)
+      .post('/api/ai/query')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ message: 'xem điểm các môn' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.intent).toBe('COURSE_GRADES_SUMMARY');
+    expect(res.body.reply).toContain('| STT | Mã HP | Tên học phần |');
+    expect(res.body.reply).toContain('GPA');
+    expect(res.body.quickLinks).toBeDefined();
+  });
+
+  it('handles natural tuition inquiry "học phí của tôi" with in-chat fee table', async () => {
+    const studentUser = await User.findOne({ email: 'an.nguyen@edu.vn' });
+    const token = signToken(studentUser);
+
+    const res = await request(app)
+      .post('/api/ai/query')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ message: 'học phí của tôi' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.intent).toBe('TUITION_INQUIRY');
+    expect(res.body.reply).toContain('| Khoản mục |');
+    expect(res.body.reply).toContain('Học phí');
+    expect(res.body.reply).toContain('Đã thanh toán');
+  });
+
+  it('handles conversational student search "tìm bạn Huê Trân" without matching full sentence string', async () => {
+    const adminUser = await User.findOne({ role: ROLES.ADMIN });
+    const token = signToken(adminUser);
+
+    const res = await request(app)
+      .post('/api/ai/query')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ message: 'tìm bạn Huê Trân' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.intent).toBe('SEARCH_STUDENT');
+    expect(Array.isArray(res.body.cards)).toBe(true);
+    expect(res.body.cards[0].title).toBe('Quyền Huế Trân');
+    expect(res.body.cards[0].type).toBe('student');
+  });
+
+  it('detects intents correctly via detectIntent and guards operational queries from student lookup', () => {
+    expect(detectIntent('nhập lại điểm Quiz')).toBe('GRADE_MANAGEMENT');
+    expect(detectIntent('cấu hình quiz')).toBe('GRADE_MANAGEMENT');
+    expect(detectIntent('bảng điểm các môn')).toBe('GRADE_MANAGEMENT');
+    expect(detectIntent('duyệt hồ sơ')).toBe('ADMIN_APPROVAL');
+    expect(detectIntent('có yêu cầu thay đổi nào cần duyệt không?')).toBe('ADMIN_APPROVAL');
+    expect(detectIntent('tìm giảng viên')).toBe('TEACHER_SEARCH');
+    expect(detectIntent('thông tin thầy Đình')).toBe('TEACHER_SEARCH');
+    expect(detectIntent('tìm sinh viên Nguyễn Văn An')).toBe('STUDENT_SEARCH');
+    expect(detectIntent('tìm bạn Huê Trân')).toBe('STUDENT_SEARCH');
+    expect(detectIntent('thời tiết hôm nay ra sao?')).toBe('GENERAL_FALLBACK');
+  });
+
+  it('safely guards findStudentByName against business reserved words', async () => {
+    expect(await findStudentByName('nhập lại điểm Quiz')).toBeNull();
+    expect(await findStudentByName('duyệt hồ sơ')).toBeNull();
+    expect(await findStudentByName('tìm giảng viên')).toBeNull();
+    expect(await findStudentByName('giảng viên')).toBeNull();
+    expect(await findStudentByName('quiz')).toBeNull();
+    expect(await findStudentByName('')).toBeNull();
+
+    // Valid student search
+    const found = await findStudentByName('Huê Trân');
+    expect(found).not.toBeNull();
+    expect(found.hoTen).toBe('Quyền Huế Trân');
+  });
+
+  it('handles "nhập lại điểm Quiz" without falling into student lookup or returning student error', async () => {
+    const teacherUser = await User.findOne({ email: 'quan.tran@edu.vn' });
+    const token = signToken(teacherUser);
+
+    const res = await request(app)
+      .post('/api/ai/query')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ message: 'nhập lại điểm Quiz' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.intent).toBe('NAV_GRADE_CONFIG');
+    expect(res.body.reply).not.toContain('Không tìm thấy sinh viên');
+  });
+
+  it('handles "tìm giảng viên" routing to NAV_TEACHERS without returning empty teacher error', async () => {
+    const adminUser = await User.findOne({ role: ROLES.ADMIN });
+    const token = signToken(adminUser);
+
+    const res = await request(app)
+      .post('/api/ai/query')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ message: 'tìm giảng viên' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.intent).toBe('NAV_TEACHERS');
+    expect(res.body.reply).not.toContain('Không tìm thấy');
+    expect(res.body.quickLinks[0].path).toBe('/admin/teachers');
+  });
+
+  it('handles "duyệt hồ sơ" routing to QUERY_PENDING_REQUESTS without student lookup error', async () => {
+    const adminUser = await User.findOne({ role: ROLES.ADMIN });
+    const token = signToken(adminUser);
+
+    const res = await request(app)
+      .post('/api/ai/query')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ message: 'duyệt hồ sơ' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.intent).toBe('QUERY_PENDING_REQUESTS');
+    expect(res.body.reply).not.toContain('Không tìm thấy sinh viên');
+  });
 });
+
 

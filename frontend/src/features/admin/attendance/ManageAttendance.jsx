@@ -2,8 +2,13 @@ import { useState, useMemo, useEffect, useCallback } from 'react';
 import { PageHeader, SearchInput } from '../../../components/ui/PageHeader.jsx';
 import { DataTable } from '../../../components/ui/DataTable.jsx';
 import { Pagination } from '../../../components/ui/Pagination.jsx';
-import { Spinner } from '../../../components/ui/Spinner.jsx';
-import { ScheduleRoomBadge } from '../../../components/schedule/ScheduleBadge.jsx';
+import {
+  ScheduleTimeCombinedBadge,
+  ScheduleDaysBadge,
+  ScheduleTimeBadge,
+  RoomBadge,
+  ScheduleRoomBadge,
+} from '../../../components/schedule/ScheduleBadge.jsx';
 import { useToast } from '../../../app/providers/ToastProvider.jsx';
 import { useDebounce } from '../../../lib/useDebounce.js';
 import { classesApi } from '../../../api/classesApi.js';
@@ -232,11 +237,16 @@ export function ManageAttendance() {
       },
       {
         key: 'schedules',
-        header: 'Lịch học & Phòng',
-        className: 'min-w-[200px]',
+        header: 'Thời gian học',
+        className: 'min-w-[210px]',
+        render: (cls) => <ScheduleTimeCombinedBadge schedules={cls.schedules} compact />,
+      },
+      {
+        key: 'room',
+        header: 'Phòng học',
+        className: 'min-w-[130px]',
         render: (cls) => (
-          <ScheduleRoomBadge
-            schedules={cls.schedules}
+          <RoomBadge
             room={cls.room}
             studyStart={cls.studyStart}
             studyEnd={cls.studyEnd}

@@ -1396,7 +1396,8 @@ export function TeacherAttendance() {
   const [activeTab, setActiveTab] = useState('matrix');
 
   // Classes taught by teacher
-  const { data: classData, isLoading: classesLoading } = useMyTeacherClasses();
+  const { data: classData, isLoading: classesLoading, isPending: classesPending } = useMyTeacherClasses();
+  const isTeacherClassesLoading = classesPending || (classesLoading && !classData);
   const classes = useMemo(() => classData?.data || [], [classData]);
 
   // Selected filter class ID: 'all' or specific class ID
@@ -1556,7 +1557,14 @@ export function TeacherAttendance() {
       {/* ============================================================== */}
       {activeTab === 'matrix' && (
         <div className="space-y-4">
-          {displayedClasses.length === 0 ? (
+          {isTeacherClassesLoading ? (
+            <div className="bg-white rounded-2xl border border-slate-200 p-16 flex flex-col items-center justify-center gap-3">
+              <Spinner />
+              <span className="text-xs font-semibold text-slate-500 animate-pulse">
+                Đang tải danh sách lớp học phần phụ trách...
+              </span>
+            </div>
+          ) : displayedClasses.length === 0 ? (
             <div className="bg-white rounded-2xl border border-slate-200 p-16 text-center text-slate-400 space-y-2">
               <i className="fas fa-folder-open text-3xl text-slate-300" />
               <p className="text-sm font-bold text-slate-600">Không tìm thấy lớp học phần phù hợp.</p>
@@ -1585,7 +1593,20 @@ export function TeacherAttendance() {
       {/* TAB 2: CLASSES GRID OVERVIEW (DANH SÁCH LỚP PHỤ TRÁCH)          */}
       {/* ============================================================== */}
       {activeTab === 'classes' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        isTeacherClassesLoading ? (
+          <div className="bg-white rounded-2xl border border-slate-200 p-16 flex flex-col items-center justify-center gap-3">
+            <Spinner />
+            <span className="text-xs font-semibold text-slate-500 animate-pulse">
+              Đang tải danh sách lớp học phần...
+            </span>
+          </div>
+        ) : classes.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-slate-200 p-16 text-center text-slate-400 space-y-2">
+            <i className="fas fa-folder-open text-3xl text-slate-300" />
+            <p className="text-sm font-bold text-slate-600">Chưa có lớp học phần nào được phân công.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {classes.map((cls) => {
             const cId = cls.id || cls._id;
             const isSelected = filterClassId === cId;
@@ -1641,6 +1662,7 @@ export function TeacherAttendance() {
             );
           })}
         </div>
+        )
       )}
     </div>
   );

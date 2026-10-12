@@ -6,6 +6,7 @@ export function useOpenClasses() {
   return useQuery({
     queryKey: ['classes', 'open'],
     queryFn: classesApi.listOpen,
+    placeholderData: (prev) => prev,
     refetchInterval: 60_000,
   });
 }
@@ -14,6 +15,7 @@ export function useMyEnrollments() {
   return useQuery({
     queryKey: ['enrollments', 'me'],
     queryFn: enrollmentsApi.mine,
+    placeholderData: (prev) => prev,
     refetchInterval: 60_000,
   });
 }

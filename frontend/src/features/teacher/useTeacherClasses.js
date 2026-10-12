@@ -5,6 +5,7 @@ export function useMyTeacherClasses() {
   return useQuery({
     queryKey: ['classes', { teacher: 'me' }],
     queryFn: () => classesApi.list({ teacher: 'me', limit: 200 }),
+    placeholderData: (prev) => prev,
   });
 }
 
@@ -13,5 +14,6 @@ export function useClassStudents(classId) {
     queryKey: ['classes', classId, 'students'],
     queryFn: () => classesApi.students(classId),
     enabled: Boolean(classId),
+    placeholderData: (prev) => prev,
   });
 }

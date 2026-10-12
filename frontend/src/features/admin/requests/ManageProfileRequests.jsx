@@ -11,6 +11,7 @@ import { useConfirm } from '../../../app/providers/ConfirmProvider.jsx';
 import { useDebounce } from '../../../lib/useDebounce.js';
 import { profileRequestsApi } from '../../../api/profileRequestsApi.js';
 import { formatStudentCode, formatTeacherCode } from '../../../lib/format.js';
+import { setAiPageContext } from '../../../components/ai/EduMinAiAssistant.jsx';
 
 export function ManageProfileRequests() {
   const toast = useToast();
@@ -49,6 +50,29 @@ export function ManageProfileRequests() {
   const rows = data?.data || [];
   const meta = data?.meta || { page: 1, pages: 1, total: 0 };
   const pendingCount = data?.pendingCount ?? 0;
+
+  // Sync real-time pending requests with EduMin AI Assistant
+  useEffect(() => {
+    if (rows.length > 0) {
+      setAiPageContext({
+        page: 'admin_profile_requests',
+        pendingRequests: rows.filter((r) => r.status === 'pending'),
+      });
+    }
+  }, [rows]);
+
+  // Listen for AI actions
+  useEffect(() => {
+    const handleAiAction = (e) => {
+      const detail = e.detail;
+      if (!detail) return;
+      if (detail.action === 'filter_requests' && detail.status) {
+        setActiveTab(detail.status);
+      }
+    };
+    window.addEventListener('edumin:ai-action', handleAiAction);
+    return () => window.removeEventListener('edumin:ai-action', handleAiAction);
+  }, []);
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['profile-requests'] });

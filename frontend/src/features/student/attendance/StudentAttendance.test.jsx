@@ -178,14 +178,14 @@ describe('StudentAttendance (Attendance & Personal Gradebook)', () => {
     renderComponent();
 
     await waitFor(() => {
-      expect(screen.getByText(/SV-007/i)).toBeInTheDocument();
-      expect(screen.getByText(/Nguyễn Văn Sinh Viên/i)).toBeInTheDocument();
+      expect(screen.getByText('83%')).toBeInTheDocument();
     });
+
+    expect(screen.getByText(/SV-007/i)).toBeInTheDocument();
+    expect(screen.getByText(/Nguyễn Văn Sinh Viên/i)).toBeInTheDocument();
 
     // Check circular progress ring presence
     expect(screen.getByText(/Tiến độ/i)).toBeInTheDocument();
-    // 3 sessions: 2 present, 1 late (rate = round((2 + 0.5) / 3 * 100) = 83%)
-    expect(screen.getByText('83%')).toBeInTheDocument();
     expect(screen.getByText(/Chuyên cần tốt/i)).toBeInTheDocument();
 
     // Check attendance cards

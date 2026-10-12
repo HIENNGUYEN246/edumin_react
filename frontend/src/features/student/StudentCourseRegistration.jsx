@@ -1,12 +1,14 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { PageHeader } from '../../components/ui/PageHeader.jsx';
 import { DataTable } from '../../components/ui/DataTable.jsx';
 import { Spinner } from '../../components/ui/Spinner.jsx';
+import { setAiPageContext } from '../../components/ai/EduMinAiAssistant.jsx';
 import { Avatar } from '../../components/ui/Avatar.jsx';
 import { Modal } from '../../components/ui/Modal.jsx';
 import { useToast } from '../../app/providers/ToastProvider.jsx';
 import { useConfirm } from '../../app/providers/ConfirmProvider.jsx';
 import {
+  formatDate,
   formatCurrency,
   getCurrentDateTimeLocalWithSeconds,
   formatRegistrationDateTime,
@@ -14,7 +16,13 @@ import {
 } from '../../lib/format.js';
 import { useAuth } from '../../app/providers/AuthProvider.jsx';
 import { useOpenClasses, useMyEnrollments, useEnrollmentMutations } from './useEnrollments.js';
-import { ScheduleRoomBadge } from '../../components/schedule/ScheduleBadge.jsx';
+import {
+  ScheduleTimeCombinedBadge,
+  ScheduleDaysBadge,
+  ScheduleTimeBadge,
+  RoomBadge,
+  ScheduleRoomBadge,
+} from '../../components/schedule/ScheduleBadge.jsx';
 
 export const MAX_CREDITS = 25;
 
@@ -226,8 +234,14 @@ function ClassRow({ cls, state, onEnroll, onCancel, pending }) {
           {cls.teacher || 'Chưa phân công'}
         </span>
       </div>
-      <div className="flex-1 min-w-[260px]">
-        <ScheduleRoomBadge schedules={cls.schedules} room={cls.room} layout="inline" compact />
+      {/* Lịch học (Thứ & Giờ trên 1 hàng ngang cân đối) */}
+      <div className="min-w-[210px] shrink-0">
+        <ScheduleTimeCombinedBadge schedules={cls.schedules} compact />
+      </div>
+
+      {/* Phòng học */}
+      <div className="min-w-[100px] shrink-0">
+        <RoomBadge room={cls.room} compact />
       </div>
       <span className={`text-xs font-semibold w-16 text-center ${full ? 'text-rose-600 font-bold' : 'text-slate-600'}`}>
         {cls.enrolledCount}
@@ -261,15 +275,37 @@ function ClassRow({ cls, state, onEnroll, onCancel, pending }) {
 export function StudentCourseRegistration() {
   const toast = useToast();
   const confirm = useConfirm();
-  const { user, profile } = useAuth();
-  const { data: openData, isLoading } = useOpenClasses();
-  const { data: mineData } = useMyEnrollments();
+  const { user, profile, isLoading: isAuthLoading } = useAuth();
+  const {
+    data: openData,
+    isLoading: isOpenLoading,
+    isPending: isOpenPending,
+    isFetching: isOpenFetching,
+  } = useOpenClasses();
+  const {
+    data: mineData,
+    isLoading: isMineLoading,
+    isPending: isMinePending,
+    isFetching: isMineFetching,
+  } = useMyEnrollments();
   const { enroll, cancel } = useEnrollmentMutations();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [courseFilter, setCourseFilter] = useState('all'); // 'all' | 'unregistered' | 'registered'
   const [courseDetailModal, setCourseDetailModal] = useState(null);
   const [expandedCourses, setExpandedCourses] = useState(() => new Set());
+
+  // Prevent race condition: Wait until student context and API requests have loaded
+  const isContextLoading =
+    Boolean(isAuthLoading) ||
+    Boolean((user?.student || user?.studentId) && !profile && (isOpenLoading || isMineLoading || !openData));
+
+  const isRegistrationLoading =
+    isContextLoading ||
+    isOpenPending ||
+    (isOpenLoading && !openData) ||
+    isMinePending ||
+    (isMineLoading && !mineData);
 
   const toggleCourseExpanded = (courseId) => {
     setExpandedCourses((prev) => {
@@ -297,6 +333,7 @@ export function StudentCourseRegistration() {
     user?.departmentId ||
     user?.major ||
     user?.majorId ||
+    user?.chuyenNganh ||
     profile?.department ||
     profile?.departmentId ||
     profile?.departmentRef?.name ||
@@ -314,6 +351,7 @@ export function StudentCourseRegistration() {
         user?.departmentId,
         user?.major,
         user?.majorId,
+        user?.chuyenNganh,
         profile?.department,
         profile?.departmentId,
         profile?.departmentRef?.name,
@@ -321,6 +359,8 @@ export function StudentCourseRegistration() {
         profile?.major,
         profile?.majorId,
         profile?.chuyenNganh,
+        profile?.className,
+        user?.className,
       ].filter(Boolean),
     [user, profile]
   );
@@ -346,9 +386,10 @@ export function StudentCourseRegistration() {
 
   // Danh sách các học phần lệch chuyên ngành bị loại bỏ (nếu có tồn tại trong dữ liệu cũ)
   const outOfDeptEnrollments = useMemo(() => {
+    if (isRegistrationLoading || deptCandidates.length === 0) return [];
     const validIds = new Set(enrolledCourses.map((e) => e._id));
     return rawEnrollments.filter((e) => !validIds.has(e._id));
-  }, [rawEnrollments, enrolledCourses]);
+  }, [rawEnrollments, enrolledCourses, isRegistrationLoading, deptCandidates]);
 
   // Đồng bộ enrollments bằng enrolledCourses để cập nhật toàn bộ logic tính toán
   const enrollments = enrolledCourses;
@@ -369,6 +410,15 @@ export function StudentCourseRegistration() {
 
   const creditPercentage = Math.min(100, Math.round((totalEnrolledCredits / MAX_CREDITS) * 100));
   const isAtMaxCredits = totalEnrolledCredits >= MAX_CREDITS;
+
+  useEffect(() => {
+    setAiPageContext({
+      page: 'student_registration',
+      enrolledCourses,
+      totalEnrolledCredits,
+      totalTuitionFee,
+    });
+  }, [enrolledCourses, totalEnrolledCredits, totalTuitionFee]);
 
   // Lọc dữ liệu theo Chuyên ngành: chỉ hiển thị học phần thuộc khoa sinh viên đang học hoặc đại cương chung
   const filteredOpenClasses = useMemo(() => {
@@ -540,11 +590,16 @@ export function StudentCourseRegistration() {
     },
     {
       key: 'schedules',
-      header: 'Lịch học & Phòng',
-      className: 'min-w-[220px]',
+      header: 'Thời gian học',
+      className: 'min-w-[210px]',
+      render: (e) => <ScheduleTimeCombinedBadge schedules={e.class?.schedules} />,
+    },
+    {
+      key: 'room',
+      header: 'Phòng học',
+      className: 'min-w-[130px]',
       render: (e) => (
-        <ScheduleRoomBadge
-          schedules={e.class?.schedules}
+        <RoomBadge
           room={e.class?.room}
           studyStart={e.class?.studyStart}
           studyEnd={e.class?.studyEnd}
@@ -622,8 +677,6 @@ export function StudentCourseRegistration() {
     },
   ];
 
-  if (isLoading) return <Spinner />;
-
   return (
     <div className="space-y-6">
       {/* Page Title & Department Badge Header */}
@@ -645,37 +698,51 @@ export function StudentCourseRegistration() {
             {/* Tín chỉ */}
             <div className="flex items-center gap-2 bg-slate-50 border border-slate-200/80 px-3 py-1.5 rounded-xl">
               <span className="text-slate-500 font-medium">Số tín chỉ:</span>
-              <strong className="font-mono text-slate-900">{totalEnrolledCredits} / {MAX_CREDITS} TC</strong>
-              <div className="w-16 h-2 rounded-full bg-slate-200 overflow-hidden inline-block">
-                <div
-                  className={`h-full rounded-full transition-all duration-300 ${
-                    totalEnrolledCredits >= MAX_CREDITS ? 'bg-indigo-600' : 'bg-emerald-500'
-                  }`}
-                  style={{ width: `${creditPercentage}%` }}
-                />
-              </div>
-              {totalEnrolledCredits > 0 && totalEnrolledCredits < MAX_CREDITS && (
-                <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                  {totalEnrolledCredits} TC đã đăng ký
-                </span>
-              )}
-              {isAtMaxCredits && (
-                <span className="text-[10px] text-indigo-700 font-bold bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200">
-                  Đạt tối đa {MAX_CREDITS} TC
-                </span>
+              {isRegistrationLoading ? (
+                <div className="h-4 w-16 bg-slate-200 rounded animate-pulse" />
+              ) : (
+                <>
+                  <strong className="font-mono text-slate-900">{totalEnrolledCredits} / {MAX_CREDITS} TC</strong>
+                  <div className="w-16 h-2 rounded-full bg-slate-200 overflow-hidden inline-block">
+                    <div
+                      className={`h-full rounded-full transition-all duration-300 ${
+                        totalEnrolledCredits >= MAX_CREDITS ? 'bg-indigo-600' : 'bg-emerald-500'
+                      }`}
+                      style={{ width: `${creditPercentage}%` }}
+                    />
+                  </div>
+                  {totalEnrolledCredits > 0 && totalEnrolledCredits < MAX_CREDITS && (
+                    <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                      {totalEnrolledCredits} TC đã đăng ký
+                    </span>
+                  )}
+                  {isAtMaxCredits && (
+                    <span className="text-[10px] text-indigo-700 font-bold bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200">
+                      Đạt tối đa {MAX_CREDITS} TC
+                    </span>
+                  )}
+                </>
               )}
             </div>
 
             {/* Học phí */}
             <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200/80 px-3 py-1.5 rounded-xl">
               <span className="text-slate-500 font-medium">Tổng học phí tạm tính:</span>
-              <strong className="text-indigo-700 font-extrabold">{formatCurrency(totalTuitionFee)}</strong>
+              {isRegistrationLoading ? (
+                <div className="h-4 w-20 bg-slate-200 rounded animate-pulse" />
+              ) : (
+                <strong className="text-indigo-700 font-extrabold">{formatCurrency(totalTuitionFee)}</strong>
+              )}
             </div>
 
             {/* Số môn */}
             <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200/80 px-3 py-1.5 rounded-xl">
               <span className="text-slate-500 font-medium">Học phần đã chọn:</span>
-              <strong className="text-slate-900">{enrollments.length} môn học</strong>
+              {isRegistrationLoading ? (
+                <div className="h-4 w-14 bg-slate-200 rounded animate-pulse" />
+              ) : (
+                <strong className="text-slate-900">{enrollments.length} môn học</strong>
+              )}
             </div>
           </div>
 
@@ -704,7 +771,7 @@ export function StudentCourseRegistration() {
               <i className="fas fa-layer-group text-indigo-600 text-base" />
               <span>Danh sách học phần mở đăng ký</span>
               <span className="text-xs font-semibold text-slate-500 font-mono">
-                ({groups.length} học phần)
+                {isRegistrationLoading ? '(Đang tải...)' : `(${groups.length} học phần)`}
               </span>
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
@@ -793,7 +860,31 @@ export function StudentCourseRegistration() {
           </div>
         </div>
 
-        {groups.length === 0 ? (
+        {isRegistrationLoading ? (
+          <div className="space-y-4">
+            {[1, 2, 3].map((idx) => (
+              <div
+                key={idx}
+                className="rounded-2xl bg-white border border-slate-200/90 shadow-xs overflow-hidden animate-pulse"
+              >
+                <div className="flex items-center justify-between gap-3 px-5 py-4 bg-slate-50 border-b border-slate-100">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-xl bg-slate-200" />
+                    <div className="space-y-1.5">
+                      <div className="h-4 w-52 bg-slate-200 rounded" />
+                      <div className="h-3 w-28 bg-slate-200 rounded" />
+                    </div>
+                  </div>
+                  <div className="h-6 w-24 bg-slate-200 rounded-full" />
+                </div>
+                <div className="p-5 space-y-3">
+                  <div className="h-10 bg-slate-50 rounded-xl" />
+                  <div className="h-10 bg-slate-50 rounded-xl" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : groups.length === 0 ? (
           <div className="rounded-2xl bg-white border border-slate-200 shadow-xs p-10 text-center text-gray-400 space-y-2">
             <div className="w-12 h-12 mx-auto rounded-full bg-slate-50 flex items-center justify-center text-slate-300">
               <i className="fas fa-folder-open text-xl" />
@@ -977,14 +1068,22 @@ export function StudentCourseRegistration() {
           </div>
         )}
 
-        <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
-          <DataTable
-            columns={enrolledColumns}
-            rows={enrolledCourses}
-            rowKey={(e) => e._id}
-            emptyText="Chưa đăng ký học phần nào"
-            minWidth="min-w-[850px]"
-          />
+        {isRegistrationLoading ? (
+          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-12 flex flex-col items-center justify-center gap-3">
+            <Spinner />
+            <span className="text-xs font-semibold text-slate-500 animate-pulse">
+              Đang tải danh sách học phần đã đăng ký...
+            </span>
+          </div>
+        ) : (
+          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
+            <DataTable
+              columns={enrolledColumns}
+              rows={enrolledCourses}
+              rowKey={(e) => e._id}
+              emptyText="Chưa đăng ký học phần nào"
+              minWidth="min-w-[850px]"
+            />
 
           {/* Table Summary Footer */}
           {enrollments.length > 0 && (
@@ -1009,7 +1108,8 @@ export function StudentCourseRegistration() {
             </div>
           )}
         </div>
-      </div>
+      )}
+    </div>
 
       {/* Course Detail Information Modal */}
       {courseDetailModal && (

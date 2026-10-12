@@ -1,12 +1,27 @@
+import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { PageHeader } from '../../components/ui/PageHeader.jsx';
 import { DataTable } from '../../components/ui/DataTable.jsx';
 import { useMyTeacherClasses } from './useTeacherClasses.js';
-import { ScheduleRoomBadge } from '../../components/schedule/ScheduleBadge.jsx';
+import {
+  ScheduleTimeCombinedBadge,
+  RoomBadge,
+} from '../../components/schedule/ScheduleBadge.jsx';
+import { setAiPageContext } from '../../components/ai/EduMinAiAssistant.jsx';
 
 export function TeacherClassList() {
   const { data, isLoading } = useMyTeacherClasses();
   const classes = data?.data || [];
+
+  // Sync real-time classes context with EduMin AI Assistant
+  useEffect(() => {
+    if (classes.length > 0) {
+      setAiPageContext({
+        page: 'teacher_classes',
+        myClasses: classes,
+      });
+    }
+  }, [classes]);
 
   const columns = [
     { key: 'courseId', header: 'Mã học phần', className: 'font-semibold text-gray-800 w-28' },
@@ -15,7 +30,7 @@ export function TeacherClassList() {
       key: 'courseName',
       header: 'Tên học phần',
       render: (c) => (
-        <span className="font-bold text-gray-900 truncate max-w-[240px] block" title={c.courseName}>
+        <span className="font-bold text-gray-900 truncate max-w-[220px] block" title={c.courseName}>
           {c.courseName}
         </span>
       ),
@@ -24,17 +39,23 @@ export function TeacherClassList() {
       key: 'className',
       header: 'Tên lớp học phần',
       render: (c) => (
-        <span className="font-medium text-gray-800 truncate max-w-[220px] block" title={c.className || ''}>
+        <span className="font-medium text-gray-800 truncate max-w-[200px] block" title={c.className || ''}>
           {c.className || '—'}
         </span>
       ),
     },
     {
       key: 'schedules',
-      header: 'Lịch học & Phòng',
+      header: 'Thời gian học',
+      className: 'min-w-[220px]',
+      render: (c) => <ScheduleTimeCombinedBadge schedules={c.schedules} />,
+    },
+    {
+      key: 'room',
+      header: 'Phòng học',
+      className: 'min-w-[130px]',
       render: (c) => (
-        <ScheduleRoomBadge
-          schedules={c.schedules}
+        <RoomBadge
           room={c.room}
           studyStart={c.studyStart}
           studyEnd={c.studyEnd}

@@ -295,4 +295,29 @@ describe('ManageGradebook (Admin Gradebook Management)', () => {
     expect(screen.getByText('Trần Thị Bình')).toBeInTheDocument();
     expect(screen.queryByText('Nguyễn Văn An')).not.toBeInTheDocument();
   });
+
+  it('renders visual loading spinner and prevents flashing empty state during initial fetch', async () => {
+    let resolveOverview;
+    classesApi.adminGradebookOverview.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveOverview = resolve;
+        })
+    );
+
+    renderWithClient(<ManageGradebook />);
+
+    // 1. Loading text is shown immediately
+    expect(screen.getByText(/Đang tải dữ liệu bảng điểm toàn trường\.\.\./i)).toBeInTheDocument();
+
+    // 2. Empty state "Không tìm thấy lớp học phần nào phù hợp với bộ lọc." is NOT displayed prematurely
+    expect(screen.queryByText(/Không tìm thấy lớp học phần nào phù hợp với bộ lọc\./i)).not.toBeInTheDocument();
+
+    // Resolve the query
+    resolveOverview(mockOverview);
+
+    await waitFor(() => {
+      expect(screen.getByText('Lập trình Web')).toBeInTheDocument();
+    });
+  });
 });
