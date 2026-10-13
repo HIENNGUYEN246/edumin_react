@@ -15,7 +15,6 @@ import { CLASS_STATUSES } from '../../../api/classesApi.js';
 import { useCourseClasses, useClassMutations } from '../classes/useClasses.js';
 import { ClassStatusBadge } from '../classes/ClassStatusBadge.jsx';
 import { ClassFormModal } from '../classes/ClassFormModal.jsx';
-import { ClassStudentsModal } from '../classes/ClassStudentsModal.jsx';
 import { Avatar } from '../../../components/ui/Avatar.jsx';
 import {
   ScheduleTimeCombinedBadge,
@@ -45,7 +44,6 @@ export function CourseDetail() {
   const { create, update, changeStatus, remove } = useClassMutations();
 
   const [formModal, setFormModal] = useState(null); // {mode, initial?}
-  const [studentsOf, setStudentsOf] = useState(null);
 
   const classes = classData?.data || [];
 
@@ -308,7 +306,13 @@ export function CourseDetail() {
               </option>
             ))}
           </select>
-          <button type="button" onClick={() => setStudentsOf({ id: c.id, name: `${course.name} (${c.id})` })} className="w-8 h-8 rounded-lg text-gray-600 hover:bg-gray-100" title="Sinh viên">
+          <button
+            type="button"
+            onClick={() => navigate(`/admin/classes/course/${id}/class/${c._id}/students`)}
+            className="w-8 h-8 rounded-lg text-gray-600 hover:bg-gray-100"
+            title="Sinh viên"
+            aria-label={`Xem danh sách sinh viên ${c.id}`}
+          >
             <i className="fas fa-users" />
           </button>
           <button type="button" onClick={() => openEdit(c)} className="w-8 h-8 rounded-lg text-indigo-600 hover:bg-indigo-50" title="Sửa">
@@ -403,9 +407,6 @@ export function CourseDetail() {
         />
       )}
 
-      {studentsOf && (
-        <ClassStudentsModal classId={studentsOf.id} className={studentsOf.name} onClose={() => setStudentsOf(null)} />
-      )}
     </div>
   );
 }
