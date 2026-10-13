@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { useLocation, useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { DataTable } from '../../../components/ui/DataTable.jsx';
 import { Spinner } from '../../../components/ui/Spinner.jsx';
@@ -26,10 +26,6 @@ import { classExportRow, classImportPayload } from '../classes/classExcel.js';
 export function CourseDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const location = useLocation();
-  const fromClasses = location.pathname.startsWith('/admin/classes/course/');
-  const backPath = fromClasses ? '/admin/classes' : '/admin/courses';
-  const backLabel = fromClasses ? 'Quản lý lớp học phần' : 'Danh mục môn học';
   const toast = useToast();
   const confirm = useConfirm();
   const queryClient = useQueryClient();
@@ -216,7 +212,7 @@ export function CourseDetail() {
     return (
       <div className="max-w-xl mx-auto rounded-2xl bg-white border border-gray-100 shadow-sm p-10 text-center">
         <p className="text-gray-600">{courseQuery.error.message || 'Không tìm thấy học phần.'}</p>
-        <button type="button" onClick={() => navigate(backPath)} className="mt-5 px-4 py-2 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700">
+        <button type="button" onClick={() => navigate('/admin/classes')} className="mt-5 px-4 py-2 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700">
           Quay lại
         </button>
       </div>
@@ -318,10 +314,10 @@ export function CourseDetail() {
     <div>
       <button
         type="button"
-        onClick={() => navigate(backPath)}
+        onClick={() => navigate('/admin/classes')}
         className="inline-flex items-center gap-2 text-sm font-semibold text-gray-500 hover:text-indigo-600 mb-4"
       >
-        <i className="fas fa-arrow-left" /> {backLabel}
+        <i className="fas fa-arrow-left" /> Quản lý lớp học phần
       </button>
 
       {/* Course info */}

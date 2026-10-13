@@ -1,7 +1,6 @@
 import mongoose from 'mongoose';
 import { AppError } from '../../lib/AppError.js';
 import { parseListQuery, paginate, searchFilter } from '../../lib/pagination.js';
-import { generateTempPassword, hashPassword } from '../../lib/password.js';
 import * as filesService from '../../lib/files.service.js';
 import { User } from '../auth/user.model.js';
 import { Teacher } from './teacher.model.js';
@@ -285,19 +284,13 @@ export async function importTeachers(rows) {
     }
   });
 
-  const validRows = preparedRows.filter((item) => !item.error);
-  await mapWithConcurrency(validRows, 4, async (item) => {
-    item.password = generateTempPassword();
-    item.passwordHash = await hashPassword(item.password);
-  });
-
   for (const item of preparedRows) {
     if (item.error) {
       results.failed.push({ row: item.row, email: item.email, message: item.error.message });
       continue;
     }
     try {
-      await createTeacher({ ...item.payload, password: item.password, passwordHash: item.passwordHash });
+      await createTeacher({ ...item.payload, password: '123' });
       results.created += 1;
     } catch (error) {
       results.failed.push({ row: item.row, email: item.email, message: error.message });

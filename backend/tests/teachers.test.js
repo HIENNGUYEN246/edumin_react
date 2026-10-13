@@ -6,6 +6,7 @@ import { ROLES } from '../src/lib/roles.js';
 import { Department } from '../src/modules/departments/department.model.js';
 import { User } from '../src/modules/auth/user.model.js';
 import { Teacher } from '../src/modules/teachers/teacher.model.js';
+import { comparePassword } from '../src/lib/password.js';
 
 // Mock Cloudinary so avatar tests never hit the network.
 vi.mock('../src/lib/files.service.js', () => ({
@@ -54,6 +55,17 @@ describe('Teachers', () => {
     const user = await User.findOne({ email: 'gv1@university.edu.vn' });
     expect(user.role).toBe(ROLES.TEACHER);
     expect(String(user.teacher)).toBe(String(res.body._id));
+  });
+
+  it('uses 123 as the default password when creating a teacher without one', async () => {
+    const res = await request(app)
+      .post('/api/teachers')
+      .set(authHeader(adminToken))
+      .send(validTeacherPayload({ email: 'default-password@university.edu.vn' }));
+
+    expect(res.status).toBe(201);
+    const user = await User.findOne({ email: 'default-password@university.edu.vn' }).select('+passwordHash');
+    expect(await comparePassword('123', user.passwordHash)).toBe(true);
   });
 
   it('rolls back when the email already exists (no orphan teacher)', async () => {
@@ -177,6 +189,7 @@ describe('Teachers', () => {
     expect(res.body.failed).toHaveLength(1);
     expect(res.body.failed[0].row).toBe(2);
     const importedTeacher = await Teacher.findOne({ email: 'huetran@university.edu.vn' });
+    const importedUser = await User.findOne({ email: 'huetran@university.edu.vn' }).select('+passwordHash');
     expect(importedTeacher).toMatchObject({
       id: 5,
       hoTen: 'Trần Thị Huế',
@@ -187,6 +200,7 @@ describe('Teachers', () => {
       phone: '0901234569',
       address: 'Quận 3, TP.HCM',
     });
+    expect(await comparePassword('123', importedUser.passwordHash)).toBe(true);
   });
 
   it('forbids a non-admin from creating a teacher', async () => {

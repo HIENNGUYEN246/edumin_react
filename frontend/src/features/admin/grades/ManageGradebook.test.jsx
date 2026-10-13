@@ -56,9 +56,9 @@ function renderWithClient(ui) {
 
 describe('ManageGradebook (Admin Gradebook Management)', () => {
   const mockOverview = {
-    totalClasses: 2,
+    totalClasses: 3,
     lockedCount: 1,
-    openCount: 1,
+    openCount: 2,
     classes: [
       {
         _id: 'c-1',
@@ -87,6 +87,21 @@ describe('ManageGradebook (Admin Gradebook Management)', () => {
         gradedStudents: 20,
         completionRate: 50,
         avgGpa: 6.5,
+        isGradeLocked: false,
+        gradeLockedAt: null,
+      },
+      {
+        _id: 'c-3',
+        id: 'CNTT01-02',
+        courseName: 'Lập trình Web',
+        courseId: 'IT101',
+        department: 'Công Nghệ Thông Tin',
+        teacher: 'Nguyễn Minh Anh',
+        credits: 3,
+        totalStudents: 20,
+        gradedStudents: 10,
+        completionRate: 50,
+        avgGpa: 7.1,
         isGradeLocked: false,
         gradeLockedAt: null,
       },
@@ -127,30 +142,46 @@ describe('ManageGradebook (Admin Gradebook Management)', () => {
     classesApi.allAuditLogs.mockResolvedValue([]);
   });
 
-  it('renders overview header and statistics summary cards', async () => {
+  const openFirstCourseClasses = async () => {
+    const button = await screen.findByRole('button', { name: /Xem DS điểm Lập trình Web/i });
+    fireEvent.click(button);
+    await screen.findByText(/it101 · 2 lớp học phần/i);
+  };
+
+  const openFirstClassGradebook = async () => {
+    await openFirstCourseClasses();
+    fireEvent.click(await screen.findByRole('button', { name: /Xem Bảng điểm CNTT01-01/i }));
+  };
+
+  it('shows courses first, then only the selected course classes', async () => {
     renderWithClient(<ManageGradebook />);
 
     expect(screen.getByText(/Quản lý Bảng điểm Toàn trường/i)).toBeInTheDocument();
 
     await waitFor(() => {
-      expect(screen.getByText('CNTT01-01')).toBeInTheDocument();
-      expect(screen.getByText('CNTT02-01')).toBeInTheDocument();
+      expect(screen.getByText('IT101')).toBeInTheDocument();
+      expect(screen.getByText('IT102')).toBeInTheDocument();
     });
 
     expect(screen.getByText('Lập trình Web')).toBeInTheDocument();
     expect(screen.getByText('Cơ sở dữ liệu')).toBeInTheDocument();
-    expect(screen.getByText('Đã chốt sổ')).toBeInTheDocument();
-    expect(screen.getByText('Đang mở nhập')).toBeInTheDocument();
+    expect(screen.queryByText('CNTT01-01')).not.toBeInTheDocument();
+    expect(screen.getByText('2', { selector: 'td' })).toBeInTheDocument();
+
+    await openFirstCourseClasses();
+    expect(screen.getByText('CNTT01-01')).toBeInTheDocument();
+    expect(screen.getByText('CNTT01-02')).toBeInTheDocument();
+    expect(screen.queryByText('CNTT02-01')).not.toBeInTheDocument();
   });
 
-  it('filters classes by search term', async () => {
+  it('filters course list by search term', async () => {
     renderWithClient(<ManageGradebook />);
 
     await waitFor(() => {
-      expect(screen.getByText('CNTT01-01')).toBeInTheDocument();
+      expect(screen.getByText('IT101')).toBeInTheDocument();
     });
 
-    const searchInput = screen.getByPlaceholderText(/Tìm mã lớp, môn học, giảng viên.../i);
+    const searchInput = screen.getByPlaceholderText(/Tìm học phần, mã lớp, giảng viên.../i);
     fireEvent.change(searchInput, { target: { value: 'Web' } });
 
     await waitFor(() => {
@@ -163,12 +194,7 @@ describe('ManageGradebook (Admin Gradebook Management)', () => {
   it('switches to class detail gradebook view when clicking "Xem Bảng điểm"', async () => {
     renderWithClient(<ManageGradebook />);
 
-    await waitFor(() => {
-      expect(screen.getByText('CNTT01-01')).toBeInTheDocument();
-    });
-
-    const viewDetailBtns = screen.getAllByRole('button', { name: /Xem Bảng điểm/i });
-    fireEvent.click(viewDetailBtns[0]);
+    await openFirstClassGradebook();
 
     await waitFor(() => {
       expect(classesApi.students).toHaveBeenCalledWith('c-1');
@@ -180,9 +206,7 @@ describe('ManageGradebook (Admin Gradebook Management)', () => {
   it('allows Admin to toggle grade lock on a class', async () => {
     renderWithClient(<ManageGradebook />);
 
-    await waitFor(() => {
-      expect(screen.getByText('CNTT01-01')).toBeInTheDocument();
-    });
+    await openFirstCourseClasses();
 
     // Class c-1 is locked; clicking unlock button calls toggleGradeLock with lock: false
     const unlockBtn = screen.getByRole('button', { name: /Mở khóa/i });
@@ -197,12 +221,7 @@ describe('ManageGradebook (Admin Gradebook Management)', () => {
   it('opens Grade Override modal and records Audit Log reason', async () => {
     renderWithClient(<ManageGradebook />);
 
-    await waitFor(() => {
-      expect(screen.getByText('CNTT01-01')).toBeInTheDocument();
-    });
-
-    // Enter detail view
-    fireEvent.click(screen.getAllByRole('button', { name: /Xem Bảng điểm/i })[0]);
+    await openFirstClassGradebook();
 
     await waitFor(() => {
       expect(screen.getByText('Nguyễn Văn An')).toBeInTheDocument();
@@ -260,11 +279,7 @@ describe('ManageGradebook (Admin Gradebook Management)', () => {
 
     renderWithClient(<ManageGradebook />);
 
-    await waitFor(() => {
-      expect(screen.getByText('CNTT01-01')).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getAllByRole('button', { name: /Xem Bảng điểm/i })[0]);
+    await openFirstClassGradebook();
 
     await waitFor(() => {
       expect(screen.getByText('Nguyễn Văn An')).toBeInTheDocument();

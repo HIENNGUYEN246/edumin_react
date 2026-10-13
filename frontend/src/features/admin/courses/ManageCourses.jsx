@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { PageHeader, SearchInput } from '../../../components/ui/PageHeader.jsx';
 import { DataTable } from '../../../components/ui/DataTable.jsx';
 import { Pagination } from '../../../components/ui/Pagination.jsx';
@@ -19,7 +18,6 @@ const EMPTY = { id: '', name: '', credits: 0, fee: 0, departmentId: '', gradeWei
 export function ManageCourses() {
   const toast = useToast();
   const confirm = useConfirm();
-  const navigate = useNavigate();
   const fileRef = useRef(null);
   const [page, setPage] = useState(1);
   const [searchText, setSearchText] = useState('');
@@ -284,12 +282,7 @@ export function ManageCourses() {
       key: 'id',
       header: 'Mã môn',
       className: 'font-semibold text-indigo-700',
-      render: (c) => (
-        <span className="inline-flex items-center gap-1.5 font-mono">
-          {c.id}
-          <i className="fas fa-arrow-up-right-from-square text-[10px] text-gray-300" />
-        </span>
-      ),
+      render: (c) => <span className="font-mono">{c.id}</span>,
     },
     { key: 'name', header: 'Tên môn học', className: 'font-bold text-gray-900', render: (c) => <span className="truncate max-w-[280px] block" title={c.name}>{c.name}</span> },
     { key: 'credits', header: 'Tín chỉ', className: 'text-center font-semibold' },
@@ -383,7 +376,6 @@ export function ManageCourses() {
         rows={rows}
         isLoading={isLoading}
         emptyText="Chưa có môn học nào trong danh mục"
-        onRowClick={(c) => navigate(`/admin/courses/${c._id}`)}
         rowClassName={(c) => (isIdSelected(c._id) ? 'bg-indigo-50/40' : '')}
       />
       <Pagination

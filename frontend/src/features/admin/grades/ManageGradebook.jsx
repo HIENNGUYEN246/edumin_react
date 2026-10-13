@@ -24,7 +24,8 @@ export function ManageGradebook() {
   const [selectedStatus, setSelectedStatus] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
 
-  // View state: 'overview' (list of classes) or 'detail' (viewing specific class gradebook)
+  // View state: course list -> course classes -> selected class gradebook.
+  const [selectedCourseId, setSelectedCourseId] = useState(null);
   const [selectedClassId, setSelectedClassId] = useState(null);
 
   // Modals state
@@ -61,7 +62,35 @@ export function ManageGradebook() {
       }),
   });
 
-  const classesList = overviewData?.classes || [];
+  const classesList = useMemo(() => overviewData?.classes || [], [overviewData?.classes]);
+  const coursesList = useMemo(() => {
+    const groups = new Map();
+    for (const cls of classesList) {
+      const courseId = String(cls.courseId || cls.courseName || cls.id);
+      const key = courseId.toLowerCase();
+      let course = groups.get(key);
+      if (!course) {
+        course = {
+          courseId,
+          courseName: cls.courseName || cls.courseId || cls.id,
+          department: cls.department,
+          credits: cls.credits,
+          classes: [],
+          totalStudents: 0,
+          gradedStudents: 0,
+          lockedCount: 0,
+        };
+        groups.set(key, course);
+      }
+      course.classes.push(cls);
+      course.totalStudents += cls.totalStudents || 0;
+      course.gradedStudents += cls.gradedStudents || 0;
+      if (cls.isGradeLocked) course.lockedCount += 1;
+    }
+    return [...groups.values()].sort((a, b) => a.courseId.localeCompare(b.courseId));
+  }, [classesList]);
+  const selectedCourse = coursesList.find((course) => course.courseId.toLowerCase() === selectedCourseId);
+  const selectedCourseClasses = selectedCourse?.classes || [];
   const totalClasses = overviewData?.totalClasses || 0;
   const lockedCount = overviewData?.lockedCount || 0;
   const openCount = overviewData?.openCount || 0;
@@ -272,7 +301,7 @@ export function ManageGradebook() {
 
       {/* Main Content Area */}
       {!selectedClassId ? (
-        /* VIEW 1: Overview list of all classes */
+        /* Course list and the selected course's classes */
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
           {/* Filter Toolbar */}
           <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex flex-wrap items-center justify-between gap-3">
@@ -323,7 +352,7 @@ export function ManageGradebook() {
                   type="text"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Tìm mã lớp, môn học, giảng viên..."
+                  placeholder="Tìm học phần, mã lớp, giảng viên..."
                   className="w-full rounded-xl border border-slate-200 bg-white pl-8 pr-7 py-1.5 text-xs outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                 />
                 {searchTerm && (
@@ -356,19 +385,101 @@ export function ManageGradebook() {
             </div>
           </div>
 
-          {/* Classes Table */}
           {isLoadingOverview ? (
             <div className="py-16 flex justify-center">
               <Spinner />
             </div>
+          ) : selectedCourseId && selectedCourseClasses.length === 0 ? (
+            <div className="py-10 text-center text-slate-400">
+              <p>Không tìm thấy lớp học phần nào phù hợp với bộ lọc của học phần này.</p>
+              <button
+                type="button"
+                onClick={() => setSelectedCourseId(null)}
+                className="mt-3 text-sm font-semibold text-indigo-600 hover:text-indigo-700"
+              >
+                Quay lại danh sách học phần
+              </button>
+            </div>
           ) : classesList.length === 0 ? (
             <div className="py-16 text-center text-slate-400">
               <i className="fas fa-folder-open text-3xl mb-2 block" />
-              <span>Không tìm thấy lớp học phần nào phù hợp với bộ lọc.</span>
+              <span>Không tìm thấy học phần nào phù hợp với bộ lọc.</span>
             </div>
-          ) : (
+          ) : !selectedCourseId ? (
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-200/80 bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                    <th className="px-4 py-3">Mã học phần</th>
+                    <th className="px-4 py-3">Tên học phần</th>
+                    <th className="px-4 py-3">Khoa</th>
+                    <th className="px-4 py-3 text-center">Số lớp</th>
+                    <th className="px-4 py-3 text-center">Sĩ số / Đã có điểm</th>
+                    <th className="px-4 py-3 text-center">Đang mở / Đã khóa</th>
+                    <th className="px-4 py-3 text-right">Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-xs">
+                  {coursesList.map((course) => (
+                    <tr key={course.courseId} className="hover:bg-slate-50/70 transition">
+                      <td className="px-4 py-3.5 font-bold text-slate-900 whitespace-nowrap">{course.courseId}</td>
+                      <td className="px-4 py-3.5 font-semibold text-slate-800">
+                        <div>{course.courseName}</div>
+                        <div className="text-[11px] font-normal text-slate-400">{course.credits} tín chỉ</div>
+                      </td>
+                      <td className="px-4 py-3.5 text-slate-600 whitespace-nowrap">
+                        {typeof course.department === 'object'
+                          ? course.department?.name || course.department?.tenKhoa
+                          : course.department || '—'}
+                      </td>
+                      <td className="px-4 py-3.5 text-center font-semibold text-slate-800">{course.classes.length}</td>
+                      <td className="px-4 py-3.5 text-center font-semibold text-slate-800">
+                        {course.gradedStudents}/{course.totalStudents} SV
+                      </td>
+                      <td className="px-4 py-3.5 text-center whitespace-nowrap">
+                        <span className="font-semibold text-emerald-700">{course.classes.length - course.lockedCount}</span>
+                        <span className="text-slate-400"> / </span>
+                        <span className="font-semibold text-rose-700">{course.lockedCount}</span>
+                      </td>
+                      <td className="px-4 py-3.5 text-right">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedCourseId(course.courseId.toLowerCase())}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-bold transition cursor-pointer"
+                          aria-label={`Xem DS điểm ${course.courseName}`}
+                        >
+                          <i className="fas fa-eye text-xs" />
+                          <span>Xem DS điểm</span>
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div>
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-4">
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedCourseId(null)}
+                    className="w-9 h-9 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center justify-center transition"
+                    title="Quay lại danh sách học phần"
+                  >
+                    <i className="fas fa-arrow-left" />
+                  </button>
+                  <div>
+                    <h2 className="font-bold text-slate-900">{selectedCourse?.courseName || selectedCourseId}</h2>
+                    <p className="text-xs text-slate-500">
+                      {selectedCourseId} · {selectedCourseClasses.length} lớp học phần
+                    </p>
+                  </div>
+                </div>
+                <span className="text-xs text-slate-500">Chọn lớp để xem và quản lý bảng điểm</span>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="border-b border-slate-200/80 bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500">
                     <th className="px-4 py-3">Mã lớp</th>
@@ -382,7 +493,7 @@ export function ManageGradebook() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-xs">
-                  {classesList.map((cls) => {
+                  {selectedCourseClasses.map((cls) => {
                     return (
                       <tr key={cls._id || cls.id} className="hover:bg-slate-50/70 transition">
                         <td className="px-4 py-3.5 font-bold text-slate-900 whitespace-nowrap">
@@ -438,6 +549,7 @@ export function ManageGradebook() {
                             type="button"
                             onClick={() => setSelectedClassId(cls._id || cls.id)}
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-bold transition cursor-pointer"
+                            aria-label={`Xem Bảng điểm ${cls.id}`}
                           >
                             <i className="fas fa-eye text-xs" />
                             <span>Xem Bảng điểm</span>
@@ -466,6 +578,7 @@ export function ManageGradebook() {
                   })}
                 </tbody>
               </table>
+              </div>
             </div>
           )}
         </div>
@@ -569,7 +682,7 @@ export function ManageGradebook() {
                       }}
                       className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 max-w-[280px] truncate"
                     >
-                      {classesList.map((cls) => (
+                      {selectedCourseClasses.map((cls) => (
                         <option key={cls._id || cls.id} value={cls._id || cls.id}>
                           {cls.id} - {cls.courseName || cls.courseId} ({cls.isGradeLocked ? 'Đã khóa' : 'Đang mở'})
                         </option>
@@ -943,4 +1056,3 @@ export function ManageGradebook() {
 }
 
 export default ManageGradebook;
-

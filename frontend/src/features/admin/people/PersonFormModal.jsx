@@ -379,7 +379,7 @@ export function PersonFormModal({
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {fields.filter((field) => field.section === section.key).map(renderField)}
                     {section.key === 'work' && mode === 'create' && (
-                      <FormField label="Mật khẩu" error={errors.password} hint="Để trống sẽ tạo mật khẩu ngẫu nhiên" className="sm:col-span-2">
+                      <FormField label="Mật khẩu" error={errors.password} hint="Để trống sẽ sử dụng mật khẩu mặc định 123" className="sm:col-span-2">
                         <input
                           type="text"
                           className={inputClass}
@@ -398,7 +398,7 @@ export function PersonFormModal({
           )}
 
           {!profilePanel && mode === 'create' && (
-            <FormField label="Mật khẩu" error={errors.password} hint="Để trống sẽ tạo mật khẩu ngẫu nhiên">
+            <FormField label="Mật khẩu" error={errors.password} hint="Để trống sẽ sử dụng mật khẩu mặc định 123">
               <input
                 type="text"
                 className={inputClass}

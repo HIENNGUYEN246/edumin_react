@@ -53,7 +53,7 @@ export function AppRouter() {
         <Route path="/admin/student-accounts" element={<ManageStudentAccounts />} />
         <Route path="/admin/departments" element={<ManageDepartments />} />
         <Route path="/admin/courses" element={<ManageCourses />} />
-        <Route path="/admin/courses/:id" element={<CourseDetail />} />
+        <Route path="/admin/courses/:id" element={<Navigate to="/admin/courses" replace />} />
         <Route path="/admin/classes" element={<ManageClasses />} />
         <Route path="/admin/classes/course/:id" element={<CourseDetail />} />
         <Route path="/admin/gradebook" element={<ManageGradebook />} />
