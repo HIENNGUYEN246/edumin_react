@@ -5,6 +5,7 @@ import { ROLES } from '../../lib/roles.js';
 import { User } from '../auth/user.model.js';
 import { ProfileRequest } from './profileRequest.model.js';
 import { createNotification } from '../notifications/notification.service.js';
+import { getAdminCriteria, evaluateRequestAgainstCriteria } from '../ai/adminCriteria.store.js';
 
 export async function createRequest(user, { type = 'avatar', requestedData = {} }) {
   const modelName =
@@ -65,6 +66,28 @@ export async function createRequest(user, { type = 'avatar', requestedData = {} 
     currentData,
     requestedData: cleanRequestedData,
   });
+
+  // Real-time AI Criteria Check: Automatically process based on Admin's pre-configured criteria
+  try {
+    const adminCriteria = await getAdminCriteria();
+    const rules = adminCriteria?.rules;
+    if (rules && (rules.requirePhone10 || rules.requireCccd12 || rules.requireReason || rules.noAvatar || rules.requireName || rules.requireAddress)) {
+      const evaluation = evaluateRequestAgainstCriteria(reqDoc, rules);
+      if (evaluation.pass) {
+        await approveOne(reqDoc._id, { _id: null, hoTen: 'EduMin AI Assistant (Tự động)', role: ROLES.ADMIN });
+        reqDoc.status = 'approved';
+        reqDoc.adminNote = `[EduMin AI Tự động duyệt] Đạt tiêu chí của Admin: ${rules.customSummary || adminCriteria.rawCriteriaText}`;
+        await reqDoc.save().catch(() => {});
+        return reqDoc;
+      } else {
+        reqDoc.status = 'pending';
+        reqDoc.adminNote = `[EduMin AI Giữ lại bên phần Duyệt] Chưa đạt tiêu chí: ${evaluation.fails.join(', ')}`;
+        await reqDoc.save().catch(() => {});
+      }
+    }
+  } catch (err) {
+    // Keep in pending state on any evaluation errors
+  }
 
   // Notify admin
   const roleName = user.role === ROLES.TEACHER ? 'Giảng viên' : 'Sinh viên';
@@ -153,7 +176,7 @@ export async function approveOne(id, adminUser) {
   await profile.save();
 
   request.status = 'approved';
-  request.reviewedBy = adminUser._id;
+  request.reviewedBy = adminUser?._id || null;
   request.reviewedAt = new Date();
   await request.save();
 

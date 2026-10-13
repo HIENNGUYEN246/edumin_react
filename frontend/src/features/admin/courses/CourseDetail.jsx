@@ -17,7 +17,13 @@ import { ClassStatusBadge } from '../classes/ClassStatusBadge.jsx';
 import { ClassFormModal } from '../classes/ClassFormModal.jsx';
 import { ClassStudentsModal } from '../classes/ClassStudentsModal.jsx';
 import { Avatar } from '../../../components/ui/Avatar.jsx';
-import { ScheduleRoomBadge } from '../../../components/schedule/ScheduleBadge.jsx';
+import {
+  ScheduleTimeCombinedBadge,
+  ScheduleDaysBadge,
+  ScheduleTimeBadge,
+  RoomBadge,
+  ScheduleRoomBadge,
+} from '../../../components/schedule/ScheduleBadge.jsx';
 import { classesApi } from '../../../api/classesApi.js';
 import { teachersApi } from '../../../api/teachersApi.js';
 import { readSheet, exportSheet } from '../../../lib/excel.js';
@@ -237,10 +243,16 @@ export function CourseDetail() {
     },
     {
       key: 'schedules',
-      header: 'Lịch học & Phòng',
+      header: 'Thời gian học',
+      className: 'min-w-[210px]',
+      render: (c) => <ScheduleTimeCombinedBadge schedules={c.schedules} />,
+    },
+    {
+      key: 'room',
+      header: 'Phòng học',
+      className: 'min-w-[130px]',
       render: (c) => (
-        <ScheduleRoomBadge
-          schedules={c.schedules}
+        <RoomBadge
           room={c.room}
           studyStart={c.studyStart}
           studyEnd={c.studyEnd}

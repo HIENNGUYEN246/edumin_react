@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { classesApi } from '../../../api/classesApi.js';
 import { departmentsApi } from '../../../api/departmentsApi.js';
@@ -6,6 +7,7 @@ import { PageHeader } from '../../../components/ui/PageHeader.jsx';
 import { Spinner } from '../../../components/ui/Spinner.jsx';
 import { Modal } from '../../../components/ui/Modal.jsx';
 import { useToast } from '../../../app/providers/ToastProvider.jsx';
+import { setAiPageContext } from '../../../components/ai/EduMinAiAssistant.jsx';
 import {
   formatStudentCode,
   calculateGpa,
@@ -18,15 +20,16 @@ import {
 export function ManageGradebook() {
   const toast = useToast();
   const queryClient = useQueryClient();
+  const [searchParams] = useSearchParams();
 
-  // Filters state
-  const [selectedDept, setSelectedDept] = useState('all');
-  const [selectedStatus, setSelectedStatus] = useState('all');
-  const [searchTerm, setSearchTerm] = useState('');
+  // Filters state initialized from URL params if available
+  const [selectedDept, setSelectedDept] = useState(() => searchParams.get('dept') || searchParams.get('department') || 'all');
+  const [selectedStatus, setSelectedStatus] = useState(() => searchParams.get('status') || 'all');
+  const [searchTerm, setSearchTerm] = useState(() => searchParams.get('search') || '');
 
   // View state: course list -> course classes -> selected class gradebook.
   const [selectedCourseId, setSelectedCourseId] = useState(null);
-  const [selectedClassId, setSelectedClassId] = useState(null);
+  const [selectedClassId, setSelectedClassId] = useState(() => searchParams.get('classId') || null);
 
   // Modals state
   const [isLockAllModalOpen, setIsLockAllModalOpen] = useState(false);
@@ -48,11 +51,17 @@ export function ManageGradebook() {
   const { data: deptData } = useQuery({
     queryKey: ['departments', 'all'],
     queryFn: () => departmentsApi.list({ limit: 100 }),
+    placeholderData: (prev) => prev,
   });
   const departments = useMemo(() => deptData?.data || deptData || [], [deptData]);
 
   // 2. Fetch admin gradebook overview
-  const { data: overviewData, isLoading: isLoadingOverview, refetch: refetchOverview } = useQuery({
+  const {
+    data: overviewData,
+    isLoading: isLoadingOverview,
+    isPending: isPendingOverview,
+    refetch: refetchOverview,
+  } = useQuery({
     queryKey: ['admin-gradebook-overview', selectedDept, selectedStatus, searchTerm],
     queryFn: () =>
       classesApi.adminGradebookOverview({
@@ -60,9 +69,11 @@ export function ManageGradebook() {
         status: selectedStatus !== 'all' ? selectedStatus : undefined,
         search: searchTerm || undefined,
       }),
+    placeholderData: (prev) => prev,
   });
 
   const classesList = useMemo(() => overviewData?.classes || [], [overviewData?.classes]);
+  const isOverviewLoading = isPendingOverview || (isLoadingOverview && !overviewData);
   const coursesList = useMemo(() => {
     const groups = new Map();
     for (const cls of classesList) {
@@ -89,25 +100,76 @@ export function ManageGradebook() {
     }
     return [...groups.values()].sort((a, b) => a.courseId.localeCompare(b.courseId));
   }, [classesList]);
-  const selectedCourse = coursesList.find((course) => course.courseId.toLowerCase() === selectedCourseId);
+  const classForSelectedId = classesList.find(
+    (cls) => String(cls._id || cls.id) === String(selectedClassId)
+  );
+  const selectedCourse =
+    coursesList.find((course) => course.courseId.toLowerCase() === selectedCourseId) ||
+    coursesList.find((course) => course.classes.includes(classForSelectedId));
   const selectedCourseClasses = selectedCourse?.classes || [];
   const totalClasses = overviewData?.totalClasses || 0;
   const lockedCount = overviewData?.lockedCount || 0;
   const openCount = overviewData?.openCount || 0;
 
   // 3. Fetch detailed students & grades for selected class (when in detail view)
-  const { data: classStudentsData, isLoading: isLoadingClassStudents } = useQuery({
+  const {
+    data: classStudentsData,
+    isLoading: isLoadingClassStudents,
+    isPending: isPendingClassStudents,
+  } = useQuery({
     queryKey: ['classes', selectedClassId, 'students'],
     queryFn: () => classesApi.students(selectedClassId),
     enabled: Boolean(selectedClassId),
+    placeholderData: (prev) => prev,
   });
+
+  const isDetailLoading = Boolean(selectedClassId) && (isPendingClassStudents || (isLoadingClassStudents && !classStudentsData));
 
   const currentClass = classStudentsData?.class || null;
   const classStudents = classStudentsData?.students || [];
 
+  useEffect(() => {
+    if (classStudents.length > 0) {
+      setAiPageContext({
+        students: classStudents.map((st) => ({
+          id: st.id,
+          code: formatStudentCode(st.id),
+          hoTen: st.hoTen,
+          email: st.email,
+          className: currentClass?.id || st.className,
+          department: currentClass?.department || st.department,
+          attendance: st.attendance,
+          homework: st.homework,
+          midterm: st.midterm,
+          final: st.final,
+          finalScore: st.finalScore,
+          status: st.finalScore != null ? (st.finalScore >= 4.0 ? 'Đạt' : 'Chưa đạt') : 'Đang học',
+        })),
+        currentClass,
+      });
+    }
+  }, [classStudents, currentClass]);
+
+  const [studentSortOrder, setStudentSortOrder] = useState('default');
+
+  useEffect(() => {
+    const handleAiAction = (e) => {
+      const { action, direction } = e.detail || {};
+      if (action === 'filter_grades') {
+        if (direction === 'desc') {
+          setStudentSortOrder('gpa-desc');
+        } else if (direction === 'asc') {
+          setStudentSortOrder('gpa-asc');
+        }
+      }
+    };
+    window.addEventListener('edumin:ai-action', handleAiAction);
+    return () => window.removeEventListener('edumin:ai-action', handleAiAction);
+  }, []);
+
   // Filtered students for class detail view
   const filteredClassStudents = useMemo(() => {
-    return classStudents.filter((st) => {
+    let list = classStudents.filter((st) => {
       if (studentSearchTerm.trim()) {
         const term = studentSearchTerm.trim().toLowerCase();
         const code = formatStudentCode(st.id).toLowerCase();
@@ -125,7 +187,15 @@ export function ManageGradebook() {
       }
       return true;
     });
-  }, [classStudents, studentSearchTerm, studentGradeFilter]);
+
+    if (studentSortOrder === 'gpa-desc') {
+      list = [...list].sort((a, b) => (b.finalScore ?? -1) - (a.finalScore ?? -1));
+    } else if (studentSortOrder === 'gpa-asc') {
+      list = [...list].sort((a, b) => (a.finalScore ?? 999) - (b.finalScore ?? 999));
+    }
+
+    return list;
+  }, [classStudents, studentSearchTerm, studentGradeFilter, studentSortOrder]);
 
   // 4. Fetch audit logs (either all or specific class)
   const { data: auditLogsData, isLoading: isLoadingAuditLogs, refetch: refetchAuditLogs } = useQuery({
@@ -275,7 +345,11 @@ export function ManageGradebook() {
             <i className="fas fa-layer-group" />
           </div>
           <div>
-            <div className="text-2xl font-black text-slate-900">{totalClasses}</div>
+            {isOverviewLoading ? (
+              <div className="h-7 w-16 bg-slate-200 rounded-lg animate-pulse my-1" />
+            ) : (
+              <div className="text-2xl font-black text-slate-900">{totalClasses}</div>
+            )}
             <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Tổng Lớp học phần</div>
           </div>
         </div>
@@ -284,7 +358,11 @@ export function ManageGradebook() {
             <i className="fas fa-lock-open" />
           </div>
           <div>
-            <div className="text-2xl font-black text-emerald-600">{openCount}</div>
+            {isOverviewLoading ? (
+              <div className="h-7 w-16 bg-slate-200 rounded-lg animate-pulse my-1" />
+            ) : (
+              <div className="text-2xl font-black text-emerald-600">{openCount}</div>
+            )}
             <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Đang mở nhập điểm</div>
           </div>
         </div>
@@ -293,7 +371,11 @@ export function ManageGradebook() {
             <i className="fas fa-lock" />
           </div>
           <div>
-            <div className="text-2xl font-black text-rose-600">{lockedCount}</div>
+            {isOverviewLoading ? (
+              <div className="h-7 w-16 bg-slate-200 rounded-lg animate-pulse my-1" />
+            ) : (
+              <div className="text-2xl font-black text-rose-600">{lockedCount}</div>
+            )}
             <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Đã chốt sổ / Khóa</div>
           </div>
         </div>
@@ -385,9 +467,12 @@ export function ManageGradebook() {
             </div>
           </div>
 
-          {isLoadingOverview ? (
-            <div className="py-16 flex justify-center">
+          {isOverviewLoading ? (
+            <div className="py-16 flex flex-col items-center justify-center gap-3">
               <Spinner />
+              <span className="text-xs font-semibold animate-pulse text-slate-500">
+                Đang tải dữ liệu bảng điểm toàn trường...
+              </span>
             </div>
           ) : selectedCourseId && selectedCourseClasses.length === 0 ? (
             <div className="py-10 text-center text-slate-400">
@@ -668,7 +753,7 @@ export function ManageGradebook() {
             <div className="p-4 border-b border-slate-100 bg-slate-50/70 flex flex-wrap items-center justify-between gap-3">
               <div className="flex flex-wrap items-center gap-3">
                 {/* Quick Class Switcher */}
-                {classesList.length > 0 && (
+                {selectedCourseClasses.length > 0 && (
                   <div className="flex items-center gap-2">
                     <label htmlFor="detail-class-select" className="text-xs font-bold text-slate-600 whitespace-nowrap">
                       Lớp học phần:
@@ -753,9 +838,12 @@ export function ManageGradebook() {
               </div>
             </div>
 
-            {isLoadingClassStudents ? (
-              <div className="py-16 flex justify-center">
+            {isDetailLoading ? (
+              <div className="py-16 flex flex-col items-center justify-center gap-3">
                 <Spinner />
+                <span className="text-xs font-semibold animate-pulse text-slate-500">
+                  Đang tải danh sách sinh viên & bảng điểm lớp...
+                </span>
               </div>
             ) : classStudents.length === 0 ? (
               <div className="py-16 text-center text-slate-400">

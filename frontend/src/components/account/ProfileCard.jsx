@@ -34,7 +34,9 @@ export function ProfileCard({ profile, user, code, fields = [] }) {
       queryClient.invalidateQueries({ queryKey: ['profile-requests'] });
       window.dispatchEvent(new CustomEvent('edumin_profile_request_updated'));
 
-      if (data?.pending) {
+      if (data?.autoApproved) {
+        toast.success(data.message || 'EduMin AI đã tự động phê duyệt ảnh đại diện theo tiêu chí của Quản trị viên!');
+      } else if (data?.pending) {
         toast.info(data.message || 'Yêu cầu thay đổi ảnh đại diện đã được gửi đến Quản trị viên để phê duyệt');
       } else {
         toast.success('Đã cập nhật ảnh đại diện');

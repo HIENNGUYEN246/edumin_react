@@ -13,6 +13,7 @@ import { useAuth } from '../../../app/providers/AuthProvider.jsx';
 import { attendanceApi } from '../../../api/attendanceApi.js';
 import { enrollmentsApi } from '../../../api/enrollmentsApi.js';
 import { assignmentsApi } from '../../../api/assignmentsApi.js';
+import { setAiPageContext } from '../../../components/ai/EduMinAiAssistant.jsx';
 import {
   formatAttendanceDate,
   getShiftLabel,
@@ -543,6 +544,27 @@ export function StudentAttendance() {
       (g) => g.courseId === filterClass || g.classId === filterClass || g.courseName === filterClass
     );
   }, [personalGradebook, filterClass]);
+
+  useEffect(() => {
+    if (personalGradebook.length > 0) {
+      setAiPageContext({
+        page: 'student_attendance',
+        personalGradebook,
+        myAttendances: attendances,
+      });
+    }
+  }, [personalGradebook, attendances]);
+
+  useEffect(() => {
+    const handleAiAction = (e) => {
+      const { action } = e.detail || {};
+      if (action === 'filter_grades' || action === 'view_grades') {
+        setActiveTab('grades');
+      }
+    };
+    window.addEventListener('edumin:ai-action', handleAiAction);
+    return () => window.removeEventListener('edumin:ai-action', handleAiAction);
+  }, []);
 
   return (
     <div className="space-y-6 pb-16">

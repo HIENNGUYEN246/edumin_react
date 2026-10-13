@@ -245,12 +245,6 @@ export async function listOpenClasses(requester) {
         const classDept = cls.department || cls.courseRef?.department;
         return classDept && matchDept(classDept);
       });
-    } else {
-      // If student has no department/major configured, strictly only show general education classes!
-      classes = classes.filter((cls) => {
-        const classDept = cls.department || cls.courseRef?.department;
-        return isGeneralEducation(classDept);
-      });
     }
   } else if (requester?.role === ROLES.TEACHER) {
     let teacher = null;
@@ -1005,7 +999,12 @@ export async function getGradeAuditLogs(classId) {
 export async function getAdminGradebookOverview({ department, teacherId, status, search } = {}) {
   const filter = {};
   if (department && department !== 'all') {
-    filter.department = department;
+    const matchDept = await buildDepartmentMatcher(department);
+    if (matchDept.acceptedList?.length > 0) {
+      filter.department = { $in: matchDept.acceptedList.map((d) => new RegExp(`^${d}$`, 'i')) };
+    } else {
+      filter.department = new RegExp(`^${department}$`, 'i');
+    }
   }
   if (teacherId && teacherId !== 'all') {
     if (mongoose.isValidObjectId(teacherId)) {
@@ -1031,18 +1030,45 @@ export async function getAdminGradebookOverview({ department, teacherId, status,
 
   const classes = await CourseClass.find(filter).sort({ id: 1 }).lean();
   const classIds = classes.map((c) => c._id);
+  const classCodes = classes.map((c) => c.id).filter(Boolean);
 
-  // Group enrollments by classRef to compute stats
-  const enrollments = await Enrollment.find({ classRef: { $in: classIds } }).select('classRef finalScore manualGrades').lean();
-  const enrollmentsByClass = new Map();
+  // Group enrollments by classRef or classId to compute stats
+  const enrollments = await Enrollment.find({
+    $or: [
+      { classRef: { $in: classIds } },
+      { classId: { $in: classCodes } },
+    ],
+  }).select('_id classRef classId finalScore manualGrades').lean();
+
+  const enrollmentsByClassRef = new Map();
+  const enrollmentsByClassId = new Map();
   for (const e of enrollments) {
-    const k = String(e.classRef);
-    if (!enrollmentsByClass.has(k)) enrollmentsByClass.set(k, []);
-    enrollmentsByClass.get(k).push(e);
+    if (e.classRef) {
+      const k = String(e.classRef);
+      if (!enrollmentsByClassRef.has(k)) enrollmentsByClassRef.set(k, []);
+      enrollmentsByClassRef.get(k).push(e);
+    }
+    if (e.classId) {
+      const k = String(e.classId);
+      if (!enrollmentsByClassId.has(k)) enrollmentsByClassId.set(k, []);
+      enrollmentsByClassId.get(k).push(e);
+    }
   }
 
   const overview = classes.map((c) => {
-    const classEnrolls = enrollmentsByClass.get(String(c._id)) || [];
+    const refEnrolls = enrollmentsByClassRef.get(String(c._id)) || [];
+    const idEnrolls = c.id ? enrollmentsByClassId.get(String(c.id)) || [] : [];
+    // Deduplicate enrollments by _id
+    const seenIds = new Set();
+    const classEnrolls = [];
+    for (const e of [...refEnrolls, ...idEnrolls]) {
+      const eid = String(e._id);
+      if (!seenIds.has(eid)) {
+        seenIds.add(eid);
+        classEnrolls.push(e);
+      }
+    }
+
     const totalStudents = classEnrolls.length;
     const gradedStudents = classEnrolls.filter((e) => e.finalScore != null).length;
     const scores = classEnrolls.map((e) => e.finalScore).filter((s) => s != null);

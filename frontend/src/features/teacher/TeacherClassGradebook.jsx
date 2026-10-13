@@ -14,6 +14,7 @@ import {
 } from '../../lib/format.js';
 import { useToast } from '../../app/providers/ToastProvider.jsx';
 import { useClassStudents } from './useTeacherClasses.js';
+import { setAiPageContext } from '../../components/ai/EduMinAiAssistant.jsx';
 
 function StudentGradeRow({ classId, student, weights, activeComponents, quizConfig }) {
   const toast = useToast();
@@ -288,6 +289,47 @@ export function TeacherClassGradebook() {
   const availableQuizzes = useMemo(() => studentsQuery.data?.availableQuizzes || [], [studentsQuery.data?.availableQuizzes]);
   const classFromStudents = useMemo(() => studentsQuery.data?.class || null, [studentsQuery.data?.class]);
 
+  // Sync real-time page context with EduMin AI Assistant
+  useEffect(() => {
+    if (classInfo || students.length > 0) {
+      setAiPageContext({
+        page: 'teacher_gradebook',
+        currentClass: classInfo || classFromStudents,
+        students: students.map((st) => ({
+          ...st,
+          code: formatStudentCode(st.id),
+          finalScore: calculateGpa(
+            {
+              attendance: st.manualGrades?.attendance ?? st.attendanceStats?.autoScore,
+              presentation: st.manualGrades?.presentation,
+              midterm: st.manualGrades?.midterm ?? st.quizMidterm?.score,
+              final: st.manualGrades?.final ?? st.quizFinal?.score,
+              homework: st.homeworkGrade,
+            },
+            weights
+          ),
+        })),
+      });
+    }
+  }, [classInfo, classFromStudents, students, weights]);
+
+  // Listen to AI action triggers (e.g. locate student on gradebook)
+  useEffect(() => {
+    const handleAiAction = (e) => {
+      const detail = e.detail;
+      if (!detail) return;
+      if (detail.action === 'locate_student') {
+        const query = detail.studentName || detail.studentCode || '';
+        if (query) {
+          setSearchTerm(query);
+          toast.info(`Đã tìm kiếm và định vị sinh viên ${query} trên bảng điểm!`);
+        }
+      }
+    };
+    window.addEventListener('edumin:ai-action', handleAiAction);
+    return () => window.removeEventListener('edumin:ai-action', handleAiAction);
+  }, [toast]);
+
   // Check if a student has all active component grades filled
   const isStudentComplete = (st) => {
     return activeComponents.every((comp) => {
@@ -396,7 +438,16 @@ export function TeacherClassGradebook() {
     onError: (err) => toast.error(err.message),
   });
 
-  if (classQuery.isLoading || studentsQuery.isLoading) return <Spinner />;
+  if (classQuery.isLoading || studentsQuery.isLoading || classQuery.isPending || studentsQuery.isPending) {
+    return (
+      <div className="py-20 flex flex-col items-center justify-center gap-3">
+        <Spinner />
+        <span className="text-xs font-semibold text-slate-500 animate-pulse">
+          Đang tải dữ liệu sổ điểm lớp học phần...
+        </span>
+      </div>
+    );
+  }
   if (classQuery.isError || studentsQuery.isError) {
     return <div className="rounded-xl border border-red-100 bg-white p-6 text-sm text-red-600">Không tải được sổ điểm lớp học phần.</div>;
   }
