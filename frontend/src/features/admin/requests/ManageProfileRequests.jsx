@@ -47,6 +47,13 @@ export function ManageProfileRequests() {
     refetchInterval: 15000,
   });
 
+  const { data: criteriaRes } = useQuery({
+    queryKey: ['ai-criteria'],
+    queryFn: () => profileRequestsApi.getAiCriteria(),
+    refetchInterval: 10000,
+  });
+  const activeCriteria = criteriaRes?.criteria;
+
   const rows = data?.data || [];
   const meta = data?.meta || { page: 1, pages: 1, total: 0 };
   const pendingCount = data?.pendingCount ?? 0;
@@ -337,16 +344,34 @@ export function ManageProfileRequests() {
       render: (r) => {
         if (r.status === 'pending') {
           return (
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
-              <i className="fas fa-clock text-[10px]" /> Chờ duyệt
-            </span>
+            <div>
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                <i className="fas fa-clock text-[10px]" /> Chờ duyệt
+              </span>
+              {r.adminNote?.includes('Chưa đạt') && (
+                <p className="text-[10px] text-amber-700 font-medium mt-0.5 max-w-[130px] truncate" title={r.adminNote}>
+                  {r.adminNote.replace(/\[.*?\]\s*/g, '')}
+                </p>
+              )}
+            </div>
           );
         }
         if (r.status === 'approved') {
+          const isAi = r.adminNote?.includes('AI Tự động') || r.adminNote?.includes('EduMin AI');
           return (
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-              <i className="fas fa-check text-[10px]" /> Đã duyệt
-            </span>
+            <div>
+              <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold ${
+                isAi ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+              }`}>
+                <i className={`fas ${isAi ? 'fa-robot' : 'fa-check'} text-[10px]`} />
+                {isAi ? 'AI Tự duyệt' : 'Đã duyệt'}
+              </span>
+              {isAi && (
+                <p className="text-[10px] text-indigo-600 font-medium mt-0.5 max-w-[130px] truncate" title={r.adminNote}>
+                  Đạt tiêu chuẩn
+                </p>
+              )}
+            </div>
           );
         }
         return (
@@ -434,6 +459,110 @@ export function ManageProfileRequests() {
           </div>
         }
       />
+
+      {/* AI Pre-configured Approval Policy Banner */}
+      {activeCriteria &&
+      (activeCriteria.rules?.requirePhone10 ||
+        activeCriteria.rules?.requireCccd12 ||
+        activeCriteria.rules?.requireReason ||
+        activeCriteria.rules?.noAvatar ||
+        activeCriteria.rules?.requireName ||
+        activeCriteria.rules?.requireAddress) ? (
+        <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-blue-50 border border-blue-200/90 rounded-2xl p-4 shadow-xs">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-sm shadow-blue-500/20">
+                <i className="fas fa-shield-alt text-lg" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h4 className="text-sm font-bold text-slate-800">
+                    Quy chuẩn kiểm duyệt tự động đón đầu (EduMin AI Policy)
+                  </h4>
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    Đang kích hoạt đón đầu
+                  </span>
+                </div>
+                <p className="text-xs text-slate-600 mt-0.5">
+                  <span className="font-semibold text-blue-700">Tiêu chuẩn:</span>{' '}
+                  {activeCriteria.rules?.customSummary || activeCriteria.rawCriteriaText}
+                </p>
+                <div className="flex items-center gap-2 mt-1.5 flex-wrap text-[11px] text-slate-500">
+                  {activeCriteria.rules?.requirePhone10 && (
+                    <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200 font-medium text-slate-700">
+                      <i className="fas fa-check text-emerald-500 mr-1" /> SĐT 10 số
+                    </span>
+                  )}
+                  {activeCriteria.rules?.requireCccd12 && (
+                    <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200 font-medium text-slate-700">
+                      <i className="fas fa-check text-emerald-500 mr-1" /> CCCD 12 số (sẵn sàng, không ràng buộc)
+                    </span>
+                  )}
+                  {activeCriteria.rules?.requireReason && (
+                    <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200 font-medium text-slate-700">
+                      <i className="fas fa-check text-emerald-500 mr-1" /> Có lý do thay đổi
+                    </span>
+                  )}
+                  {activeCriteria.rules?.noAvatar && (
+                    <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200 font-medium text-slate-700">
+                      <i className="fas fa-check text-emerald-500 mr-1" /> Không duyệt avatar
+                    </span>
+                  )}
+                  <span className="text-slate-400">• Tự động duyệt nhanh nếu đạt chuẩn, giữ lại Chờ duyệt nếu chưa đạt.</span>
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                window.dispatchEvent(
+                  new CustomEvent('edumin_toggle_ai_assistant', {
+                    detail: { open: true, prompt: 'Admin ra yêu cầu duyệt: ' },
+                  })
+                );
+              }}
+              className="shrink-0 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-xs"
+            >
+              <i className="fas fa-sliders-h" />
+              <span>Điều chỉnh tiêu chí</span>
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="bg-slate-50 border border-dashed border-slate-300 rounded-2xl p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-slate-200 text-slate-600 flex items-center justify-center shrink-0">
+              <i className="fas fa-robot text-sm" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-slate-700">
+                Chưa thiết lập quy chuẩn kiểm duyệt tự động đón đầu
+              </p>
+              <p className="text-[11px] text-slate-500">
+                Admin có thể ra yêu cầu trước qua AI Chatbot (ví dụ: SĐT 10 số, CCCD 12 số) để AI tự động kiểm duyệt đón đầu các yêu cầu mới.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              window.dispatchEvent(
+                new CustomEvent('edumin_toggle_ai_assistant', {
+                  detail: {
+                    open: true,
+                    prompt: 'Admin ra yêu cầu duyệt: SĐT 10 số, CCCD 12 số, lý do rõ ràng',
+                  },
+                })
+              );
+            }}
+            className="shrink-0 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-blue-700 border border-blue-200 text-xs font-bold transition flex items-center gap-1.5 shadow-2xs"
+          >
+            <i className="fas fa-magic text-blue-600" />
+            <span>Ra yêu cầu duyệt cho AI</span>
+          </button>
+        </div>
+      )}
 
       {/* Tabs & Role filter bar */}
       <div className="flex flex-wrap items-center justify-between gap-4 bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-2xs">

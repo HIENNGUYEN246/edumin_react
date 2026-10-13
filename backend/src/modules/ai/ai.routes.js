@@ -1,9 +1,50 @@
 import { Router } from 'express';
 import { authenticate } from '../../middleware/authenticate.js';
 import { handleAiAssistantQuery } from './ai.service.js';
+import { getAdminCriteria, setAdminCriteria, clearAdminCriteria } from './adminCriteria.store.js';
 import { ROLES } from '../../lib/roles.js';
 
 const router = Router();
+
+// GET /api/ai/admin-criteria - Lấy quy chuẩn kiểm duyệt tự động đang kích hoạt
+router.get('/admin-criteria', authenticate, async (req, res, next) => {
+  try {
+    const criteria = await getAdminCriteria();
+    res.json({
+      success: true,
+      criteria: criteria || null,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/ai/admin-criteria - Thiết lập trước quy chuẩn kiểm duyệt tự động đón đầu
+router.post('/admin-criteria', authenticate, async (req, res, next) => {
+  try {
+    const { rawCriteriaText } = req.body;
+    const criteria = await setAdminCriteria(rawCriteriaText || '', req.user);
+    res.json({
+      success: true,
+      criteria,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// DELETE /api/ai/admin-criteria - Xóa quy chuẩn kiểm duyệt
+router.delete('/admin-criteria', authenticate, async (req, res, next) => {
+  try {
+    await clearAdminCriteria();
+    res.json({
+      success: true,
+      message: 'Đã hủy quy chuẩn kiểm duyệt tự động',
+    });
+  } catch (error) {
+    next(error);
+  }
+});
 
 // POST /api/ai/query
 router.post('/query', authenticate, async (req, res, next) => {

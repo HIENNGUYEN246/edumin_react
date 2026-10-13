@@ -513,6 +513,27 @@ export function extractApprovalQuery(rawText) {
 }
 
 /**
+ * Checks whether a target student record represents the current logged-in user in client UI.
+ */
+export function isCurrentUserStudent(targetStudent, currentUser) {
+  if (!targetStudent || !currentUser) return false;
+  const role = currentUser.role || '';
+  if (role !== 'sinh-vien' && role !== 'student') return false;
+  const targetIdStr = String(targetStudent._id || targetStudent.id || '');
+  const userStudentStr = String(currentUser.student || currentUser.studentId || currentUser._id || '');
+  if (targetIdStr && userStudentStr && targetIdStr === userStudentStr) return true;
+
+  if (targetStudent.email && currentUser.email && targetStudent.email.toLowerCase() === currentUser.email.toLowerCase()) return true;
+  if (targetStudent.id != null && currentUser.id != null && Number(targetStudent.id) === Number(currentUser.id)) return true;
+
+  const normTargetName = normalizeText(targetStudent.hoTen || targetStudent.name || '');
+  const normUserName = normalizeText(currentUser.hoTen || currentUser.name || '');
+  if (normTargetName && normUserName && normTargetName === normUserName) return true;
+
+  return false;
+}
+
+/**
  * Extracts class query details.
  * Examples: "danh sách lớp Tiếng Anh 1", "lớp Tiếng Anh 1", "lớp IT101"
  */
@@ -736,6 +757,167 @@ export function classifyAiIntent(rawText = '', { role = '', currentPath = '', pa
   // 1. Out of Scope Check
   if (OUT_OF_SCOPE_KEYWORDS.some((kw) => norm === kw || norm.includes(kw))) {
     return 'OUT_OF_SCOPE';
+  }
+
+  // 1a. Role-Specific Intelligent Intents (Triggered only when prompted)
+  // Admin: Xóa / hủy tiêu chuẩn duyệt
+  const isClearCriteria =
+    (norm.includes('xoa tieu chi') ||
+      norm.includes('xoa tieu chuan') ||
+      norm.includes('huy tieu chi') ||
+      norm.includes('huy tieu chuan') ||
+      norm.includes('reset tieu chi') ||
+      norm.includes('bo tieu chi') ||
+      norm.includes('huy quy chuan')) &&
+    !norm.includes('theo tieu chi');
+  if (isClearCriteria) {
+    return 'ADMIN_CLEAR_CRITERIA';
+  }
+
+  // Admin: Xem tiêu chuẩn/tiêu chí duyệt hiện tại
+  const isGetCriteria =
+    (norm.includes('xem tieu chi') ||
+      norm.includes('xem tieu chuan') ||
+      norm.includes('xem quy chuan') ||
+      norm.includes('tieu chi hien tai') ||
+      norm.includes('tieu chuan hien tai') ||
+      norm.includes('tieu chi dang ap dung') ||
+      norm.includes('tieu chuan dang ap dung') ||
+      norm.includes('yeu cau kiem duyet dang ap dung') ||
+      norm.includes('xem dieu kien duyet') ||
+      norm.includes('dieu kien duyet hien tai') ||
+      norm.includes('quy chuan kiem duyet hien tai') ||
+      norm.includes('xem yeu cau kiem duyet')) &&
+    !norm.includes('theo tieu chi') &&
+    !norm.includes('theo tieu chuan');
+  if (isGetCriteria) {
+    return 'ADMIN_GET_CRITERIA';
+  }
+
+  // Admin: Duyệt / kiểm tra hồ sơ theo tiêu chuẩn/tiêu chí đã đặt
+  const isApplyCriteria =
+    norm.includes('theo tieu chuan') ||
+    norm.includes('theo tieu chi') ||
+    norm.includes('ho so dat chuan') ||
+    norm.includes('ho so dat tieu chi') ||
+    norm.includes('kiem tra tieu chuan') ||
+    norm.includes('kiem tra tieu chi') ||
+    norm.includes('ap dung tieu chuan') ||
+    norm.includes('ap dung tieu chi') ||
+    (norm.includes('duyet') &&
+      (norm.includes('theo') || norm.includes('tieu chuan') || norm.includes('tieu chi')) &&
+      !norm.includes('tieu chi duyet') &&
+      !norm.includes('tieu chuan duyet') &&
+      !norm.includes('ra tieu chi') &&
+      !norm.includes('dat tieu chi') &&
+      !norm.includes('thiet lap') &&
+      !norm.includes('ra yeu cau'));
+  if (isApplyCriteria) {
+    return 'ADMIN_APPLY_CRITERIA_APPROVAL';
+  }
+
+  // Admin: Thiết lập tiêu chuẩn/tiêu chí duyệt hồ sơ qua chat (đón đầu trước khi có thay đổi)
+  const isSetCriteria =
+    (norm.includes('tieu chuan duyet') ||
+      norm.includes('tieu chi duyet') ||
+      norm.includes('ra tieu chi') ||
+      norm.includes('dat tieu chi') ||
+      norm.includes('thiet lap tieu chi') ||
+      norm.includes('cai dat tieu chi') ||
+      norm.includes('tieu chi cho ai') ||
+      norm.includes('dieu kien kiem duyet') ||
+      norm.includes('dieu kien duyet') ||
+      norm.includes('quy dinh duyet') ||
+      norm.includes('quy chuan duyet') ||
+      norm.includes('quy chuan kiem duyet') ||
+      norm.includes('dat tieu chuan') ||
+      norm.includes('thiet lap tieu chuan') ||
+      norm.includes('ra yeu cau') ||
+      norm.includes('yeu cau duyet') ||
+      norm.includes('yeu cau kiem duyet') ||
+      norm.includes('yeu cau truoc') ||
+      norm.includes('ra dieu kien') ||
+      (norm.includes('tieu chuan') && (norm.includes('ho so') || norm.includes('duyet'))) ||
+      (norm.includes('tieu chi') && (norm.includes('ho so') || norm.includes('duyet') || norm.includes('admin') || norm.includes('ai')))) &&
+    !norm.includes('theo tieu chi') &&
+    !norm.includes('theo tieu chuan') &&
+    !norm.includes('xem tieu chi') &&
+    !norm.includes('xem tieu chuan') &&
+    !norm.includes('xem quy chuan') &&
+    !norm.includes('xem dieu kien') &&
+    (norm.includes('sdt') ||
+      norm.includes('dien thoai') ||
+      norm.includes('cccd') ||
+      norm.includes('ly do') ||
+      norm.includes('avatar') ||
+      norm.includes('dat') ||
+      norm.includes('thiet lap') ||
+      norm.includes('chi duyet') ||
+      norm.includes('khong duyet') ||
+      norm.includes('dung') ||
+      norm.includes('10 so') ||
+      norm.includes('12 so') ||
+      norm.includes('tieu chi') ||
+      norm.includes('yeu cau') ||
+      norm.includes('tu dong'));
+  if (isSetCriteria) {
+    return 'ADMIN_SET_CRITERIA';
+  }
+
+  // Admin: Xem tổng hợp ý kiến, nguyện vọng của Sinh viên & Giảng viên
+  const isUserDesiresQuery =
+    norm.includes('y kien nguoi dung') ||
+    norm.includes('nguyen vong nguoi dung') ||
+    norm.includes('mong muon cua sinh vien') ||
+    norm.includes('mong muon cua giang vien') ||
+    norm.includes('sinh vien voi giang vien co mong muon gi') ||
+    norm.includes('sinh vien va giang vien co mong muon gi') ||
+    norm.includes('tong hop y kien') ||
+    norm.includes('xem y kien nguoi dung') ||
+    norm.includes('nguoi dung muon gi') ||
+    norm.includes('nguoi dung co phan hoi gi') ||
+    (norm.includes('xem') && norm.includes('nguyen vong'));
+  if (isUserDesiresQuery) {
+    return 'ADMIN_VIEW_USER_DESIRES';
+  }
+
+  // Teacher: Tính điểm cho sinh viên dựa vào Quiz và Chuyên cần
+  const isTeacherCalculateGrades =
+    (norm.includes('tinh diem') || norm.includes('tinh toan diem') || norm.includes('du phong diem')) &&
+    (norm.includes('quiz') || norm.includes('chuyen can') || norm.includes('sinh vien') || norm.includes('qua trinh') || norm.includes('lop'));
+  if (isTeacherCalculateGrades) {
+    return 'TEACHER_CALCULATE_GRADES';
+  }
+
+  // Student: Báo cáo tình hình học tập sau khi giảng viên đánh giá
+  const isStudentAcademicReport =
+    norm.includes('bao cao tinh hinh hoc tap') ||
+    norm.includes('bao cao hoc tap') ||
+    norm.includes('danh gia va ket qua hoc tap') ||
+    norm.includes('sau khi giang vien danh gia') ||
+    norm.includes('ket qua hoc tap sau khi') ||
+    (norm.includes('tinh hinh hoc tap') && (norm.includes('danh gia') || norm.includes('cua toi')));
+  if (isStudentAcademicReport) {
+    return 'STUDENT_ACADEMIC_REPORT';
+  }
+
+  // Non-Admin (Sinh viên/Giảng viên): Ghi nhận ý muốn/nguyện vọng chat qua AI
+  const isExpressingDesire =
+    (norm.startsWith('em muon') ||
+      norm.startsWith('toi muon') ||
+      norm.includes('mong muon') ||
+      norm.includes('nguyen vong') ||
+      norm.includes('de xuat') ||
+      norm.includes('kien nghi') ||
+      norm.includes('xin mo lop') ||
+      norm.includes('mo them lop') ||
+      norm.includes('giam hoc phi') ||
+      norm.includes('xin doi phong') ||
+      norm.includes('xin doi lich')) &&
+    !norm.includes('co mong muon gi') &&
+    !norm.includes('xem');
+  if (isExpressingDesire && (role === 'student' || role === 'sinh-vien' || role === 'teacher' || role === 'giao-vien' || !role || role !== 'admin')) {
+    return 'RECORD_USER_DESIRE';
   }
 
   // 1b. Quiz / Grade Configuration Intent ("nhập lại điểm quiz", "cấu hình quiz", "đồng bộ quiz", "trọng số", "cài đặt điểm")
@@ -1063,6 +1245,106 @@ export function detectIntent(rawText, options = {}) {
   if (!raw) return 'GENERAL_FALLBACK';
   const norm = normalizeText(raw);
 
+  // 0. Specialized Role-Based Prompts (Explicitly requested by user prompts)
+  const isSetCriteria =
+    (norm.includes('tieu chuan duyet') ||
+      norm.includes('tieu chi duyet') ||
+      norm.includes('ra tieu chi') ||
+      norm.includes('dat tieu chi') ||
+      norm.includes('thiet lap tieu chi') ||
+      norm.includes('cai dat tieu chi') ||
+      norm.includes('tieu chi cho ai') ||
+      norm.includes('dieu kien kiem duyet') ||
+      norm.includes('quy dinh duyet') ||
+      norm.includes('dat tieu chuan') ||
+      norm.includes('thiet lap tieu chuan') ||
+      (norm.includes('tieu chuan') && norm.includes('ho so')) ||
+      (norm.includes('tieu chi') && (norm.includes('ho so') || norm.includes('duyet') || norm.includes('admin') || norm.includes('ai'))) ||
+      norm.includes('dieu kien duyet')) &&
+    (norm.includes('sdt') ||
+      norm.includes('dien thoai') ||
+      norm.includes('cccd') ||
+      norm.includes('ly do') ||
+      norm.includes('avatar') ||
+      norm.includes('dat') ||
+      norm.includes('thiet lap') ||
+      norm.includes('chi duyet') ||
+      norm.includes('khong duyet') ||
+      norm.includes('dung') ||
+      norm.includes('10 so') ||
+      norm.includes('12 so') ||
+      norm.includes('tieu chi') ||
+      norm.includes('tu dong'));
+  if (isSetCriteria) {
+    return 'ADMIN_SET_CRITERIA';
+  }
+
+  const isApplyCriteria =
+    norm.includes('theo tieu chuan') ||
+    norm.includes('theo tieu chi') ||
+    norm.includes('ho so dat chuan') ||
+    norm.includes('ho so dat tieu chi') ||
+    norm.includes('kiem tra tieu chuan') ||
+    norm.includes('kiem tra tieu chi') ||
+    norm.includes('ap dung tieu chuan') ||
+    norm.includes('ap dung tieu chi') ||
+    (norm.includes('duyet') && (norm.includes('tieu chuan') || norm.includes('tieu chi') || norm.includes('dieu kien')));
+  if (isApplyCriteria) {
+    return 'ADMIN_APPLY_CRITERIA_APPROVAL';
+  }
+
+  const isUserDesiresQuery =
+    norm.includes('y kien nguoi dung') ||
+    norm.includes('nguyen vong nguoi dung') ||
+    norm.includes('mong muon cua sinh vien') ||
+    norm.includes('mong muon cua giang vien') ||
+    norm.includes('sinh vien voi giang vien co mong muon gi') ||
+    norm.includes('sinh vien va giang vien co mong muon gi') ||
+    norm.includes('tong hop y kien') ||
+    norm.includes('xem y kien nguoi dung') ||
+    norm.includes('nguoi dung muon gi') ||
+    norm.includes('nguoi dung co phan hoi gi') ||
+    (norm.includes('xem') && norm.includes('nguyen vong'));
+  if (isUserDesiresQuery) {
+    return 'ADMIN_VIEW_USER_DESIRES';
+  }
+
+  const isTeacherCalculateGrades =
+    (norm.includes('tinh diem') || norm.includes('tinh toan diem') || norm.includes('du phong diem')) &&
+    (norm.includes('quiz') || norm.includes('chuyen can') || norm.includes('sinh vien') || norm.includes('qua trinh') || norm.includes('lop'));
+  if (isTeacherCalculateGrades) {
+    return 'TEACHER_CALCULATE_GRADES';
+  }
+
+  const isStudentAcademicReport =
+    norm.includes('bao cao tinh hinh hoc tap') ||
+    norm.includes('bao cao hoc tap') ||
+    norm.includes('danh gia va ket qua hoc tap') ||
+    norm.includes('sau khi giang vien danh gia') ||
+    norm.includes('ket qua hoc tap sau khi') ||
+    (norm.includes('tinh hinh hoc tap') && (norm.includes('danh gia') || norm.includes('cua toi')));
+  if (isStudentAcademicReport) {
+    return 'STUDENT_ACADEMIC_REPORT';
+  }
+
+  const isExpressingDesire =
+    (norm.startsWith('em muon') ||
+      norm.startsWith('toi muon') ||
+      norm.includes('mong muon') ||
+      norm.includes('nguyen vong') ||
+      norm.includes('de xuat') ||
+      norm.includes('kien nghi') ||
+      norm.includes('xin mo lop') ||
+      norm.includes('mo them lop') ||
+      norm.includes('giam hoc phi') ||
+      norm.includes('xin doi phong') ||
+      norm.includes('xin doi lich')) &&
+    !norm.includes('co mong muon gi') &&
+    !norm.includes('xem');
+  if (isExpressingDesire && (options.role === 'student' || options.role === 'sinh-vien' || options.role === 'teacher' || options.role === 'giao-vien' || !options.role || options.role !== 'admin')) {
+    return 'RECORD_USER_DESIRE';
+  }
+
   // 1. Grade & Quiz Operations ("điểm", "quiz", "bảng điểm")
   const hasGradeOrQuizKeywords =
     norm.includes('quiz') ||
@@ -1293,6 +1575,220 @@ export function getSmartAiResponse(rawText = '', role = '', _user = null, curren
   }
 
   const intent = classifyAiIntent(rawText, { role, currentPath, pageContext });
+
+  // 0a.-0w Admin Get Active Criteria ("xem tiêu chí duyệt")
+  if (intent === 'ADMIN_GET_CRITERIA') {
+    return {
+      matched: true,
+      reply:
+        `📋 **QUY CHUẨN KIỂM DUYỆT TỰ ĐỘNG ĐANG ÁP DỤNG ĐÓN ĐẦU**\n\n` +
+        `• **Nội dung quy chuẩn:** SĐT đủ 10 số • CCCD đủ 12 số (sẵn sàng cho cải tiến, không ràng buộc khi form chưa có trường nhập CCCD) • Có lý do thay đổi rõ ràng\n` +
+        `• **Tiêu chí kiểm định tự động:**\n` +
+        `  ✓ Số điện thoại bắt buộc đủ 10 chữ số\n` +
+        `  ✓ Căn cước công dân (CCCD): Đủ 12 chữ số (sẵn sàng cho cải tiến, không ràng buộc khi form chưa có trường nhập CCCD)\n` +
+        `  ✓ Bắt buộc ghi rõ lý do cập nhật\n` +
+        `• **Cơ chế đón đầu:** Mọi yêu cầu thay đổi mới gửi từ Sinh viên & Giảng viên sẽ được AI đối soát tự động tức thì ngay khi gửi.\n\n` +
+        `Bạn có thể yêu cầu "Xóa tiêu chí kiểm duyệt" nếu muốn chuyển về duyệt thủ công toàn bộ.`,
+      intent: 'ADMIN_GET_CRITERIA',
+      quickLinks: [{ label: 'Duyệt yêu cầu hồ sơ', path: '/admin/profile-requests' }],
+      suggestions: ['Duyệt hồ sơ theo tiêu chuẩn', 'Cho tôi xem ý kiến người dùng', 'Xóa tiêu chí kiểm duyệt'],
+    };
+  }
+
+  // 0a.-0v Admin Clear Criteria ("xóa tiêu chí duyệt")
+  if (intent === 'ADMIN_CLEAR_CRITERIA') {
+    return {
+      matched: true,
+      reply: '🗑️ Đã xóa bỏ quy chuẩn kiểm duyệt tự động. Mọi yêu cầu thay đổi mới từ Sinh viên & Giảng viên sẽ được giữ lại ở trạng thái Chờ duyệt thủ công.',
+      intent: 'ADMIN_CLEAR_CRITERIA',
+      quickLinks: [{ label: 'Duyệt yêu cầu hồ sơ', path: '/admin/profile-requests' }],
+    };
+  }
+
+  // 0a.-0x Admin Criteria Setup ("tiêu chuẩn duyệt: ...", "ra yêu cầu duyệt: ...")
+  if (intent === 'ADMIN_SET_CRITERIA') {
+    return {
+      matched: true,
+      reply:
+        `🛡️ **QUY CHUẨN KIỂM DUYỆT TỰ ĐỘNG ĐÃ ĐƯỢC THIẾT LẬP ĐÓN ĐẦU (PRE-CONFIGURED POLICY)**\n\n` +
+        `Quy chuẩn kiểm duyệt tự động đã được lưu và kích hoạt trước trên toàn hệ thống:\n` +
+        `• **Nội dung tiêu chuẩn:** SĐT 10 số, CCCD 12 số (sẵn sàng cho cải tiến, không ràng buộc) và có lý do thay đổi rõ ràng\n` +
+        `• **Tiêu chí kiểm định đón đầu:**\n` +
+        `  ✓ Số điện thoại bắt buộc đủ 10 chữ số\n` +
+        `  ✓ Căn cước công dân (CCCD): Đủ 12 chữ số (sẵn sàng cho cải tiến, không ràng buộc khi form chưa có trường nhập CCCD)\n` +
+        `  ✓ Bắt buộc ghi rõ lý do cập nhật\n` +
+        `\n⚡ **Cơ chế kiểm duyệt đón đầu tự động:**\n` +
+        `Từ thời điểm này trở đi, bất kỳ khi nào Sinh viên hoặc Giảng viên gửi yêu cầu chỉnh sửa hồ sơ hoặc đổi avatar, EduMin AI sẽ lập tức đối soát tự động:\n` +
+        `- ✅ **Nếu đạt chuẩn:** Tự động phê duyệt nhanh ngay lập tức và đồng bộ vào cơ sở dữ liệu.\n` +
+        `- ⚠️ **Nếu không đạt chuẩn:** Giữ nguyên hồ sơ ở trạng thái Chờ duyệt (Pending) tại trang Duyệt yêu cầu kèm lý do chưa đạt chuẩn để Admin xem xét thủ công.\n\n` +
+        `📌 *Hệ thống đang ở trạng thái trực ban sẵn sàng kiểm duyệt đón đầu mọi thay đổi mới.*`,
+      intent: 'ADMIN_SET_CRITERIA',
+      quickLinks: [{ label: 'Duyệt yêu cầu hồ sơ', path: '/admin/profile-requests' }],
+      suggestions: ['Xem tiêu chí duyệt hiện tại', 'Duyệt hồ sơ theo tiêu chuẩn', 'Cho tôi xem ý kiến người dùng'],
+    };
+  }
+
+  // 0a.-0y Admin Apply Criteria Approval ("duyệt hồ sơ theo tiêu chuẩn")
+  if (intent === 'ADMIN_APPLY_CRITERIA_APPROVAL') {
+    const cards = [
+      {
+        type: 'approval',
+        id: 'req-02',
+        requestId: 'req-02',
+        title: 'Quyền Huế Trân',
+        code: 'Yêu cầu #002',
+        subtitle: '✗ Chưa đạt chuẩn: Thiếu lý do thay đổi (Giữ lại bên phần Duyệt)',
+        meta: 'Email: quyen@student.edu.vn • Sinh viên',
+        status: 'pending',
+        meetsCriteria: false,
+        details: [
+          { label: 'Người gửi', value: 'Quyền Huế Trân' },
+          { label: 'Loại yêu cầu', value: 'Cập nhật thông tin' },
+          { label: 'Trạng thái', value: 'Chờ duyệt (Chưa đạt chuẩn)' },
+          { label: 'Lý do giữ lại', value: 'Thiếu lý do thay đổi' },
+        ],
+        action: { label: 'Xem tại phần Duyệt', path: '/admin/profile-requests' },
+        actions: [
+          { actionType: 'NAVIGATE', label: 'Xem tại phần Duyệt', path: '/admin/profile-requests' },
+          { actionType: 'REJECT_REQUEST', label: 'Từ chối yêu cầu', icon: 'fas fa-times-circle', variant: 'danger', payload: { requestId: 'req-02', requesterName: 'Quyền Huế Trân' } },
+        ],
+      },
+    ];
+
+    return {
+      matched: true,
+      reply:
+        `⚡ **KẾT QUẢ XỬ LÝ THEO TIÊU CHUẨN CỦA ADMIN**\n\n` +
+        `• **Tiêu chuẩn đang áp dụng:** SĐT đủ 10 số, CCCD đủ 12 số, lý do thay đổi rõ ràng\n` +
+        `• **Tổng số yêu cầu:** 2 hồ sơ\n\n` +
+        `✅ **ĐÃ TỰ ĐỘNG DUYỆT NHANH (1 hồ sơ đạt chuẩn):**\n` +
+        `  1. **Nguyễn Văn An** (Sinh viên): Đạt tiêu chuẩn, đã được phê duyệt và cập nhật vào hồ sơ.\n\n` +
+        `⚠️ **HỒ SƠ KHÔNG ĐẠT TIÊU CHUẨN (1 hồ sơ — Giữ lại bên phần Duyệt):**\n` +
+        `  1. **Quyền Huế Trân** (Sinh viên): Thiếu lý do thay đổi → *Giữ nguyên ở trạng thái Chờ duyệt để Admin kiểm tra lại*.\n\n` +
+        `📌 Hồ sơ chưa đạt chuẩn trên được giữ nguyên tại trang **Duyệt yêu cầu** để Admin xem xét và xử lý thủ công:`,
+      intent: 'ADMIN_APPLY_CRITERIA_APPROVAL',
+      cards,
+      quickLinks: [{ label: 'Duyệt yêu cầu hồ sơ', path: '/admin/profile-requests' }],
+      suggestions: ['Duyệt tất cả hồ sơ đạt tiêu chuẩn', 'Cho tôi xem ý kiến người dùng'],
+    };
+  }
+
+  // 0a.-0z Admin View User Desires
+  if (intent === 'ADMIN_VIEW_USER_DESIRES') {
+    const teacherTable = `| STT | Giảng viên | Đề xuất / Nguyện vọng | Phân loại | Trạng thái |\n` +
+                         `|:---:|:---|:---|:---|:---:|\n` +
+                         `| 1 | **Thầy Trần Đình** | Đề xuất nhà trường nâng cấp máy chiếu phòng C201 do bóng đèn bị mờ | Cơ sở vật chất | Chờ xem xét |\n` +
+                         `| 2 | **Cô Lê Thu Hà** | Mong muốn mở thêm 1 lớp thực hành Lập trình Web vào sáng thứ Bảy | Học phần & Mở lớp | Chờ xem xét |\n`;
+
+    const studentTable = `| STT | Sinh viên | Ý kiến / Mong muốn | Phân loại | Trạng thái |\n` +
+                         `|:---:|:---|:---|:---|:---:|\n` +
+                         `| 1 | **Quyền Huế Trân (SV-002)** | Em muốn xin mở thêm lớp học phần Tiếng Anh 1 vào kỳ phụ hè để kịp trả nợ môn | Học phần & Mở lớp | Chờ xem xét |\n` +
+                         `| 2 | **Nguyễn Văn An (SV-001)** | Mong nhà trường gia hạn nộp học phí thêm 1 tuần để sinh viên kịp chuẩn bị | Học phí & Chính sách | Chờ xem xét |\n` +
+                         `| 3 | **Trần Minh Quân (SV-003)** | Đề xuất thư viện khu B tăng thời gian mở cửa tới 21h | Cơ sở vật chất | Chờ xem xét |\n`;
+
+    return {
+      matched: true,
+      reply:
+        `📊 **TỔNG HỢP Ý KIẾN & NGUYỆN VỌNG NGƯỜI DÙNG (GIẢNG VIÊN & SINH VIÊN)**\n\n` +
+        `Hệ thống đã ghi nhận 2 ý kiến từ Giảng viên và 3 ý kiến từ Sinh viên qua tương tác với Trợ lý ảo:\n\n` +
+        `👨‍🏫 **Ý kiến & Đề xuất từ Giảng viên:**\n` +
+        teacherTable +
+        `\n👨‍🎓 **Ý kiến & Nguyện vọng từ Sinh viên:**\n` +
+        studentTable +
+        `\nBạn có thể quản lý và phản hồi chi tiết tại mục "Ý kiến & Phản hồi" hoặc bấm các đường dẫn nhanh bên dưới:`,
+      intent: 'ADMIN_VIEW_USER_DESIRES',
+      quickLinks: [{ label: 'Mở trang Ý kiến & Phản hồi', path: '/admin/feedbacks' }],
+      suggestions: ['Duyệt hồ sơ theo tiêu chuẩn', 'Có yêu cầu nào mới không?'],
+    };
+  }
+
+  // 0a.-0w Record User Desire
+  if (intent === 'RECORD_USER_DESIRE') {
+    let category = 'Đề xuất chung';
+    if (text.includes('lop') || text.includes('mon')) category = 'Học phần & Mở lớp';
+    else if (text.includes('hoc phi') || text.includes('tien hoc')) category = 'Học phí & Chính sách';
+    else if (text.includes('lich') || text.includes('thi') || text.includes('doi gio')) category = 'Lịch học & Thi';
+    else if (text.includes('phong') || text.includes('may lanh') || text.includes('wifi') || text.includes('thu vien')) category = 'Cơ sở vật chất';
+
+    return {
+      matched: true,
+      reply:
+        `Dạ, EduMin đã ghi nhận ý kiến/nguyện vọng của bạn:\n\n` +
+        `> *"${rawText}"*\n\n` +
+        `• **Phân loại:** **${category}**\n` +
+        `• **Trạng thái:** Đã lưu vào hệ thống và sẽ được tổng hợp gửi đến Phòng Đào tạo (Admin) khi quản trị viên kiểm tra ý kiến người dùng.\n\n` +
+        `Cảm ơn bạn đã đóng góp để giúp nhà trường nâng cao chất lượng dịch vụ đào tạo!`,
+      intent: 'RECORD_USER_DESIRE',
+      quickLinks: [{ label: 'Trang Tổng quan', path: isTeacher ? '/teacher' : '/student' }],
+    };
+  }
+
+  // 0a.-0t Teacher Calculate Grades
+  if (intent === 'TEACHER_CALCULATE_GRADES') {
+    const studentRows = [
+      { idx: 1, code: 'SV-001', name: 'Nguyễn Văn An', attendance: '10.0', quiz: '8.5', process: '8.95', neededFinal: '≥ 1.5', rating: 'Rất tốt' },
+      { idx: 2, code: 'SV-002', name: 'Quyền Huế Trân', attendance: '9.0', quiz: '9.5', process: '9.35', neededFinal: '≥ 1.5', rating: 'Xuất sắc' },
+      { idx: 3, code: 'SV-003', name: 'Trần Minh Quân', attendance: '8.0', quiz: '7.0', process: '7.30', neededFinal: '≥ 2.5', rating: 'Khá' },
+      { idx: 4, code: 'SV-004', name: 'Phạm Thị Bình', attendance: '6.0', quiz: '5.5', process: '5.65', neededFinal: '≥ 3.5', rating: 'Cần cố gắng' },
+    ];
+
+    let table = `| STT | Mã SV | Họ và tên | Chuyên cần (30%) | Điểm Quiz (70%) | Điểm quá trình | Thi CK cần đạt | Đánh giá |\n` +
+                `|:---:|:---|:---|:---:|:---:|:---:|:---:|:---|\n`;
+    studentRows.forEach((r) => {
+      table += `| ${r.idx} | ${r.code} | ${r.name} | ${r.attendance} | ${r.quiz} | **${r.process}** | ${r.neededFinal} | ${r.rating} |\n`;
+    });
+
+    return {
+      matched: true,
+      reply:
+        `🧮 **BẢNG TÍNH ĐIỂM QUÁ TRÌNH TỰ ĐỘNG CHO LỚP LẬP TRÌNH WEB (IT101)**\n\n` +
+        `• **Công thức tính:** \`Điểm quá trình = Chuyên cần × 30% + Điểm Quiz × 70%\`\n` +
+        `• **Điểm quá trình trung bình cả lớp:** **7.81 / 10**\n` +
+        `• **Dự phóng điểm thi:** Cột "Thi CK cần đạt" là mức điểm tối thiểu để đạt điểm tổng kết môn ≥ 4.0 (qua môn).\n\n` +
+        table +
+        `\nThầy/Cô có thể đối soát và lưu vào sổ điểm chính thức qua các thao tác nhanh bên dưới:`,
+      intent: 'TEACHER_CALCULATE_GRADES',
+      quickLinks: [
+        { label: 'Bảng điểm lớp học phần', path: '/teacher/classes' },
+        { label: 'Điểm danh & Chuyên cần', path: '/teacher/attendance' },
+      ],
+      suggestions: ['Lịch dạy của tôi tuần này', 'Danh sách lớp tôi phụ trách'],
+    };
+  }
+
+  // 0a.-0s Student Academic Report
+  if (intent === 'STUDENT_ACADEMIC_REPORT') {
+    const reportRows = [
+      { code: 'IT101', name: 'Lập trình Web', att: '10.0', quiz: '9.0', midterm: '8.5', final: '8.5', total: '8.8', eval: 'Nắm chắc React, hoàn thành quiz xuất sắc' },
+      { code: 'IT102', name: 'Cơ sở dữ liệu', att: '9.0', quiz: '8.0', midterm: '8.0', final: '7.5', total: '7.9', eval: 'Chuyên cần tốt, cần củng cố câu lệnh SQL nâng cao' },
+      { code: 'ENG01', name: 'Tiếng Anh 1', att: '9.5', quiz: '8.5', midterm: '8.5', final: '8.0', total: '8.4', eval: 'Phát âm chuẩn, tích cực tham gia thảo luận' },
+    ];
+
+    let table = `| Mã HP | Tên học phần | Chuyên cần | Quiz/BT | Giữa kỳ | Cuối kỳ | Tổng kết | Đánh giá của Giảng viên |\n` +
+                `|:---|:---|:---:|:---:|:---:|:---:|:---:|:---|\n`;
+    reportRows.forEach((r) => {
+      table += `| ${r.code} | ${r.name} | ${r.att} | ${r.quiz} | ${r.midterm} | ${r.final} | **${r.total}** | ${r.eval} |\n`;
+    });
+
+    return {
+      matched: true,
+      reply:
+        `🎓 **BÁO CÁO TÌNH HÌNH HỌC TẬP & ĐÁNH GIÁ CỦA GIẢNG VIÊN**\n\n` +
+        `• **Sinh viên:** **Quyền Huế Trân** (SV-002)\n` +
+        `• **Điểm trung bình tích lũy:** **8.37 / 10** (3.35 / 4.0) — Xếp loại: **Khá Giỏi**\n` +
+        `• **Tình hình chuyên cần:** Tỷ lệ có mặt đạt **96%** (An toàn, không có nguy cơ cấm thi môn nào).\n\n` +
+        table +
+        `\n💡 **Nhận xét & Lời khuyên từ EduMin:**\n` +
+        `• Bạn đang có kết quả rất tốt ở môn Lập trình Web và Tiếng Anh 1. Hãy tiếp tục phát huy.\n` +
+        `• Ở môn Cơ sở dữ liệu, giảng viên lưu ý cần chú ý làm bài tập SQL nâng cao để đạt điểm A ở kỳ thi sắp tới.`,
+      intent: 'STUDENT_ACADEMIC_REPORT',
+      quickLinks: [
+        { label: 'Bảng điểm & Chuyên cần', path: '/student/attendance' },
+        { label: 'Thời khóa biểu của tôi', path: '/student/timetable' },
+      ],
+      suggestions: ['Lọc cho mình những môn có điểm cao nhất đi', 'Thời khóa biểu tuần này của tôi'],
+    };
+  }
 
   // 0a.-0a Teacher / Admin Grade Entry ("vào điểm cho em Trân", "nhập điểm cho bạn Huê Trân", "vào điểm cho SV-002")
   if (intent === 'ENTER_STUDENT_GRADE') {
@@ -1907,66 +2403,216 @@ export function getSmartAiResponse(rawText = '', role = '', _user = null, curren
     const match = findKnownPersonnelMock(extracted, pageContext);
     if (match) {
       if (match.type === 'student') {
+        const studentCode = match.code || `SV-${String(match.id || 1).padStart(3, '0')}`;
+        if (isAdmin) {
+          const card = {
+            type: 'student',
+            id: match.id || 1,
+            title: match.hoTen,
+            code: studentCode,
+            subtitle: `Lớp: ${match.className || 'Chưa xếp'} • Khoa: ${match.department || 'Chưa xác định'}`,
+            meta: `Khoa: ${match.department || 'Khoa Công Nghệ Thông Tin'} • Trạng thái: ${match.status || 'Đang học'}`,
+            details: [
+              { label: 'MSSV', value: studentCode },
+              { label: 'Họ và tên', value: match.hoTen },
+              { label: 'Lớp sinh hoạt', value: match.className || 'Chưa xếp' },
+              { label: 'Khoa đào tạo', value: match.department || 'Chưa xác định' },
+              { label: 'Hệ đào tạo', value: match.education || 'Chính quy' },
+              { label: 'Email', value: match.email || 'quyen@student.edu.vn' },
+              { label: 'Số điện thoại', value: match.phone || '0912345678' },
+              { label: 'Địa chỉ thường trú', value: match.address || 'TP. Hồ Chí Minh' },
+              { label: 'Trạng thái', value: match.status || 'Đang học' },
+            ],
+            action: {
+              label: 'Xem chi tiết',
+              path: '/admin/students',
+            },
+          };
+          return {
+            matched: true,
+            intent: 'SEARCH_STUDENT',
+            reply: `Dưới đây là hồ sơ quản trị đầy đủ của sinh viên **${match.hoTen}** (MSSV: ${studentCode}):`,
+            cards: [card],
+            quickLinks: [
+              { label: 'Quản lý Sinh viên', path: '/admin/students' },
+              { label: 'Tài khoản sinh viên', path: '/admin/student-accounts' },
+              { label: 'Quản lý bảng điểm', path: '/admin/gradebook' },
+            ],
+          };
+        }
+
+        if (isTeacher) {
+          const card = {
+            type: 'student',
+            id: match.id || 1,
+            title: match.hoTen,
+            code: studentCode,
+            subtitle: `Lớp: ${match.className || 'Chưa xếp'} • Khoa: ${match.department || 'Chưa xác định'}`,
+            meta: `Khoa: ${match.department || 'Chưa xác định'} • Trạng thái: ${match.status || 'Đang học'}`,
+            details: [
+              { label: 'MSSV', value: studentCode },
+              { label: 'Họ và tên', value: match.hoTen },
+              { label: 'Lớp sinh hoạt', value: match.className || 'Chưa xếp' },
+              { label: 'Khoa đào tạo', value: match.department || 'Chưa xác định' },
+              { label: 'Hệ đào tạo', value: match.education || 'Chính quy' },
+              { label: 'Email liên hệ', value: match.email || 'quyen@student.edu.vn' },
+              { label: 'SĐT học vụ', value: match.phone || '0912345678' },
+              { label: 'Trạng thái', value: match.status || 'Đang học' },
+            ],
+            action: {
+              label: 'Xem chi tiết',
+              path: '/teacher/classes',
+            },
+          };
+          return {
+            matched: true,
+            intent: 'SEARCH_STUDENT',
+            reply: `Dưới đây là thông tin học vụ của sinh viên **${match.hoTen}** (MSSV: ${studentCode}):`,
+            cards: [card],
+            quickLinks: [
+              { label: 'Danh sách Lớp học phần', path: '/teacher/classes' },
+              { label: 'Điểm danh & Chuyên cần', path: '/teacher/attendance' },
+            ],
+          };
+        }
+
+        // isStudent: Strict privacy guardrails
         const card = {
           type: 'student',
           id: match.id || 1,
           title: match.hoTen,
-          code: match.code || `SV-${String(match.id || 1).padStart(3, '0')}`,
+          code: studentCode,
           subtitle: `Lớp: ${match.className || 'Chưa xếp'} • Khoa: ${match.department || 'Chưa xác định'}`,
+          meta: `Danh bạ sinh viên • Lớp ${match.className || 'Chưa xếp'}`,
           details: [
-            { label: 'MSSV', value: match.code || `SV-${String(match.id || 1).padStart(3, '0')}` },
+            { label: 'MSSV', value: studentCode },
             { label: 'Họ và tên', value: match.hoTen },
             { label: 'Lớp sinh hoạt', value: match.className || 'Chưa xếp' },
             { label: 'Khoa đào tạo', value: match.department || 'Chưa xác định' },
             { label: 'Hệ đào tạo', value: match.education || 'Chính quy' },
-            { label: 'Email', value: match.email || 'sinhvien@edu.vn' },
+            { label: 'Email sinh viên', value: match.email || 'quyen@student.edu.vn' },
+            { label: 'Số điện thoại', value: '🔒 Đã ẩn theo chính sách riêng tư' },
+            { label: 'Địa chỉ cá nhân', value: '🔒 Đã ẩn theo chính sách riêng tư' },
             { label: 'Trạng thái', value: match.status || 'Đang học' },
           ],
           action: {
             label: 'Xem chi tiết',
-            path: isAdmin ? '/admin/students' : isTeacher ? '/teacher/classes' : '/student',
+            path: '/student/timetable',
           },
         };
         return {
           matched: true,
           intent: 'SEARCH_STUDENT',
-          reply: `Dưới đây là thông tin sinh viên **${match.hoTen}** (MSSV: ${card.code}):`,
+          reply:
+            `Dưới đây là thông tin danh bạ học tập của sinh viên **${match.hoTen}** (MSSV: ${studentCode}):\n\n` +
+            `*(Lưu ý: Theo chính sách bảo vệ dữ liệu cá nhân của nhà trường, các thông tin bảo mật như số điện thoại riêng, địa chỉ nhà và bảng điểm cá nhân của sinh viên khác không được tiết lộ.)*`,
           cards: [card],
           quickLinks: [
-            { label: 'Quản lý Sinh viên', path: '/admin/students' },
-            { label: 'Tài khoản sinh viên', path: '/admin/student-accounts' },
+            { label: 'Thời khóa biểu của tôi', path: '/student/timetable' },
+            { label: 'Bảng điểm của tôi', path: '/student/attendance' },
           ],
         };
       }
 
       if (match.type === 'teacher') {
+        const teacherCode = match.code || `GV-${String(match.id || 1).padStart(3, '0')}`;
+        if (isAdmin) {
+          const card = {
+            type: 'teacher',
+            id: match.id || 1,
+            title: match.hoTen,
+            code: teacherCode,
+            subtitle: `Khoa: ${match.department || 'Khoa Ngôn Ngữ Anh'} • ${match.education || 'Giảng viên'}`,
+            meta: `Khoa: ${match.department || 'Khoa Ngôn Ngữ Anh'} • Trạng thái: ${match.status || 'Đang công tác'}`,
+            details: [
+              { label: 'Mã GV', value: teacherCode },
+              { label: 'Họ và tên', value: match.hoTen },
+              { label: 'Khoa phụ trách', value: match.department || 'Khoa Ngôn Ngữ Anh' },
+              { label: 'Học vị / Học hàm', value: match.education || 'Thạc sĩ' },
+              { label: 'Email', value: match.email || 'dinh.tran@edu.vn' },
+              { label: 'Số điện thoại', value: match.phone || '0987654321' },
+              { label: 'Địa chỉ', value: match.address || 'TP. Hồ Chí Minh' },
+              { label: 'Trạng thái', value: match.status || 'Đang công tác' },
+            ],
+            action: {
+              label: 'Xem chi tiết',
+              path: '/admin/teachers',
+            },
+          };
+          return {
+            matched: true,
+            intent: 'SEARCH_TEACHER',
+            reply: `Dưới đây là thông tin quản trị giảng viên **${match.hoTen}** (Mã GV: ${teacherCode}):`,
+            cards: [card],
+            quickLinks: [
+              { label: 'Quản lý Giảng viên', path: '/admin/teachers' },
+              { label: 'Tài khoản giảng viên', path: '/admin/teacher-accounts' },
+            ],
+          };
+        }
+
+        if (isTeacher) {
+          const card = {
+            type: 'teacher',
+            id: match.id || 1,
+            title: match.hoTen,
+            code: teacherCode,
+            subtitle: `Khoa: ${match.department || 'Khoa Ngôn Ngữ Anh'} • ${match.education || 'Giảng viên'}`,
+            meta: `Khoa: ${match.department || 'Khoa Ngôn Ngữ Anh'} • Trạng thái: ${match.status || 'Đang giảng dạy'}`,
+            details: [
+              { label: 'Mã GV', value: teacherCode },
+              { label: 'Họ và tên', value: match.hoTen },
+              { label: 'Khoa phụ trách', value: match.department || 'Khoa Ngôn Ngữ Anh' },
+              { label: 'Học vị / Học hàm', value: match.education || 'Thạc sĩ' },
+              { label: 'Email công vụ', value: match.email || 'dinh.tran@edu.vn' },
+              { label: 'SĐT công tác', value: match.phone || '0987654321' },
+              { label: 'Trạng thái', value: match.status || 'Đang giảng dạy' },
+            ],
+            action: {
+              label: 'Xem chi tiết',
+              path: '/teacher/classes',
+            },
+          };
+          return {
+            matched: true,
+            intent: 'SEARCH_TEACHER',
+            reply: `Dưới đây là thông tin đồng nghiệp giảng viên **${match.hoTen}** (Mã GV: ${teacherCode}):`,
+            cards: [card],
+            quickLinks: [
+              { label: 'Lớp học phần', path: '/teacher/classes' },
+              { label: 'Lịch dạy giảng viên', path: '/teacher/schedule' },
+            ],
+          };
+        }
+
+        // isStudent
         const card = {
           type: 'teacher',
           id: match.id || 1,
           title: match.hoTen,
-          code: match.code || `GV-${String(match.id || 1).padStart(3, '0')}`,
+          code: teacherCode,
           subtitle: `Khoa: ${match.department || 'Khoa Ngôn Ngữ Anh'} • ${match.education || 'Giảng viên'}`,
+          meta: `Giảng viên • ${match.department || 'Khoa Ngôn Ngữ Anh'}`,
           details: [
-            { label: 'Mã GV', value: match.code || `GV-${String(match.id || 1).padStart(3, '0')}` },
+            { label: 'Mã GV', value: teacherCode },
             { label: 'Họ và tên', value: match.hoTen },
             { label: 'Khoa phụ trách', value: match.department || 'Khoa Ngôn Ngữ Anh' },
             { label: 'Học vị / Học hàm', value: match.education || 'Thạc sĩ' },
-            { label: 'Email liên hệ', value: match.email || 'dinh.tran@edu.vn' },
+            { label: 'Email liên hệ công vụ', value: match.email || 'dinh.tran@edu.vn' },
             { label: 'Trạng thái', value: match.status || 'Đang giảng dạy' },
           ],
           action: {
             label: 'Xem chi tiết',
-            path: isAdmin ? '/admin/teachers' : isStudent ? '/student/timetable' : '/teacher',
+            path: '/student/timetable',
           },
         };
         return {
           matched: true,
           intent: 'SEARCH_TEACHER',
-          reply: `Dưới đây là thông tin giảng viên **${match.hoTen}** (Mã GV: ${card.code}):`,
+          reply: `Dưới đây là thông tin giảng viên **${match.hoTen}** (Mã GV: ${teacherCode}):`,
           cards: [card],
           quickLinks: [
-            { label: 'Quản lý Giáo viên', path: '/admin/teachers' },
-            { label: 'Tài khoản giáo viên', path: '/admin/teacher-accounts' },
+            { label: 'Thời khóa biểu của tôi', path: '/student/timetable' },
           ],
         };
       }
@@ -2362,6 +3008,24 @@ export function getSmartAiResponse(rawText = '', role = '', _user = null, curren
     const studentCode = foundStudent?.code || (foundStudent?.id != null ? `SV-${String(foundStudent.id).padStart(3, '0')}` : 'SV-002');
     const studentClass = foundStudent?.className || '13A1';
 
+    if (isStudent && foundStudent) {
+      const isSelf = isCurrentUserStudent(foundStudent, user);
+      if (!isSelf) {
+        return {
+          matched: true,
+          reply:
+            `🔒 **Bảo mật quyền riêng tư học tập:**\n` +
+            `Vì lý do an toàn thông tin và quyền riêng tư cá nhân theo quy chế của nhà trường, sinh viên chỉ có thể tra cứu bảng điểm và tình hình học tập của chính mình. EduMin AI không hiển thị bảng điểm của sinh viên khác (**${studentName}**).\n\n` +
+            `Nếu bạn cần trao đổi học tập hoặc thảo luận môn học, bạn có thể liên hệ trực tiếp với bạn qua nhóm lớp nhé!`,
+          intent: 'STUDENT_GRADE_PRIVACY_RESTRICTED',
+          quickLinks: [
+            { label: 'Bảng điểm & Chuyên cần của tôi', path: '/student/attendance' },
+            { label: 'Thời khóa biểu của tôi', path: '/student/timetable' },
+          ],
+        };
+      }
+    }
+
     const isNNA =
       normalizeText(foundStudent?.department || '').includes('ngon ngu anh') ||
       normalizeText(studentName).includes('tran');
@@ -2413,14 +3077,24 @@ export function getSmartAiResponse(rawText = '', role = '', _user = null, curren
           ],
           action: {
             label: 'Xem chi tiết',
-            path: '/admin/gradebook',
+            path: isAdmin ? '/admin/gradebook' : isTeacher ? '/teacher/classes' : '/student/attendance',
           },
         },
       ],
-      quickLinks: [
-        { label: 'Quản lý bảng điểm', path: '/admin/gradebook' },
-        { label: 'Quản lý sinh viên', path: '/admin/students' },
-      ],
+      quickLinks: isAdmin
+        ? [
+            { label: 'Quản lý bảng điểm', path: '/admin/gradebook' },
+            { label: 'Quản lý sinh viên', path: '/admin/students' },
+          ]
+        : isTeacher
+        ? [
+            { label: 'Danh sách Lớp học phần', path: '/teacher/classes' },
+            { label: 'Điểm danh & Chuyên cần', path: '/teacher/attendance' },
+          ]
+        : [
+            { label: 'Bảng điểm & Chuyên cần của tôi', path: '/student/attendance' },
+            { label: 'Thời khóa biểu của tôi', path: '/student/timetable' },
+          ],
     };
   }
 
@@ -3085,12 +3759,12 @@ export function getSmartAiResponse(rawText = '', role = '', _user = null, curren
 /**
  * Formats inline markdown bold (**text**).
  */
-function renderInlineMarkdown(str = '') {
+function renderInlineMarkdown(str = '', isUser = false) {
   const parts = String(str).split(/(\*\*[^*]+\*\*)/g);
   return parts.map((part, pIdx) => {
     if (part.startsWith('**') && part.endsWith('**')) {
       return (
-        <strong key={pIdx} className="font-semibold text-slate-900">
+        <strong key={pIdx} className={`font-semibold ${isUser ? 'text-white font-bold' : 'text-slate-900'}`}>
           {part.slice(2, -2)}
         </strong>
       );
@@ -3102,7 +3776,7 @@ function renderInlineMarkdown(str = '') {
 /**
  * Formats markdown-like bold (**text**), markdown tables, and newlines for clean rendering.
  */
-function renderMessageText(text = '') {
+function renderMessageText(text = '', isUser = false) {
   const rawLines = String(text).split('\n');
   const elements = [];
   let tableBuffer = [];
@@ -3128,23 +3802,23 @@ function renderMessageText(text = '') {
     );
 
     elements.push(
-      <div key={`table-${keyPrefix}`} className="my-2.5 overflow-x-auto rounded-xl border border-slate-200/90 shadow-2xs bg-white">
+      <div key={`table-${keyPrefix}`} className="my-3 overflow-x-auto rounded-lg border border-slate-200 shadow-2xs bg-white text-slate-800">
         <table className="w-full text-[11px] text-left border-collapse">
-          <thead className="bg-slate-100/90 text-slate-700 font-bold border-b border-slate-200">
+          <thead className="bg-slate-100 text-slate-800 font-semibold border-b border-slate-200">
             <tr>
               {headers.map((h, hIdx) => (
-                <th key={hIdx} className="px-2.5 py-1.5 whitespace-nowrap">
-                  {renderInlineMarkdown(h)}
+                <th key={hIdx} className="px-3 py-2 whitespace-nowrap">
+                  {renderInlineMarkdown(h, false)}
                 </th>
               ))}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {rows.map((row, rIdx) => (
-              <tr key={rIdx} className="hover:bg-indigo-50/40 transition-colors">
+              <tr key={rIdx} className="hover:bg-slate-50 transition-colors">
                 {row.map((cell, cIdx) => (
-                  <td key={cIdx} className="px-2.5 py-1.5 whitespace-nowrap">
-                    {renderInlineMarkdown(cell)}
+                  <td key={cIdx} className="px-3 py-2 whitespace-nowrap">
+                    {renderInlineMarkdown(cell, false)}
                   </td>
                 ))}
               </tr>
@@ -3165,8 +3839,8 @@ function renderMessageText(text = '') {
         flushTable(lIdx);
       }
       elements.push(
-        <span key={`line-${lIdx}`} className="block min-h-[1.25rem]">
-          {renderInlineMarkdown(line)}
+        <span key={`line-${lIdx}`} className={`block min-h-[1.35rem] py-0.5 leading-relaxed ${isUser ? 'text-white font-medium' : 'text-slate-800'}`}>
+          {renderInlineMarkdown(line, isUser)}
         </span>
       );
     }
@@ -3199,6 +3873,84 @@ class AiAssistantErrorBoundary extends React.Component {
 }
 
 const FAB_STORAGE_KEY = 'edumin_ai_fab_position';
+export const CHAT_MESSAGES_STORAGE_PREFIX = 'edumin_ai_chat_messages_';
+export const CHAT_OPEN_STORAGE_PREFIX = 'edumin_ai_chat_is_open_';
+export const CHAT_DOCKED_STORAGE_PREFIX = 'edumin_ai_chat_docked_';
+
+export function getChatUserStorageKey(user) {
+  const uId = user?.id || user?._id || user?.email || user?.username || 'user';
+  return `${CHAT_MESSAGES_STORAGE_PREFIX}${uId}`;
+}
+
+export function getChatOpenStorageKey(user) {
+  const uId = user?.id || user?._id || user?.email || user?.username || 'user';
+  return `${CHAT_OPEN_STORAGE_PREFIX}${uId}`;
+}
+
+export function getChatDockedStorageKey(user) {
+  const uId = user?.id || user?._id || user?.email || user?.username || 'user';
+  return `${CHAT_DOCKED_STORAGE_PREFIX}${uId}`;
+}
+
+export function buildDefaultWelcomeMessage(displayName, role) {
+  let welcomeText = `Xin chào **${displayName}**!\nTôi là **EduMin AI Assistant**. Bạn có thể yêu cầu tôi hỗ trợ thông tin đào tạo, tra cứu dữ liệu hoặc điều hướng nhanh trong hệ thống.`;
+  if (role === 'dao-tao' || role === 'admin') {
+    welcomeText = `Xin chào **${displayName}**!\nTôi là **EduMin AI Assistant**. Bạn có thể nhập prompt để đặt tiêu chuẩn duyệt hồ sơ, yêu cầu đối soát duyệt theo tiêu chuẩn, hoặc xem tổng hợp ý kiến & nguyện vọng của sinh viên và giảng viên.`;
+  } else if (role === 'giao-vien' || role === 'teacher') {
+    welcomeText = `Kính chào **${displayName}**!\nTôi là **EduMin AI Assistant**. Thầy/Cô có thể yêu cầu tính điểm quá trình tự động cho lớp từ bài Quiz và điểm chuyên cần, tra cứu lịch giảng dạy hoặc quản lý sổ điểm.`;
+  } else if (role === 'sinh-vien' || role === 'student') {
+    welcomeText = `Xin chào **${displayName}**!\nTôi là **EduMin AI Assistant**. Bạn có thể yêu cầu xem báo cáo tình hình học tập sau khi giảng viên đánh giá, kiểm tra thời khóa biểu, hoặc tư vấn quy chế và học phần.`;
+  }
+  return {
+    id: 'welcome',
+    sender: 'assistant',
+    text: welcomeText,
+    timestamp: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+  };
+}
+
+export function getInitialChatMessages(user, displayName, role) {
+  try {
+    if (typeof window !== 'undefined') {
+      const key = getChatUserStorageKey(user);
+      const saved = sessionStorage.getItem(key);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    }
+  } catch {}
+
+  return [buildDefaultWelcomeMessage(displayName, role)];
+}
+
+export function getInitialChatOpen(user) {
+  try {
+    if (typeof window !== 'undefined') {
+      const key = getChatOpenStorageKey(user);
+      const saved = sessionStorage.getItem(key);
+      if (saved !== null) {
+        return JSON.parse(saved) === true;
+      }
+    }
+  } catch {}
+  return false;
+}
+
+export function getInitialChatDocked(user) {
+  try {
+    if (typeof window !== 'undefined') {
+      const key = getChatDockedStorageKey(user);
+      const saved = sessionStorage.getItem(key);
+      if (saved !== null) {
+        return JSON.parse(saved) === true;
+      }
+    }
+  } catch {}
+  return false;
+}
 
 function getInitialFabPos() {
   if (typeof window === 'undefined') return { x: 0, y: 0 };
@@ -3231,16 +3983,23 @@ function EduMinAiAssistantInner() {
   const displayName = profile?.hoTen || user?.hoTen || 'bạn';
   const role = user?.role || '';
 
-  const [isOpen, setIsOpen] = useState(false);
+  const storageKey = useMemo(() => getChatUserStorageKey(user), [user]);
+  const openStorageKey = useMemo(() => getChatOpenStorageKey(user), [user]);
+  const dockStorageKey = useMemo(() => getChatDockedStorageKey(user), [user]);
+
+  const [isOpen, setIsOpen] = useState(() => getInitialChatOpen(user));
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
   const [actionLoading, setActionLoading] = useState({});
 
   // Flexible UI display modes: Floating panel by default overlaying content with z-index
-  const [isDocked, setIsDocked] = useState(false);
+  const [isDocked, setIsDocked] = useState(() => getInitialChatDocked(user));
   const [positionSide, setPositionSide] = useState('right'); // 'right' | 'left'
   const [isTransparent, setIsTransparent] = useState(false); // See-through translucent mode
+  const [isChatHovered, setIsChatHovered] = useState(false);
+  const [isChatFocused, setIsChatFocused] = useState(false);
+  const isChatInteracting = isChatHovered || isChatFocused;
 
   // Draggable FAB position and dragging state
   const [fabPos, setFabPos] = useState(getInitialFabPos);
@@ -3412,6 +4171,10 @@ function EduMinAiAssistantInner() {
     } catch {}
   };
 
+  const handleToggleDock = () => {
+    setIsDocked((prev) => !prev);
+  };
+
   // Notify layout (AppLayout) when dock mode changes to automatically adjust main page width
   useEffect(() => {
     window.dispatchEvent(
@@ -3429,19 +4192,58 @@ function EduMinAiAssistantInner() {
       } else {
         setIsOpen((prev) => !prev);
       }
+      if (e.detail?.prompt) {
+        setInput(e.detail.prompt);
+      }
     };
     window.addEventListener('edumin_toggle_ai_assistant', handleToggleEvent);
     return () => window.removeEventListener('edumin_toggle_ai_assistant', handleToggleEvent);
   }, []);
 
-  const [messages, setMessages] = useState(() => [
-    {
-      id: 'welcome',
-      sender: 'assistant',
-      text: `Xin chào **${displayName}**! 👋\nTôi là **EduMin AI Assistant**. Tôi có thể hỗ trợ bạn tra cứu lịch học, thời khóa biểu, cấu hình điểm số hoặc điều hướng nhanh đến các tính năng trong hệ thống. Bạn cần hỗ trợ gì hôm nay?`,
-      timestamp: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
-    },
-  ]);
+  const [messages, setMessages] = useState(() =>
+    getInitialChatMessages(user, displayName, role)
+  );
+
+  const prevStorageKeyRef = useRef(storageKey);
+
+  // Sync state when active user changes (e.g. login/logout or switch account)
+  useEffect(() => {
+    if (prevStorageKeyRef.current !== storageKey) {
+      prevStorageKeyRef.current = storageKey;
+      setMessages(getInitialChatMessages(user, displayName, role));
+      setIsOpen(getInitialChatOpen(user));
+      setIsDocked(getInitialChatDocked(user));
+    }
+  }, [storageKey, user, displayName, role]);
+
+  // Persist messages across page navigation and route changes
+  useEffect(() => {
+    if (prevStorageKeyRef.current === storageKey) {
+      try {
+        if (typeof window !== 'undefined' && Array.isArray(messages) && messages.length > 0) {
+          sessionStorage.setItem(storageKey, JSON.stringify(messages));
+        }
+      } catch {}
+    }
+  }, [messages, storageKey]);
+
+  // Persist open state across route transitions
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem(openStorageKey, JSON.stringify(isOpen));
+      }
+    } catch {}
+  }, [isOpen, openStorageKey]);
+
+  // Persist docked state across route transitions
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem(dockStorageKey, JSON.stringify(isDocked));
+      }
+    } catch {}
+  }, [isDocked, dockStorageKey]);
 
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
@@ -3770,18 +4572,32 @@ function EduMinAiAssistantInner() {
   };
 
   const handleClearHistory = () => {
-    setMessages([
+    const resetMsg = [
       {
         id: 'welcome-reset',
         sender: 'assistant',
         text: `Đã làm mới cuộc hội thoại! 👋\nBạn có thể hỏi tôi bất kỳ câu hỏi nào về quy trình, dữ liệu hoặc điều hướng trong hệ thống EduMin.`,
         timestamp: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
       },
-    ]);
+    ];
+    setMessages(resetMsg);
+    try {
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem(storageKey, JSON.stringify(resetMsg));
+      }
+    } catch {}
   };
 
   const handleQuickNavigate = (path) => {
     if (!path) return;
+    try {
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem(storageKey, JSON.stringify(messages));
+        if (window.innerWidth >= 640) {
+          sessionStorage.setItem(openStorageKey, JSON.stringify(true));
+        }
+      }
+    } catch {}
     navigate(path);
     // On small screens, close the chat to allow user to see the page
     if (window.innerWidth < 640) {
@@ -3802,7 +4618,7 @@ function EduMinAiAssistantInner() {
         }}
         className={`select-none pointer-events-auto transition-transform ${
           isDraggingFab ? 'scale-110 cursor-grabbing' : 'cursor-grab hover:scale-105'
-        }`}
+        } ${isOpen ? 'hidden' : ''}`}
         onPointerDown={handleFabPointerDown}
         onPointerMove={handleFabPointerMove}
         onPointerUp={handleFabPointerUp}
@@ -3828,15 +4644,16 @@ function EduMinAiAssistantInner() {
               {/* Standalone SVG robot icon */}
               <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                 <rect x="3" y="11" width="18" height="10" rx="3" />
-                <circle cx="12" cy="5" r="2" />
-                <path d="M12 7v4" />
-                <line x1="8" y1="16" x2="8.01" y2="16" strokeWidth={3} />
-                <line x1="16" y1="16" x2="16.01" y2="16" strokeWidth={3} />
+                <circle cx="8.5" cy="16" r="1.5" fill="currentColor" />
+                <circle cx="15.5" cy="16" r="1.5" fill="currentColor" />
+                <path d="M12 2v4" />
+                <circle cx="12" cy="2" r="1" fill="currentColor" />
+                <path d="M2 15h1M21 15h1" />
               </svg>
-              {/* Online pulse ping */}
-              <span className="absolute -top-1 -right-1 flex h-4 w-4 pointer-events-none">
+              {/* Ping animation indicator */}
+              <span className="absolute top-1 right-1 flex h-3.5 w-3.5">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-4 w-4 bg-emerald-500 border-2 border-white" />
+                <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500 border-2 border-white" />
               </span>
             </>
           )}
@@ -3848,6 +4665,14 @@ function EduMinAiAssistantInner() {
         <div
           role="dialog"
           aria-label="EduMin AI Assistant"
+          onMouseEnter={() => setIsChatHovered(true)}
+          onMouseLeave={() => setIsChatHovered(false)}
+          onFocus={() => setIsChatFocused(true)}
+          onBlur={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget)) {
+              setIsChatFocused(false);
+            }
+          }}
           style={
             !isDocked
               ? {
@@ -3862,12 +4687,16 @@ function EduMinAiAssistantInner() {
           }
           className={`${
             isDocked
-              ? 'fixed top-16 right-0 bottom-0 z-[9990] w-full sm:w-[420px] bg-white border-l border-slate-200 shadow-2xl flex flex-col transition-all duration-300 ease-in-out'
-              : `bg-white rounded-2xl shadow-2xl border border-slate-200/90 flex flex-col overflow-hidden ${
+              ? 'fixed top-16 right-0 bottom-0 z-[9990] w-full sm:w-[420px] bg-white border-l border-slate-200 shadow-xl flex flex-col transition-all duration-300 ease-in-out'
+              : `bg-white rounded-2xl shadow-xl border border-slate-200/90 flex flex-col overflow-hidden ${
                   positionSide === 'left' ? 'left-4 sm:left-6' : ''
                 }`
           } ${
-            isTransparent ? 'opacity-40 hover:opacity-100 transition-opacity' : 'opacity-100'
+            isTransparent
+              ? isChatInteracting
+                ? 'opacity-100 shadow-2xl transition-all duration-200 ring-2 ring-indigo-500/20'
+                : 'opacity-40 hover:opacity-100 backdrop-blur-md transition-all duration-300'
+              : 'opacity-100'
           } animate-in fade-in zoom-in-95 duration-200`}
         >
           {/* Header - Draggable */}
@@ -3903,7 +4732,7 @@ function EduMinAiAssistantInner() {
                 title={isTransparent ? 'Tắt chế độ mờ xuyên thấu' : 'Bật chế độ mờ xuyên thấu (nhìn bảng phía sau)'}
                 onClick={() => setIsTransparent((prev) => !prev)}
                 className={`p-1.5 rounded-lg transition text-xs cursor-pointer ${
-                  isTransparent ? 'bg-white/30 text-amber-300 shadow-inner' : 'text-indigo-100 hover:text-white hover:bg-white/10'
+                  isTransparent ? 'bg-white/20 text-amber-300' : 'text-white/80 hover:text-white hover:bg-white/10'
                 }`}
               >
                 <i className={isTransparent ? 'fas fa-eye-slash' : 'fas fa-eye'} />
@@ -3915,7 +4744,7 @@ function EduMinAiAssistantInner() {
                   type="button"
                   title={positionSide === 'right' ? 'Chuyển sang góc trái màn hình' : 'Chuyển sang góc phải màn hình'}
                   onClick={() => setPositionSide((prev) => (prev === 'right' ? 'left' : 'right'))}
-                  className="p-1.5 text-indigo-100 hover:text-white hover:bg-white/10 rounded-lg transition text-xs cursor-pointer"
+                  className="p-1.5 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition text-xs cursor-pointer"
                 >
                   <i className={`fas ${positionSide === 'right' ? 'fa-arrow-left' : 'fa-arrow-right'}`} />
                 </button>
@@ -3925,9 +4754,9 @@ function EduMinAiAssistantInner() {
               <button
                 type="button"
                 title={isDocked ? 'Bỏ ghim (Chuyển về cửa sổ nổi)' : 'Ghim bên phải (Co giãn trang để không che dữ liệu)'}
-                onClick={() => setIsDocked((prev) => !prev)}
+                onClick={handleToggleDock}
                 className={`p-1.5 rounded-lg transition text-xs cursor-pointer ${
-                  isDocked ? 'bg-white/30 text-emerald-300 shadow-inner' : 'text-indigo-100 hover:text-white hover:bg-white/10'
+                  isDocked ? 'bg-white/25 text-white' : 'text-white/80 hover:text-white hover:bg-white/10'
                 }`}
               >
                 <i className={`fas ${isDocked ? 'fa-window-restore' : 'fa-table-columns'}`} />
@@ -3938,7 +4767,7 @@ function EduMinAiAssistantInner() {
                 type="button"
                 title="Làm mới hội thoại"
                 onClick={handleClearHistory}
-                className="p-1.5 text-indigo-100 hover:text-white hover:bg-white/10 rounded-lg transition text-xs cursor-pointer"
+                className="p-1.5 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition text-xs cursor-pointer"
               >
                 <i className="fas fa-rotate-right" />
               </button>
@@ -3947,17 +4776,9 @@ function EduMinAiAssistantInner() {
               <button
                 type="button"
                 title="Thu nhỏ"
+                aria-label="Thu nhỏ"
                 onClick={() => setIsOpen(false)}
-                className="p-1.5 text-indigo-100 hover:text-white hover:bg-white/10 rounded-lg transition text-xs cursor-pointer"
-              >
-                <i className="fas fa-minus" />
-              </button>
-              <button
-                type="button"
-                title="Đóng trợ lý ảo"
-                aria-label="Đóng trợ lý ảo"
-                onClick={() => setIsOpen(false)}
-                className="p-1.5 text-indigo-100 hover:text-white hover:bg-white/10 rounded-lg transition text-xs cursor-pointer"
+                className="p-1.5 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition text-xs cursor-pointer"
               >
                 <i className="fas fa-xmark text-sm" />
               </button>
@@ -3965,7 +4786,7 @@ function EduMinAiAssistantInner() {
           </div>
 
           {/* Messages Body */}
-          <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-4 bg-slate-50/60">
+          <div className="flex-1 overflow-y-auto custom-scrollbar p-4 pt-4.5 space-y-4 bg-slate-50/70">
             {messages.map((msg) => {
               const isUser = msg.sender === 'user';
               return (
@@ -3973,29 +4794,33 @@ function EduMinAiAssistantInner() {
                   key={msg.id}
                   className={`flex items-start gap-2.5 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}
                 >
-                  {!isUser && (
+                  {!isUser ? (
                     <div className="w-7 h-7 rounded-lg bg-indigo-600 text-white flex items-center justify-center text-xs flex-shrink-0 mt-0.5 shadow-2xs">
                       <i className="fas fa-robot" />
                     </div>
+                  ) : (
+                    <div className="w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center text-xs flex-shrink-0 mt-0.5 shadow-2xs font-semibold" title="Bạn">
+                      <i className="fas fa-user text-[11px]" />
+                    </div>
                   )}
 
-                  <div className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} ${!isUser && msg.cards?.length ? 'w-[95%] sm:w-[92%]' : 'max-w-[85%]'}`}>
+                  <div className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} ${!isUser && msg.cards?.length ? 'w-[96%] sm:w-[94%]' : 'max-w-[85%]'}`}>
                     <div
-                      className={`px-3.5 py-2.5 text-xs sm:text-[13px] leading-relaxed shadow-2xs w-full ${
+                      className={`px-4 pt-3 pb-3 text-xs sm:text-[13px] leading-relaxed w-full ${
                         isUser
-                          ? 'bg-gradient-to-r from-indigo-600 to-indigo-700 text-white rounded-2xl rounded-tr-xs'
-                          : 'bg-white text-slate-800 rounded-2xl rounded-tl-xs border border-slate-200/80'
+                          ? 'bg-blue-600 text-white font-medium rounded-2xl rounded-tr-xs shadow-md shadow-blue-500/25 border border-blue-500/40'
+                          : 'bg-white text-slate-800 rounded-2xl rounded-tl-xs border border-slate-200/80 shadow-2xs'
                       }`}
                     >
-                      {renderMessageText(msg.text)}
+                      {renderMessageText(msg.text, isUser)}
 
                       {/* Interactive Action Cards */}
                       {!isUser && Array.isArray(msg.cards) && msg.cards.length > 0 && (
-                        <div className="mt-3 space-y-2.5">
+                        <div className="mt-3.5 space-y-2.5">
                           {msg.cards.map((card, cIdx) => (
                             <div
                               key={card.id || cIdx}
-                              className="bg-slate-50/90 rounded-xl p-3 border border-slate-200/90 shadow-2xs space-y-2 text-slate-800"
+                              className="bg-slate-50/90 rounded-xl p-3.5 pt-3 border border-slate-200/90 shadow-2xs space-y-2 text-slate-800"
                             >
                               {/* Card Header */}
                               <div className="flex items-start justify-between gap-2">
@@ -4004,13 +4829,13 @@ function EduMinAiAssistantInner() {
                                     {card.title}
                                   </h4>
                                   {card.subtitle && (
-                                    <p className="text-[11px] text-slate-500 mt-0.5">
+                                    <p className={`text-[11px] mt-0.5 ${card.subtitle.startsWith('✓') ? 'text-emerald-700 font-medium' : card.subtitle.startsWith('✗') ? 'text-rose-700 font-medium' : 'text-slate-500'}`}>
                                       {card.subtitle}
                                     </p>
                                   )}
                                 </div>
                                 {card.code && (
-                                  <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-indigo-100 text-indigo-700 whitespace-nowrap">
+                                  <span className="px-2 py-0.5 text-[10px] font-semibold rounded-md bg-slate-200 text-slate-800 whitespace-nowrap">
                                     {card.code}
                                   </span>
                                 )}
@@ -4066,7 +4891,7 @@ function EduMinAiAssistantInner() {
                                             card.title
                                           )
                                         }
-                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:scale-95 rounded-lg shadow-2xs transition disabled:opacity-50 cursor-pointer"
+                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-emerald-700 hover:bg-emerald-800 active:scale-95 rounded-lg shadow-2xs transition disabled:opacity-50 cursor-pointer"
                                       >
                                         <i className="fas fa-check-circle" />
                                         <span>
@@ -4086,7 +4911,7 @@ function EduMinAiAssistantInner() {
                                             card.title
                                           )
                                         }
-                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 active:scale-95 rounded-lg shadow-2xs transition disabled:opacity-50 cursor-pointer"
+                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-rose-700 hover:bg-rose-800 active:scale-95 rounded-lg shadow-2xs transition disabled:opacity-50 cursor-pointer"
                                       >
                                         <i className="fas fa-times-circle" />
                                         <span>
@@ -4102,7 +4927,7 @@ function EduMinAiAssistantInner() {
                                             card.action?.path || '/admin/profile-requests'
                                           )
                                         }
-                                        className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg transition cursor-pointer"
+                                        className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg transition cursor-pointer"
                                       >
                                         <span>Xem chi tiết</span>
                                         <i className="fas fa-arrow-right text-[10px]" />
@@ -4122,7 +4947,7 @@ function EduMinAiAssistantInner() {
                                         card.action?.path || (role === 'giao-vien' || role === 'teacher' ? '/teacher/classes' : '/admin/gradebook')
                                       )
                                     }
-                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 active:scale-95 rounded-lg shadow-2xs transition cursor-pointer"
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-slate-800 hover:bg-slate-900 active:scale-95 rounded-lg shadow-2xs transition cursor-pointer"
                                   >
                                     <i className="fas fa-edit" />
                                     <span>📝 Vào điểm ngay</span>
@@ -4145,9 +4970,9 @@ function EduMinAiAssistantInner() {
                                       }
                                       toast?.info?.(`Đã định vị sinh viên ${card.title} trên bảng điểm!`);
                                     }}
-                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 active:scale-95 rounded-lg transition cursor-pointer"
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 active:scale-95 rounded-lg transition cursor-pointer"
                                   >
-                                    <i className="fas fa-crosshairs" />
+                                    <i className="fas fa-crosshairs text-slate-500" />
                                     <span>🎯 Định vị trên bảng điểm</span>
                                   </button>
                                 </div>
@@ -4163,10 +4988,10 @@ function EduMinAiAssistantInner() {
                                         role === 'giao-vien' || role === 'teacher' ? `/teacher/classes` : '/admin/gradebook'
                                       )
                                     }
-                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-indigo-700 bg-white hover:bg-indigo-50 border border-indigo-200 rounded-lg transition active:scale-95 cursor-pointer shadow-2xs"
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-800 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg transition active:scale-95 cursor-pointer shadow-2xs"
                                   >
-                                    <i className="fas fa-table" />
-                                    <span>📋 Bảng điểm lớp</span>
+                                    <i className="fas fa-table text-slate-500" />
+                                    <span>Bảng điểm lớp</span>
                                   </button>
                                   <button
                                     type="button"
@@ -4175,16 +5000,16 @@ function EduMinAiAssistantInner() {
                                         role === 'giao-vien' || role === 'teacher' ? '/teacher/attendance' : '/admin/classes'
                                       )
                                     }
-                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-white hover:bg-emerald-50 border border-emerald-200 rounded-lg transition active:scale-95 cursor-pointer shadow-2xs"
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-800 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg transition active:scale-95 cursor-pointer shadow-2xs"
                                   >
-                                    <i className="fas fa-calendar-check" />
-                                    <span>✅ Điểm danh lớp</span>
+                                    <i className="fas fa-calendar-check text-slate-500" />
+                                    <span>Điểm danh lớp</span>
                                   </button>
                                   {card.action && (
                                     <button
                                       type="button"
                                       onClick={() => handleQuickNavigate(card.action.path)}
-                                      className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg transition cursor-pointer"
+                                      className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg transition cursor-pointer"
                                     >
                                       <span>{card.action.label || 'Xem chi tiết'}</span>
                                       <i className="fas fa-arrow-right text-[10px]" />
@@ -4211,7 +5036,7 @@ function EduMinAiAssistantInner() {
                                   ) : (
                                     <>
                                       <span className="text-[10px] font-semibold text-slate-500 flex items-center gap-1">
-                                        <i className="fas fa-comment-dots text-indigo-500" />
+                                        <i className="fas fa-comment-dots text-slate-400" />
                                         Gợi ý trả lời nhanh (bấm để gửi ngay):
                                       </span>
                                       <div className="flex flex-col gap-1">
@@ -4228,9 +5053,9 @@ function EduMinAiAssistantInner() {
                                                 tpl
                                               )
                                             }
-                                            className="text-left px-2.5 py-1.5 text-[11px] text-indigo-900 bg-white hover:bg-indigo-50 border border-indigo-200 rounded-lg transition active:scale-[0.98] group flex items-start gap-1.5 shadow-2xs cursor-pointer"
+                                            className="text-left px-2.5 py-1.5 text-[11px] text-slate-800 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg transition active:scale-[0.98] group flex items-start gap-1.5 shadow-2xs cursor-pointer"
                                           >
-                                            <i className="fas fa-paper-plane text-[10px] text-indigo-500 mt-0.5 group-hover:translate-x-0.5 transition-transform" />
+                                            <i className="fas fa-paper-plane text-[10px] text-slate-400 mt-0.5 group-hover:translate-x-0.5 transition-transform" />
                                             <span>{tpl}</span>
                                           </button>
                                         ))}
@@ -4243,7 +5068,7 @@ function EduMinAiAssistantInner() {
                                               card.action?.path || '/admin/feedbacks'
                                             )
                                           }
-                                          className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg transition cursor-pointer"
+                                          className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg transition cursor-pointer"
                                         >
                                           <span>Mở trang Ý kiến & Phản hồi</span>
                                           <i className="fas fa-arrow-right text-[10px]" />
@@ -4260,10 +5085,10 @@ function EduMinAiAssistantInner() {
                                   <button
                                     type="button"
                                     onClick={() => handleQuickNavigate(card.action.path)}
-                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-indigo-700 bg-white hover:bg-indigo-50 border border-indigo-200 rounded-lg transition active:scale-95 group shadow-2xs cursor-pointer"
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-800 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg transition active:scale-95 group shadow-2xs cursor-pointer"
                                   >
                                     <span>{card.action.label || 'Xem chi tiết'}</span>
-                                    <i className="fas fa-arrow-right text-[10px] text-indigo-500 group-hover:translate-x-0.5 transition-transform" />
+                                    <i className="fas fa-arrow-right text-[10px] text-slate-400 group-hover:translate-x-0.5 transition-transform" />
                                   </button>
                                 </div>
                               )}
@@ -4276,10 +5101,10 @@ function EduMinAiAssistantInner() {
                       {!isUser && Array.isArray(msg.suggestions) && msg.suggestions.length > 0 && (
                         <div className="mt-2.5 pt-2 border-t border-slate-100 flex flex-col gap-1.5">
                           <p className="text-[11px] font-semibold text-slate-600 flex items-center gap-1">
-                            <i className="fas fa-lightbulb text-amber-500" />
-                            Gợi ý tác vụ quản trị:
+                            <i className="fas fa-lightbulb text-slate-400" />
+                            Gợi ý tác vụ nhanh:
                           </p>
-                          <div className="flex flex-wrap gap-1.5">
+                            <div className="flex flex-wrap gap-1.5">
                             {msg.suggestions.map((sug, sIdx) => (
                               <button
                                 key={sIdx}
@@ -4378,14 +5203,15 @@ function EduMinAiAssistantInner() {
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
+                onFocus={() => setIsChatFocused(true)}
                 placeholder="Nhập câu hỏi hoặc yêu cầu điều hướng..."
                 disabled={loading}
-                className="flex-1 bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-100 rounded-xl px-3.5 py-2 text-xs sm:text-sm text-slate-800 placeholder-slate-400 outline-hidden transition"
+                className="flex-1 bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-100 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-slate-800 placeholder-slate-400 outline-none transition"
               />
               <button
                 type="submit"
                 disabled={!input.trim() || loading}
-                className="p-2.5 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-40 disabled:hover:bg-indigo-600 transition flex items-center justify-center flex-shrink-0 shadow-xs"
+                className="p-2.5 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-40 disabled:hover:bg-indigo-600 transition flex items-center justify-center flex-shrink-0 shadow-xs cursor-pointer"
                 title="Gửi câu hỏi"
               >
                 <i className="fas fa-paper-plane text-xs sm:text-sm" />

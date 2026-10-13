@@ -1,7 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { EduMinAiAssistant } from './EduMinAiAssistant.jsx';
+import {
+  EduMinAiAssistant,
+  getChatUserStorageKey,
+  getChatOpenStorageKey,
+} from './EduMinAiAssistant.jsx';
 
 const mockNavigate = vi.fn();
 vi.mock('react-router-dom', async () => {
@@ -50,6 +54,7 @@ import { feedbackApi } from '../../api/feedbackApi.js';
 describe('EduMinAiAssistant', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    sessionStorage.clear();
     mockCurrentUser = { role: 'sinh-vien', hoTen: 'Trần Minh Quân' };
     aiApi.suggestions.mockResolvedValue({
       success: true,
@@ -573,6 +578,93 @@ describe('EduMinAiAssistant', () => {
       expect(screen.getByText('Mã lớp: IT101-01')).toBeInTheDocument();
     });
   });
+
+  it('persists chat messages across page transitions and reloads from sessionStorage', async () => {
+    mockCurrentUser = { role: 'sinh-vien', hoTen: 'Trần Minh Quân', id: 'student-persist-1' };
+    aiApi.query.mockResolvedValueOnce({
+      success: true,
+      reply: 'Đây là câu trả lời được lưu trữ qua chuyển trang',
+      intent: 'NAV_CLASSES',
+      quickLinks: [{ label: 'Đến trang Lớp học', path: '/student/classes' }],
+    });
+
+    const { unmount } = render(
+      <MemoryRouter initialEntries={['/student']}>
+        <EduMinAiAssistant forceRender={true} />
+      </MemoryRouter>
+    );
+
+    // Open chat
+    fireEvent.click(screen.getByRole('button', { name: /Mở trợ lý ảo EduMin/i }));
+
+    // Send a message
+    const input = screen.getByPlaceholderText(/Nhập câu hỏi hoặc yêu cầu điều hướng.../i);
+    fireEvent.change(input, { target: { value: 'Cho mình xem thông tin lớp học' } });
+    fireEvent.click(screen.getByTitle('Gửi câu hỏi'));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('Đây là câu trả lời được lưu trữ qua chuyển trang')
+      ).toBeInTheDocument();
+    });
+
+    // Click quick link to simulate direct page navigation
+    const linkBtn = screen.getByRole('button', { name: /Đến trang Lớp học/i });
+    fireEvent.click(linkBtn);
+    expect(mockNavigate).toHaveBeenCalledWith('/student/classes');
+
+    // Unmount and remount (simulating page change / route transition)
+    unmount();
+
+    render(
+      <MemoryRouter initialEntries={['/student/classes']}>
+        <EduMinAiAssistant forceRender={true} />
+      </MemoryRouter>
+    );
+
+    // Verify messages are retained from sessionStorage without resetting to initial welcome
+    await waitFor(() => {
+      expect(screen.getByText('Cho mình xem thông tin lớp học')).toBeInTheDocument();
+      expect(
+        screen.getByText('Đây là câu trả lời được lưu trữ qua chuyển trang')
+      ).toBeInTheDocument();
+    });
+  });
+
+  it('resets chat messages and updates sessionStorage when user clicks clear history', async () => {
+    mockCurrentUser = { role: 'sinh-vien', hoTen: 'Trần Minh Quân', id: 'student-persist-2' };
+    const storageKey = getChatUserStorageKey(mockCurrentUser);
+    sessionStorage.setItem(
+      storageKey,
+      JSON.stringify([
+        { id: 'msg-old', sender: 'user', text: 'Tin nhắn cũ từ phiên trước' },
+      ])
+    );
+
+    render(
+      <MemoryRouter initialEntries={['/student']}>
+        <EduMinAiAssistant forceRender={true} />
+      </MemoryRouter>
+    );
+
+    // Open chat if not open
+    const toggleBtn = screen.queryByRole('button', { name: /Mở trợ lý ảo EduMin/i });
+    if (toggleBtn) {
+      fireEvent.click(toggleBtn);
+    }
+
+    expect(screen.getByText('Tin nhắn cũ từ phiên trước')).toBeInTheDocument();
+
+    // Click refresh history
+    const resetBtn = screen.getByTitle('Làm mới hội thoại');
+    fireEvent.click(resetBtn);
+
+    expect(screen.queryByText('Tin nhắn cũ từ phiên trước')).not.toBeInTheDocument();
+    expect(screen.getByText(/Đã làm mới cuộc hội thoại/i)).toBeInTheDocument();
+
+    const storedAfter = JSON.parse(sessionStorage.getItem(storageKey));
+    expect(storedAfter[0].text).toContain('Đã làm mới cuộc hội thoại');
+  });
 });
 
 import { getSmartAiResponse, detectIntent, findStudentByName, BUSINESS_RESERVED_WORDS } from './EduMinAiAssistant.jsx';
@@ -1041,6 +1133,65 @@ describe('Role-based rendering authorization for EduMinAiAssistant', () => {
     expect(res.matched).toBe(true);
     expect(res.intent).toBe('NAV_PROFILE_REQUESTS');
     expect(res.reply).not.toContain('Không tìm thấy sinh viên');
+  });
+
+  it('detects role intelligence intents correctly in frontend detectIntent', () => {
+    expect(detectIntent('tiêu chuẩn duyệt: CCCD 12 số, SĐT 10 số')).toBe('ADMIN_SET_CRITERIA');
+    expect(detectIntent('duyệt hồ sơ theo tiêu chuẩn')).toBe('ADMIN_APPLY_CRITERIA_APPROVAL');
+    expect(detectIntent('cho tôi xem ý kiến người dùng')).toBe('ADMIN_VIEW_USER_DESIRES');
+    expect(detectIntent('em muốn mở thêm lớp học phần')).toBe('RECORD_USER_DESIRE');
+    expect(detectIntent('tính điểm cho sinh viên dựa vào quiz và chuyên cần')).toBe('TEACHER_CALCULATE_GRADES');
+    expect(detectIntent('báo cáo tình hình học tập sau khi được giảng viên đánh giá')).toBe('STUDENT_ACADEMIC_REPORT');
+  });
+
+  it('handles Admin setting criteria via prompt in getSmartAiResponse', () => {
+    const res = getSmartAiResponse('tiêu chuẩn duyệt: CCCD 12 số, SĐT 10 số, lý do rõ ràng', 'dao-tao');
+    expect(res.matched).toBe(true);
+    expect(res.intent).toBe('ADMIN_SET_CRITERIA');
+    expect(res.reply).toContain('tiêu chuẩn');
+    expect(res.reply).toContain('CCCD');
+    expect(res.quickLinks.some((l) => l.path === '/admin/profile-requests')).toBe(true);
+  });
+
+  it('handles Admin applying criteria approval via prompt in getSmartAiResponse', () => {
+    const res = getSmartAiResponse('duyệt hồ sơ theo tiêu chuẩn', 'dao-tao');
+    expect(res.matched).toBe(true);
+    expect(res.intent).toBe('ADMIN_APPLY_CRITERIA_APPROVAL');
+    expect(res.reply).toContain('tiêu chuẩn');
+    expect(Array.isArray(res.cards)).toBe(true);
+  });
+
+  it('handles Admin viewing user desires via prompt in getSmartAiResponse', () => {
+    const res = getSmartAiResponse('cho tôi xem ý kiến người dùng và mong muốn sinh viên', 'dao-tao');
+    expect(res.matched).toBe(true);
+    expect(res.intent).toBe('ADMIN_VIEW_USER_DESIRES');
+    expect(res.reply).toContain('Nguyện vọng');
+  });
+
+  it('records user desire via prompt in getSmartAiResponse', () => {
+    const res = getSmartAiResponse('em muốn mở thêm lớp tiếng Anh giao tiếp buổi tối', 'sinh-vien');
+    expect(res.matched).toBe(true);
+    expect(res.intent).toBe('RECORD_USER_DESIRE');
+    expect(res.reply).toContain('ghi nhận');
+  });
+
+  it('calculates grades for Teacher based on quiz and attendance via prompt in getSmartAiResponse', () => {
+    const res = getSmartAiResponse('tính điểm cho sinh viên dựa vào quiz và chuyên cần', 'giao-vien');
+    expect(res.matched).toBe(true);
+    expect(res.intent).toBe('TEACHER_CALCULATE_GRADES');
+    expect(res.reply).toContain('Công thức');
+    expect(res.reply).toContain('Chuyên cần');
+    expect(res.reply).toContain('Quiz');
+    expect(res.quickLinks.some((l) => l.path === '/teacher/classes')).toBe(true);
+  });
+
+  it('generates academic report for Student after teacher evaluation in getSmartAiResponse', () => {
+    const res = getSmartAiResponse('báo cáo tình hình học tập sau khi được giảng viên đánh giá', 'sinh-vien');
+    expect(res.matched).toBe(true);
+    expect(res.intent).toBe('STUDENT_ACADEMIC_REPORT');
+    expect(res.reply).toContain('BÁO CÁO TÌNH HÌNH HỌC TẬP');
+    expect(res.reply).toContain('Điểm trung bình tích lũy');
+    expect(res.reply).toContain('Đánh giá của Giảng viên');
   });
 });
 

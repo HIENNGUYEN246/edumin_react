@@ -103,6 +103,16 @@ export async function updateMyAvatar(user, file) {
     requestedData: { avatar: uploaded },
   });
 
+  if (request.status === 'approved') {
+    return {
+      pending: false,
+      autoApproved: true,
+      message: 'EduMin AI đã tự động phê duyệt ảnh đại diện theo tiêu chí của Quản trị viên!',
+      avatar: uploaded,
+      request,
+    };
+  }
+
   return {
     pending: true,
     message: 'Yêu cầu thay đổi ảnh đại diện đã được gửi đến Quản trị viên để phê duyệt',
@@ -126,6 +136,15 @@ export async function requestProfileUpdate(user, updateData) {
     type: 'profile',
     requestedData: updateData,
   });
+
+  if (request.status === 'approved') {
+    return {
+      pending: false,
+      autoApproved: true,
+      message: 'EduMin AI đã tự động phê duyệt yêu cầu thay đổi thông tin theo tiêu chí của Quản trị viên!',
+      request,
+    };
+  }
 
   return {
     pending: true,

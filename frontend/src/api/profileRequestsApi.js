@@ -9,6 +9,9 @@ export const profileRequestsApi = {
   bulkApprove: (ids) => http.post('/profile-requests/bulk-approve', { ids }),
   bulkReject: (ids, reason) => http.post('/profile-requests/bulk-reject', { ids, reason }),
   bulkDelete: (ids) => http.post('/profile-requests/bulk-delete', { ids }),
+  getAiCriteria: () => http.get('/ai/admin-criteria'),
+  setAiCriteria: (rawCriteriaText) => http.post('/ai/admin-criteria', { rawCriteriaText }),
+  clearAiCriteria: () => http.delete('/ai/admin-criteria'),
 };
 
 export default profileRequestsApi;

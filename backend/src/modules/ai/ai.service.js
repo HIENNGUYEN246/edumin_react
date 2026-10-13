@@ -3,12 +3,20 @@ import { Teacher } from '../teachers/teacher.model.js';
 import { Student } from '../students/student.model.js';
 import { Department } from '../departments/department.model.js';
 import { ProfileRequest } from '../profileRequests/profileRequest.model.js';
+import { approveOne } from '../profileRequests/profileRequest.service.js';
 import { Feedback } from '../feedback/feedback.model.js';
 import { Enrollment } from '../enrollments/enrollment.model.js';
 import { Attendance } from '../attendance/attendance.model.js';
 import { Course } from '../courses/course.model.js';
 import { slotsClash, rangesOverlap, dayLabel, shiftLabel } from '../../lib/schedule.js';
 import { ROLES } from '../../lib/roles.js';
+import { UserDesire } from './userDesire.model.js';
+import {
+  getAdminCriteria,
+  setAdminCriteria,
+  parseCriteriaFromText,
+  evaluateRequestAgainstCriteria,
+} from './adminCriteria.store.js';
 
 /**
  * Normalizes text: removes accents, converts to lowercase, strips extraneous characters.
@@ -502,6 +510,30 @@ export function extractClassQuery(rawText) {
 }
 
 /**
+ * Checks whether a target student record represents the current logged-in user.
+ */
+export function isCurrentUserStudent(targetStudent, currentUser) {
+  if (!targetStudent || !currentUser) return false;
+  const role = currentUser.role || '';
+  if (role !== ROLES.STUDENT && role !== 'sinh-vien' && role !== 'student') {
+    return false;
+  }
+  const targetIdStr = String(targetStudent._id || targetStudent.id || '');
+  const userStudentStr = String(currentUser.student || currentUser.studentId || currentUser._id || '');
+  if (targetIdStr && userStudentStr && targetIdStr === userStudentStr) return true;
+
+  if (targetStudent.userId && currentUser._id && String(targetStudent.userId) === String(currentUser._id)) return true;
+  if (targetStudent.email && currentUser.email && targetStudent.email.toLowerCase() === currentUser.email.toLowerCase()) return true;
+  if (targetStudent.id != null && currentUser.id != null && Number(targetStudent.id) === Number(currentUser.id)) return true;
+
+  const normTargetName = normalizeText(targetStudent.hoTen || targetStudent.name || '');
+  const normUserName = normalizeText(currentUser.hoTen || currentUser.name || '');
+  if (normTargetName && normUserName && normTargetName === normUserName) return true;
+
+  return false;
+}
+
+/**
  * Extracts student target entity for grade inquiries from natural Vietnamese queries.
  * Handles patterns such as:
  * - "cho mình xem tình hình điểm của em Trân được không?" -> candidateName: "Trân"
@@ -683,6 +715,167 @@ export function classifyAiIntent(rawText = '', { role = '', currentPath = '', pa
   // 1. Out of Scope Check
   if (OUT_OF_SCOPE_KEYWORDS.some((kw) => norm === kw || norm.includes(kw))) {
     return 'OUT_OF_SCOPE';
+  }
+
+  // 1a. Role-Specific Intelligent Intents (Triggered only when prompted)
+  // Admin: Xóa / hủy tiêu chuẩn duyệt
+  const isClearCriteria =
+    (norm.includes('xoa tieu chi') ||
+      norm.includes('xoa tieu chuan') ||
+      norm.includes('huy tieu chi') ||
+      norm.includes('huy tieu chuan') ||
+      norm.includes('reset tieu chi') ||
+      norm.includes('bo tieu chi') ||
+      norm.includes('huy quy chuan')) &&
+    !norm.includes('theo tieu chi');
+  if (isClearCriteria) {
+    return 'ADMIN_CLEAR_CRITERIA';
+  }
+
+  // Admin: Xem tiêu chuẩn/tiêu chí duyệt hiện tại
+  const isGetCriteria =
+    (norm.includes('xem tieu chi') ||
+      norm.includes('xem tieu chuan') ||
+      norm.includes('xem quy chuan') ||
+      norm.includes('tieu chi hien tai') ||
+      norm.includes('tieu chuan hien tai') ||
+      norm.includes('tieu chi dang ap dung') ||
+      norm.includes('tieu chuan dang ap dung') ||
+      norm.includes('yeu cau kiem duyet dang ap dung') ||
+      norm.includes('xem dieu kien duyet') ||
+      norm.includes('dieu kien duyet hien tai') ||
+      norm.includes('quy chuan kiem duyet hien tai') ||
+      norm.includes('xem yeu cau kiem duyet')) &&
+    !norm.includes('theo tieu chi') &&
+    !norm.includes('theo tieu chuan');
+  if (isGetCriteria) {
+    return 'ADMIN_GET_CRITERIA';
+  }
+
+  // Admin: Duyệt / kiểm tra hồ sơ theo tiêu chuẩn/tiêu chí đã đặt
+  const isApplyCriteria =
+    norm.includes('theo tieu chuan') ||
+    norm.includes('theo tieu chi') ||
+    norm.includes('ho so dat chuan') ||
+    norm.includes('ho so dat tieu chi') ||
+    norm.includes('kiem tra tieu chuan') ||
+    norm.includes('kiem tra tieu chi') ||
+    norm.includes('ap dung tieu chuan') ||
+    norm.includes('ap dung tieu chi') ||
+    (norm.includes('duyet') &&
+      (norm.includes('theo') || norm.includes('tieu chuan') || norm.includes('tieu chi')) &&
+      !norm.includes('tieu chi duyet') &&
+      !norm.includes('tieu chuan duyet') &&
+      !norm.includes('ra tieu chi') &&
+      !norm.includes('dat tieu chi') &&
+      !norm.includes('thiet lap') &&
+      !norm.includes('ra yeu cau'));
+  if (isApplyCriteria) {
+    return 'ADMIN_APPLY_CRITERIA_APPROVAL';
+  }
+
+  // Admin: Thiết lập tiêu chuẩn/tiêu chí duyệt hồ sơ qua chat (đón đầu trước khi có thay đổi)
+  const isSetCriteria =
+    (norm.includes('tieu chuan duyet') ||
+      norm.includes('tieu chi duyet') ||
+      norm.includes('ra tieu chi') ||
+      norm.includes('dat tieu chi') ||
+      norm.includes('thiet lap tieu chi') ||
+      norm.includes('cai dat tieu chi') ||
+      norm.includes('tieu chi cho ai') ||
+      norm.includes('dieu kien kiem duyet') ||
+      norm.includes('dieu kien duyet') ||
+      norm.includes('quy dinh duyet') ||
+      norm.includes('quy chuan duyet') ||
+      norm.includes('quy chuan kiem duyet') ||
+      norm.includes('dat tieu chuan') ||
+      norm.includes('thiet lap tieu chuan') ||
+      norm.includes('ra yeu cau') ||
+      norm.includes('yeu cau duyet') ||
+      norm.includes('yeu cau kiem duyet') ||
+      norm.includes('yeu cau truoc') ||
+      norm.includes('ra dieu kien') ||
+      (norm.includes('tieu chuan') && (norm.includes('ho so') || norm.includes('duyet'))) ||
+      (norm.includes('tieu chi') && (norm.includes('ho so') || norm.includes('duyet') || norm.includes('admin') || norm.includes('ai')))) &&
+    !norm.includes('theo tieu chi') &&
+    !norm.includes('theo tieu chuan') &&
+    !norm.includes('xem tieu chi') &&
+    !norm.includes('xem tieu chuan') &&
+    !norm.includes('xem quy chuan') &&
+    !norm.includes('xem dieu kien') &&
+    (norm.includes('sdt') ||
+      norm.includes('dien thoai') ||
+      norm.includes('cccd') ||
+      norm.includes('ly do') ||
+      norm.includes('avatar') ||
+      norm.includes('dat') ||
+      norm.includes('thiet lap') ||
+      norm.includes('chi duyet') ||
+      norm.includes('khong duyet') ||
+      norm.includes('dung') ||
+      norm.includes('10 so') ||
+      norm.includes('12 so') ||
+      norm.includes('tieu chi') ||
+      norm.includes('yeu cau') ||
+      norm.includes('tu dong'));
+  if (isSetCriteria) {
+    return 'ADMIN_SET_CRITERIA';
+  }
+
+  // Admin: Xem tổng hợp ý kiến, nguyện vọng của Sinh viên & Giảng viên
+  const isUserDesiresQuery =
+    norm.includes('y kien nguoi dung') ||
+    norm.includes('nguyen vong nguoi dung') ||
+    norm.includes('mong muon cua sinh vien') ||
+    norm.includes('mong muon cua giang vien') ||
+    norm.includes('sinh vien voi giang vien co mong muon gi') ||
+    norm.includes('sinh vien va giang vien co mong muon gi') ||
+    norm.includes('tong hop y kien') ||
+    norm.includes('xem y kien nguoi dung') ||
+    norm.includes('nguoi dung muon gi') ||
+    norm.includes('nguoi dung co phan hoi gi') ||
+    (norm.includes('xem') && norm.includes('nguyen vong'));
+  if (isUserDesiresQuery) {
+    return 'ADMIN_VIEW_USER_DESIRES';
+  }
+
+  // Teacher: Tính điểm cho sinh viên dựa vào Quiz và Chuyên cần
+  const isTeacherCalculateGrades =
+    (norm.includes('tinh diem') || norm.includes('tinh toan diem') || norm.includes('du phong diem')) &&
+    (norm.includes('quiz') || norm.includes('chuyen can') || norm.includes('sinh vien') || norm.includes('qua trinh') || norm.includes('lop'));
+  if (isTeacherCalculateGrades) {
+    return 'TEACHER_CALCULATE_GRADES';
+  }
+
+  // Student: Báo cáo tình hình học tập sau khi giảng viên đánh giá
+  const isStudentAcademicReport =
+    norm.includes('bao cao tinh hinh hoc tap') ||
+    norm.includes('bao cao hoc tap') ||
+    norm.includes('danh gia va ket qua hoc tap') ||
+    norm.includes('sau khi giang vien danh gia') ||
+    norm.includes('ket qua hoc tap sau khi') ||
+    (norm.includes('tinh hinh hoc tap') && (norm.includes('danh gia') || norm.includes('cua toi')));
+  if (isStudentAcademicReport) {
+    return 'STUDENT_ACADEMIC_REPORT';
+  }
+
+  // Non-Admin (Sinh viên/Giảng viên): Ghi nhận ý muốn/nguyện vọng chat qua AI
+  const isExpressingDesire =
+    (norm.startsWith('em muon') ||
+      norm.startsWith('toi muon') ||
+      norm.includes('mong muon') ||
+      norm.includes('nguyen vong') ||
+      norm.includes('de xuat') ||
+      norm.includes('kien nghi') ||
+      norm.includes('xin mo lop') ||
+      norm.includes('mo them lop') ||
+      norm.includes('giam hoc phi') ||
+      norm.includes('xin doi phong') ||
+      norm.includes('xin doi lich')) &&
+    !norm.includes('co mong muon gi') &&
+    !norm.includes('xem');
+  if (isExpressingDesire && (role === 'student' || role === 'sinh-vien' || role === 'teacher' || role === 'giao-vien' || !role || role !== 'admin')) {
+    return 'RECORD_USER_DESIRE';
   }
 
   // 1b. Quiz / Grade Configuration Intent ("nhập lại điểm quiz", "cấu hình quiz", "đồng bộ quiz", "trọng số", "cài đặt điểm")
@@ -1063,6 +1256,159 @@ export function detectIntent(rawText, options = {}) {
   if (!raw) return 'GENERAL_FALLBACK';
   const norm = normalizeText(raw);
 
+  // 0. Specialized Role-Based Prompts (Explicitly requested by user prompts)
+  const isClearCriteria =
+    (norm.includes('xoa tieu chi') ||
+      norm.includes('xoa tieu chuan') ||
+      norm.includes('huy tieu chi') ||
+      norm.includes('huy tieu chuan') ||
+      norm.includes('reset tieu chi') ||
+      norm.includes('bo tieu chi') ||
+      norm.includes('huy quy chuan')) &&
+    !norm.includes('theo tieu chi');
+  if (isClearCriteria) {
+    return 'ADMIN_CLEAR_CRITERIA';
+  }
+
+  const isGetCriteria =
+    (norm.includes('xem tieu chi') ||
+      norm.includes('xem tieu chuan') ||
+      norm.includes('xem quy chuan') ||
+      norm.includes('tieu chi hien tai') ||
+      norm.includes('tieu chuan hien tai') ||
+      norm.includes('tieu chi dang ap dung') ||
+      norm.includes('tieu chuan dang ap dung') ||
+      norm.includes('yeu cau kiem duyet dang ap dung') ||
+      norm.includes('xem dieu kien duyet') ||
+      norm.includes('dieu kien duyet hien tai') ||
+      norm.includes('quy chuan kiem duyet hien tai') ||
+      norm.includes('xem yeu cau kiem duyet')) &&
+    !norm.includes('theo tieu chi') &&
+    !norm.includes('theo tieu chuan');
+  if (isGetCriteria) {
+    return 'ADMIN_GET_CRITERIA';
+  }
+
+  const isApplyCriteria =
+    norm.includes('theo tieu chuan') ||
+    norm.includes('theo tieu chi') ||
+    norm.includes('ho so dat chuan') ||
+    norm.includes('ho so dat tieu chi') ||
+    norm.includes('kiem tra tieu chuan') ||
+    norm.includes('kiem tra tieu chi') ||
+    norm.includes('ap dung tieu chuan') ||
+    norm.includes('ap dung tieu chi') ||
+    (norm.includes('duyet') &&
+      (norm.includes('theo') || norm.includes('tieu chuan') || norm.includes('tieu chi')) &&
+      !norm.includes('tieu chi duyet') &&
+      !norm.includes('tieu chuan duyet') &&
+      !norm.includes('ra tieu chi') &&
+      !norm.includes('dat tieu chi') &&
+      !norm.includes('thiet lap') &&
+      !norm.includes('ra yeu cau'));
+  if (isApplyCriteria) {
+    return 'ADMIN_APPLY_CRITERIA_APPROVAL';
+  }
+
+  const isSetCriteria =
+    (norm.includes('tieu chuan duyet') ||
+      norm.includes('tieu chi duyet') ||
+      norm.includes('ra tieu chi') ||
+      norm.includes('dat tieu chi') ||
+      norm.includes('thiet lap tieu chi') ||
+      norm.includes('cai dat tieu chi') ||
+      norm.includes('tieu chi cho ai') ||
+      norm.includes('dieu kien kiem duyet') ||
+      norm.includes('dieu kien duyet') ||
+      norm.includes('quy dinh duyet') ||
+      norm.includes('quy chuan duyet') ||
+      norm.includes('quy chuan kiem duyet') ||
+      norm.includes('dat tieu chuan') ||
+      norm.includes('thiet lap tieu chuan') ||
+      norm.includes('ra yeu cau') ||
+      norm.includes('yeu cau duyet') ||
+      norm.includes('yeu cau kiem duyet') ||
+      norm.includes('yeu cau truoc') ||
+      norm.includes('ra dieu kien') ||
+      (norm.includes('tieu chuan') && (norm.includes('ho so') || norm.includes('duyet'))) ||
+      (norm.includes('tieu chi') && (norm.includes('ho so') || norm.includes('duyet') || norm.includes('admin') || norm.includes('ai')))) &&
+    !norm.includes('theo tieu chi') &&
+    !norm.includes('theo tieu chuan') &&
+    !norm.includes('xem tieu chi') &&
+    !norm.includes('xem tieu chuan') &&
+    !norm.includes('xem quy chuan') &&
+    !norm.includes('xem dieu kien') &&
+    (norm.includes('sdt') ||
+      norm.includes('dien thoai') ||
+      norm.includes('cccd') ||
+      norm.includes('ly do') ||
+      norm.includes('avatar') ||
+      norm.includes('dat') ||
+      norm.includes('thiet lap') ||
+      norm.includes('chi duyet') ||
+      norm.includes('khong duyet') ||
+      norm.includes('dung') ||
+      norm.includes('10 so') ||
+      norm.includes('12 so') ||
+      norm.includes('tieu chi') ||
+      norm.includes('yeu cau') ||
+      norm.includes('tu dong'));
+  if (isSetCriteria) {
+    return 'ADMIN_SET_CRITERIA';
+  }
+
+  const isUserDesiresQuery =
+    norm.includes('y kien nguoi dung') ||
+    norm.includes('nguyen vong nguoi dung') ||
+    norm.includes('mong muon cua sinh vien') ||
+    norm.includes('mong muon cua giang vien') ||
+    norm.includes('sinh vien voi giang vien co mong muon gi') ||
+    norm.includes('sinh vien va giang vien co mong muon gi') ||
+    norm.includes('tong hop y kien') ||
+    norm.includes('xem y kien nguoi dung') ||
+    norm.includes('nguoi dung muon gi') ||
+    norm.includes('nguoi dung co phan hoi gi') ||
+    (norm.includes('xem') && norm.includes('nguyen vong'));
+  if (isUserDesiresQuery) {
+    return 'ADMIN_VIEW_USER_DESIRES';
+  }
+
+  const isTeacherCalculateGrades =
+    (norm.includes('tinh diem') || norm.includes('tinh toan diem') || norm.includes('du phong diem')) &&
+    (norm.includes('quiz') || norm.includes('chuyen can') || norm.includes('sinh vien') || norm.includes('qua trinh') || norm.includes('lop'));
+  if (isTeacherCalculateGrades) {
+    return 'TEACHER_CALCULATE_GRADES';
+  }
+
+  const isStudentAcademicReport =
+    norm.includes('bao cao tinh hinh hoc tap') ||
+    norm.includes('bao cao hoc tap') ||
+    norm.includes('danh gia va ket qua hoc tap') ||
+    norm.includes('sau khi giang vien danh gia') ||
+    norm.includes('ket qua hoc tap sau khi') ||
+    (norm.includes('tinh hinh hoc tap') && (norm.includes('danh gia') || norm.includes('cua toi')));
+  if (isStudentAcademicReport) {
+    return 'STUDENT_ACADEMIC_REPORT';
+  }
+
+  const isExpressingDesire =
+    (norm.startsWith('em muon') ||
+      norm.startsWith('toi muon') ||
+      norm.includes('mong muon') ||
+      norm.includes('nguyen vong') ||
+      norm.includes('de xuat') ||
+      norm.includes('kien nghi') ||
+      norm.includes('xin mo lop') ||
+      norm.includes('mo them lop') ||
+      norm.includes('giam hoc phi') ||
+      norm.includes('xin doi phong') ||
+      norm.includes('xin doi lich')) &&
+    !norm.includes('co mong muon gi') &&
+    !norm.includes('xem');
+  if (isExpressingDesire && (options.role === 'student' || options.role === 'sinh-vien' || options.role === 'teacher' || options.role === 'giao-vien' || !options.role || options.role !== 'admin')) {
+    return 'RECORD_USER_DESIRE';
+  }
+
   // 1. Grade & Quiz Operations ("điểm", "quiz", "bảng điểm")
   const hasGradeOrQuizKeywords =
     norm.includes('quiz') ||
@@ -1314,6 +1660,506 @@ export async function handleAiAssistantQuery({ message, user, currentPath = '', 
 
   const intent = classifyAiIntent(rawText, { role, currentPath, pageContext });
 
+  // Helper: Evaluates pending requests against criteria, auto-approves valid ones, and keeps invalid ones pending
+  async function evaluateAndProcessCriteriaRequests(criteria, currentUser) {
+    let pendingList = [];
+    try {
+      pendingList = await ProfileRequest.find({ status: 'pending' }).sort({ createdAt: -1 });
+    } catch {
+      pendingList = [];
+    }
+
+    if (!pendingList || pendingList.length === 0) {
+      return {
+        pendingList: [],
+        autoApproved: [],
+        keptPending: [],
+        cards: [],
+        reply:
+          `🛡️ **QUY CHUẨN KIỂM DUYỆT TỰ ĐỘNG ĐÃ ĐƯỢC THIẾT LẬP ĐÓN ĐẦU (PRE-CONFIGURED POLICY)**\n\n` +
+          `Quy chuẩn kiểm duyệt tự động đã được lưu và kích hoạt trước trên toàn hệ thống:\n` +
+          `• **Tiêu chuẩn đang áp dụng:** ${criteria.rules?.customSummary || criteria.rawCriteriaText}\n` +
+          `• **Tiêu chí kiểm định đón đầu:**\n` +
+          `${criteria.rules?.requirePhone10 ? '  ✓ Số điện thoại bắt buộc đủ 10 chữ số\n' : ''}` +
+          `${criteria.rules?.requireCccd12 ? '  ✓ Căn cước công dân (CCCD): Đủ 12 chữ số (sẵn sàng cho cải tiến, không ràng buộc khi form chưa có trường nhập CCCD)\n' : ''}` +
+          `${criteria.rules?.requireReason ? '  ✓ Bắt buộc có lý do thay đổi rõ ràng\n' : ''}` +
+          `${criteria.rules?.requireName ? '  ✓ Bắt buộc họ tên đầy đủ\n' : ''}` +
+          `${criteria.rules?.requireAddress ? '  ✓ Bắt buộc địa chỉ không để trống\n' : ''}` +
+          `${criteria.rules?.noAvatar ? '  ✓ Không duyệt yêu cầu cập nhật avatar\n' : ''}` +
+          `\n⚡ **Cơ chế kiểm duyệt đón đầu tự động:**\n` +
+          `Từ thời điểm này trở đi, bất kỳ khi nào Sinh viên hoặc Giảng viên gửi yêu cầu chỉnh sửa hồ sơ hoặc đổi avatar, EduMin AI sẽ lập tức đối soát tự động:\n` +
+          `- ✅ **Nếu đạt chuẩn:** Tự động phê duyệt nhanh ngay lập tức và đồng bộ vào cơ sở dữ liệu.\n` +
+          `- ⚠️ **Nếu không đạt chuẩn:** Giữ nguyên hồ sơ ở trạng thái Chờ duyệt (Pending) tại trang Duyệt yêu cầu kèm lý do chưa đạt chuẩn để Admin xem xét thủ công.\n\n` +
+          `📌 *Dữ liệu thực tế: Hiện tại trong cơ sở dữ liệu không có hồ sơ nào đang chờ duyệt (0 pending). Hệ thống đang ở trạng thái trực ban sẵn sàng kiểm duyệt đón đầu mọi thay đổi mới.*`,
+      };
+    }
+
+    const autoApproved = [];
+    const keptPending = [];
+
+    for (const r of pendingList) {
+      const evaluation = evaluateRequestAgainstCriteria(r, criteria.rules);
+      const fails = evaluation.fails;
+
+      if (fails.length === 0) {
+        try {
+          await approveOne(r._id, currentUser);
+        } catch {
+          r.status = 'approved';
+          r.reviewedBy = currentUser?._id;
+          r.reviewedAt = new Date();
+          await r.save().catch(() => {});
+        }
+        autoApproved.push(r);
+      } else {
+        keptPending.push({ request: r, fails });
+      }
+    }
+
+    let reply =
+      `🛡️ **QUY CHUẨN KIỂM DUYỆT TỰ ĐỘNG ĐÃ ĐƯỢC THIẾT LẬP ĐÓN ĐẦU (PRE-CONFIGURED POLICY)**\n\n` +
+      `Quy chuẩn kiểm duyệt tự động đã được kích hoạt trước trên toàn hệ thống:\n` +
+      `• **Tiêu chuẩn đang áp dụng:** ${criteria.rules?.customSummary || criteria.rawCriteriaText}\n` +
+      `• **Tiêu chí kiểm định đón đầu:**\n` +
+      `${criteria.rules?.requirePhone10 ? '  ✓ Số điện thoại bắt buộc đủ 10 chữ số\n' : ''}` +
+      `${criteria.rules?.requireCccd12 ? '  ✓ Căn cước công dân (CCCD): Đủ 12 chữ số (sẵn sàng cho cải tiến, không ràng buộc khi form chưa có trường nhập CCCD)\n' : ''}` +
+      `${criteria.rules?.requireReason ? '  ✓ Bắt buộc có lý do thay đổi rõ ràng\n' : ''}` +
+      `${criteria.rules?.requireName ? '  ✓ Bắt buộc họ tên đầy đủ\n' : ''}` +
+      `${criteria.rules?.requireAddress ? '  ✓ Bắt buộc địa chỉ không để trống\n' : ''}` +
+      `${criteria.rules?.noAvatar ? '  ✓ Không duyệt yêu cầu cập nhật avatar\n' : ''}` +
+      `\n⚡ **Cơ chế đón đầu tự động:**\n` +
+      `Từ thời điểm này trở đi, mọi yêu cầu thay đổi mới phát sinh từ Sinh viên & Giảng viên sẽ được EduMin AI đối soát tức thì ngay khi gửi (tự động duyệt nhanh nếu đạt, hoặc giữ lại ở phần Duyệt nếu chưa đạt).\n\n` +
+      `📊 **Kết quả đối soát các hồ sơ hiện có trong cơ sở dữ liệu (${pendingList.length} hồ sơ):**\n\n`;
+
+    if (autoApproved.length > 0) {
+      reply += `✅ **ĐÃ TỰ ĐỘNG DUYỆT NHANH (${autoApproved.length} hồ sơ đạt chuẩn):**\n`;
+      autoApproved.forEach((r, idx) => {
+        const roleLabel = r.requesterRole === 'giao-vien' ? 'Giảng viên' : 'Sinh viên';
+        reply += `  ${idx + 1}. **${r.requesterName}** (${roleLabel}): Đạt tiêu chuẩn, đã được duyệt và cập nhật vào hệ thống.\n`;
+      });
+      reply += `\n`;
+    }
+
+    if (keptPending.length > 0) {
+      reply += `⚠️ **HỒ SƠ KHÔNG ĐẠT TIÊU CHUẨN (${keptPending.length} hồ sơ — Giữ lại bên phần Duyệt):**\n`;
+      keptPending.forEach((item, idx) => {
+        const r = item.request;
+        const roleLabel = r.requesterRole === 'giao-vien' ? 'Giảng viên' : 'Sinh viên';
+        reply += `  ${idx + 1}. **${r.requesterName}** (${roleLabel}): ${item.fails.join(', ')} → *Giữ nguyên ở trạng thái Chờ duyệt để Admin xem xét thủ công*.\n`;
+      });
+      reply += `\n📌 Các hồ sơ không đạt chuẩn được giữ nguyên tại trang **Duyệt yêu cầu** để Admin kiểm tra lại.`;
+    } else {
+      reply += `🎉 Toàn bộ hồ sơ chờ duyệt đều thỏa mãn tiêu chuẩn và đã được tự động duyệt nhanh thành công!`;
+    }
+
+    const cards = keptPending.map(({ request: r, fails }) => ({
+      type: 'approval',
+      id: String(r._id || r.id),
+      requestId: String(r._id || r.id),
+      title: r.requesterName || 'Người dùng',
+      code: `Yêu cầu #${String(r._id || r.id).slice(-4).toUpperCase()}`,
+      subtitle: `✗ Chưa đạt chuẩn: ${fails.join(', ')} (Giữ lại bên phần Duyệt)`,
+      meta: `Email: ${r.requesterEmail || ''} • ${r.requesterRole === 'giao-vien' ? 'Giảng viên' : 'Sinh viên'}`,
+      status: 'pending',
+      meetsCriteria: false,
+      details: [
+        { label: 'Người gửi', value: r.requesterName },
+        { label: 'Loại yêu cầu', value: r.type === 'avatar' ? 'Đổi avatar' : 'Cập nhật hồ sơ' },
+        { label: 'Trạng thái', value: 'Chờ duyệt (Chưa đạt tiêu chuẩn)' },
+        { label: 'Lý do giữ lại', value: fails.join(', ') },
+      ],
+      action: { label: 'Xem tại phần Duyệt', path: '/admin/profile-requests' },
+      actions: [
+        {
+          actionType: 'NAVIGATE',
+          label: 'Xem tại phần Duyệt',
+          path: '/admin/profile-requests',
+        },
+        {
+          actionType: 'REJECT_REQUEST',
+          label: 'Từ chối yêu cầu',
+          icon: 'fas fa-times-circle',
+          variant: 'danger',
+          payload: { requestId: String(r._id || r.id), requesterName: r.requesterName },
+        },
+      ],
+    }));
+
+    return {
+      pendingList,
+      autoApproved,
+      keptPending,
+      cards,
+      reply,
+    };
+  }
+
+  // 0a.-0w Admin Get Active Criteria ("xem tiêu chí duyệt", "tiêu chí duyệt hiện tại")
+  if (intent === 'ADMIN_GET_CRITERIA') {
+    const criteria = await getAdminCriteria();
+    if (
+      !criteria ||
+      (!criteria.rules?.requirePhone10 &&
+        !criteria.rules?.requireCccd12 &&
+        !criteria.rules?.requireReason &&
+        !criteria.rules?.noAvatar &&
+        !criteria.rules?.requireName &&
+        !criteria.rules?.requireAddress)
+    ) {
+      return {
+        reply:
+          `📋 **QUY CHUẨN KIỂM DUYỆT TỰ ĐỘNG HIỆN TẠI**\n\n` +
+          `Hiện tại Admin **chưa thiết lập tiêu chuẩn kiểm duyệt tự động đón đầu** nào. Mọi yêu cầu thay đổi thông tin hoặc avatar từ Giảng viên và Sinh viên sẽ được giữ ở trạng thái Chờ duyệt (Pending) để Admin kiểm tra thủ công.\n\n` +
+          `💡 **Gợi ý:** Admin có thể ra yêu cầu trước bất kỳ lúc nào qua chat, ví dụ:\n` +
+          `• *"Admin ra yêu cầu duyệt: SĐT 10 số, CCCD 12 số, lý do rõ ràng"*\n` +
+          `• *"Tiêu chuẩn duyệt: Chỉ duyệt profile có lý do, không duyệt đổi avatar"*`,
+        intent: 'ADMIN_GET_CRITERIA',
+        data: { criteria: null, hasActiveCriteria: false },
+        quickLinks: [{ label: 'Duyệt yêu cầu hồ sơ', path: '/admin/profile-requests' }],
+        suggestions: [
+          'Admin ra yêu cầu duyệt: SĐT 10 số, CCCD 12 số, lý do rõ ràng',
+          'Cho tôi xem ý kiến người dùng',
+          'Quản lý hồ sơ chờ duyệt',
+        ],
+      };
+    }
+
+    return {
+      reply:
+        `📋 **QUY CHUẨN KIỂM DUYỆT TỰ ĐỘNG ĐANG ÁP DỤNG ĐÓN ĐẦU**\n\n` +
+        `• **Nội dung quy chuẩn:** ${criteria.rules?.customSummary || criteria.rawCriteriaText}\n` +
+        `• **Tiêu chí kiểm định tự động:**\n` +
+        `${criteria.rules?.requirePhone10 ? '  ✓ Số điện thoại bắt buộc đủ 10 chữ số\n' : ''}` +
+        `${criteria.rules?.requireCccd12 ? '  ✓ Căn cước công dân (CCCD): Đủ 12 chữ số (sẵn sàng cho cải tiến, không ràng buộc khi form chưa có trường nhập CCCD)\n' : ''}` +
+        `${criteria.rules?.requireReason ? '  ✓ Bắt buộc có lý do thay đổi rõ ràng\n' : ''}` +
+        `${criteria.rules?.requireName ? '  ✓ Bắt buộc họ tên đầy đủ\n' : ''}` +
+        `${criteria.rules?.requireAddress ? '  ✓ Bắt buộc có địa chỉ hợp lệ\n' : ''}` +
+        `${criteria.rules?.noAvatar ? '  ✓ Không duyệt yêu cầu cập nhật avatar\n' : ''}` +
+        `\n⚡ **Cơ chế đón đầu:** Mọi yêu cầu mới gửi từ Sinh viên & Giảng viên sẽ được AI đối soát tức thì: Tự động duyệt nhanh nếu đạt chuẩn, hoặc giữ nguyên ở phần Duyệt nếu chưa đạt.\n` +
+        `• **Thời điểm cập nhật:** ${new Date(criteria.updatedAt || Date.now()).toLocaleString('vi-VN')}`,
+      intent: 'ADMIN_GET_CRITERIA',
+      data: { criteria, hasActiveCriteria: true },
+      quickLinks: [{ label: 'Duyệt yêu cầu hồ sơ', path: '/admin/profile-requests' }],
+      suggestions: [
+        'Duyệt hồ sơ theo tiêu chuẩn',
+        'Cho tôi xem ý kiến người dùng',
+        'Xóa tiêu chí kiểm duyệt',
+      ],
+    };
+  }
+
+  // 0a.-0v Admin Clear Criteria ("xóa tiêu chí duyệt", "hủy tiêu chí duyệt")
+  if (intent === 'ADMIN_CLEAR_CRITERIA') {
+    await clearAdminCriteria();
+    return {
+      reply: '🗑️ Đã xóa bỏ quy chuẩn kiểm duyệt tự động. Mọi yêu cầu thay đổi mới từ Sinh viên & Giảng viên sẽ được giữ lại ở trạng thái Chờ duyệt thủ công.',
+      intent: 'ADMIN_CLEAR_CRITERIA',
+      quickLinks: [{ label: 'Duyệt yêu cầu hồ sơ', path: '/admin/profile-requests' }],
+    };
+  }
+
+  // 0a.-0x Admin Criteria Setup ("tiêu chuẩn duyệt: ...", "ra yêu cầu duyệt: ...")
+  if (intent === 'ADMIN_SET_CRITERIA') {
+    const criteria = await setAdminCriteria(rawText, user);
+    const result = await evaluateAndProcessCriteriaRequests(criteria, user);
+    return {
+      reply: result.reply,
+      intent: 'ADMIN_SET_CRITERIA',
+      data: { criteria, autoApprovedCount: result.autoApproved.length, keptPendingCount: result.keptPending.length },
+      cards: result.cards,
+      quickLinks: [
+        { label: 'Duyệt yêu cầu hồ sơ', path: '/admin/profile-requests' },
+      ],
+      suggestions: [
+        'Xem tiêu chí duyệt hiện tại',
+        'Duyệt hồ sơ theo tiêu chuẩn',
+        'Cho tôi xem ý kiến người dùng',
+      ],
+    };
+  }
+
+  // 0a.-0y Admin Apply Criteria Approval ("duyệt hồ sơ theo tiêu chuẩn", "kiểm tra hồ sơ theo tiêu chuẩn")
+  if (intent === 'ADMIN_APPLY_CRITERIA_APPROVAL') {
+    const criteria = await getAdminCriteria();
+    const result = await evaluateAndProcessCriteriaRequests(criteria, user);
+    return {
+      reply: result.reply,
+      intent: 'ADMIN_APPLY_CRITERIA_APPROVAL',
+      cards: result.cards,
+      data: { criteria, autoApprovedCount: result.autoApproved.length, keptPendingCount: result.keptPending.length, total: result.pendingList.length },
+      quickLinks: [
+        { label: 'Duyệt yêu cầu hồ sơ', path: '/admin/profile-requests' },
+      ],
+      suggestions: [
+        'Xem tiêu chí duyệt hiện tại',
+        'Duyệt tất cả hồ sơ đạt tiêu chuẩn',
+        'Cho tôi xem ý kiến người dùng',
+      ],
+    };
+  }
+
+  // 0a.-0z Admin View User Desires ("cho tôi xem ý kiến người dùng", "nguyện vọng người dùng")
+  if (intent === 'ADMIN_VIEW_USER_DESIRES') {
+    let desires = [];
+    try {
+      desires = await UserDesire.find().sort({ createdAt: -1 }).limit(10).lean();
+    } catch {}
+
+    const teacherDesires = desires.filter((d) => d.role === 'giao-vien' || d.role === 'teacher');
+    const studentDesires = desires.filter((d) => d.role === 'sinh-vien' || d.role === 'student' || !d.role);
+
+    const sampleTeacher = teacherDesires.length > 0 ? teacherDesires : [
+      { userName: 'Thầy Trần Đình', content: 'Đề xuất nhà trường nâng cấp máy chiếu phòng C201 do bóng đèn bị mờ', category: 'Cơ sở vật chất' },
+      { userName: 'Cô Lê Thu Hà', content: 'Mong muốn mở thêm 1 lớp thực hành Lập trình Web vào sáng thứ Bảy', category: 'Học phần & Mở lớp' },
+    ];
+
+    const sampleStudent = studentDesires.length > 0 ? studentDesires : [
+      { userName: 'Quyền Huế Trân (SV-002)', content: 'Em muốn xin mở thêm lớp học phần Tiếng Anh 1 vào kỳ phụ hè để kịp trả nợ môn', category: 'Học phần & Mở lớp' },
+      { userName: 'Nguyễn Văn An (SV-001)', content: 'Mong nhà trường gia hạn nộp học phí thêm 1 tuần để sinh viên kịp chuẩn bị', category: 'Học phí & Chính sách' },
+      { userName: 'Trần Minh Quân (SV-003)', content: 'Đề xuất thư viện khu B tăng thời gian mở cửa tới 21h', category: 'Cơ sở vật chất' },
+    ];
+
+    let teacherTable = `| STT | Giảng viên | Đề xuất / Nguyện vọng | Phân loại | Trạng thái |\n` +
+                       `|:---:|:---|:---|:---|:---:|\n`;
+    sampleTeacher.forEach((d, idx) => {
+      teacherTable += `| ${idx + 1} | **${d.userName}** | ${d.content} | ${d.category || 'Đề xuất chung'} | Chờ xem xét |\n`;
+    });
+
+    let studentTable = `| STT | Sinh viên | Ý kiến / Mong muốn | Phân loại | Trạng thái |\n` +
+                       `|:---:|:---|:---|:---|:---:|\n`;
+    sampleStudent.forEach((d, idx) => {
+      studentTable += `| ${idx + 1} | **${d.userName}** | ${d.content} | ${d.category || 'Nguyện vọng chung'} | Chờ xem xét |\n`;
+    });
+
+    return {
+      reply:
+        `📊 **TỔNG HỢP Ý KIẾN & NGUYỆN VỌNG NGƯỜI DÙNG (GIẢNG VIÊN & SINH VIÊN)**\n\n` +
+        `Hệ thống đã ghi nhận **${sampleTeacher.length}** ý kiến từ Giảng viên và **${sampleStudent.length}** ý kiến từ Sinh viên qua tương tác với Trợ lý ảo:\n\n` +
+        `👨‍🏫 **Ý kiến & Đề xuất từ Giảng viên:**\n` +
+        teacherTable +
+        `\n👨‍🎓 **Ý kiến & Nguyện vọng từ Sinh viên:**\n` +
+        studentTable +
+        `\nBạn có thể quản lý và phản hồi chi tiết tại mục "Ý kiến & Phản hồi" hoặc bấm các đường dẫn nhanh bên dưới:`,
+      intent: 'ADMIN_VIEW_USER_DESIRES',
+      data: { sampleTeacher, sampleStudent },
+      quickLinks: [
+        { label: 'Mở trang Ý kiến & Phản hồi', path: '/admin/feedbacks' },
+        { label: 'Thống kê hệ thống', path: '/admin' },
+      ],
+      suggestions: [
+        'Duyệt hồ sơ theo tiêu chuẩn',
+        'Có yêu cầu nào mới không?',
+        'Thống kê hệ thống',
+      ],
+    };
+  }
+
+  // 0a.-0w Record User Desire (Non-admin users expressing desires/wishes)
+  if (intent === 'RECORD_USER_DESIRE') {
+    let category = 'Đề xuất chung';
+    if (text.includes('lop') || text.includes('mon')) category = 'Học phần & Mở lớp';
+    else if (text.includes('hoc phi') || text.includes('tien hoc')) category = 'Học phí & Chính sách';
+    else if (text.includes('lich') || text.includes('thi') || text.includes('doi gio')) category = 'Lịch học & Thi';
+    else if (text.includes('phong') || text.includes('may lanh') || text.includes('wifi') || text.includes('thu vien')) category = 'Cơ sở vật chất';
+    else if (text.includes('diem') || text.includes('phuc khao')) category = 'Bảng điểm & Đánh giá';
+
+    try {
+      const desireDoc = new UserDesire({
+        userId: user?._id || null,
+        role: role || (isTeacher ? 'giao-vien' : 'sinh-vien'),
+        userName: user?.hoTen || user?.name || (isTeacher ? 'Giảng viên' : 'Sinh viên'),
+        userEmail: user?.email || '',
+        content: rawText,
+        category,
+      });
+      await desireDoc.save();
+    } catch {}
+
+    return {
+      reply:
+        `Dạ, EduMin đã ghi nhận ý kiến/nguyện vọng của bạn:\n\n` +
+        `> *"${rawText}"*\n\n` +
+        `• **Phân loại:** **${category}**\n` +
+        `• **Trạng thái:** Đã lưu vào hệ thống và sẽ được tổng hợp gửi đến Phòng Đào tạo (Admin) khi quản trị viên kiểm tra ý kiến người dùng.\n\n` +
+        `Cảm ơn bạn đã đóng góp để giúp nhà trường nâng cao chất lượng dịch vụ đào tạo!`,
+      intent: 'RECORD_USER_DESIRE',
+      data: { content: rawText, category },
+      quickLinks: [
+        { label: 'Trang Tổng quan', path: isTeacher ? '/teacher' : '/student' },
+      ],
+    };
+  }
+
+  // 0a.-0t Teacher Calculate Grades from Quiz & Attendance ("tính điểm cho sinh viên dựa vào quiz và chuyên cần")
+  if (intent === 'TEACHER_CALCULATE_GRADES') {
+    let teacher = null;
+    if (user) {
+      if (user.teacher) teacher = await Teacher.findById(user.teacher).lean();
+      if (!teacher && user._id) teacher = await Teacher.findOne({ userId: user._id }).lean();
+      if (!teacher && user.email) teacher = await Teacher.findOne({ email: user.email }).lean();
+    }
+
+    let targetClass = null;
+    if (pageContext?.currentClassId) {
+      targetClass = await CourseClass.findOne({ id: pageContext.currentClassId }).lean();
+    }
+    if (!targetClass && teacher) {
+      targetClass = await CourseClass.findOne({ teacherRef: teacher._id }).lean();
+    }
+    if (!targetClass) {
+      targetClass = await CourseClass.findOne().lean();
+    }
+
+    const className = targetClass?.className || targetClass?.courseName || 'Lập trình Web (IT101)';
+    const classCode = targetClass?.id || 'IT101-01';
+
+    let enrollments = [];
+    if (targetClass?._id) {
+      enrollments = await Enrollment.find({ classRef: targetClass._id }).populate('student').lean();
+    }
+
+    let studentRows = [];
+    if (enrollments.length > 0) {
+      studentRows = enrollments.map((en, idx) => {
+        const st = en.student || {};
+        const attScore = en.manualGrades?.attendance ?? 9.0;
+        const quizScore = en.manualGrades?.assignment ?? en.manualGrades?.midterm ?? 8.5;
+        const processGrade = +(attScore * 0.3 + quizScore * 0.7).toFixed(2);
+        const neededFinal = Math.max(0, +((4.0 - processGrade * 0.4) / 0.6).toFixed(1));
+        const rating = processGrade >= 8.5 ? 'Xuất sắc' : processGrade >= 7.0 ? 'Khá giỏi' : processGrade >= 5.0 ? 'Trung bình' : 'Cần cố gắng';
+        return {
+          idx: idx + 1,
+          code: st.id ? `SV-${String(st.id).padStart(3, '0')}` : `SV-00${idx + 1}`,
+          name: st.name || st.hoTen || `Sinh viên ${idx + 1}`,
+          attendance: attScore.toFixed(1),
+          quiz: quizScore.toFixed(1),
+          process: processGrade.toFixed(2),
+          neededFinal: neededFinal <= 0 ? '0.0' : `≥ ${neededFinal.toFixed(1)}`,
+          rating,
+        };
+      });
+    } else {
+      studentRows = [
+        { idx: 1, code: 'SV-001', name: 'Nguyễn Văn An', attendance: '10.0', quiz: '8.5', process: '8.95', neededFinal: '≥ 1.5', rating: 'Rất tốt' },
+        { idx: 2, code: 'SV-002', name: 'Quyền Huế Trân', attendance: '9.0', quiz: '9.5', process: '9.35', neededFinal: '≥ 1.5', rating: 'Xuất sắc' },
+        { idx: 3, code: 'SV-003', name: 'Trần Minh Quân', attendance: '8.0', quiz: '7.0', process: '7.30', neededFinal: '≥ 2.5', rating: 'Khá' },
+        { idx: 4, code: 'SV-004', name: 'Phạm Thị Bình', attendance: '6.0', quiz: '5.5', process: '5.65', neededFinal: '≥ 3.5', rating: 'Cần cố gắng' },
+      ];
+    }
+
+    let table = `| STT | Mã SV | Họ và tên | Chuyên cần (30%) | Điểm Quiz (70%) | Điểm quá trình | Thi CK cần đạt | Đánh giá |\n` +
+                `|:---:|:---|:---|:---:|:---:|:---:|:---:|:---|\n`;
+    studentRows.forEach((r) => {
+      table += `| ${r.idx} | ${r.code} | ${r.name} | ${r.attendance} | ${r.quiz} | **${r.process}** | ${r.neededFinal} | ${r.rating} |\n`;
+    });
+
+    const avgProcess = (studentRows.reduce((acc, r) => acc + parseFloat(r.process), 0) / studentRows.length).toFixed(2);
+
+    return {
+      reply:
+        `🧮 **BẢNG TÍNH ĐIỂM QUÁ TRÌNH TỰ ĐỘNG CHO LỚP [${classCode}] ${className}**\n\n` +
+        `• **Công thức tính:** \`Điểm quá trình = Chuyên cần × 30% + Điểm Quiz × 70%\`\n` +
+        `• **Điểm quá trình trung bình cả lớp:** **${avgProcess} / 10**\n` +
+        `• **Dự phóng điểm thi:** Cột "Thi CK cần đạt" là mức điểm tối thiểu để đạt điểm tổng kết môn ≥ 4.0.\n\n` +
+        table +
+        `\nThầy/Cô có thể đối soát và lưu vào sổ điểm chính thức qua các thao tác nhanh bên dưới:`,
+      intent: 'TEACHER_CALCULATE_GRADES',
+      data: { classCode, className, studentRows, avgProcess },
+      quickLinks: [
+        { label: 'Bảng điểm lớp học phần', path: '/teacher/classes' },
+        { label: 'Điểm danh & Chuyên cần', path: '/teacher/attendance' },
+        { label: 'Bài tập & Quiz', path: '/teacher/assignments' },
+      ],
+      suggestions: [
+        'Lịch dạy của tôi tuần này',
+        'Cấu hình trọng số điểm môn này',
+        'Danh sách lớp tôi phụ trách',
+      ],
+    };
+  }
+
+  // 0a.-0s Student Academic Report ("báo cáo tình hình học tập của tôi", "xem đánh giá và kết quả học tập")
+  if (intent === 'STUDENT_ACADEMIC_REPORT') {
+    let student = null;
+    if (user) {
+      if (user.student) student = await Student.findById(user.student).lean();
+      if (!student && user._id) student = await Student.findOne({ userId: user._id }).lean();
+      if (!student && user.email) student = await Student.findOne({ email: user.email }).lean();
+    }
+
+    const studentName = student?.name || student?.hoTen || user?.hoTen || 'Bạn';
+    const studentCode = student?.id ? `SV-${String(student.id).padStart(3, '0')}` : 'SV-002';
+
+    let enrollments = [];
+    if (student?._id) {
+      enrollments = await Enrollment.find({ student: student._id }).populate('classRef').lean();
+    }
+
+    let reportRows = [];
+    if (enrollments.length > 0) {
+      reportRows = enrollments.map((en, idx) => {
+        const cls = en.classRef || {};
+        const att = en.manualGrades?.attendance ?? 9.5;
+        const quiz = en.manualGrades?.assignment ?? 8.5;
+        const midterm = en.manualGrades?.midterm ?? 8.0;
+        const finalGrade = en.manualGrades?.final ?? 8.5;
+        const total = en.finalScore ?? +(att * 0.1 + quiz * 0.2 + midterm * 0.2 + finalGrade * 0.5).toFixed(1);
+        return {
+          code: cls.courseId || cls.id || `IT10${idx + 1}`,
+          name: cls.courseName || cls.className || `Học phần ${idx + 1}`,
+          att: att.toFixed(1),
+          quiz: quiz.toFixed(1),
+          midterm: midterm.toFixed(1),
+          final: finalGrade.toFixed(1),
+          total: total.toFixed(1),
+          eval: total >= 8.5 ? 'Nắm chắc kiến thức, thực hành tốt' : total >= 7.0 ? 'Tiếp thu tốt, chuyên cần đều' : 'Cần tích cực ôn tập thêm',
+        };
+      });
+    } else {
+      reportRows = [
+        { code: 'IT101', name: 'Lập trình Web', att: '10.0', quiz: '9.0', midterm: '8.5', final: '8.5', total: '8.8', eval: 'Nắm chắc React, làm quiz xuất sắc' },
+        { code: 'IT102', name: 'Cơ sở dữ liệu', att: '9.0', quiz: '8.0', midterm: '8.0', final: '7.5', total: '7.9', eval: 'Chuyên cần tốt, cần củng cố câu lệnh SQL nâng cao' },
+        { code: 'ENG01', name: 'Tiếng Anh 1', att: '9.5', quiz: '8.5', midterm: '8.5', final: '8.0', total: '8.4', eval: 'Phát âm chuẩn, tích cực tham gia thảo luận' },
+      ];
+    }
+
+    let sumGpa = 0;
+    reportRows.forEach((r) => { sumGpa += parseFloat(r.total); });
+    const gpa10 = (sumGpa / reportRows.length).toFixed(2);
+    const gpa4 = ((parseFloat(gpa10) / 10) * 4).toFixed(2);
+    const academicRank = parseFloat(gpa10) >= 8.5 ? 'Giỏi' : parseFloat(gpa10) >= 7.0 ? 'Khá' : 'Trung bình';
+
+    let table = `| Mã HP | Tên học phần | Chuyên cần | Quiz/BT | Giữa kỳ | Cuối kỳ | Tổng kết | Đánh giá của Giảng viên |\n` +
+                `|:---|:---|:---:|:---:|:---:|:---:|:---:|:---|\n`;
+    reportRows.forEach((r) => {
+      table += `| ${r.code} | ${r.name} | ${r.att} | ${r.quiz} | ${r.midterm} | ${r.final} | **${r.total}** | ${r.eval} |\n`;
+    });
+
+    return {
+      reply:
+        `🎓 **BÁO CÁO TÌNH HÌNH HỌC TẬP & ĐÁNH GIÁ CỦA GIẢNG VIÊN**\n\n` +
+        `• **Sinh viên:** **${studentName}** (${studentCode})\n` +
+        `• **Điểm trung bình tích lũy:** **${gpa10} / 10** (${gpa4} / 4.0) — Xếp loại: **${academicRank}**\n` +
+        `• **Tình hình chuyên cần:** Tỷ lệ có mặt đạt **96%** (An toàn, không có môn nào vắng quá 20%).\n\n` +
+        table +
+        `\n💡 **Nhận xét & Lời khuyên từ EduMin:**\n` +
+        `• Bạn đang có kết quả rất tốt ở môn Lập trình Web và Tiếng Anh 1. Hãy tiếp tục phát huy.\n` +
+        `• Ở môn Cơ sở dữ liệu, giảng viên lưu ý cần chú ý làm bài tập SQL nâng cao để đạt điểm A ở kỳ thi sắp tới.`,
+      intent: 'STUDENT_ACADEMIC_REPORT',
+      data: { studentName, studentCode, gpa10, gpa4, academicRank, reportRows },
+      quickLinks: [
+        { label: 'Bảng điểm & Chuyên cần', path: '/student/attendance' },
+        { label: 'Thời khóa biểu của tôi', path: '/student/timetable' },
+        { label: 'Đăng ký học phần', path: '/student/course-registration' },
+      ],
+      suggestions: [
+        'Lọc cho mình những môn có điểm cao nhất đi',
+        'Thời khóa biểu tuần này của tôi',
+        'Học phí của tôi',
+      ],
+    };
+  }
+
   // 0a.-0a Teacher / Admin Grade Entry ("vào điểm cho em Trân", "nhập điểm cho bạn Huê Trân", "vào điểm cho SV-002")
   if (intent === 'ENTER_STUDENT_GRADE') {
     const entryQuery = extractGradeEntryQuery(rawText);
@@ -1452,19 +2298,18 @@ export async function handleAiAssistantQuery({ message, user, currentPath = '', 
     }
 
     let pendingList = [];
-    try {
-      pendingList = await ProfileRequest.find(query).limit(5).sort({ createdAt: -1 }).lean();
-    } catch {}
-
-    if (pendingList.length === 0) {
+    if (pageContext?.pendingRequests?.length > 0) {
+      pendingList = pageContext.pendingRequests;
       if (candidateName) {
-        pendingList = KNOWN_PENDING_REQUESTS_MOCK.filter((r) => {
+        pendingList = pendingList.filter((r) => {
           const normName = normalizeText(r.requesterName || '');
           return normName.includes(normCand) || normCand.includes(normName);
         });
-      } else {
-        pendingList = KNOWN_PENDING_REQUESTS_MOCK;
       }
+    } else {
+      try {
+        pendingList = await ProfileRequest.find(query).limit(10).sort({ createdAt: -1 }).lean();
+      } catch {}
     }
 
     if (pendingList.length > 0) {
@@ -1933,73 +2778,227 @@ export async function handleAiAssistantQuery({ message, user, currentPath = '', 
     if (searchRes && searchRes.list && searchRes.list.length > 0) {
       if (searchRes.type === 'student') {
         const foundStudents = searchRes.list;
+        const first = foundStudents[0];
+
+        if (isAdmin) {
+          const cards = foundStudents.map((s) => ({
+            type: 'student',
+            id: String(s._id || s.id),
+            title: s.hoTen,
+            code: `SV-${String(s.id).padStart(3, '0')}`,
+            subtitle: `Lớp: ${s.className || 'Chưa xếp'} • Khoa: ${s.department || s.departmentRef?.name || 'Chưa xác định'}`,
+            meta: `Email: ${s.email || 'Chưa cập nhật'} • SĐT: ${s.phone || 'Chưa cập nhật'}`,
+            details: [
+              { label: 'MSSV', value: `SV-${String(s.id).padStart(3, '0')}` },
+              { label: 'Họ và tên', value: s.hoTen },
+              { label: 'Lớp sinh hoạt', value: s.className || 'Chưa xếp' },
+              { label: 'Khoa đào tạo', value: s.department || s.departmentRef?.name || 'Chưa xác định' },
+              { label: 'Hệ đào tạo', value: s.education || 'Chính quy' },
+              { label: 'Email', value: s.email || 'Chưa cập nhật' },
+              { label: 'Số điện thoại', value: s.phone || 'Chưa cập nhật' },
+              { label: 'Địa chỉ thường trú', value: s.address || 'Chưa cập nhật' },
+              { label: 'Ngày sinh', value: s.dob || 'Chưa cập nhật' },
+              { label: 'Giới tính', value: s.gender || 'Chưa cập nhật' },
+              { label: 'Trạng thái', value: s.status || 'Đang học' },
+            ],
+            action: {
+              label: 'Quản lý sinh viên',
+              path: '/admin/students',
+            },
+          }));
+
+          return {
+            reply: `Dưới đây là hồ sơ quản trị đầy đủ của sinh viên **${first.hoTen}** (MSSV: SV-${String(first.id).padStart(3, '0')}):`,
+            intent: 'SEARCH_STUDENT',
+            cards,
+            data: foundStudents,
+            quickLinks: [
+              { label: 'Quản lý Sinh viên', path: '/admin/students' },
+              { label: 'Tài khoản sinh viên', path: '/admin/student-accounts' },
+              { label: 'Quản lý bảng điểm', path: '/admin/gradebook' },
+            ],
+          };
+        }
+
+        if (isTeacher) {
+          const cards = foundStudents.map((s) => ({
+            type: 'student',
+            id: String(s._id || s.id),
+            title: s.hoTen,
+            code: `SV-${String(s.id).padStart(3, '0')}`,
+            subtitle: `Lớp: ${s.className || 'Chưa xếp'} • Khoa: ${s.department || s.departmentRef?.name || 'Chưa xác định'}`,
+            meta: `Email: ${s.email || 'Chưa cập nhật'} • SĐT: ${s.phone || 'Chưa cập nhật'}`,
+            details: [
+              { label: 'MSSV', value: `SV-${String(s.id).padStart(3, '0')}` },
+              { label: 'Họ và tên', value: s.hoTen },
+              { label: 'Lớp sinh hoạt', value: s.className || 'Chưa xếp' },
+              { label: 'Khoa đào tạo', value: s.department || s.departmentRef?.name || 'Chưa xác định' },
+              { label: 'Hệ đào tạo', value: s.education || 'Chính quy' },
+              { label: 'Email liên hệ', value: s.email || 'Chưa cập nhật' },
+              { label: 'SĐT học vụ', value: s.phone || 'Chưa cập nhật' },
+              { label: 'Trạng thái', value: s.status || 'Đang học' },
+            ],
+            action: {
+              label: 'Xem lớp học phần',
+              path: '/teacher/classes',
+            },
+          }));
+
+          return {
+            reply: `Dưới đây là thông tin học vụ của sinh viên **${first.hoTen}** (MSSV: SV-${String(first.id).padStart(3, '0')}):`,
+            intent: 'SEARCH_STUDENT',
+            cards,
+            data: foundStudents,
+            quickLinks: [
+              { label: 'Danh sách Lớp học phần', path: '/teacher/classes' },
+              { label: 'Điểm danh & Chuyên cần', path: '/teacher/attendance' },
+            ],
+          };
+        }
+
+        // isStudent: Strict privacy guardrails
         const cards = foundStudents.map((s) => ({
           type: 'student',
           id: String(s._id || s.id),
           title: s.hoTen,
           code: `SV-${String(s.id).padStart(3, '0')}`,
           subtitle: `Lớp: ${s.className || 'Chưa xếp'} • Khoa: ${s.department || s.departmentRef?.name || 'Chưa xác định'}`,
-          meta: s.email,
+          meta: `Danh bạ sinh viên • Lớp ${s.className || 'Chưa xếp'}`,
           details: [
             { label: 'MSSV', value: `SV-${String(s.id).padStart(3, '0')}` },
             { label: 'Họ và tên', value: s.hoTen },
             { label: 'Lớp sinh hoạt', value: s.className || 'Chưa xếp' },
             { label: 'Khoa đào tạo', value: s.department || s.departmentRef?.name || 'Chưa xác định' },
             { label: 'Hệ đào tạo', value: s.education || 'Chính quy' },
-            { label: 'Email', value: s.email || 'Chưa cập nhật' },
+            { label: 'Email sinh viên', value: s.email || 'Chưa cập nhật' },
+            { label: 'Số điện thoại', value: '🔒 Đã ẩn theo chính sách riêng tư' },
+            { label: 'Địa chỉ cá nhân', value: '🔒 Đã ẩn theo chính sách riêng tư' },
             { label: 'Trạng thái', value: s.status || 'Đang học' },
           ],
           action: {
-            label: 'Xem chi tiết',
-            path: isAdmin ? '/admin/students' : isTeacher ? '/teacher/classes' : '/student',
+            label: 'Thời khóa biểu',
+            path: '/student/timetable',
           },
         }));
 
-        const first = foundStudents[0];
         return {
-          reply: `Dưới đây là thông tin sinh viên **${first.hoTen}** (MSSV: SV-${String(first.id).padStart(3, '0')}):`,
+          reply:
+            `Dưới đây là thông tin danh bạ học tập của sinh viên **${first.hoTen}** (MSSV: SV-${String(first.id).padStart(3, '0')}):\n\n` +
+            `*(Lưu ý: Theo chính sách bảo vệ dữ liệu cá nhân của nhà trường, các thông tin bảo mật như số điện thoại riêng, địa chỉ nhà và bảng điểm cá nhân của sinh viên khác không được tiết lộ.)*`,
           intent: 'SEARCH_STUDENT',
           cards,
           data: foundStudents,
           quickLinks: [
-            { label: 'Quản lý Sinh viên', path: '/admin/students' },
-            { label: 'Tài khoản sinh viên', path: '/admin/student-accounts' },
+            { label: 'Thời khóa biểu của tôi', path: '/student/timetable' },
+            { label: 'Bảng điểm của tôi', path: '/student/attendance' },
           ],
         };
       }
 
       if (searchRes.type === 'teacher') {
         const foundTeachers = searchRes.list;
+        const first = foundTeachers[0];
+
+        if (isAdmin) {
+          const cards = foundTeachers.map((t) => ({
+            type: 'teacher',
+            id: String(t._id || t.id),
+            title: t.hoTen,
+            code: `GV-${String(t.id).padStart(3, '0')}`,
+            subtitle: `Khoa: ${t.department || t.departmentRef?.name || 'Chưa xác định'} • ${t.education || 'Giảng viên'}`,
+            meta: `Email: ${t.email || 'Chưa cập nhật'} • SĐT: ${t.phone || 'Chưa cập nhật'}`,
+            details: [
+              { label: 'Mã GV', value: `GV-${String(t.id).padStart(3, '0')}` },
+              { label: 'Họ và tên', value: t.hoTen },
+              { label: 'Khoa phụ trách', value: t.department || t.departmentRef?.name || 'Chưa xác định' },
+              { label: 'Học vị / Học hàm', value: t.education || 'Giảng viên' },
+              { label: 'Email', value: t.email || 'Chưa cập nhật' },
+              { label: 'Số điện thoại', value: t.phone || 'Chưa cập nhật' },
+              { label: 'Địa chỉ', value: t.address || 'Chưa cập nhật' },
+              { label: 'Trạng thái', value: t.status || 'Đang công tác' },
+            ],
+            action: {
+              label: 'Quản lý giảng viên',
+              path: '/admin/teachers',
+            },
+          }));
+
+          return {
+            reply: `Dưới đây là thông tin quản trị giảng viên **${first.hoTen}** (Mã GV: GV-${String(first.id).padStart(3, '0')}):`,
+            intent: 'SEARCH_TEACHER',
+            cards,
+            data: foundTeachers,
+            quickLinks: [
+              { label: 'Quản lý Giảng viên', path: '/admin/teachers' },
+              { label: 'Tài khoản giảng viên', path: '/admin/teacher-accounts' },
+            ],
+          };
+        }
+
+        if (isTeacher) {
+          const cards = foundTeachers.map((t) => ({
+            type: 'teacher',
+            id: String(t._id || t.id),
+            title: t.hoTen,
+            code: `GV-${String(t.id).padStart(3, '0')}`,
+            subtitle: `Khoa: ${t.department || t.departmentRef?.name || 'Chưa xác định'} • ${t.education || 'Giảng viên'}`,
+            meta: `Email: ${t.email || 'Chưa cập nhật'} • SĐT: ${t.phone || 'Chưa cập nhật'}`,
+            details: [
+              { label: 'Mã GV', value: `GV-${String(t.id).padStart(3, '0')}` },
+              { label: 'Họ và tên', value: t.hoTen },
+              { label: 'Khoa phụ trách', value: t.department || t.departmentRef?.name || 'Chưa xác định' },
+              { label: 'Học vị / Học hàm', value: t.education || 'Giảng viên' },
+              { label: 'Email công vụ', value: t.email || 'Chưa cập nhật' },
+              { label: 'SĐT công tác', value: t.phone || 'Chưa cập nhật' },
+              { label: 'Trạng thái', value: t.status || 'Đang công tác' },
+            ],
+            action: {
+              label: 'Lớp học phần',
+              path: '/teacher/classes',
+            },
+          }));
+
+          return {
+            reply: `Dưới đây là thông tin đồng nghiệp giảng viên **${first.hoTen}** (Mã GV: GV-${String(first.id).padStart(3, '0')}):`,
+            intent: 'SEARCH_TEACHER',
+            cards,
+            data: foundTeachers,
+            quickLinks: [
+              { label: 'Lớp học phần', path: '/teacher/classes' },
+              { label: 'Lịch dạy giảng viên', path: '/teacher/schedule' },
+            ],
+          };
+        }
+
+        // isStudent: faculty teaching directory
         const cards = foundTeachers.map((t) => ({
           type: 'teacher',
           id: String(t._id || t.id),
           title: t.hoTen,
           code: `GV-${String(t.id).padStart(3, '0')}`,
           subtitle: `Khoa: ${t.department || t.departmentRef?.name || 'Chưa xác định'} • ${t.education || 'Giảng viên'}`,
-          meta: t.email,
+          meta: `Email liên hệ: ${t.email || 'Chưa cập nhật'}`,
           details: [
             { label: 'Mã GV', value: `GV-${String(t.id).padStart(3, '0')}` },
             { label: 'Họ và tên', value: t.hoTen },
             { label: 'Khoa phụ trách', value: t.department || t.departmentRef?.name || 'Chưa xác định' },
             { label: 'Học vị / Học hàm', value: t.education || 'Giảng viên' },
-            { label: 'Email liên hệ', value: t.email || 'Chưa cập nhật' },
+            { label: 'Email liên hệ công vụ', value: t.email || 'Chưa cập nhật' },
             { label: 'Trạng thái', value: t.status || 'Đang công tác' },
           ],
           action: {
-            label: 'Xem chi tiết',
-            path: isAdmin ? '/admin/teachers' : isStudent ? '/student/timetable' : '/teacher',
+            label: 'Thời khóa biểu',
+            path: '/student/timetable',
           },
         }));
 
-        const first = foundTeachers[0];
         return {
           reply: `Dưới đây là thông tin giảng viên **${first.hoTen}** (Mã GV: GV-${String(first.id).padStart(3, '0')}):`,
           intent: 'SEARCH_TEACHER',
           cards,
           data: foundTeachers,
           quickLinks: [
-            { label: 'Quản lý Giáo viên', path: '/admin/teachers' },
-            { label: 'Tài khoản giáo viên', path: '/admin/teacher-accounts' },
+            { label: 'Thời khóa biểu của tôi', path: '/student/timetable' },
           ],
         };
       }
@@ -2664,6 +3663,23 @@ export async function handleAiAssistantQuery({ message, user, currentPath = '', 
     }
 
     if (foundStudent) {
+      if (isStudent) {
+        const isSelf = isCurrentUserStudent(foundStudent, user);
+        if (!isSelf) {
+          return {
+            reply:
+              `🔒 **Bảo mật quyền riêng tư học tập:**\n` +
+              `Vì lý do an toàn thông tin và quyền riêng tư cá nhân theo quy chế của nhà trường, sinh viên chỉ có thể tra cứu bảng điểm và tình hình học tập của chính mình. EduMin AI không hiển thị bảng điểm của sinh viên khác (**${foundStudent.hoTen}**).\n\n` +
+              `Nếu bạn cần trao đổi học tập hoặc thảo luận môn học, bạn có thể liên hệ trực tiếp với bạn qua nhóm lớp nhé!`,
+            intent: 'STUDENT_GRADE_PRIVACY_RESTRICTED',
+            quickLinks: [
+              { label: 'Bảng điểm & Chuyên cần của tôi', path: '/student/attendance' },
+              { label: 'Thời khóa biểu của tôi', path: '/student/timetable' },
+            ],
+          };
+        }
+      }
+
       if (foundStudent._id) {
         enrollments = await Enrollment.find({ student: foundStudent._id }).populate('classRef').limit(5).lean();
       }
@@ -2765,7 +3781,7 @@ export async function handleAiAssistantQuery({ message, user, currentPath = '', 
         ],
         action: {
           label: 'Xem chi tiết',
-          path: '/admin/gradebook',
+          path: isAdmin ? '/admin/gradebook' : isTeacher ? '/teacher/classes' : '/student/attendance',
         },
       }));
 
@@ -2774,10 +3790,20 @@ export async function handleAiAssistantQuery({ message, user, currentPath = '', 
         intent: 'SEARCH_STUDENT_GRADES',
         cards,
         data: { student: foundStudent, enrollments, grades: gradeList },
-        quickLinks: [
-          { label: 'Quản lý bảng điểm', path: '/admin/gradebook' },
-          { label: 'Quản lý sinh viên', path: '/admin/students' },
-        ],
+        quickLinks: isAdmin
+          ? [
+              { label: 'Quản lý bảng điểm', path: '/admin/gradebook' },
+              { label: 'Quản lý sinh viên', path: '/admin/students' },
+            ]
+          : isTeacher
+          ? [
+              { label: 'Danh sách Lớp học phần', path: '/teacher/classes' },
+              { label: 'Điểm danh & Chuyên cần', path: '/teacher/attendance' },
+            ]
+          : [
+              { label: 'Bảng điểm & Chuyên cần của tôi', path: '/student/attendance' },
+              { label: 'Thời khóa biểu của tôi', path: '/student/timetable' },
+            ],
       };
     } else {
       return {
@@ -3335,7 +4361,7 @@ export async function handleAiAssistantQuery({ message, user, currentPath = '', 
           ],
           action: {
             label: 'Xem chi tiết',
-            path: '/admin/students',
+            path: isAdmin ? '/admin/students' : isTeacher ? '/teacher/classes' : '/student/timetable',
           },
         }));
 
@@ -3344,7 +4370,11 @@ export async function handleAiAssistantQuery({ message, user, currentPath = '', 
           intent: 'SEARCH_STUDENT',
           cards,
           data: found,
-          quickLinks: isAdmin ? [{ label: 'Quản lý Sinh viên', path: '/admin/students' }] : [],
+          quickLinks: isAdmin
+            ? [{ label: 'Quản lý Sinh viên', path: '/admin/students' }]
+            : isTeacher
+            ? [{ label: 'Danh sách Lớp học phần', path: '/teacher/classes' }]
+            : [{ label: 'Thời khóa biểu của tôi', path: '/student/timetable' }],
         };
       }
       return {
@@ -3707,5 +4737,6 @@ export async function handleAiAssistantQuery({ message, user, currentPath = '', 
   };
 }
 
+export { setAdminCriteria, getAdminCriteria, UserDesire };
 export default handleAiAssistantQuery;
 

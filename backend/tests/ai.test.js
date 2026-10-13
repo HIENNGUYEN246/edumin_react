@@ -10,6 +10,7 @@ import { signToken } from '../src/lib/jwt.js';
 import { createTeacher } from '../src/modules/teachers/teacher.service.js';
 import { createStudent } from '../src/modules/students/student.service.js';
 import { detectIntent, findStudentByName, BUSINESS_RESERVED_WORDS } from '../src/modules/ai/ai.service.js';
+import { createRequest } from '../src/modules/profileRequests/profileRequest.service.js';
 
 describe('AI Assistant API', () => {
   let app;
@@ -728,6 +729,186 @@ describe('AI Assistant API', () => {
     expect(res.body.success).toBe(true);
     expect(res.body.intent).toBe('QUERY_PENDING_REQUESTS');
     expect(res.body.reply).not.toContain('Không tìm thấy sinh viên');
+  });
+
+  it('detects role intelligence intents correctly in detectIntent', () => {
+    expect(detectIntent('tiêu chuẩn duyệt: CCCD 12 số, SĐT 10 số')).toBe('ADMIN_SET_CRITERIA');
+    expect(detectIntent('tiêu chí duyệt: SĐT 10 số')).toBe('ADMIN_SET_CRITERIA');
+    expect(detectIntent('ra tiêu chí cho AI: SĐT 10 số')).toBe('ADMIN_SET_CRITERIA');
+    expect(detectIntent('duyệt hồ sơ theo tiêu chuẩn')).toBe('ADMIN_APPLY_CRITERIA_APPROVAL');
+    expect(detectIntent('duyệt hồ sơ theo tiêu chí')).toBe('ADMIN_APPLY_CRITERIA_APPROVAL');
+    expect(detectIntent('cho tôi xem ý kiến người dùng')).toBe('ADMIN_VIEW_USER_DESIRES');
+    expect(detectIntent('em muốn mở thêm lớp học phần')).toBe('RECORD_USER_DESIRE');
+    expect(detectIntent('tính điểm cho sinh viên dựa vào quiz và chuyên cần')).toBe('TEACHER_CALCULATE_GRADES');
+    expect(detectIntent('báo cáo tình hình học tập sau khi được giảng viên đánh giá')).toBe('STUDENT_ACADEMIC_REPORT');
+  });
+
+  it('allows Admin to set approval criteria via prompt, auto-approving matching requests and keeping non-matching ones pending', async () => {
+    const adminUser = await User.findOne({ role: ROLES.ADMIN });
+    const token = signToken(adminUser);
+
+    const studentUser = await User.findOne({ email: 'an.nguyen@edu.vn' });
+    const teacherUser = await User.findOne({ email: 'quan.tran@edu.vn' });
+
+    // 1. Create a valid pending request (SĐT 10 digits, CCCD 12 digits, clear reason)
+    const validReq = await ProfileRequest.create({
+      userId: studentUser._id,
+      targetModel: 'Student',
+      targetId: studentUser.student || studentUser._id,
+      requesterRole: 'sinh-vien',
+      requesterName: 'Nguyễn Văn An',
+      requesterEmail: studentUser.email,
+      status: 'pending',
+      requestedData: { phone: '0912345678', cccd: '123456789012', reason: 'Cập nhật CCCD 12 số' },
+    });
+
+    // 2. Create an invalid pending request (SĐT 6 digits only, missing reason)
+    const invalidReq = await ProfileRequest.create({
+      userId: teacherUser._id,
+      targetModel: 'Teacher',
+      targetId: teacherUser.teacher || teacherUser._id,
+      requesterRole: 'giao-vien',
+      requesterName: 'Trần Minh Quân',
+      requesterEmail: teacherUser.email,
+      status: 'pending',
+      requestedData: { phone: '091234' },
+    });
+
+    // 3. Admin sets criteria via prompt
+    const setRes = await request(app)
+      .post('/api/ai/query')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ message: 'tiêu chuẩn duyệt: CCCD phải đủ 12 số, SĐT 10 số, lý do rõ ràng' });
+
+    expect(setRes.status).toBe(200);
+    expect(setRes.body.success).toBe(true);
+    expect(setRes.body.intent).toBe('ADMIN_SET_CRITERIA');
+    expect(setRes.body.reply).toMatch(/tiêu chuẩn/i);
+    expect(setRes.body.reply).toContain('CCCD');
+
+    // 4. Verify in DB: validReq is automatically approved!
+    const updatedValidReq = await ProfileRequest.findById(validReq._id);
+    expect(updatedValidReq.status).toBe('approved');
+
+    // 5. Verify in DB: invalidReq remains pending (kept in Duyệt section)!
+    const updatedInvalidReq = await ProfileRequest.findById(invalidReq._id);
+    expect(updatedInvalidReq.status).toBe('pending');
+
+    // 6. Response informs Admin that valid request was approved and invalid request is kept pending
+    expect(setRes.body.reply).toContain('ĐÃ TỰ ĐỘNG DUYỆT NHANH');
+    expect(setRes.body.reply).toContain('HỒ SƠ KHÔNG ĐẠT TIÊU CHUẨN');
+    expect(setRes.body.reply).toContain('Giữ lại bên phần Duyệt');
+
+    // 7. Apply criteria check
+    const applyRes = await request(app)
+      .post('/api/ai/query')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ message: 'duyệt hồ sơ theo tiêu chuẩn' });
+
+    expect(applyRes.status).toBe(200);
+    expect(applyRes.body.success).toBe(true);
+    expect(applyRes.body.intent).toBe('ADMIN_APPLY_CRITERIA_APPROVAL');
+    expect(applyRes.body.reply).toMatch(/tiêu chuẩn/i);
+
+    // 8. Test real-time submission with pre-configured Admin criteria:
+    // When student submits a valid change with 10-digit phone, 12-digit CCCD and reason, AI auto-approves it!
+    const autoReq = await createRequest(studentUser, {
+      type: 'profile',
+      requestedData: { phone: '0987654321', cccd: '987654321098', reason: 'Cập nhật lại thông tin cá nhân' },
+    });
+    expect(autoReq.status).toBe('approved');
+    expect(autoReq.adminNote).toContain('EduMin AI Tự động duyệt');
+
+    // When student submits a change WITHOUT CCCD (because system has not added CCCD input field yet),
+    // AI still auto-approves it as CCCD is non-blocking (duyệt sau/không ràng buộc)!
+    const noCccdReq = await createRequest(studentUser, {
+      type: 'profile',
+      requestedData: { phone: '0933333333', reason: 'Cập nhật số điện thoại mới' },
+    });
+    expect(noCccdReq.status).toBe('approved');
+    expect(noCccdReq.adminNote).toContain('EduMin AI Tự động duyệt');
+
+    // When another change fails criteria (e.g. SĐT 5 số), AI keeps it pending in the Duyệt section!
+    const failReq = await createRequest(teacherUser, {
+      type: 'profile',
+      requestedData: { phone: '09876' },
+    });
+    expect(failReq.status).toBe('pending');
+    expect(failReq.adminNote).toContain('Giữ lại bên phần Duyệt');
+
+    // When change provides an invalid CCCD format (e.g. 5 digits), AI keeps it pending!
+    const badCccdReq = await createRequest(studentUser, {
+      type: 'profile',
+      requestedData: { phone: '0912345678', cccd: '12345', reason: 'Cập nhật CCCD lỗi' },
+    });
+    expect(badCccdReq.status).toBe('pending');
+    expect(badCccdReq.adminNote).toContain('CCCD không đúng định dạng');
+  });
+
+  it('records student desire and allows Admin to review user desires via prompt', async () => {
+    const studentUser = await User.findOne({ email: 'an.nguyen@edu.vn' });
+    const studentToken = signToken(studentUser);
+
+    // 1. Student sends desire via chat prompt
+    const desireRes = await request(app)
+      .post('/api/ai/query')
+      .set('Authorization', `Bearer ${studentToken}`)
+      .send({ message: 'Em muốn nhà trường mở thêm lớp ôn tập trước kỳ thi cuối kỳ' });
+
+    expect(desireRes.status).toBe(200);
+    expect(desireRes.body.success).toBe(true);
+    expect(desireRes.body.intent).toBe('RECORD_USER_DESIRE');
+    expect(desireRes.body.reply).toContain('ghi nhận');
+
+    // 2. Admin asks to view user desires via prompt
+    const adminUser = await User.findOne({ role: ROLES.ADMIN });
+    const adminToken = signToken(adminUser);
+
+    const viewRes = await request(app)
+      .post('/api/ai/query')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ message: 'Cho tôi xem ý kiến người dùng và nguyện vọng sinh viên' });
+
+    expect(viewRes.status).toBe(200);
+    expect(viewRes.body.success).toBe(true);
+    expect(viewRes.body.intent).toBe('ADMIN_VIEW_USER_DESIRES');
+    expect(viewRes.body.reply).toContain('lớp ôn tập');
+  });
+
+  it('calculates grades for Teacher based on quiz and attendance via prompt', async () => {
+    const teacherUser = await User.findOne({ email: 'quan.tran@edu.vn' });
+    const teacherToken = signToken(teacherUser);
+
+    const res = await request(app)
+      .post('/api/ai/query')
+      .set('Authorization', `Bearer ${teacherToken}`)
+      .send({ message: 'Tính điểm cho sinh viên dựa vào bài quiz và chuyên cần' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.intent).toBe('TEACHER_CALCULATE_GRADES');
+    expect(res.body.reply).toContain('Công thức');
+    expect(res.body.reply).toContain('Chuyên cần');
+    expect(res.body.reply).toContain('Quiz');
+    expect(Array.isArray(res.body.quickLinks)).toBe(true);
+    expect(res.body.quickLinks.some((l) => l.path === '/teacher/classes')).toBe(true);
+  });
+
+  it('generates academic report for Student after teacher evaluation via prompt', async () => {
+    const studentUser = await User.findOne({ email: 'an.nguyen@edu.vn' });
+    const studentToken = signToken(studentUser);
+
+    const res = await request(app)
+      .post('/api/ai/query')
+      .set('Authorization', `Bearer ${studentToken}`)
+      .send({ message: 'Báo cáo lại tình hình học tập sau khi được giảng viên đánh giá' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.intent).toBe('STUDENT_ACADEMIC_REPORT');
+    expect(res.body.reply).toContain('BÁO CÁO TÌNH HÌNH HỌC TẬP');
+    expect(res.body.reply).toContain('Điểm trung bình tích lũy');
+    expect(res.body.reply).toContain('Đánh giá của Giảng viên');
   });
 });
 

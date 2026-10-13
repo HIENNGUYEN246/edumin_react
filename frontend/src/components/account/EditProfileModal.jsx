@@ -65,7 +65,9 @@ export function EditProfileModal({ open, onClose, user, profile }) {
         })
       );
 
-      if (res?.pending) {
+      if (res?.autoApproved) {
+        toast.success(res.message || 'EduMin AI đã tự động phê duyệt yêu cầu thay đổi thông tin theo tiêu chí của Quản trị viên!');
+      } else if (res?.pending) {
         toast.info(res.message || 'Yêu cầu cập nhật thông tin đã được gửi đến Quản trị viên để phê duyệt');
       } else {
         toast.success('Đã cập nhật thông tin thành công');
