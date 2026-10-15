@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import { AppError } from '../../lib/AppError.js';
 import * as filesService from '../../lib/files.service.js';
 import { ROLES } from '../../lib/roles.js';

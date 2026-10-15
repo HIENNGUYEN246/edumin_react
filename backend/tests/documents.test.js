@@ -120,4 +120,55 @@ describe('Documents', () => {
     expect(res.status).toBe(200);
     expect(destroyMock).toHaveBeenCalled();
   });
+
+  it('updates a document name, link and status without uploading a file (non-mandatory)', async () => {
+    const { token, teacher } = await makeTeacher(1);
+    await classForTeacher(teacher);
+    const created = await request(app)
+      .post('/api/documents')
+      .set(authHeader(token))
+      .field('courseId', 'IT101')
+      .field('name', 'Tài liệu gốc')
+      .field('link', 'https://old.link')
+      .attach('file', Buffer.from('pdf'), { filename: 'goc.pdf', contentType: 'application/pdf' });
+
+    const updateRes = await request(app)
+      .patch(`/api/documents/${created.body._id}`)
+      .set(authHeader(token))
+      .send({
+        name: 'Tài liệu sửa đổi',
+        link: 'https://new.link',
+        status: 'Ẩn',
+      });
+
+    expect(updateRes.status).toBe(200);
+    expect(updateRes.body.name).toBe('Tài liệu sửa đổi');
+    expect(updateRes.body.link).toBe('https://new.link');
+    expect(updateRes.body.status).toBe('Ẩn');
+    expect(updateRes.body.hasFile).toBe(true);
+  });
+
+  it('updates a document with a newly uploaded file and destroys old asset', async () => {
+    const { token, teacher } = await makeTeacher(1);
+    await classForTeacher(teacher);
+    const created = await request(app)
+      .post('/api/documents')
+      .set(authHeader(token))
+      .field('courseId', 'IT101')
+      .field('name', 'Tài liệu trước')
+      .attach('file', Buffer.from('pdf1'), { filename: 'file1.pdf', contentType: 'application/pdf' });
+
+    destroyMock.mockClear();
+
+    const updateRes = await request(app)
+      .patch(`/api/documents/${created.body._id}`)
+      .set(authHeader(token))
+      .field('name', 'Tài liệu mới thay thế')
+      .attach('file', Buffer.from('pdf2'), { filename: 'file2.pdf', contentType: 'application/pdf' });
+
+    expect(updateRes.status).toBe(200);
+    expect(updateRes.body.name).toBe('Tài liệu mới thay thế');
+    expect(updateRes.body.hasFile).toBe(true);
+    expect(destroyMock).toHaveBeenCalled();
+  });
 });

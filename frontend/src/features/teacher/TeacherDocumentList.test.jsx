@@ -187,5 +187,115 @@ describe('TeacherDocumentList (Grouped by Class)', () => {
     expect(screen.queryByLabelText(/Học phần/i)).not.toBeInTheDocument();
     expect(screen.queryByText('Chọn học phần')).not.toBeInTheDocument();
   });
+
+  it('opens edit modal with existing file info and allows updating without changing file (non-mandatory)', async () => {
+    renderComponent();
+
+    const editBtns = await screen.findAllByTitle('Chỉnh sửa thông tin & link');
+    fireEvent.click(editBtns[0]);
+
+    expect(screen.getByRole('heading', { name: 'Chỉnh sửa tài liệu' })).toBeInTheDocument();
+    expect(screen.getByDisplayValue('Giáo trình Tiếng Anh Unit 1-5')).toBeInTheDocument();
+    expect(screen.getByText(/Tệp hiện tại: Giáo trình Tiếng Anh Unit 1-5/i)).toBeInTheDocument();
+    expect(screen.getByTestId('edit-document-dropzone')).toBeInTheDocument();
+
+    const saveBtn = screen.getByRole('button', { name: 'Lưu thay đổi' });
+    fireEvent.click(saveBtn);
+
+    expect(mockMutations.update.mutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'd1',
+        name: 'Giáo trình Tiếng Anh Unit 1-5',
+        status: 'Công khai',
+      })
+    );
+  });
+
+  it('allows selecting a new file in edit modal and displays file preview card with size', async () => {
+    renderComponent();
+
+    const editBtns = await screen.findAllByTitle('Chỉnh sửa thông tin & link');
+    fireEvent.click(editBtns[0]);
+
+    const fileInput = screen.getByTestId('edit-document-file-input');
+    const newFile = new File(['mock content'], 'TaiLieuMoi.pdf', { type: 'application/pdf' });
+    Object.defineProperty(newFile, 'size', { value: 2516582 }); // ~2.4 MB
+
+    fireEvent.change(fileInput, { target: { files: [newFile] } });
+
+    expect(screen.getByTestId('edit-file-preview-card')).toBeInTheDocument();
+    expect(screen.getByText('TaiLieuMoi.pdf')).toBeInTheDocument();
+    expect(screen.getByText(/2.4 MB/i)).toBeInTheDocument();
+    expect(screen.getByTestId('edit-change-file-btn')).toBeInTheDocument();
+    expect(screen.getByTestId('edit-remove-file-btn')).toBeInTheDocument();
+
+    // Click save
+    const saveBtn = screen.getByRole('button', { name: 'Lưu thay đổi' });
+    fireEvent.click(saveBtn);
+
+    expect(mockMutations.update.mutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'd1',
+        file: newFile,
+      })
+    );
+  });
+
+  it('allows removing selected new file in edit modal to revert to dropzone', async () => {
+    renderComponent();
+
+    const editBtns = await screen.findAllByTitle('Chỉnh sửa thông tin & link');
+    fireEvent.click(editBtns[0]);
+
+    const fileInput = screen.getByTestId('edit-document-file-input');
+    const newFile = new File(['mock content'], 'TaiLieuThayThe.docx', { type: 'application/docx' });
+    fireEvent.change(fileInput, { target: { files: [newFile] } });
+
+    expect(screen.getByTestId('edit-file-preview-card')).toBeInTheDocument();
+
+    // Remove new file
+    fireEvent.click(screen.getByTestId('edit-remove-file-btn'));
+    expect(screen.queryByTestId('edit-file-preview-card')).not.toBeInTheDocument();
+    expect(screen.getByTestId('edit-document-dropzone')).toBeInTheDocument();
+  });
+
+  it('renders "AI Tóm tắt" and "Tạo Quiz" buttons and dispatches edumin:ai-study event on click', async () => {
+    const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
+    renderComponent();
+
+    const summarizeBtns = await screen.findAllByRole('button', { name: /AI Tóm tắt/i });
+    expect(summarizeBtns.length).toBeGreaterThan(0);
+
+    const quizBtns = await screen.findAllByRole('button', { name: /Tạo Quiz/i });
+    expect(quizBtns.length).toBeGreaterThan(0);
+
+    // Click AI Tóm tắt for first document
+    fireEvent.click(summarizeBtns[0]);
+    expect(dispatchSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'edumin:ai-study',
+        detail: expect.objectContaining({
+          action: 'summarize',
+          documentId: 'd1',
+          role: 'teacher',
+        }),
+      })
+    );
+
+    // Click Tạo Quiz for first document
+    fireEvent.click(quizBtns[0]);
+    expect(dispatchSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'edumin:ai-study',
+        detail: expect.objectContaining({
+          action: 'quiz',
+          documentId: 'd1',
+          role: 'teacher',
+        }),
+      })
+    );
+
+    dispatchSpy.mockRestore();
+  });
 });
 

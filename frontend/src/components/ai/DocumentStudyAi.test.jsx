@@ -108,6 +108,65 @@ describe('InteractiveQuizCard Component', () => {
 
     expect(handleSend).toHaveBeenCalledWith(expect.stringContaining('Tạo thêm 5 câu quiz trắc nghiệm ôn tập môn CNTT101-01'));
   });
+
+  it('renders teacher actions when userRole="teacher" and triggers edumin:import-quiz-to-assignment on click', () => {
+    const handleNavigate = vi.fn();
+    const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
+
+    render(<InteractiveQuizCard card={sampleQuizCard} userRole="teacher" onNavigate={handleNavigate} />);
+
+    expect(screen.getByText('Dùng làm bài tập cho lớp')).toBeInTheDocument();
+    expect(screen.getByText('Mở Bài tập lớp')).toBeInTheDocument();
+
+    // Click "Dùng làm bài tập cho lớp"
+    const useAsAssignBtn = screen.getByText('Dùng làm bài tập cho lớp');
+    fireEvent.click(useAsAssignBtn);
+
+    expect(dispatchSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'edumin:import-quiz-to-assignment',
+        detail: expect.objectContaining({
+          classId: 'CNTT101-01',
+          questions: expect.arrayContaining([
+            expect.objectContaining({
+              text: expect.stringContaining('Virtual DOM'),
+            }),
+          ]),
+        }),
+      })
+    );
+
+    expect(handleNavigate).toHaveBeenCalledWith(
+      '/teacher/assignments',
+      expect.objectContaining({
+        state: expect.objectContaining({
+          importQuiz: expect.objectContaining({
+            classId: 'CNTT101-01',
+          }),
+        }),
+      })
+    );
+
+    dispatchSpy.mockRestore();
+  });
+
+  it('supports copying quiz questions to clipboard', async () => {
+    const writeTextMock = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText: writeTextMock },
+      writable: true,
+      configurable: true,
+    });
+
+    render(<InteractiveQuizCard card={sampleQuizCard} />);
+
+    const copyBtn = screen.getByRole('button', { name: /Sao chép/i });
+    fireEvent.click(copyBtn);
+
+    expect(writeTextMock).toHaveBeenCalledWith(
+      expect.stringContaining('Bộ Quiz ôn tập: Lập trình Web')
+    );
+  });
 });
 
 describe('DocumentSummaryCard Component', () => {
@@ -160,6 +219,18 @@ describe('DocumentSummaryCard Component', () => {
     fireEvent.click(createQuizBtn);
 
     expect(handleSend).toHaveBeenCalledWith(expect.stringContaining('Tạo cho tôi 5 câu quiz trắc nghiệm ôn tập dựa trên file tài liệu'));
+  });
+
+  it('renders teacher actions when userRole="teacher"', () => {
+    const handleNavigate = vi.fn();
+    const handleSend = vi.fn();
+    render(<DocumentSummaryCard card={sampleSummaryCard} userRole="teacher" onSendMessage={handleSend} onNavigate={handleNavigate} />);
+
+    expect(screen.getByText('🎯 Tạo bộ Quiz đề thi cho lớp')).toBeInTheDocument();
+    expect(screen.getByText('Quản lý Tài liệu lớp')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Quản lý Tài liệu lớp'));
+    expect(handleNavigate).toHaveBeenCalledWith('/teacher/documents');
   });
 });
 

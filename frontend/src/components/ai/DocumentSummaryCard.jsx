@@ -5,10 +5,44 @@ import React, { useState } from 'react';
  * Renders structured knowledge outlines, core concepts, formulas,
  * and key takeaways extracted from teacher's uploaded files.
  */
-export function DocumentSummaryCard({ card, onSendMessage, onNavigate }) {
+export function DocumentSummaryCard({ card, onSendMessage, onNavigate, userRole }) {
   const [showAllConcepts, setShowAllConcepts] = useState(false);
+  const [copied, setCopied] = useState(false);
   const coreConcepts = card.coreConcepts || [];
   const displayedConcepts = showAllConcepts ? coreConcepts : coreConcepts.slice(0, 3);
+
+  const isTeacher =
+    userRole === 'teacher' ||
+    userRole === 'giao-vien' ||
+    card?.role === 'teacher' ||
+    (typeof window !== 'undefined' && window.location.pathname.startsWith('/teacher'));
+
+  const handleCopySummary = async () => {
+    try {
+      const lines = [
+        `=== ${card.title || 'BẢN TÓM TẮT KIẾN THỨC TÀI LIỆU'} ===`,
+        card.subtitle || '',
+        '',
+        '📌 CÁC KHÁI NIỆM & NGUYÊN LÝ CỐT LÕI:',
+        ...coreConcepts.map((item, idx) => {
+          let s = `${idx + 1}. ${item.concept || item.name}: ${item.definition || item.description || ''}`;
+          if (item.formula) s += ` (Công thức/Cú pháp: ${item.formula})`;
+          return s;
+        }),
+        '',
+        ...(Array.isArray(card.chapters) && card.chapters.length > 0
+          ? [
+              '📚 ĐỀ CƯƠNG CÁC CHƯƠNG:',
+              ...card.chapters.map((ch, idx) => `  ${idx + 1}. ${ch.title}`),
+              '',
+            ]
+          : []),
+      ];
+      await navigator.clipboard.writeText(lines.join('\n'));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {}
+  };
 
   return (
     <div className="bg-slate-50/95 rounded-2xl p-3.5 sm:p-4 border border-indigo-100 shadow-sm space-y-3 text-slate-800 transition-all">
@@ -118,23 +152,45 @@ export function DocumentSummaryCard({ card, onSendMessage, onNavigate }) {
 
       {/* Actions */}
       <div className="pt-2 flex flex-wrap items-center justify-between gap-2 border-t border-slate-200/70">
-        {onSendMessage && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {onSendMessage && (
+            <button
+              type="button"
+              onClick={() =>
+                onSendMessage(
+                  isTeacher
+                    ? `Tạo bộ 5 câu hỏi quiz trắc nghiệm kèm đáp án và giải thích từ tài liệu ${
+                        card.title || card.code || ''
+                      } để làm tư liệu kiểm tra cho lớp`
+                    : `Tạo cho tôi 5 câu quiz trắc nghiệm ôn tập dựa trên file tài liệu ${
+                        card.title || card.code || ''
+                      }`
+                )
+              }
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-2xs transition active:scale-95 cursor-pointer"
+            >
+              <i className="fas fa-clipboard-question text-white/90" />
+              <span>{isTeacher ? '🎯 Tạo bộ Quiz đề thi cho lớp' : '🎯 Tạo 5 câu Quiz ôn tập ngay'}</span>
+            </button>
+          )}
           <button
             type="button"
-            onClick={() => onSendMessage(`Tạo cho tôi 5 câu quiz trắc nghiệm ôn tập dựa trên file tài liệu ${card.title || card.code || ''}`)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-2xs transition active:scale-95 cursor-pointer"
+            onClick={handleCopySummary}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg shadow-2xs transition active:scale-95 cursor-pointer"
+            title="Sao chép nội dung tóm tắt vào bộ nhớ tạm"
           >
-            <i className="fas fa-clipboard-question text-white/90" />
-            <span>🎯 Tạo 5 câu Quiz ôn tập ngay</span>
+            <i className={`fas ${copied ? 'fa-check text-emerald-600' : 'fa-copy text-slate-400'}`} />
+            <span>{copied ? 'Đã sao chép' : 'Sao chép'}</span>
           </button>
-        )}
+        </div>
+
         {onNavigate && (
           <button
             type="button"
-            onClick={() => onNavigate('/student/documents')}
+            onClick={() => onNavigate(isTeacher ? '/teacher/documents' : '/student/documents')}
             className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg transition cursor-pointer"
           >
-            <span>Mở kho Tài liệu</span>
+            <span>{isTeacher ? 'Quản lý Tài liệu lớp' : 'Mở kho Tài liệu'}</span>
             <i className="fas fa-arrow-right text-[10px]" />
           </button>
         )}

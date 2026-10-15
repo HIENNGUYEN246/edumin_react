@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import { asyncHandler } from '../../lib/asyncHandler.js';
 import * as service from './document.service.js';
 

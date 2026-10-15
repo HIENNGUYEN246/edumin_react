@@ -989,12 +989,14 @@ export function classifyAiIntent(rawText = '', { role = '', currentPath = '', pa
       norm.includes('bai quiz') ||
       norm.includes('trac nghiem on tap') ||
       norm.includes('de trac nghiem') ||
-      (norm.includes('quiz') && (norm.includes('on tap') || norm.includes('tai lieu') || norm.includes('buoi hoc') || norm.includes('mon')))) &&
+      norm.includes('de kiem tra') ||
+      (norm.includes('quiz') && (norm.includes('on tap') || norm.includes('tai lieu') || norm.includes('buoi hoc') || norm.includes('mon') || norm.includes('lop') || norm.includes('bai tap')))) &&
     (norm.includes('tao') ||
       norm.includes('sinh') ||
       norm.includes('lam') ||
       norm.includes('on tap') ||
       norm.includes('ra') ||
+      norm.includes('goi y') ||
       norm.includes('cho toi') ||
       norm.includes('giup toi') ||
       norm.includes('5 cau') ||
@@ -2306,13 +2308,18 @@ export function getSmartAiResponse(rawText = '', role = '', user = null, current
       code: classId,
       summaryMarkdown,
       coreConcepts,
+      role: isTeacher ? 'teacher' : 'student',
       details: [
         { label: 'Học phần', value: courseName },
         { label: 'Tài liệu nguồn', value: docSource },
         { label: 'Phạm vi', value: chapter },
         { label: 'Mã lớp', value: classId },
+        { label: 'Mục đích', value: isTeacher ? 'Tóm tắt bài giảng lớp' : 'Tự học & Ôn tập' },
       ],
-      action: { label: 'Tạo 5 câu Quiz ôn tập', path: '/student/documents' },
+      action: {
+        label: isTeacher ? '🎯 Tạo đề Quiz cho lớp' : 'Tạo 5 câu Quiz ôn tập',
+        path: isTeacher ? '/teacher/assignments' : '/student/documents',
+      },
     };
 
     return {
@@ -2321,15 +2328,26 @@ export function getSmartAiResponse(rawText = '', role = '', user = null, current
       intent: 'DOC_SUMMARIZE',
       summaryData: { documentName: docSource, courseName, classId, chapter, summaryMarkdown, coreConcepts },
       cards: [card],
-      quickLinks: [
-        { label: 'Mở Tài liệu học tập', path: '/student/documents' },
-        { label: 'Mở Bài tập & Quiz', path: '/student/assignments' },
-      ],
-      suggestions: [
-        `Tạo 5 câu quiz trắc nghiệm ôn tập môn ${courseName}`,
-        `Tóm tắt Chương 2 tài liệu môn ${courseName}`,
-        'Xem bài tập & làm quiz',
-      ],
+      quickLinks: isTeacher
+        ? [
+            { label: 'Quản lý Tài liệu lớp', path: '/teacher/documents' },
+            { label: 'Tạo bài tập cho lớp', path: '/teacher/assignments' },
+          ]
+        : [
+            { label: 'Mở Tài liệu học tập', path: '/student/documents' },
+            { label: 'Mở Bài tập & Quiz', path: '/student/assignments' },
+          ],
+      suggestions: isTeacher
+        ? [
+            `Tạo bộ 5 câu hỏi quiz trắc nghiệm môn ${courseName}`,
+            `Tóm tắt Chương 2 tài liệu môn ${courseName}`,
+            'Danh sách lớp tôi đang phụ trách',
+          ]
+        : [
+            `Tạo 5 câu quiz trắc nghiệm ôn tập môn ${courseName}`,
+            `Tóm tắt Chương 2 tài liệu môn ${courseName}`,
+            'Xem bài tập & làm quiz',
+          ],
     };
   }
 
@@ -2445,39 +2463,59 @@ export function getSmartAiResponse(rawText = '', role = '', user = null, current
       id: `quiz-${Date.now()}`,
       type: 'interactive_quiz',
       title: pageContext?.attachedFile?.name
-        ? `Bộ Quiz ôn tập: ${pageContext.attachedFile.name}`
+        ? `Bộ Quiz: ${pageContext.attachedFile.name}`
+        : isTeacher
+        ? `Bộ câu hỏi Quiz đề xuất: ${courseName}`
         : `Bộ Quiz ôn tập: Tài liệu ${courseName}`,
       subtitle: `${courseName} • 5 câu hỏi trắc nghiệm kèm giải thích`,
       code: classId,
+      courseId,
       totalQuestions: 5,
       questions,
+      role: isTeacher ? 'teacher' : 'student',
       details: [
         { label: 'Học phần', value: courseName },
         { label: 'Tài liệu nguồn', value: docSource },
         { label: 'Số lượng', value: '5 câu hỏi' },
         { label: 'Mã lớp', value: classId },
-        { label: 'Độ khó', value: 'Trung bình - Bám sát đề' },
+        { label: 'Mục đích', value: isTeacher ? 'Tư liệu kiểm tra / Bài tập lớp' : 'Ôn tập trắc nghiệm' },
       ],
     };
 
     return {
       matched: true,
-      reply: `🎯 **BỘ CÂU HỎI QUIZ TRẮC NGHIỆM ÔN TẬP TỰ ĐỘNG TỪ TÀI LIỆU**\n\n` +
-        `EduMin AI đã đọc và phân tích tài liệu **${docSource}** (${courseName} - \`${classId}\`).\n` +
-        `Dưới đây là bộ **5 câu hỏi trắc nghiệm** kèm 4 đáp án (A, B, C, D) và phần giải thích (rationale) chi tiết.\n\n` +
-        `👉 *Bạn có thể bấm trực tiếp vào các lựa chọn đáp án bên dưới khung tương tác để tự kiểm tra đáp án đúng/sai và chấm điểm nhé!*`,
+      reply: isTeacher
+        ? `🎯 **BỘ CÂU HỎI QUIZ GỢI Ý TỪ TÀI LIỆU DÀNH CHO GIẢNG VIÊN**\n\n` +
+          `EduMin AI đã phân tích tài liệu **${docSource}** (${courseName} - \`${classId}\`).\n` +
+          `Dưới đây là bộ **5 câu hỏi trắc nghiệm** mẫu kèm 4 đáp án (A, B, C, D) và phần giải thích (rationale) chi tiết.\n\n` +
+          `👉 *Thầy/Cô có thể bấm **"Dùng làm bài tập cho lớp"** bên dưới để chuyển trực tiếp bộ câu hỏi này vào biểu mẫu tạo bài tập lớp, hoặc bấm **"Sao chép"** để xuất đề thi.*`
+        : `🎯 **BỘ CÂU HỎI QUIZ TRẮC NGHIỆM ÔN TẬP TỰ ĐỘNG TỪ TÀI LIỆU**\n\n` +
+          `EduMin AI đã đọc và phân tích tài liệu **${docSource}** (${courseName} - \`${classId}\`).\n` +
+          `Dưới đây là bộ **5 câu hỏi trắc nghiệm** kèm 4 đáp án (A, B, C, D) và phần giải thích (rationale) chi tiết.\n\n` +
+          `👉 *Bạn có thể bấm trực tiếp vào các lựa chọn đáp án bên dưới khung tương tác để tự kiểm tra đáp án đúng/sai và chấm điểm nhé!*`,
       intent: 'DOC_QUIZ_GENERATE',
       quizData: { documentName: docSource, courseName, classId, totalQuestions: 5, questions },
       cards: [card],
-      quickLinks: [
-        { label: 'Mở Bài tập & Quiz', path: '/student/assignments' },
-        { label: 'Xem Tài liệu môn học', path: '/student/documents' },
-      ],
-      suggestions: [
-        `Tóm tắt ý chính tài liệu môn ${courseName}`,
-        'Tạo thêm 5 câu hỏi khó hơn',
-        'Xem điểm danh & chuyên cần',
-      ],
+      quickLinks: isTeacher
+        ? [
+            { label: 'Tạo bài tập cho lớp', path: '/teacher/assignments' },
+            { label: 'Quản lý tài liệu lớp', path: '/teacher/documents' },
+          ]
+        : [
+            { label: 'Mở Bài tập & Quiz', path: '/student/assignments' },
+            { label: 'Xem Tài liệu môn học', path: '/student/documents' },
+          ],
+      suggestions: isTeacher
+        ? [
+            `Tóm tắt tài liệu môn ${courseName}`,
+            'Tạo thêm 5 câu hỏi nâng cao',
+            'Danh sách lớp tôi đang phụ trách',
+          ]
+        : [
+            `Tóm tắt ý chính tài liệu môn ${courseName}`,
+            'Tạo thêm 5 câu hỏi khó hơn',
+            'Xem điểm danh & chuyên cần',
+          ],
     };
   }
 
@@ -5171,7 +5209,7 @@ function EduMinAiAssistantInner() {
 
   const handleSendMessageRef = useRef();
 
-  // Listen for AI study triggers from Student Document List or other components
+  // Listen for AI study triggers from Student or Teacher Document List
   useEffect(() => {
     const handleStudyEvent = (e) => {
       const detail = e?.detail;
@@ -5184,12 +5222,21 @@ function EduMinAiAssistantInner() {
 
       const docName = detail.documentName || 'tài liệu học tập';
       const courseTitle = detail.courseName ? ` môn ${detail.courseName}` : '';
+      const isTeacherRole = role === 'teacher' || role === 'giao-vien' || detail.role === 'teacher';
 
       let prompt = '';
       if (detail.action === 'quiz') {
-        prompt = `Tạo cho tôi 5 câu quiz trắc nghiệm ôn tập dựa trên file ${docName}${courseTitle}`;
+        if (isTeacherRole) {
+          prompt = `Gợi ý và tạo bộ 5 câu hỏi quiz trắc nghiệm kèm đáp án và giải thích từ tài liệu ${docName}${courseTitle} để làm tư liệu kiểm tra/bài tập cho lớp`;
+        } else {
+          prompt = `Tạo cho tôi 5 câu quiz trắc nghiệm ôn tập dựa trên file ${docName}${courseTitle}`;
+        }
       } else {
-        prompt = `Tóm tắt giúp tôi các ý chính của tài liệu ${docName}${courseTitle}`;
+        if (isTeacherRole) {
+          prompt = `Tóm tắt nội dung trọng tâm và các khái niệm cốt lõi của tài liệu ${docName}${courseTitle} để phục vụ giảng dạy`;
+        } else {
+          prompt = `Tóm tắt giúp tôi các ý chính của tài liệu ${docName}${courseTitle}`;
+        }
       }
 
       setTimeout(() => {
@@ -5203,7 +5250,7 @@ function EduMinAiAssistantInner() {
     return () => {
       window.removeEventListener('edumin:ai-study', handleStudyEvent);
     };
-  }, []);
+  }, [role]);
 
   /**
    * Main message handling function.
@@ -5548,7 +5595,7 @@ function EduMinAiAssistantInner() {
     } catch {}
   };
 
-  const handleQuickNavigate = (path) => {
+  const handleQuickNavigate = (path, navOptions) => {
     if (!path) return;
     try {
       if (typeof window !== 'undefined') {
@@ -5558,7 +5605,7 @@ function EduMinAiAssistantInner() {
         }
       }
     } catch {}
-    navigate(path);
+    navigate(path, navOptions);
     // On small screens, close the chat to allow user to see the page
     if (window.innerWidth < 640) {
       setIsOpen(false);
@@ -5885,8 +5932,9 @@ function EduMinAiAssistantInner() {
                                   <InteractiveQuizCard
                                     key={cardKey}
                                     card={card}
+                                    userRole={role || card?.role}
                                     onSendMessage={(text) => handleSendMessage(text)}
-                                    onNavigate={(path) => handleQuickNavigate(path)}
+                                    onNavigate={(path, options) => handleQuickNavigate(path, options)}
                                   />
                                 );
                               }
@@ -5897,8 +5945,9 @@ function EduMinAiAssistantInner() {
                                   <DocumentSummaryCard
                                     key={cardKey}
                                     card={card}
+                                    userRole={role || card?.role}
                                     onSendMessage={(text) => handleSendMessage(text)}
-                                    onNavigate={(path) => handleQuickNavigate(path)}
+                                    onNavigate={(path, options) => handleQuickNavigate(path, options)}
                                   />
                                 );
                               }

@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { PageHeader } from '../../../components/ui/PageHeader.jsx';
 import { Modal } from '../../../components/ui/Modal.jsx';
 import { FormField, inputClass } from '../../../components/ui/FormField.jsx';
@@ -47,6 +48,70 @@ export function TeacherAssignmentList() {
   const [editor, setEditor] = useState(null); // { mode: 'create' | 'edit', assignment? }
   const [form, setForm] = useState(emptyForm());
   const [viewing, setViewing] = useState(null); // assignment for submissions modal
+  const location = useLocation();
+
+  // Listen for imported quiz questions from AI Assistant (via router navigation state or custom event)
+  useEffect(() => {
+    const importData = location.state?.importQuiz;
+    if (importData) {
+      const matchedClass = myClasses.find(
+        (c) =>
+          String(c.id || c._id).toLowerCase() === String(importData.classId || '').toLowerCase() ||
+          (c.className && importData.classId && c.className.toLowerCase().includes(importData.classId.toLowerCase()))
+      );
+      const finalCourseId = importData.courseId || matchedClass?.courseId || '';
+      const finalClassId = matchedClass?.id || importData.classId || '';
+
+      setEditor({ mode: 'create' });
+      setForm({
+        courseId: finalCourseId,
+        classId: finalClassId,
+        type: 'quiz',
+        title: importData.title || 'Bài tập trắc nghiệm từ AI Quiz',
+        description: importData.description || 'Bộ câu hỏi trắc nghiệm được tạo từ tài liệu học phần.',
+        dueDate: '',
+        status: 'Công khai',
+        questions: Array.isArray(importData.questions) && importData.questions.length > 0 ? importData.questions : [newQuestion()],
+      });
+      try {
+        window.history.replaceState({}, document.title);
+      } catch {}
+      toast.success('Đã tải câu hỏi Quiz từ AI vào biểu mẫu tạo bài tập!');
+    }
+  }, [location.state, myClasses, toast]);
+
+  useEffect(() => {
+    const handleImportQuiz = (e) => {
+      const importData = e.detail;
+      if (!importData) return;
+
+      const matchedClass = myClasses.find(
+        (c) =>
+          String(c.id || c._id).toLowerCase() === String(importData.classId || '').toLowerCase() ||
+          (c.className && importData.classId && c.className.toLowerCase().includes(importData.classId.toLowerCase()))
+      );
+      const finalCourseId = importData.courseId || matchedClass?.courseId || '';
+      const finalClassId = matchedClass?.id || importData.classId || '';
+
+      setEditor({ mode: 'create' });
+      setForm({
+        courseId: finalCourseId,
+        classId: finalClassId,
+        type: 'quiz',
+        title: importData.title || 'Bài tập trắc nghiệm từ AI Quiz',
+        description: importData.description || 'Bộ câu hỏi trắc nghiệm được tạo từ tài liệu học phần.',
+        dueDate: '',
+        status: 'Công khai',
+        questions: Array.isArray(importData.questions) && importData.questions.length > 0 ? importData.questions : [newQuestion()],
+      });
+      toast.success('Đã tải câu hỏi Quiz từ AI vào biểu mẫu tạo bài tập!');
+    };
+
+    window.addEventListener('edumin:import-quiz-to-assignment', handleImportQuiz);
+    return () => {
+      window.removeEventListener('edumin:import-quiz-to-assignment', handleImportQuiz);
+    };
+  }, [myClasses, toast]);
 
   // Filters & State
   const [filterClass, setFilterClass] = useState('all');

@@ -5,11 +5,18 @@ import React, { useState, useMemo } from 'react';
  * Allows students to test their knowledge interactively in chat,
  * see immediate right/wrong feedback, and read detailed rationale explanations.
  */
-export function InteractiveQuizCard({ card, onSendMessage, onNavigate }) {
+export function InteractiveQuizCard({ card, onSendMessage, onNavigate, userRole }) {
   const questions = card.questions || [];
   const totalQuestions = questions.length;
 
   const [answers, setAnswers] = useState({});
+  const [copied, setCopied] = useState(false);
+
+  const isTeacher =
+    userRole === 'teacher' ||
+    userRole === 'giao-vien' ||
+    card?.role === 'teacher' ||
+    (typeof window !== 'undefined' && window.location.pathname.startsWith('/teacher'));
 
   const answeredCount = Object.keys(answers).length;
 
@@ -36,6 +43,61 @@ export function InteractiveQuizCard({ card, onSendMessage, onNavigate }) {
 
   const handleResetQuiz = () => {
     setAnswers({});
+  };
+
+  const handleCopyQuiz = async () => {
+    try {
+      const textLines = [
+        `=== ${card.title || 'BỘ CÂU HỎI QUIZ TRẮC NGHIỆM'} ===`,
+        card.subtitle || '',
+        '',
+        ...questions.map((q, idx) => {
+          const qText = `Câu ${idx + 1}: ${q.question || q.text || ''}`;
+          const opts = (q.options || []).map((opt, oIdx) => {
+            const isCorrect = oIdx === q.correctIndex;
+            const prefix = /^[A-D]\.\s*/i.test(opt) ? '' : `${String.fromCharCode(65 + oIdx)}. `;
+            return `   ${prefix}${opt}${isCorrect ? ' (Đáp án đúng)' : ''}`;
+          });
+          const exp = q.explanation ? `   💡 Giải thích: ${q.explanation}` : '';
+          return [qText, ...opts, exp, ''].filter(Boolean).join('\n');
+        }),
+      ];
+      await navigator.clipboard.writeText(textLines.join('\n'));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {}
+  };
+
+  const handleUseAsAssignment = () => {
+    const formattedQuestions = questions.map((q, idx) => ({
+      id: `q${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 6)}`,
+      text: q.question || q.text || `Câu hỏi ${idx + 1}`,
+      options: Array.isArray(q.options) && q.options.length > 0 ? [...q.options] : ['', '', '', ''],
+      correctIndex: typeof q.correctIndex === 'number' ? q.correctIndex : 0,
+    }));
+
+    const payload = {
+      title: card.title || `Bài tập Quiz: ${card.subtitle || ''}`,
+      classId: card.code || '',
+      courseId: card.courseId || '',
+      courseName: card.details?.find((d) => d.label === 'Học phần')?.value || '',
+      description: `Bộ câu hỏi trắc nghiệm gồm ${questions.length} câu được tạo tự động từ ${
+        card.details?.find((d) => d.label === 'Tài liệu nguồn')?.value || 'tài liệu học phần'
+      }.`,
+      questions: formattedQuestions,
+    };
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('edumin:import-quiz-to-assignment', {
+          detail: payload,
+        })
+      );
+    }
+
+    if (onNavigate) {
+      onNavigate('/teacher/assignments', { state: { importQuiz: payload } });
+    }
   };
 
   return (
@@ -217,8 +279,8 @@ export function InteractiveQuizCard({ card, onSendMessage, onNavigate }) {
       </div>
 
       {/* Card Action Buttons */}
-      <div className="pt-1 flex flex-wrap items-center justify-between gap-2 border-t border-slate-200/70">
-        <div className="flex items-center gap-1.5">
+      <div className="pt-2 flex flex-wrap items-center justify-between gap-2 border-t border-slate-200/70">
+        <div className="flex flex-wrap items-center gap-1.5">
           <button
             type="button"
             onClick={handleResetQuiz}
@@ -237,17 +299,53 @@ export function InteractiveQuizCard({ card, onSendMessage, onNavigate }) {
               <span>Tạo thêm câu hỏi</span>
             </button>
           )}
-        </div>
-        {onNavigate && (
           <button
             type="button"
-            onClick={() => onNavigate('/student/assignments')}
-            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg transition cursor-pointer"
+            onClick={handleCopyQuiz}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg shadow-2xs transition active:scale-95 cursor-pointer"
+            title="Sao chép toàn bộ câu hỏi và đáp án vào bộ nhớ tạm"
           >
-            <span>Mở Bài tập & Quiz</span>
-            <i className="fas fa-arrow-right text-[10px]" />
+            <i className={`fas ${copied ? 'fa-check text-emerald-600' : 'fa-copy text-slate-400'}`} />
+            <span>{copied ? 'Đã sao chép' : 'Sao chép'}</span>
           </button>
-        )}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-1.5">
+          {isTeacher ? (
+            <>
+              <button
+                type="button"
+                onClick={handleUseAsAssignment}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-lg shadow-2xs transition active:scale-95 cursor-pointer"
+                title="Chuyển toàn bộ câu hỏi này sang biểu mẫu Tạo bài tập cho lớp"
+              >
+                <i className="fas fa-file-pen text-amber-600" />
+                <span>Dùng làm bài tập cho lớp</span>
+              </button>
+              {onNavigate && (
+                <button
+                  type="button"
+                  onClick={() => onNavigate('/teacher/assignments')}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg transition cursor-pointer"
+                >
+                  <span>Mở Bài tập lớp</span>
+                  <i className="fas fa-arrow-right text-[10px]" />
+                </button>
+              )}
+            </>
+          ) : (
+            onNavigate && (
+              <button
+                type="button"
+                onClick={() => onNavigate('/student/assignments')}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg transition cursor-pointer"
+              >
+                <span>Mở Bài tập & Quiz</span>
+                <i className="fas fa-arrow-right text-[10px]" />
+              </button>
+            )
+          )}
+        </div>
       </div>
     </div>
   );

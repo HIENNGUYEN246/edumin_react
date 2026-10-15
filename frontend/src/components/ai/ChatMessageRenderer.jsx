@@ -85,26 +85,28 @@ export function ChatMessageRenderer({
               );
             }
 
-            // Type C: Interactive Quiz Card (Student / Self-study)
+            // Type C: Interactive Quiz Card (Student / Self-study or Teacher Quiz generation)
             if (effectiveType === 'interactive_quiz' || effectiveType === 'quiz_card') {
               return (
                 <InteractiveQuizCard
                   key={cardKey}
                   card={card}
+                  userRole={role || card?.role}
                   onSendMessage={(text) => onSendMessage?.(text)}
-                  onNavigate={(path) => onQuickNavigate?.(path)}
+                  onNavigate={(path, options) => onQuickNavigate?.(path, options)}
                 />
               );
             }
 
-            // Type D: Document Summary Card (Student / Study Guide)
+            // Type D: Document Summary Card (Student / Study Guide or Teacher outline)
             if (effectiveType === 'document_summary' || effectiveType === 'summary_card') {
               return (
                 <DocumentSummaryCard
                   key={cardKey}
                   card={card}
+                  userRole={role || card?.role}
                   onSendMessage={(text) => onSendMessage?.(text)}
-                  onNavigate={(path) => onQuickNavigate?.(path)}
+                  onNavigate={(path, options) => onQuickNavigate?.(path, options)}
                 />
               );
             }
