@@ -26,15 +26,4 @@ async function start() {
     process.exit(1);
   }
 }
-  const express = require('express');
-const cors = require('cors'); // <-- 1. Khai báo thư viện cors
-const app = express();
-
-// <-- 2. Kích hoạt middleware CORS cho phép mọi nguồn gọi vào
-app.use(cors({
-  origin: '*', // Cho phép tất cả các domain (kể cả Vercel) gọi API thoải mái
-  credentials: true
-}));
-
-app.use(express.json());
 start();
