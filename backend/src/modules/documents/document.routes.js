@@ -10,11 +10,13 @@ const router = Router();
 router.use(authenticate);
 
 router.get('/', controller.list);
+router.post('/study/query', controller.studyQuery);
 router.get('/:id/download', controller.download);
+router.post('/:id/summarize', controller.summarize);
+router.post('/:id/generate-quiz', controller.generateQuiz);
 
-// Only admin/teacher manage documents.
 router.post('/', authorize(ROLES.ADMIN, ROLES.TEACHER), uploadDocument, controller.create);
-router.patch('/:id', authorize(ROLES.ADMIN, ROLES.TEACHER), controller.update);
+router.patch('/:id', authorize(ROLES.ADMIN, ROLES.TEACHER), uploadDocument, controller.update);
 router.delete('/:id', authorize(ROLES.ADMIN, ROLES.TEACHER), controller.remove);
 
 export default router;

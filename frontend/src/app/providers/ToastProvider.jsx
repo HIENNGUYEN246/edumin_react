@@ -35,6 +35,7 @@ export function ToastProvider({ children }) {
       success: (m, d) => show(m, 'success', d),
       error: (m, d) => show(m, 'error', d),
       info: (m, d) => show(m, 'info', d),
+      warning: (m, d) => show(m, 'warning', d),
       dismiss,
     }),
     [show, dismiss]
@@ -81,6 +82,7 @@ export function useToast() {
       success: () => {},
       error: () => {},
       info: () => {},
+      warning: () => {},
       dismiss: () => {},
     };
   }

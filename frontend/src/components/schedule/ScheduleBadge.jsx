@@ -139,18 +139,21 @@ export function ScheduleTimeCombinedBadge({ schedules = [], compact = false }) {
   }
 
   return (
-    <div className="flex flex-col gap-1.5 items-start">
+    <div className="flex flex-col gap-1.5 items-start w-full">
       {groups.map((group, idx) => (
-        <div key={idx} className="inline-flex items-center gap-2 flex-wrap">
+        <div
+          key={idx}
+          className="flex flex-wrap items-center gap-1.5 p-1 rounded-lg bg-slate-50/70 border border-slate-200/60 max-w-full"
+        >
           {/* Day tags */}
-          <div className="inline-flex items-center gap-1">
+          <div className="flex flex-wrap items-center gap-1">
             {group.days.map((day) => (
               <span
                 key={day.id}
                 className={`inline-flex items-center justify-center font-bold uppercase tracking-wide rounded-md shadow-2xs select-none ${
                   compact
-                    ? 'min-w-[26px] h-5 px-1.5 text-[10.5px]'
-                    : 'min-w-[28px] h-6 px-1.5 text-[11px]'
+                    ? 'min-w-[24px] h-5 px-1 text-[10px]'
+                    : 'min-w-[26px] h-5.5 px-1.5 text-[10.5px]'
                 } ${day.badgeBg}`}
                 title={day.label}
               >
@@ -160,7 +163,7 @@ export function ScheduleTimeCombinedBadge({ schedules = [], compact = false }) {
           </div>
 
           {/* Time & Shift tag */}
-          <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-amber-50/80 border border-amber-200/70 text-slate-700 text-[11px] font-medium shadow-2xs whitespace-nowrap">
+          <div className="inline-flex flex-wrap items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50/80 border border-amber-200/70 text-slate-700 text-[11px] font-medium shadow-2xs">
             <i className="far fa-clock text-amber-600 text-[10px]" />
             {group.shift.lessons && (
               <>
@@ -172,7 +175,7 @@ export function ScheduleTimeCombinedBadge({ schedules = [], compact = false }) {
                 <span className="text-amber-300 font-bold">•</span>
               </>
             )}
-            <span className="font-semibold text-slate-800">
+            <span className="font-semibold text-slate-800 whitespace-nowrap">
               {group.shift.time || group.shift.lessons}
             </span>
           </div>
@@ -252,41 +255,33 @@ export function ScheduleSlotBadge({ slot, compact = false }) {
 export function RoomBadge({ room, studyStart = '', studyEnd = '', compact = false }) {
   if (!room && !studyStart && !studyEnd) {
     return (
-      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] text-slate-400 italic bg-slate-50 border border-slate-200/70 whitespace-nowrap">
-        <i className="fas fa-door-closed text-slate-300 text-[10px]" />
+      <div className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200/70 text-slate-400 text-xs italic shadow-2xs">
+        <i className="fas fa-door-closed text-slate-300 text-[11px]" />
         <span>Chưa xếp phòng</span>
-      </span>
+      </div>
     );
   }
 
   return (
-    <div className="flex flex-col gap-1 items-start">
-      {room ? (
-        <span
-          className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200/80 shadow-2xs whitespace-nowrap ${
-            compact ? 'text-[10.5px] py-0.5' : ''
-          }`}
-          title={`Phòng học: ${room}`}
-        >
-          <i className="fas fa-location-dot text-rose-500 text-[10.5px]" />
-          <span>Phòng {room}</span>
+    <div className="inline-flex flex-col gap-1 p-2 rounded-xl bg-slate-50/90 border border-slate-200/80 shadow-2xs text-left min-w-[130px] max-w-[190px]">
+      {/* Room with location pin icon */}
+      <div className="flex items-center gap-1.5">
+        <span className="w-5 h-5 rounded-md bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+          <i className="fas fa-location-dot text-[11px]" />
         </span>
-      ) : (
-        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] text-slate-400 italic bg-slate-50 border border-slate-200/70 whitespace-nowrap">
-          <i className="fas fa-door-closed text-slate-300 text-[10px]" />
-          <span>Chưa xếp phòng</span>
+        <span className="text-xs font-bold text-rose-700 whitespace-nowrap">
+          {room ? `Phòng ${room}` : 'Chưa xếp phòng'}
         </span>
-      )}
+      </div>
+
+      {/* Study duration date range */}
       {studyStart && studyEnd && (
-        <span
-          className="text-[10px] text-slate-500 font-medium inline-flex items-center gap-1 whitespace-nowrap"
-          title="Thời gian học phần"
-        >
-          <i className="far fa-calendar-alt text-indigo-400 text-[10px]" />
+        <div className="flex items-center gap-1 pt-1 border-t border-slate-200/60 text-[10.5px] text-slate-500 font-medium whitespace-nowrap">
+          <i className="far fa-calendar-alt text-indigo-400 text-[10px] shrink-0" />
           <span>
             {formatDate(studyStart)} – {formatDate(studyEnd)}
           </span>
-        </span>
+        </div>
       )}
     </div>
   );

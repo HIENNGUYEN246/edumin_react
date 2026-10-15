@@ -18,6 +18,76 @@ async function requireStudent(user) {
   return student;
 }
 
+/**
+ * Validates if the student has completed and passed (score >= 4.0) all prerequisite courses.
+ */
+export async function checkStudentPrerequisites(studentId, prerequisites) {
+  if (!prerequisites || typeof prerequisites !== 'string') return { satisfied: true };
+  const trimmed = prerequisites.trim();
+  if (!trimmed) return { satisfied: true };
+  const lower = trimmed.toLowerCase();
+  if (lower === 'không' || lower === 'không có' || lower === 'none' || lower === 'n/a') {
+    return { satisfied: true };
+  }
+
+  const tokens = trimmed.split(/[,;]+/).map((s) => s.trim()).filter(Boolean);
+  if (tokens.length === 0) return { satisfied: true };
+
+  const enrollments = await Enrollment.find({ student: studentId })
+    .populate('classRef')
+    .lean();
+
+  const passedCourseIds = new Set();
+  for (const enr of enrollments) {
+    const cls = enr.classRef;
+    if (!cls || !cls.courseId) continue;
+
+    let score = null;
+    if (enr.finalScore != null && !isNaN(enr.finalScore)) {
+      score = Number(enr.finalScore);
+    } else if (enr.manualGrades) {
+      const mg = enr.manualGrades;
+      const valid = [mg.final, mg.midterm, mg.assignment, mg.attendance].filter(
+        (g) => g != null && !isNaN(g)
+      );
+      if (valid.length > 0) {
+        score = valid.reduce((a, b) => a + Number(b), 0) / valid.length;
+      }
+    }
+
+    if (score != null && Number.isFinite(score) && score >= 4.0) {
+      passedCourseIds.add(cls.courseId.trim());
+      passedCourseIds.add(cls.courseId.trim().toLowerCase());
+    }
+  }
+
+  const missing = [];
+  for (const token of tokens) {
+    const idMatch = token.match(/([a-zA-Z]{2,}[0-9]{2,}[a-zA-Z0-9_-]*)/);
+    const targetId = idMatch ? idMatch[1] : token;
+
+    const isPassed =
+      passedCourseIds.has(targetId) ||
+      passedCourseIds.has(targetId.toLowerCase()) ||
+      passedCourseIds.has(token) ||
+      passedCourseIds.has(token.toLowerCase());
+
+    if (!isPassed) {
+      missing.push(token);
+    }
+  }
+
+  if (missing.length > 0) {
+    return {
+      satisfied: false,
+      missing: missing.join(', '),
+      message: `Yêu cầu hoàn thành môn tiên quyết: ${missing.join(', ')} trước khi đăng ký`,
+    };
+  }
+
+  return { satisfied: true };
+}
+
 /** Classes the student is enrolled in, with the class details attached. */
 export async function listMyEnrollments(user) {
   await closeExpiredClasses();
@@ -66,6 +136,15 @@ export async function enroll(user, classId) {
     const matchDept = await buildDepartmentMatcher(studentDept, student.departmentRef);
     if (!matchDept(classDept)) {
       throw AppError.badRequest('Bạn chỉ có thể đăng ký các lớp học phần thuộc khoa của mình');
+    }
+  }
+
+  // Prerequisite check: student must have completed and passed prerequisite courses (score >= 4.0)
+  const prereq = target.courseRef?.prerequisites || target.prerequisites;
+  if (prereq && typeof prereq === 'string' && prereq.trim()) {
+    const prereqCheck = await checkStudentPrerequisites(student._id, prereq);
+    if (!prereqCheck.satisfied) {
+      throw AppError.badRequest(prereqCheck.message);
     }
   }
 

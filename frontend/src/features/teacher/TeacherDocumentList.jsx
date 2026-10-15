@@ -8,7 +8,6 @@ import { useConfirm } from '../../app/providers/ConfirmProvider.jsx';
 import { useCourseOptions } from '../shared/useCourseOptions.js';
 import { useDocuments, useDocumentMutations, downloadDocument } from '../shared/useDocuments.js';
 import { useMyTeacherClasses } from './useTeacherClasses.js';
-import { ScheduleRoomBadge } from '../../components/schedule/ScheduleBadge.jsx';
 import { formatDate } from '../../lib/format.js';
 
 function formatFileSize(bytes) {
@@ -101,9 +100,19 @@ export function TeacherDocumentList() {
   const { create, update, remove } = useDocumentMutations();
 
   const [uploadModal, setUploadModal] = useState(false);
-  const [uploadForm, setUploadForm] = useState({ courseId: '', name: '', files: [], link: '' });
+  const [uploadForm, setUploadForm] = useState({
+    courseId: '',
+    courseName: '',
+    classId: '',
+    className: '',
+    isLockedContext: false,
+    name: '',
+    files: [],
+    link: '',
+  });
   const [editTarget, setEditTarget] = useState(null);
-  const [editForm, setEditForm] = useState({ name: '', link: '' });
+  const [editForm, setEditForm] = useState({ name: '', link: '', status: 'Công khai', file: null });
+  const editFileInputRef = useRef(null);
   const [downloadingId, setDownloadingId] = useState(null);
 
   // Filters & State
@@ -158,14 +167,21 @@ export function TeacherDocumentList() {
 
     list.forEach((cls) => {
       cls.docs = allDocs.filter((d) => {
+        if (d.classRef && cls._id && String(d.classRef) === String(cls._id)) {
+          assignedIds.add(d._id);
+          return true;
+        }
         if (d.classId) {
-          if (d.classId === cls.classId || d.classId === cls.key) {
+          const itemCId = String(d.classId).trim().toLowerCase();
+          const grpCId = String(cls.classId || '').trim().toLowerCase();
+          const grpKey = String(cls.key || '').trim().toLowerCase();
+          if (itemCId === grpCId || itemCId === grpKey || itemCId.replace(/[-_]/g, '') === grpCId.replace(/[-_]/g, '')) {
             assignedIds.add(d._id);
             return true;
           }
           return false;
         }
-        if (d.courseId && d.courseId === cls.courseId) {
+        if (d.courseId && cls.courseId && d.courseId.trim().toUpperCase() === cls.courseId.trim().toUpperCase()) {
           assignedIds.add(d._id);
           return true;
         }
@@ -290,6 +306,45 @@ export function TeacherDocumentList() {
     setUploadForm((f) => ({ ...f, files: selected }));
   };
 
+  const openUploadForClass = (group) => {
+    setUploadForm({
+      courseId: group.courseId && group.courseId !== 'CHUNG' ? group.courseId : '',
+      courseName: group.courseName || '',
+      classId: group.classId && group.classId !== 'CHUNG' && group.classId !== group.courseId ? group.classId : '',
+      className: group.className || '',
+      isLockedContext: Boolean(group.courseId && group.courseId !== 'CHUNG'),
+      name: '',
+      files: [],
+      link: '',
+    });
+    setUploadModal(true);
+  };
+
+  const openUploadGeneric = () => {
+    const activeGroup =
+      filterClass !== 'all'
+        ? classGroups.find(
+            (g) => g.key === filterClass || g.classId === filterClass || g.courseId === filterClass
+          )
+        : null;
+
+    if (activeGroup && activeGroup.courseId && activeGroup.courseId !== 'CHUNG') {
+      openUploadForClass(activeGroup);
+    } else {
+      setUploadForm({
+        courseId: '',
+        courseName: '',
+        classId: '',
+        className: '',
+        isLockedContext: false,
+        name: '',
+        files: [],
+        link: '',
+      });
+      setUploadModal(true);
+    }
+  };
+
   const submitUpload = async (e) => {
     e.preventDefault();
     if (!uploadForm.courseId) {
@@ -304,6 +359,7 @@ export function TeacherDocumentList() {
     try {
       await create.mutateAsync({
         courseId: uploadForm.courseId,
+        classId: uploadForm.classId || '',
         name: uploadForm.name.trim(),
         files: uploadForm.files,
         link: uploadForm.link.trim(),
@@ -311,7 +367,16 @@ export function TeacherDocumentList() {
       const count = uploadForm.files.length;
       toast.success(count > 1 ? `Đã tải lên ${count} tài liệu thành công` : 'Đã tải lên tài liệu thành công');
       setUploadModal(false);
-      setUploadForm({ courseId: '', name: '', files: [], link: '' });
+      setUploadForm({
+        courseId: '',
+        courseName: '',
+        classId: '',
+        className: '',
+        isLockedContext: false,
+        name: '',
+        files: [],
+        link: '',
+      });
       if (fileRef.current) fileRef.current.value = '';
     } catch (error) {
       toast.error(error.message);
@@ -394,10 +459,7 @@ export function TeacherDocumentList() {
             </span>
             <button
               type="button"
-              onClick={() => {
-                setUploadForm({ courseId: '', name: '', files: [], link: '' });
-                setUploadModal(true);
-              }}
+              onClick={openUploadGeneric}
               className="px-4 py-2.5 rounded-xl bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 whitespace-nowrap transition flex items-center gap-2 cursor-pointer shadow-2xs hover:shadow active:scale-95"
             >
               <i className="fas fa-upload text-xs" />
@@ -570,7 +632,7 @@ export function TeacherDocumentList() {
                   }`}
                 >
                   {/* Left: Folder Icon & Class Information */}
-                  <div className="flex items-start gap-3.5">
+                  <div className="flex items-center gap-3.5 min-w-0">
                     <div
                       className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 shadow-2xs border transition-colors ${
                         hasDocs
@@ -581,39 +643,20 @@ export function TeacherDocumentList() {
                       <i className={`fas ${isExpanded ? 'fa-folder-open' : 'fa-folder'} text-lg`} />
                     </div>
 
-                    <div className="space-y-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-black text-sm sm:text-base text-slate-800 tracking-tight">
-                          {group.courseName}
+                    <div className="flex flex-wrap items-center gap-2 min-w-0">
+                      {group.classId && group.classId !== 'CHUNG' && (
+                        <span className="text-xs font-bold bg-slate-100 text-slate-700 px-2.5 py-1 rounded-lg border border-slate-200/80 shrink-0">
+                          Lớp {group.classId}
                         </span>
-                        {group.courseId && (
-                          <span className="font-mono text-[11px] font-bold bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-md border border-indigo-100">
-                            {group.courseId}
-                          </span>
-                        )}
-                        {group.classId && group.classId !== group.courseId && (
-                          <span className="text-[11px] font-bold bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md border border-slate-200/80">
-                            Lớp {group.classId}
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
-                        {group.schedules?.length > 0 && (
-                          <ScheduleRoomBadge
-                            schedules={group.schedules}
-                            room={group.room}
-                            studyStart={group.studyStart}
-                            studyEnd={group.studyEnd}
-                          />
-                        )}
-                        {group.room && !group.schedules?.length && (
-                          <span className="inline-flex items-center gap-1 text-slate-500">
-                            <i className="fas fa-door-open text-slate-400 text-[11px]" />
-                            <span>Phòng {group.room}</span>
-                          </span>
-                        )}
-                      </div>
+                      )}
+                      <h4 className="font-black text-sm sm:text-base text-slate-800 tracking-tight truncate">
+                        {group.courseName}
+                      </h4>
+                      {group.courseId && group.courseId !== 'CHUNG' && group.classId !== group.courseId && (
+                        <span className="font-mono text-[11px] font-bold bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-md border border-indigo-100 shrink-0">
+                          {group.courseId}
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -637,11 +680,8 @@ export function TeacherDocumentList() {
                     {group.courseId && group.courseId !== 'CHUNG' && (
                       <button
                         type="button"
-                        onClick={() => {
-                          setUploadForm({ courseId: group.courseId, name: '', files: [], link: '' });
-                          setUploadModal(true);
-                        }}
-                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold border border-indigo-200/60 shadow-2xs transition active:scale-95 cursor-pointer"
+                        onClick={() => openUploadForClass(group)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold border border-indigo-200/60 shadow-2xs transition active:scale-95 cursor-pointer"
                         title="Tải lên tài liệu cho học phần này"
                       >
                         <i className="fas fa-plus text-[10px]" />
@@ -653,12 +693,12 @@ export function TeacherDocumentList() {
                       type="button"
                       onClick={() => toggleExpand(group.key)}
                       aria-label={isExpanded ? 'Thu gọn thư mục lớp' : 'Mở rộng thư mục lớp'}
-                      className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition cursor-pointer"
+                      className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition cursor-pointer"
                     >
                       <i
-                        className={`fas fa-chevron-down text-xs transition-transform duration-200 ${
-                          isExpanded ? 'rotate-180 text-indigo-600' : ''
-                        }`}
+                        className={`fas ${
+                          isExpanded ? 'fa-chevron-down rotate-180 text-indigo-600' : 'fa-chevron-down'
+                        } text-xs transition-transform duration-200`}
                       />
                     </button>
                   </div>
@@ -676,10 +716,7 @@ export function TeacherDocumentList() {
                         {group.courseId && group.courseId !== 'CHUNG' && (
                           <button
                             type="button"
-                            onClick={() => {
-                              setUploadForm({ courseId: group.courseId, name: '', files: [], link: '' });
-                              setUploadModal(true);
-                            }}
+                            onClick={() => openUploadForClass(group)}
                             className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition shadow-2xs cursor-pointer"
                           >
                             <i className="fas fa-upload text-[11px]" />
@@ -841,20 +878,57 @@ export function TeacherDocumentList() {
       {/* Upload Modal with multi-files and link input */}
       <Modal open={uploadModal} onClose={() => setUploadModal(false)} title="Tải lên tài liệu" size="md">
         <form onSubmit={submitUpload} className="space-y-4">
-          <FormField label="Học phần" required>
-            <select
-              className={inputClass}
-              value={uploadForm.courseId}
-              onChange={(e) => setUploadForm((f) => ({ ...f, courseId: e.target.value }))}
-            >
-              <option value="">Chọn học phần</option>
-              {courses.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.id} — {c.name}
-                </option>
-              ))}
-            </select>
-          </FormField>
+          {uploadForm.isLockedContext ? (
+            <div className="p-3.5 bg-gradient-to-r from-indigo-50/90 to-blue-50/70 border border-indigo-100 rounded-2xl flex items-center justify-between gap-3 shadow-2xs">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 text-sm shadow-2xs">
+                  <i className="fas fa-book-open" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[11px] font-bold text-indigo-600 uppercase tracking-wider">Học phần & Lớp áp dụng</p>
+                  <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                    <span className="font-extrabold text-sm text-slate-800 truncate">
+                      {uploadForm.courseName || uploadForm.courseId}
+                    </span>
+                    <span className="font-mono text-xs font-bold bg-white text-indigo-700 px-2 py-0.5 rounded-md border border-indigo-200">
+                      {uploadForm.courseId}
+                    </span>
+                    {uploadForm.classId && (
+                      <span className="text-xs font-bold bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md border border-slate-200">
+                        Lớp {uploadForm.classId}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <span className="shrink-0 inline-flex items-center gap-1 text-[11px] font-bold text-indigo-700 bg-white/90 px-2.5 py-1 rounded-lg border border-indigo-100 shadow-2xs">
+                <i className="fas fa-lock text-[10px]" />
+                <span>Tự động gán</span>
+              </span>
+            </div>
+          ) : (
+            <FormField label="Học phần" required>
+              <select
+                className={inputClass}
+                value={uploadForm.courseId}
+                onChange={(e) => {
+                  const found = courses.find((c) => c.id === e.target.value);
+                  setUploadForm((f) => ({
+                    ...f,
+                    courseId: e.target.value,
+                    courseName: found?.name || '',
+                  }));
+                }}
+              >
+                <option value="">Chọn học phần</option>
+                {courses.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.id} — {c.name}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+          )}
 
           <FormField
             label="Chọn tệp tài liệu (chọn được 2 - 3 tệp cùng lúc)"

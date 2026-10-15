@@ -173,5 +173,19 @@ describe('TeacherDocumentList (Grouped by Class)', () => {
 
     expect(mockConfirm).toHaveBeenCalled();
   });
+
+  it('auto-fills and locks course and class context when clicking + Thêm tài liệu on a class card', async () => {
+    renderComponent();
+
+    const addButtons = screen.getAllByTitle('Tải lên tài liệu cho học phần này');
+    expect(addButtons.length).toBeGreaterThan(0);
+
+    fireEvent.click(addButtons[0]);
+
+    expect(screen.getByText('Tự động gán')).toBeInTheDocument();
+    expect(screen.getByText('Học phần & Lớp áp dụng')).toBeInTheDocument();
+    expect(screen.queryByLabelText(/Học phần/i)).not.toBeInTheDocument();
+    expect(screen.queryByText('Chọn học phần')).not.toBeInTheDocument();
+  });
 });
 

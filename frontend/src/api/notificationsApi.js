@@ -7,7 +7,9 @@ export const notificationsApi = {
   markAllRead: () => http.patch('/notifications/mark-all-read'),
   remove: (id) => http.delete(`/notifications/${id}`),
   bulkDelete: (ids) => http.post('/notifications/bulk-delete', { ids }),
+  broadcast: (payload) => http.post('/notifications/schedule-change', payload),
+  createScheduleChange: (payload) => http.post('/notifications/schedule-change', payload),
+  createTargeted: (payload) => http.post('/notifications/targeted', payload),
 };
 
 export default notificationsApi;
-

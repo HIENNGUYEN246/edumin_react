@@ -44,29 +44,26 @@ export function useCourseOptions() {
   };
 
   if (isTeacher) {
+    const classCourses = uniqueCourses(teacherClasses.data?.data || []);
     const teacherDept = user?.khoa || user?.department || profile?.department || profile?.departmentRef?.name || profile?.departmentRef?.id;
-    let availableCourses = [];
+    let deptCourses = [];
     if (teacherDept) {
-      // Teachers only assign courses belonging to their department
+      // Teachers also assign courses belonging to their department
       const clean = (s) => String(s || '').trim().toLowerCase().replace(/^khoa\s+/i, '');
       const norm = (s) => String(s || '').trim().toLowerCase();
       const match = (cDept) => {
         if (!cDept) return false;
         return norm(cDept) === norm(teacherDept) || clean(cDept) === clean(teacherDept);
       };
-      availableCourses = (allCourses.data?.data || [])
+      deptCourses = (allCourses.data?.data || [])
         .filter((c) => match(c.department))
         .map((c) => ({ id: c.id, name: c.name, department: c.department }));
-    } else {
-      const classCourses = uniqueCourses(teacherClasses.data?.data || []);
-      const allC = (allCourses.data?.data || []).map((c) => ({ id: c.id, name: c.name, department: c.department }));
-      const combined = new Map();
-      [...classCourses, ...allC].forEach((c) => {
-        if (c?.id && !combined.has(c.id)) combined.set(c.id, { id: c.id, name: c.name, department: c.department });
-      });
-      availableCourses = [...combined.values()];
     }
-    return { courses: availableCourses, isLoading: teacherClasses.isLoading || allCourses.isLoading };
+    const combined = new Map();
+    [...classCourses, ...deptCourses].forEach((c) => {
+      if (c?.id && !combined.has(c.id)) combined.set(c.id, { id: c.id, name: c.name, department: c.department });
+    });
+    return { courses: [...combined.values()], isLoading: teacherClasses.isLoading || allCourses.isLoading };
   }
   if (isStudent) {
     const classes = (myEnrollments.data?.data || []).map((e) => e.class).filter(Boolean);

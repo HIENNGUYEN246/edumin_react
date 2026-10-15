@@ -21,3 +21,8 @@ export const bulkDelete = asyncHandler(async (req, res) => {
   res.json(await notificationService.bulkDeleteNotifications(req.body.ids, req.user));
 });
 
+export const createTargeted = asyncHandler(async (req, res) => {
+  res.status(201).json(await notificationService.createTargetedNotification(req.body, req.user));
+});
+
+

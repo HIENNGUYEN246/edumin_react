@@ -13,7 +13,33 @@ import { useDepartments } from '../departments/useDepartments.js';
 import { useCourses, useCourseMutations } from './useCourses.js';
 import { coursesApi } from '../../../api/coursesApi.js';
 
-const EMPTY = { id: '', name: '', credits: 0, fee: 0, departmentId: '', gradeWeights: { ...DEFAULT_GRADE_WEIGHTS } };
+export function computePeriods(credits, courseType) {
+  const cr = Math.max(0, Number(credits) || 0);
+  const total = cr * 15;
+  if (courseType === 'LT') {
+    return { theoryPeriods: total, practicePeriods: 0 };
+  }
+  if (courseType === 'TH') {
+    return { theoryPeriods: 0, practicePeriods: total };
+  }
+  const lt = Math.round(cr * 10);
+  const th = Math.max(0, total - lt);
+  return { theoryPeriods: lt, practicePeriods: th };
+}
+
+const EMPTY = {
+  id: '',
+  name: '',
+  credits: 3,
+  fee: 0,
+  departmentId: '',
+  courseType: 'LT_TH',
+  theoryPeriods: 30,
+  practicePeriods: 15,
+  prerequisites: '',
+  description: '',
+  gradeWeights: { ...DEFAULT_GRADE_WEIGHTS },
+};
 
 export function ManageCourses() {
   const toast = useToast();
@@ -28,6 +54,8 @@ export function ManageCourses() {
 
   const params = useMemo(() => ({ page, limit: 10, search }), [page, search]);
   const { data, isLoading } = useCourses(params);
+  const { data: allCoursesData } = useCourses({ limit: 1000 });
+  const allCourses = allCoursesData?.data || [];
   const { create, update, remove, bulkDelete, importRows } = useCourseMutations();
   const { data: deptData } = useDepartments({ limit: 100 });
   const [selectedIds, setSelectedIds] = useState([]);
@@ -97,22 +125,47 @@ export function ManageCourses() {
 
 
   const openCreate = () => {
-    setForm(EMPTY);
+    const defaultPeriods = computePeriods(3, 'LT_TH');
+    setForm({
+      ...EMPTY,
+      credits: 3,
+      courseType: 'LT_TH',
+      theoryPeriods: defaultPeriods.theoryPeriods,
+      practicePeriods: defaultPeriods.practicePeriods,
+    });
     setErrors({});
     setModal({ mode: 'create' });
   };
   const openEdit = (course) => {
+    const cType = course.courseType || 'LT_TH';
+    const cCredits = course.credits != null ? course.credits : 3;
+    const computed = computePeriods(cCredits, cType);
     setForm({
       id: course.id,
       name: course.name,
-      credits: course.credits,
-      fee: course.fee,
-      departmentId: course.departmentRef?.id || '',
+      credits: cCredits,
+      fee: course.fee || 0,
+      departmentId: course.departmentRef?.id || course.departmentId || '',
+      courseType: cType,
+      theoryPeriods: course.theoryPeriods != null && course.theoryPeriods > 0 ? course.theoryPeriods : computed.theoryPeriods,
+      practicePeriods: course.practicePeriods != null && course.practicePeriods > 0 ? course.practicePeriods : computed.practicePeriods,
+      prerequisites: course.prerequisites || '',
+      description: course.description || '',
       gradeWeights: course.gradeWeights ? { ...DEFAULT_GRADE_WEIGHTS, ...course.gradeWeights } : { ...DEFAULT_GRADE_WEIGHTS },
     });
     setErrors({});
     setModal({ mode: 'edit', course });
   };
+
+  const availablePrereqCourses = useMemo(
+    () => allCourses.filter((c) => c._id !== modal?.course?._id && c.id !== form.id),
+    [allCourses, modal, form.id]
+  );
+
+  const selectedPrereqCodes = useMemo(
+    () => (form.prerequisites ? form.prerequisites.split(/[,;]+/).map((s) => s.trim()).filter(Boolean) : []),
+    [form.prerequisites]
+  );
 
   const totalWeight = useMemo(() => {
     const weights = form.gradeWeights || DEFAULT_GRADE_WEIGHTS;
@@ -155,6 +208,11 @@ export function ManageCourses() {
       credits: Number(form.credits) || 0,
       fee: Number(form.fee) || 0,
       departmentId: form.departmentId,
+      courseType: form.courseType || 'LT_TH',
+      theoryPeriods: Number(form.theoryPeriods) || 0,
+      practicePeriods: Number(form.practicePeriods) || 0,
+      prerequisites: form.prerequisites?.trim() || '',
+      description: form.description?.trim() || '',
       gradeWeights: form.gradeWeights || DEFAULT_GRADE_WEIGHTS,
     };
     try {
@@ -399,19 +457,152 @@ export function ManageCourses() {
               <input className={inputClass} value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="VD: Lập trình Web" />
             </FormField>
             <FormField label="Số tín chỉ">
-              <input type="number" min="0" className={inputClass} value={form.credits} onChange={(e) => setForm((f) => ({ ...f, credits: e.target.value }))} />
+              <input
+                type="number"
+                min="0"
+                className={inputClass}
+                value={form.credits}
+                onChange={(e) => {
+                  const cr = e.target.value;
+                  const { theoryPeriods, practicePeriods } = computePeriods(cr, form.courseType);
+                  setForm((f) => ({ ...f, credits: cr, theoryPeriods, practicePeriods }));
+                }}
+              />
             </FormField>
             <FormField label="Học phí (VND)">
               <input type="number" min="0" className={inputClass} value={form.fee} onChange={(e) => setForm((f) => ({ ...f, fee: e.target.value }))} />
             </FormField>
             <div className="md:col-span-2">
-              <FormField label="Khoa">
+              <FormField label="Khoa phụ trách">
                 <select className={inputClass} value={form.departmentId} onChange={(e) => setForm((f) => ({ ...f, departmentId: e.target.value }))}>
                   <option value="">Chọn khoa</option>
                   {departments.map((d) => (
                     <option key={d.id} value={d.id}>{d.name}</option>
                   ))}
                 </select>
+              </FormField>
+            </div>
+
+            <FormField label="Phân loại học phần" helperText="Tự động tính & khóa số tiết LT/TH tương ứng">
+              <select
+                className={inputClass}
+                value={form.courseType}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  const { theoryPeriods, practicePeriods } = computePeriods(form.credits, val);
+                  setForm((f) => ({ ...f, courseType: val, theoryPeriods, practicePeriods }));
+                }}
+              >
+                <option value="LT_TH">Lý thuyết kết hợp Thực hành (LT + TH)</option>
+                <option value="LT">Chỉ Lý thuyết (LT thuần túy)</option>
+                <option value="TH">Chỉ Thực hành (TH / Lab thuần túy)</option>
+              </select>
+            </FormField>
+
+            <div className="grid grid-cols-2 gap-2">
+              <FormField label="Số tiết Lý thuyết (LT)" helperText="Tự động khóa theo phân loại">
+                <input
+                  type="number"
+                  readOnly
+                  className={`${inputClass} bg-slate-100 text-slate-700 font-bold cursor-not-allowed`}
+                  value={form.theoryPeriods}
+                  placeholder="VD: 30"
+                  title="Số tiết Lý thuyết được tự động tính dựa trên số tín chỉ và phân loại học phần"
+                />
+              </FormField>
+              <FormField label="Số tiết Thực hành (TH)" helperText="Tự động khóa theo phân loại">
+                <input
+                  type="number"
+                  readOnly
+                  className={`${inputClass} bg-slate-100 text-slate-700 font-bold cursor-not-allowed`}
+                  value={form.practicePeriods}
+                  placeholder="VD: 15"
+                  title="Số tiết Thực hành được tự động tính dựa trên số tín chỉ và phân loại học phần"
+                />
+              </FormField>
+            </div>
+
+            <div className="md:col-span-2">
+              <FormField
+                label="Điều kiện tiên quyết"
+                helperText="Chọn môn học sinh viên bắt buộc phải hoàn thành trước khi được phép đăng ký"
+              >
+                {selectedPrereqCodes.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1.5 mb-2">
+                    {selectedPrereqCodes.map((code) => {
+                      const matched = allCourses.find((c) => c.id === code || `${c.id} - ${c.name}` === code);
+                      const label = matched ? `[${matched.id}] ${matched.name}` : code;
+                      return (
+                        <span
+                          key={code}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-semibold shadow-2xs"
+                        >
+                          <i className="fas fa-book-bookmark text-[10px]" />
+                          <span>{label}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const nextCodes = selectedPrereqCodes.filter((c) => c !== code);
+                              setForm((f) => ({ ...f, prerequisites: nextCodes.join(', ') }));
+                            }}
+                            className="text-indigo-400 hover:text-rose-600 transition cursor-pointer ml-1"
+                            title="Bỏ chọn môn tiên quyết này"
+                          >
+                            <i className="fas fa-times text-xs" />
+                          </button>
+                        </span>
+                      );
+                    })}
+                    <button
+                      type="button"
+                      onClick={() => setForm((f) => ({ ...f, prerequisites: '' }))}
+                      className="text-[11px] text-slate-500 hover:text-rose-600 underline cursor-pointer ml-1"
+                    >
+                      Xóa tất cả
+                    </button>
+                  </div>
+                )}
+
+                <select
+                  className={inputClass}
+                  value=""
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (!val) return;
+                    if (val === '__CLEAR__') {
+                      setForm((f) => ({ ...f, prerequisites: '' }));
+                      return;
+                    }
+                    if (!selectedPrereqCodes.includes(val)) {
+                      const nextCodes = [...selectedPrereqCodes, val];
+                      setForm((f) => ({ ...f, prerequisites: nextCodes.join(', ') }));
+                    }
+                  }}
+                >
+                  <option value="">-- Chọn môn học tiên quyết từ danh sách ({availablePrereqCourses.length} môn) --</option>
+                  {selectedPrereqCodes.length > 0 && (
+                    <option value="__CLEAR__">-- Bỏ chọn tất cả (Không yêu cầu tiên quyết) --</option>
+                  )}
+                  {availablePrereqCourses.map((c) => {
+                    const isSelected = selectedPrereqCodes.includes(c.id);
+                    return (
+                      <option key={c._id || c.id} value={c.id} disabled={isSelected}>
+                        [{c.id}] {c.name} ({c.credits} TC{c.departmentRef?.name ? ` - ${c.departmentRef.name}` : ''}) {isSelected ? '✓ Đã chọn' : ''}
+                      </option>
+                    );
+                  })}
+                </select>
+              </FormField>
+            </div>
+
+            <div className="md:col-span-2">
+              <FormField label="Mô tả tóm tắt học phần">
+                <textarea
+                  className={`${inputClass} min-h-[60px] resize-y`}
+                  value={form.description}
+                  onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                  placeholder="Mô tả mục tiêu, kiến thức cốt lõi và kỹ năng thực hành..."
+                />
               </FormField>
             </div>
 

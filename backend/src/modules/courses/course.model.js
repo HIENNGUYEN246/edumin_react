@@ -10,6 +10,11 @@ const courseSchema = new Schema(
     fee: { type: Number, default: 0, min: 0 },
     department: { type: String, default: '' },
     departmentRef: { type: Schema.Types.ObjectId, ref: 'Department', default: null },
+    courseType: { type: String, enum: ['LT', 'TH', 'LT_TH'], default: 'LT_TH' },
+    theoryPeriods: { type: Number, default: 0, min: 0 },
+    practicePeriods: { type: Number, default: 0, min: 0 },
+    prerequisites: { type: String, default: '' },
+    description: { type: String, default: '' },
     gradeWeights: {
       attendance: { type: Number, default: 10, min: 0, max: 100 },
       homework: { type: Number, default: 10, min: 0, max: 100 },

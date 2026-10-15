@@ -8,7 +8,6 @@ import { useConfirm } from '../../../app/providers/ConfirmProvider.jsx';
 import { useCourseOptions } from '../../shared/useCourseOptions.js';
 import { useAssignments, useAssignmentMutations } from '../../shared/useAssignments.js';
 import { useMyTeacherClasses } from '../useTeacherClasses.js';
-import { ScheduleRoomBadge } from '../../../components/schedule/ScheduleBadge.jsx';
 import { QuizEditor, newQuestion } from './QuizEditor.jsx';
 import { SubmissionTable } from './SubmissionTable.jsx';
 import { getTodayDate } from '../../../lib/format.js';
@@ -19,8 +18,9 @@ function isPastDue(dueDate) {
   return !Number.isNaN(deadline.valueOf()) && new Date() > deadline;
 }
 
-const emptyForm = (defaultCourseId = '') => ({
+const emptyForm = (defaultCourseId = '', defaultClassId = '') => ({
   courseId: defaultCourseId,
+  classId: defaultClassId,
   type: 'quiz',
   title: '',
   description: '',
@@ -100,14 +100,21 @@ export function TeacherAssignmentList() {
 
     list.forEach((cls) => {
       cls.assignments = allAssignments.filter((a) => {
+        if (a.classRef && cls._id && String(a.classRef) === String(cls._id)) {
+          assignedIds.add(a._id);
+          return true;
+        }
         if (a.classId) {
-          if (a.classId === cls.classId || a.classId === cls.key) {
+          const itemCId = String(a.classId).trim().toLowerCase();
+          const grpCId = String(cls.classId || '').trim().toLowerCase();
+          const grpKey = String(cls.key || '').trim().toLowerCase();
+          if (itemCId === grpCId || itemCId === grpKey || itemCId.replace(/[-_]/g, '') === grpCId.replace(/[-_]/g, '')) {
             assignedIds.add(a._id);
             return true;
           }
           return false;
         }
-        if (a.courseId && a.courseId === cls.courseId) {
+        if (a.courseId && cls.courseId && a.courseId.trim().toUpperCase() === cls.courseId.trim().toUpperCase()) {
           assignedIds.add(a._id);
           return true;
         }
@@ -224,14 +231,15 @@ export function TeacherAssignmentList() {
   }, [classGroups, filterClass, filterType, filterStatus, searchKeyword]);
 
   // Actions
-  const openCreate = (defaultCourseId = '') => {
-    setForm(emptyForm(defaultCourseId));
+  const openCreate = (defaultCourseId = '', defaultClassId = '') => {
+    setForm(emptyForm(defaultCourseId, defaultClassId));
     setEditor({ mode: 'create' });
   };
 
   const openEdit = (a) => {
     setForm({
       courseId: a.courseId,
+      classId: a.classId || '',
       type: a.type,
       title: a.title,
       description: a.description || '',
@@ -254,6 +262,7 @@ export function TeacherAssignmentList() {
       if (editor.mode === 'create') {
         await create.mutateAsync({
           courseId: form.courseId,
+          classId: form.classId || '',
           type: form.type,
           title: form.title.trim(),
           description: form.description,
@@ -498,39 +507,20 @@ export function TeacherAssignmentList() {
                       <i className={`fas ${isExpanded ? 'fa-folder-open' : 'fa-folder'} text-lg`} />
                     </div>
 
-                    <div className="space-y-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-black text-sm sm:text-base text-slate-800 tracking-tight">
-                          {group.courseName}
+                    <div className="flex flex-wrap items-center gap-2 min-w-0">
+                      {group.classId && group.classId !== 'CHUNG' && (
+                        <span className="text-xs font-bold bg-slate-100 text-slate-700 px-2.5 py-1 rounded-lg border border-slate-200/80 shrink-0">
+                          Lớp {group.classId}
                         </span>
-                        {group.courseId && (
-                          <span className="font-mono text-[11px] font-bold bg-teal-50 text-teal-700 px-2 py-0.5 rounded-md border border-teal-100">
-                            {group.courseId}
-                          </span>
-                        )}
-                        {group.classId && group.classId !== group.courseId && (
-                          <span className="text-[11px] font-bold bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md border border-slate-200/80">
-                            Lớp {group.classId}
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
-                        {group.schedules?.length > 0 && (
-                          <ScheduleRoomBadge
-                            schedules={group.schedules}
-                            room={group.room}
-                            studyStart={group.studyStart}
-                            studyEnd={group.studyEnd}
-                          />
-                        )}
-                        {group.room && !group.schedules?.length && (
-                          <span className="inline-flex items-center gap-1 text-slate-500">
-                            <i className="fas fa-door-open text-slate-400 text-[11px]" />
-                            <span>Phòng {group.room}</span>
-                          </span>
-                        )}
-                      </div>
+                      )}
+                      <h4 className="font-black text-sm sm:text-base text-slate-800 tracking-tight truncate">
+                        {group.courseName}
+                      </h4>
+                      {group.courseId && group.courseId !== 'CHUNG' && group.classId !== group.courseId && (
+                        <span className="font-mono text-[11px] font-bold bg-teal-50 text-teal-700 px-2 py-0.5 rounded-md border border-teal-100 shrink-0">
+                          {group.courseId}
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -554,8 +544,13 @@ export function TeacherAssignmentList() {
                     {group.courseId && group.courseId !== 'CHUNG' && (
                       <button
                         type="button"
-                        onClick={() => openCreate(group.courseId)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-700 text-xs font-bold border border-teal-200/60 shadow-2xs transition active:scale-95 cursor-pointer"
+                        onClick={() =>
+                          openCreate(
+                            group.courseId,
+                            group.classId !== 'CHUNG' && group.classId !== group.courseId ? group.classId : ''
+                          )
+                        }
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold shadow-2xs transition active:scale-95 cursor-pointer"
                         title="Tạo bài tập / quiz cho học phần này"
                       >
                         <i className="fas fa-plus text-[10px]" />
@@ -567,7 +562,7 @@ export function TeacherAssignmentList() {
                       type="button"
                       onClick={() => toggleExpand(group.key)}
                       aria-label={isExpanded ? 'Thu gọn thư mục lớp' : 'Mở rộng thư mục lớp'}
-                      className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition cursor-pointer"
+                      className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition cursor-pointer"
                     >
                       <i
                         className={`fas ${
@@ -590,7 +585,12 @@ export function TeacherAssignmentList() {
                         {group.courseId && group.courseId !== 'CHUNG' && (
                           <button
                             type="button"
-                            onClick={() => openCreate(group.courseId)}
+                            onClick={() =>
+                              openCreate(
+                                group.courseId,
+                                group.classId !== 'CHUNG' && group.classId !== group.courseId ? group.classId : ''
+                              )
+                            }
                             className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold transition shadow-2xs cursor-pointer"
                           >
                             <i className="fas fa-plus text-[11px]" />

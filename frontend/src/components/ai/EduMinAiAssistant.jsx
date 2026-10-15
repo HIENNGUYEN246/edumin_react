@@ -6,7 +6,13 @@ import { useToast } from '../../app/providers/ToastProvider.jsx';
 import { aiApi } from '../../api/aiApi.js';
 import { profileRequestsApi } from '../../api/profileRequestsApi.js';
 import { feedbackApi } from '../../api/feedbackApi.js';
+import { notificationsApi } from '../../api/notificationsApi.js';
 import { ROLES } from '../../app/navConfig.js';
+import { InteractiveQuizCard } from './InteractiveQuizCard.jsx';
+import { DocumentSummaryCard } from './DocumentSummaryCard.jsx';
+import { ApprovalRequestCard } from './ApprovalRequestCard.jsx';
+import { TeacherDocumentCard } from './TeacherDocumentCard.jsx';
+import { ChatMessageRenderer } from './ChatMessageRenderer.jsx';
 
 /**
  * Normalizes text: strips accents, lowercases, handles Vietnamese đ/Đ.
@@ -17,6 +23,39 @@ function normalizeText(text = '') {
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[đĐ]/g, 'd')
     .toLowerCase()
+    .trim();
+}
+
+/**
+ * Cleans markdown and formatting symbols from text to produce natural speech.
+ */
+export function cleanTextForSpeech(text = '') {
+  if (!text) return '';
+  return String(text)
+    // Remove markdown links [label](url) -> label
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    // Remove code blocks ```...```
+    .replace(/```[\s\S]*?```/g, '')
+    // Remove inline code `...`
+    .replace(/`([^`]+)`/g, '$1')
+    // Remove tables | a | b |
+    .replace(/\|[^\n]+\|/g, ' ')
+    // Remove bold/italic markers **text** or *text* or __text__
+    .replace(/[*_]{1,3}([^*_]+)[*_]{1,3}/g, '$1')
+    // Remove markdown headers #, ##, ###
+    .replace(/^#{1,6}\s+/gm, '')
+    // Remove markdown bullet points -, *, +, •
+    .replace(/^[\s]*[-*+•]\s+/gm, '')
+    // Remove blockquotes >
+    .replace(/^>\s+/gm, '')
+    // Remove remaining asterisks or pipes
+    .replace(/[*|]/g, '')
+    // Remove emoji symbols that can stutter speech synthesis
+    .replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '')
+    // Normalize newlines and whitespace
+    .replace(/\n+/g, '. ')
+    .replace(/\s+/g, ' ')
+    .replace(/\.{2,}/g, '.')
     .trim();
 }
 
@@ -152,6 +191,7 @@ export const PAGE_INFO = [
 export const BUSINESS_RESERVED_WORDS = [
   'quiz', 'diem', 'bang diem', 'nhap diem', 'nhap lai diem', 'nhap lai', 'sua diem', 'vao diem',
   'cham diem', 'gpa', 'trong so', 'cot diem', 'dong bo quiz', 'dong bo', 'cau hinh quiz', 'cau hinh diem',
+  'tom tat', 'y chinh', 'trac nghiem on tap', 'cau quiz', 'on tap', 'tai lieu', 'bai giang',
   'duyet', 'ho so', 'thay doi', 'phe duyet', 'xet duyet', 'cap nhat', 'avatar', 'anh dai dien',
   'giang vien', 'giao vien', 'thay', 'co', 'gv',
   'lop', 'lop hoc phan', 'mon', 'mon hoc', 'hoc phan',
@@ -488,6 +528,11 @@ export function extractApprovalQuery(rawText) {
     norm.includes('cho duyet') ||
     norm.includes('tu choi ho so') ||
     norm.includes('tu choi yeu cau') ||
+    norm.includes('phan quyen') ||
+    norm.includes('xin quyen') ||
+    norm.includes('cap quyen') ||
+    norm.includes('kiem tra yeu cau') ||
+    norm.includes('yeu cau phu') ||
     (norm.includes('ho so') && (norm.includes('cho') || norm.includes('moi') || norm.includes('yeu cau')));
 
   if (!isApproveIntent) return null;
@@ -920,7 +965,47 @@ export function classifyAiIntent(rawText = '', { role = '', currentPath = '', pa
     return 'RECORD_USER_DESIRE';
   }
 
-  // 1b. Quiz / Grade Configuration Intent ("nhập lại điểm quiz", "cấu hình quiz", "đồng bộ quiz", "trọng số", "cài đặt điểm")
+  // 1b. Document Study Intents: Summarization & Interactive Quiz Generation
+  const isDocSummarize =
+    norm.includes('tom tat') ||
+    norm.includes('y chinh cua tai lieu') ||
+    norm.includes('khai niem cot loi') ||
+    norm.includes('tom luoc') ||
+    norm.includes('phan tich tai lieu') ||
+    norm.includes('phan tich noi dung') ||
+    norm.includes('phan tich file') ||
+    norm.includes('doc tai lieu') ||
+    norm.includes('doc file') ||
+    ((norm.includes('tai lieu') || norm.includes('bai giang') || norm.includes('tep') || norm.includes('file')) &&
+      (norm.includes('y chinh') || norm.includes('noi dung chinh') || norm.includes('chuong 1') || norm.includes('chuong 2') || norm.includes('chuong 3') || norm.includes('phan tich') || norm.includes('doc')));
+
+  if (isDocSummarize) {
+    return 'DOC_SUMMARIZE';
+  }
+
+  const isDocQuizGenerate =
+    (norm.includes('cau quiz') ||
+      norm.includes('quiz trac nghiem') ||
+      norm.includes('bai quiz') ||
+      norm.includes('trac nghiem on tap') ||
+      norm.includes('de trac nghiem') ||
+      (norm.includes('quiz') && (norm.includes('on tap') || norm.includes('tai lieu') || norm.includes('buoi hoc') || norm.includes('mon')))) &&
+    (norm.includes('tao') ||
+      norm.includes('sinh') ||
+      norm.includes('lam') ||
+      norm.includes('on tap') ||
+      norm.includes('ra') ||
+      norm.includes('cho toi') ||
+      norm.includes('giup toi') ||
+      norm.includes('5 cau') ||
+      norm.includes('10 cau') ||
+      norm.includes('cau hoi'));
+
+  if (isDocQuizGenerate) {
+    return 'DOC_QUIZ_GENERATE';
+  }
+
+  // 1c. Quiz / Grade Configuration Intent ("nhập lại điểm quiz", "cấu hình quiz", "đồng bộ quiz", "trọng số", "cài đặt điểm")
   const isGradeConfigWord =
     norm.includes('cau hinh diem') ||
     norm.includes('cau hinh quiz') ||
@@ -1087,6 +1172,22 @@ export function classifyAiIntent(rawText = '', { role = '', currentPath = '', pa
     return extractedStudent && (extractedStudent.candidateName || extractedStudent.idNumber)
       ? 'SEARCH_STUDENT'
       : 'NAV_STUDENTS';
+  }
+
+  // Schedule / Room Change Query ("Lớp tôi vừa đổi phòng nào thế AI?", "Lớp đổi phòng nào", "Có đổi phòng không", "Phòng mới của lớp tôi")
+  const isScheduleChangeQuery =
+    norm.includes('doi phong nao') ||
+    norm.includes('doi sang phong nao') ||
+    norm.includes('phong moi cua lop') ||
+    norm.includes('phong moi la phong nao') ||
+    (norm.includes('doi phong') && (norm.includes('the ai') || norm.includes('lop toi') || norm.includes('nao') || norm.includes('o dau') || norm.includes('the nao'))) ||
+    norm.includes('vua doi phong') ||
+    norm.includes('vua doi lich') ||
+    norm.includes('thong bao doi lich') ||
+    norm.includes('doi tiet nao');
+
+  if (isScheduleChangeQuery) {
+    return 'SCHEDULE_ROOM_CHANGE_QUERY';
   }
 
   return 'OTHER';
@@ -1790,6 +1891,49 @@ export function getSmartAiResponse(rawText = '', role = '', user = null, current
     };
   }
 
+  // 0a.-0r Schedule / Room Change Query ("Lớp tôi vừa đổi phòng nào thế AI?", "Lớp đổi phòng nào")
+  if (intent === 'SCHEDULE_ROOM_CHANGE_QUERY') {
+    let scheduleInfo = null;
+    try {
+      if (typeof window !== 'undefined') {
+        const stored = sessionStorage.getItem('edumin_latest_schedule_change');
+        if (stored) scheduleInfo = JSON.parse(stored);
+      }
+    } catch {}
+
+    const classCode = scheduleInfo?.classCode || scheduleInfo?.targetClassId || pageContext?.selectedClassId || 'CNTT101-01';
+    const oldRoom = scheduleInfo?.oldRoom || 'A1-201';
+    const newRoom = scheduleInfo?.newRoom || 'B2-405';
+    const date = scheduleInfo?.date || 'tuần này';
+    const oldShift = scheduleInfo?.oldShift || 'Sáng (Tiết 1 - 3)';
+    const newShift = scheduleInfo?.newShift || 'Sáng (Tiết 1 - 3)';
+    const reason = scheduleInfo?.reason || 'Bảo trì trang thiết bị phòng học';
+    const senderName = scheduleInfo?.senderName || 'Giảng viên phụ trách';
+
+    const reply =
+      `🏢 **THÔNG TIN ĐIỀU CHỈNH PHÒNG HỌC & LỊCH HỌC**\n\n` +
+      `Theo thông báo mới nhất từ **${senderName}** dành cho lớp **${classCode}**:\n` +
+      `• **Phòng học cũ:** ${oldRoom}\n` +
+      `• **Phòng học mới (Chính thức):** **${newRoom}**\n` +
+      `• **Thời gian áp dụng:** Ngày **${date}** (${newShift})\n` +
+      `• **Lý do thay đổi:** ${reason}\n\n` +
+      `Bạn và các bạn cùng lớp nhớ di chuyển đúng phòng **${newRoom}** nhé! Bạn có muốn tôi xem lại thời khóa biểu mới không?`;
+
+    return {
+      matched: true,
+      intent: 'SCHEDULE_ROOM_CHANGE_QUERY',
+      reply,
+      quickLinks: [
+        { label: 'Xem Thời khóa biểu mới', path: isTeacher ? '/teacher/schedule' : '/student/timetable' },
+        { label: 'Lớp học phần', path: isTeacher ? '/teacher/classes' : '/student/attendance' },
+      ],
+      suggestions: [
+        'Xem thời khóa biểu tuần này ở đâu?',
+        'Cách xem chuyên cần và điểm danh',
+      ],
+    };
+  }
+
   // 0a.-0a Teacher / Admin Grade Entry ("vào điểm cho em Trân", "nhập điểm cho bạn Huê Trân", "vào điểm cho SV-002")
   if (intent === 'ENTER_STUDENT_GRADE') {
     const entryQuery = extractGradeEntryQuery(rawText);
@@ -2090,7 +2234,254 @@ export function getSmartAiResponse(rawText = '', role = '', user = null, current
     };
   }
 
-  // 0a.-0e Class / Course Section Query ("danh sách lớp Tiếng Anh 1", "lớp Tiếng Anh 1", "lớp IT101")
+  // 0a.-0e Document Summarization Intent ("tóm tắt giúp tôi các ý chính của tài liệu chương 1 môn [Tên môn]", "tóm tắt tài liệu...")
+  if (intent === 'DOC_SUMMARIZE') {
+    const chapterMatch = rawText.match(/(?:chương|chuong|bài|bai|phần|phan)\s+(\d+)/i);
+    const chapter = chapterMatch ? `Chương ${chapterMatch[1]}` : 'Chương 1';
+
+    let courseName = pageContext?.selectedStudySubject || pageContext?.courseName || 'Lập trình Web';
+    let courseCode = 'CNTT101';
+    let classId = 'CNTT101-01';
+
+    const norm = normalizeText(rawText);
+    if (norm.includes('sql') || norm.includes('du lieu') || norm.includes('database') || norm.includes('csdl')) {
+      courseName = 'Cơ sở dữ liệu';
+      courseCode = 'CS102';
+      classId = 'CS102-01';
+    } else if (norm.includes('mang') || norm.includes('network')) {
+      courseName = 'Mạng máy tính';
+      courseCode = 'IT103';
+      classId = 'IT103-01';
+    } else if (norm.includes('web') || norm.includes('react') || norm.includes('javascript') || norm.includes('frontend')) {
+      courseName = 'Lập trình Web';
+      courseCode = 'CNTT101';
+      classId = 'CNTT101-01';
+    } else if (courseName === 'Cơ sở dữ liệu') {
+      courseCode = 'CS102';
+      classId = 'CS102-01';
+    } else if (courseName === 'Mạng máy tính') {
+      courseCode = 'IT103';
+      classId = 'IT103-01';
+    }
+
+    const coreConcepts = courseCode === 'CS102'
+      ? [
+          { concept: 'Nguyên lý ACID', definition: 'Bốn tính chất cốt lõi của giao dịch cơ sở dữ liệu: Atomicity, Consistency, Isolation, Durability.', formula: 'ACID = \\{Atomicity, Consistency, Isolation, Durability\\}' },
+          { concept: 'Chuẩn hóa 2NF & 3NF', definition: 'Phân rã lược đồ để loại bỏ phụ thuộc một phần và phụ thuộc bắc cầu, triệt tiêu dư thừa dữ liệu.', formula: '1NF \\subset 2NF \\subset 3NF \\subset BCNF' },
+          { concept: 'Phép kết nối (JOIN)', definition: 'Kết hợp dữ liệu từ nhiều bảng dựa trên khóa chính (Primary Key) và khóa ngoại (Foreign Key).', formula: 'R \\bowtie_{R.id = S.r\\_id} S' },
+        ]
+      : [
+          { concept: 'Virtual DOM & Diffing', definition: 'Bản sao ảo của DOM thực tế trong bộ nhớ, cho phép tính toán sự khác biệt và cập nhật tối thiểu giúp tăng hiệu năng.', formula: 'Diff(V_{DOM}^{old}, V_{DOM}^{new}) \\rightarrow Patch(DOM_{real})' },
+          { concept: 'React Hooks (useState & useEffect)', definition: 'Hàm đặc biệt quản lý trạng thái nội bộ và xử lý tác vụ ngoại biên (side-effects) trong functional component.', formula: 'const [state, setState] = useState(initialValue);' },
+          { concept: 'Mô hình CSS Flexbox', definition: 'Bố cục một chiều linh hoạt theo trục chính (Main axis) và trục phụ (Cross axis), tự động thích ứng với kích thước màn hình.', formula: 'display: flex; justify-content: center; align-items: center;' },
+        ];
+
+    const docSource = pageContext?.attachedFile?.name || `GiaoTrinh_${courseCode}.pdf`;
+    const docTitle = pageContext?.attachedFile?.name
+      ? `Bản tóm tắt: ${pageContext.attachedFile.name}`
+      : `Bản tóm tắt: Giáo trình ${courseName}`;
+
+    const summaryMarkdown =
+      `### 📖 Tóm tắt kiến thức trọng tâm: ${pageContext?.attachedFile?.name || `Giáo trình ${courseName}`}\n` +
+      `**Học phần:** ${courseName} (${courseCode}) | **Lớp:** \`${classId}\`  \n` +
+      `**Phạm vi:** ${chapter} (Khái niệm & Cơ sở lý thuyết) | **Tài liệu nguồn:** \`${docSource}\`\n\n` +
+      `---\n\n` +
+      `#### 📌 1. Các Khái niệm Cốt lõi (Core Concepts)\n` +
+      coreConcepts.map((c) => `- **${c.concept}**: ${c.definition}\n  > ⚡ *Công thức/Cú pháp:* \`${c.formula}\``).join('\n') +
+      `\n\n---\n\n` +
+      `#### 📋 2. Ý chính tóm tắt theo nội dung bài học\n` +
+      `- **Cơ sở lý thuyết & Kiến trúc:** Nắm vững cấu trúc mô hình, quy chuẩn phân loại và nguyên tắc vận hành cốt lõi.\n` +
+      `- **Phương pháp phân tích & Kỹ thuật then chốt:** Vận dụng các cú pháp và quy tắc logic đã học để xây dựng mã nguồn/truy vấn chuẩn hóa.\n` +
+      `- **Tối ưu hóa hiệu năng:** Tránh các bẫy re-render không cần thiết hoặc truy vấn N+1 làm giảm tốc độ thực thi của hệ thống.\n\n` +
+      `---\n\n` +
+      `#### 💡 3. Lưu ý then chốt khi ôn thi & Làm bài tập\n` +
+      `> [!TIP]\n` +
+      `> Phân biệt rõ các khái niệm tương đồng và ghi nhớ các điều kiện biên của từng công thức trước khi làm bài thi.`;
+
+    const card = {
+      id: `summary-${Date.now()}`,
+      type: 'document_summary',
+      title: docTitle,
+      subtitle: `${courseName} • ${chapter}`,
+      code: classId,
+      summaryMarkdown,
+      coreConcepts,
+      details: [
+        { label: 'Học phần', value: courseName },
+        { label: 'Tài liệu nguồn', value: docSource },
+        { label: 'Phạm vi', value: chapter },
+        { label: 'Mã lớp', value: classId },
+      ],
+      action: { label: 'Tạo 5 câu Quiz ôn tập', path: '/student/documents' },
+    };
+
+    return {
+      matched: true,
+      reply: summaryMarkdown,
+      intent: 'DOC_SUMMARIZE',
+      summaryData: { documentName: docSource, courseName, classId, chapter, summaryMarkdown, coreConcepts },
+      cards: [card],
+      quickLinks: [
+        { label: 'Mở Tài liệu học tập', path: '/student/documents' },
+        { label: 'Mở Bài tập & Quiz', path: '/student/assignments' },
+      ],
+      suggestions: [
+        `Tạo 5 câu quiz trắc nghiệm ôn tập môn ${courseName}`,
+        `Tóm tắt Chương 2 tài liệu môn ${courseName}`,
+        'Xem bài tập & làm quiz',
+      ],
+    };
+  }
+
+  // 0a.-0f Interactive Quiz Generation Intent ("tạo cho tôi 5 câu quiz trắc nghiệm ôn tập dựa trên file tài liệu buổi học hôm nay")
+  if (intent === 'DOC_QUIZ_GENERATE') {
+    const norm = normalizeText(rawText);
+    let courseName = pageContext?.selectedStudySubject || pageContext?.courseName || 'Lập trình Web';
+    let courseCode = 'CNTT101';
+    let classId = 'CNTT101-01';
+
+    if (norm.includes('sql') || norm.includes('du lieu') || norm.includes('database') || norm.includes('csdl')) {
+      courseName = 'Cơ sở dữ liệu';
+      courseCode = 'CS102';
+      classId = 'CS102-01';
+    } else if (norm.includes('web') || norm.includes('react') || norm.includes('javascript') || norm.includes('frontend')) {
+      courseName = 'Lập trình Web';
+      courseCode = 'CNTT101';
+      classId = 'CNTT101-01';
+    } else if (courseName === 'Cơ sở dữ liệu') {
+      courseCode = 'CS102';
+      classId = 'CS102-01';
+    }
+
+    const questions = courseCode === 'CS102'
+      ? [
+          {
+            id: 'q1',
+            question: 'Thuộc tính nào trong nguyên lý ACID đảm bảo rằng một giao dịch phải hoàn tất toàn bộ các thao tác, hoặc nếu có lỗi thì hoàn tác sạch sẽ (All-or-Nothing)?',
+            options: ['A. Consistency (Tính nhất quán)', 'B. Atomicity (Tính nguyên tử)', 'C. Isolation (Tính cô lập)', 'D. Durability (Tính bền vững)'],
+            correctIndex: 1,
+            explanation: 'Giải thích chi tiết (Rationale): Atomicity (Tính nguyên tử) đảm bảo rằng tất cả các câu lệnh trong giao dịch được thực thi trọn vẹn; nếu một thao tác thất bại, toàn bộ giao dịch sẽ bị Rollback về trạng thái ban đầu.',
+            concept: 'Nguyên lý ACID',
+          },
+          {
+            id: 'q2',
+            question: 'Một lược đồ quan hệ đạt dạng chuẩn 2NF (Second Normal Form) khi và chỉ khi thỏa mãn điều kiện nào sau đây?',
+            options: ['A. Đạt dạng chuẩn 1NF và không chứa thuộc tính không khóa nào phụ thuộc một phần vào khóa chính', 'B. Có ít nhất 3 khóa ngoại trỏ đến các bảng khác', 'C. Không chứa bất kỳ giá trị NULL nào', 'D. Bảng chỉ được phép có tối đa 10 cột'],
+            correctIndex: 0,
+            explanation: 'Giải thích chi tiết (Rationale): Dạng chuẩn 2NF yêu cầu bảng đạt 1NF (mọi giá trị nguyên tử) và mọi thuộc tính không khóa phải phụ thuộc hàm đầy đủ vào toàn bộ khóa chính.',
+            concept: 'Chuẩn hóa Dữ liệu (2NF)',
+          },
+          {
+            id: 'q3',
+            question: 'Trong câu lệnh SQL SELECT, mệnh đề HAVING khác với mệnh đề WHERE ở điểm mấu chốt nào?',
+            options: ['A. HAVING lọc các nhóm sau khi gom nhóm (GROUP BY) và hàm tổng hợp, còn WHERE lọc từng dòng riêng lẻ', 'B. WHERE chỉ dùng cho số, HAVING dùng cho chuỗi', 'C. HAVING thực thi trước mệnh đề FROM', 'D. Hai mệnh đề hoàn toàn hoán đổi cho nhau được'],
+            correctIndex: 0,
+            explanation: 'Giải thích chi tiết (Rationale): WHERE lọc từng hàng (rows) trước khi gom nhóm, còn HAVING lọc các nhóm (groups) được tạo ra bởi GROUP BY và áp dụng được trên các hàm tổng hợp như COUNT(), SUM(), AVG().',
+            concept: 'SQL GROUP BY & HAVING',
+          },
+          {
+            id: 'q4',
+            question: 'Phép kết nối `LEFT JOIN` giữa hai bảng A và B (A LEFT JOIN B ON A.id = B.a_id) sẽ trả về kết quả như thế nào?',
+            options: ['A. Chỉ những dòng có id khớp nhau ở cả hai bảng', 'B. Toàn bộ các dòng từ bảng B và chỉ những dòng khớp từ bảng A', 'C. Toàn bộ các dòng từ bảng A, kết hợp với các cột tương ứng của bảng B nếu có khớp (nếu không có thì nhận giá trị NULL)', 'D. Tích Descartes của tất cả các dòng'],
+            correctIndex: 2,
+            explanation: 'Giải thích chi tiết (Rationale): LEFT JOIN giữ lại 100% các dòng từ bảng bên trái (A). Nếu có bản ghi khớp ở bảng B thì điền dữ liệu, nếu không khớp thì các cột của B sẽ chứa giá trị NULL.',
+            concept: 'SQL Joins',
+          },
+          {
+            id: 'q5',
+            question: 'Tại sao việc tạo quá nhiều Index (chỉ mục) trên một bảng có thể làm giảm hiệu năng hệ thống?',
+            options: ['A. Làm câu lệnh SELECT bị chậm đi gấp đôi', 'B. Làm tăng chi phí và thời gian ghi đĩa cho mỗi thao tác INSERT, UPDATE, DELETE vì phải cập nhật lại cây Index', 'C. Làm mất tính toàn vẹn của khóa chính', 'D. Index làm giảm dung lượng bộ nhớ RAM'],
+            correctIndex: 1,
+            explanation: 'Giải thích chi tiết (Rationale): Dù Index tăng tốc vượt trội cho câu lệnh SELECT/WHERE, nhưng mỗi khi thêm/sửa/xóa dòng dữ liệu, hệ quản trị CSDL phải đồng thời cập nhật lại cấu trúc cây Index (B-Tree/Hash), làm chậm tốc độ ghi (Write performance).',
+            concept: 'Database Indexing',
+          },
+        ]
+      : [
+          {
+            id: 'q1',
+            question: 'Trong kiến trúc React, cơ chế Virtual DOM giúp tối ưu hóa hiệu năng render giao diện chủ yếu nhờ vào quá trình nào?',
+            options: ['A. Tự động biên dịch mã JavaScript sang Assembly', 'B. So sánh khác biệt (Diffing) giữa cây Virtual DOM cũ và mới để cập nhật tối thiểu vào DOM thật', 'C. Lưu trữ toàn bộ dữ liệu người dùng trên LocalStorage', 'D. Thay thế hoàn toàn giao thức HTTP bằng WebSockets hai chiều'],
+            correctIndex: 1,
+            explanation: 'Giải thích chi tiết (Rationale): React tạo ra một bản sao ảo của cây DOM trong bộ nhớ. Khi state thay đổi, React chạy thuật toán Diffing để so sánh cây Virtual DOM mới với cây cũ và chỉ cập nhật những phần tử thực sự thay đổi lên DOM thực tế.',
+            concept: 'Virtual DOM & Diffing',
+          },
+          {
+            id: 'q2',
+            question: 'Khi sử dụng React Hook `useEffect`, việc cung cấp một mảng phụ thuộc rỗng `[]` có ý nghĩa gì?',
+            options: ['A. Effect sẽ chạy lại sau mỗi lần component re-render', 'B. Component sẽ bị hủy và render lại từ đầu', 'C. Effect chỉ thực thi đúng một lần duy nhất sau lần render đầu tiên (tương đương componentDidMount)', 'D. Vô hiệu hóa toàn bộ việc cập nhật State trong component'],
+            correctIndex: 2,
+            explanation: 'Giải thích chi tiết (Rationale): Mảng dependency rỗng `[]` báo cho React biết effect này không phụ thuộc vào bất kỳ biến state hay props nào, do đó nó chỉ chạy duy nhất một lần khi component mount vào DOM.',
+            concept: 'React Hooks (useEffect)',
+          },
+          {
+            id: 'q3',
+            question: 'Trong mô hình bố cục CSS Flexbox, thuộc tính nào được sử dụng để căn chỉnh các phần tử con dọc theo trục phụ (Cross Axis)?',
+            options: ['A. justify-content', 'B. align-items', 'C. flex-direction', 'D. flex-wrap'],
+            correctIndex: 1,
+            explanation: 'Giải thích chi tiết (Rationale): `justify-content` dùng để căn chỉnh dọc theo trục chính (Main Axis), còn `align-items` dùng để căn chỉnh các phần tử con dọc theo trục phụ (Cross Axis).',
+            concept: 'CSS Flexbox Layout',
+          },
+          {
+            id: 'q4',
+            question: 'Trong giao thức HTTP/1.1 và HTTP/2, phương thức nào sau đây có tính chất "Idempotent"?',
+            options: ['A. POST', 'B. GET, PUT và DELETE', 'C. Chỉ có PATCH', 'D. CONNECT'],
+            correctIndex: 1,
+            explanation: 'Giải thích chi tiết (Rationale): GET, PUT và DELETE có tính chất Idempotent (gọi 1 lần hay nhiều lần liên tiếp với cùng dữ liệu đều tạo ra cùng trạng thái tài nguyên trên server). Ngược lại, POST không idempotent vì mỗi lần gọi tạo ra thêm tài nguyên mới.',
+            concept: 'RESTful API & HTTP Methods',
+          },
+          {
+            id: 'q5',
+            question: 'Trong ngôn ngữ JavaScript ES6+, cú pháp Destructuring Assignment cho phép thực hiện điều gì?',
+            options: ['A. Xóa hoàn toàn một object ra khỏi bộ nhớ Heap', 'B. Trích xuất trực tiếp các thuộc tính của Object hoặc phần tử của Array vào các biến riêng biệt một cách ngắn gọn', 'C. Chuyển đổi mã đồng bộ sang bất đồng bộ tự động', 'D. Mã hóa chuỗi JSON thành mã nhị phân'],
+            correctIndex: 1,
+            explanation: 'Giải thích chi tiết (Rationale): Destructuring Assignment (ví dụ: `const { name, age } = user;`) cho phép giải nén các giá trị từ mảng hoặc thuộc tính từ đối tượng vào các biến độc lập.',
+            concept: 'JavaScript ES6+',
+          },
+        ];
+
+    const docSource = pageContext?.attachedFile?.name || `Tài liệu ${courseName}`;
+
+    const card = {
+      id: `quiz-${Date.now()}`,
+      type: 'interactive_quiz',
+      title: pageContext?.attachedFile?.name
+        ? `Bộ Quiz ôn tập: ${pageContext.attachedFile.name}`
+        : `Bộ Quiz ôn tập: Tài liệu ${courseName}`,
+      subtitle: `${courseName} • 5 câu hỏi trắc nghiệm kèm giải thích`,
+      code: classId,
+      totalQuestions: 5,
+      questions,
+      details: [
+        { label: 'Học phần', value: courseName },
+        { label: 'Tài liệu nguồn', value: docSource },
+        { label: 'Số lượng', value: '5 câu hỏi' },
+        { label: 'Mã lớp', value: classId },
+        { label: 'Độ khó', value: 'Trung bình - Bám sát đề' },
+      ],
+    };
+
+    return {
+      matched: true,
+      reply: `🎯 **BỘ CÂU HỎI QUIZ TRẮC NGHIỆM ÔN TẬP TỰ ĐỘNG TỪ TÀI LIỆU**\n\n` +
+        `EduMin AI đã đọc và phân tích tài liệu **${docSource}** (${courseName} - \`${classId}\`).\n` +
+        `Dưới đây là bộ **5 câu hỏi trắc nghiệm** kèm 4 đáp án (A, B, C, D) và phần giải thích (rationale) chi tiết.\n\n` +
+        `👉 *Bạn có thể bấm trực tiếp vào các lựa chọn đáp án bên dưới khung tương tác để tự kiểm tra đáp án đúng/sai và chấm điểm nhé!*`,
+      intent: 'DOC_QUIZ_GENERATE',
+      quizData: { documentName: docSource, courseName, classId, totalQuestions: 5, questions },
+      cards: [card],
+      quickLinks: [
+        { label: 'Mở Bài tập & Quiz', path: '/student/assignments' },
+        { label: 'Xem Tài liệu môn học', path: '/student/documents' },
+      ],
+      suggestions: [
+        `Tóm tắt ý chính tài liệu môn ${courseName}`,
+        'Tạo thêm 5 câu hỏi khó hơn',
+        'Xem điểm danh & chuyên cần',
+      ],
+    };
+  }
+
+  // 0a.-0g Class / Course Section Query ("danh sách lớp Tiếng Anh 1", "lớp Tiếng Anh 1", "lớp IT101")
   if (intent === 'QUERY_CLASS') {
     const rawClassTarget = extractClassQuery(rawText) || '';
     const normClassTarget = normalizeText(rawClassTarget);
@@ -2143,7 +2534,7 @@ export function getSmartAiResponse(rawText = '', role = '', user = null, current
           {
             actionType: 'NAVIGATE',
             label: '✅ Điểm danh lớp',
-            path: isTeacher ? `/teacher/attendance?classId=${targetClass._id || targetClass.id}` : '/teacher/attendance',
+            path: isTeacher ? `/teacher/attendance?classId=${targetClass.id || targetClass._id}` : '/teacher/attendance',
           },
         ],
         action: {
@@ -3248,24 +3639,74 @@ export function getSmartAiResponse(rawText = '', role = '', user = null, current
     };
   }
 
-  // 8. Navigation: Tài liệu môn học
+  // 8. Navigation & Data: Quản lý & Cập nhật tài liệu học phần
   if (
     text.includes('tai lieu') ||
     text.includes('slide') ||
     text.includes('bai giang') ||
-    text.includes('giao trinh')
+    text.includes('giao trinh') ||
+    text.includes('quet tai lieu') ||
+    text.includes('cap nhat tai lieu')
   ) {
+    const norm = normalizeText(rawText);
+    let courseName = pageContext?.selectedStudySubject || 'Lập trình Web';
+    let classId = 'CNTT101-01';
+    if (norm.includes('sql') || norm.includes('du lieu') || norm.includes('database') || norm.includes('csdl')) {
+      courseName = 'Cơ sở dữ liệu';
+      classId = 'CS102-01';
+    } else if (norm.includes('mang') || norm.includes('network')) {
+      courseName = 'Mạng máy tính';
+      classId = 'IT103-01';
+    }
+
+    const docCards = [
+      {
+        type: 'document_card',
+        id: `doc-${Date.now()}-1`,
+        docId: `doc-${Date.now()}-1`,
+        title: `GiaoTrinh_${courseName.replace(/\s+/g, '')}_2026.pdf`,
+        name: `Giáo trình lý thuyết ${courseName} (Phiên bản mới 2026)`,
+        format: 'pdf',
+        sizeText: '4.2 MB',
+        courseName,
+        classId,
+        updatedAt: '15/10/2026',
+        uploadedBy: user?.hoTen || 'ThS. Nguyễn Văn A',
+        action: { label: 'Xem chi tiết', path: isTeacher ? '/teacher/documents' : '/student/documents' },
+      },
+      {
+        type: 'document_card',
+        id: `doc-${Date.now()}-2`,
+        docId: `doc-${Date.now()}-2`,
+        title: `Slide_BaiGiang_Chuong1_${courseName.replace(/\s+/g, '')}.pptx`,
+        name: `Slide Bài giảng Chương 1: Giới thiệu & Khái niệm cốt lõi`,
+        format: 'pptx',
+        sizeText: '2.1 MB',
+        courseName,
+        classId,
+        updatedAt: '14/10/2026',
+        uploadedBy: user?.hoTen || 'ThS. Nguyễn Văn A',
+        action: { label: 'Xem chi tiết', path: isTeacher ? '/teacher/documents' : '/student/documents' },
+      },
+    ];
+
     return {
       matched: true,
-      intent: 'NAV_DOCUMENTS',
-      reply: isTeacher
-        ? 'Dạ, bạn có thể tải lên và quản lý các tài liệu bài giảng tại mục "Tài liệu" ở menu bên trái.'
-        : 'Dạ, bạn có thể xem và tải các tài liệu bài giảng tại mục "Tài liệu" ở menu bên trái.',
-      quickLinks: [{ label: 'Mở Tài liệu', path: isTeacher ? '/teacher/documents' : '/student/documents' }],
+      intent: 'TEACHER_DOCUMENT_QUERY',
+      reply: `📂 **DANH SÁCH TÀI LIỆU HỌC PHẦN ĐÃ ĐƯỢC CẬP NHẬT:**\n\n` +
+        `EduMin AI đã quét và đồng bộ dữ liệu tài liệu môn **${courseName}** (\`${classId}\`).\n` +
+        `Dưới đây là các tệp bài giảng và giáo trình kèm dung lượng, ngày cập nhật. ` +
+        `Thầy/Cô có thể **Tải xuống** hoặc **Tạo Quiz ôn tập** trực tiếp bằng các nút bấm bên dưới:`,
+      cards: docCards,
+      quickLinks: [{ label: 'Mở Quản lý Tài liệu', path: isTeacher ? '/teacher/documents' : '/student/documents' }],
+      suggestions: [
+        `Tạo 5 câu quiz trắc nghiệm ôn tập môn ${courseName}`,
+        `Tóm tắt Chương 1 tài liệu môn ${courseName}`,
+      ],
     };
   }
 
-  // 9. Navigation & Action: Duyệt yêu cầu & Hồ sơ
+  // 9. Navigation & Action: Duyệt yêu cầu & Phân quyền (Admin)
   if (
     text.includes('co yeu cau nao moi') ||
     text.includes('yeu cau moi') ||
@@ -3281,70 +3722,93 @@ export function getSmartAiResponse(rawText = '', role = '', user = null, current
     text.includes('doi avatar') ||
     text.includes('anh dai dien') ||
     text.includes('yeu cau cap nhat') ||
-    text.includes('profile request')
+    text.includes('profile request') ||
+    text.includes('phan quyen') ||
+    text.includes('xin quyen') ||
+    text.includes('cap quyen') ||
+    text.includes('kiem tra yeu cau') ||
+    text.includes('yeu cau phu')
   ) {
     const matchPerson = rawText.match(/(?:duyệt yêu cầu của|duyệt hồ sơ của|yêu cầu của)\s+([^?.,]+)/i);
     const requesterName =
-      matchPerson && matchPerson[1] && !['hồ sơ', 'yêu cầu', 'mới', 'tôi', 'em'].includes(matchPerson[1].trim().toLowerCase())
+      matchPerson && matchPerson[1] && !['hồ sơ', 'yêu cầu', 'mới', 'tôi', 'em', 'phân quyền'].includes(matchPerson[1].trim().toLowerCase())
         ? matchPerson[1].trim()
         : 'Nguyễn Văn An';
 
-    const approvalCards = [
-      {
-        type: 'approval',
-        id: 'req-001',
-        requestId: 'req-001',
-        title: requesterName,
-        code: 'Yêu cầu #REQ1',
-        subtitle: 'Cập nhật ảnh đại diện mới',
-        meta: 'Email: an.nguyen@edu.vn • Sinh viên',
-        status: 'pending',
-        details: [
-          { label: 'Người yêu cầu', value: requesterName },
-          { label: 'Loại yêu cầu', value: 'Đổi ảnh đại diện' },
-          { label: 'Trạng thái', value: 'Chờ duyệt' },
-        ],
-        action: {
-          label: 'Xem chi tiết',
-          path: '/admin/profile-requests',
-        },
-        actions: [
-          {
-            actionType: 'APPROVE_REQUEST',
-            label: 'Xác nhận duyệt nhanh',
-            icon: 'fas fa-check-circle',
-            variant: 'success',
-            payload: { requestId: 'req-001', requesterName },
-          },
-          {
-            actionType: 'REJECT_REQUEST',
-            label: '✗ Từ chối',
-            icon: 'fas fa-times-circle',
-            variant: 'danger',
-            payload: { requestId: 'req-001', requesterName },
-          },
-          {
-            actionType: 'NAVIGATE',
-            label: 'Xem chi tiết',
-            path: '/admin/profile-requests',
-          },
-        ],
+    const hasBatchRequest =
+      text.includes('danh sach') ||
+      text.includes('tat ca') ||
+      text.includes('bang') ||
+      text.includes('cac yeu cau') ||
+      text.includes('cac ho so') ||
+      text.includes('nhieu yeu cau');
+
+    const req1 = {
+      type: 'approval',
+      id: 'req-001',
+      requestId: 'req-001',
+      title: requesterName,
+      requesterName,
+      requesterRole: 'sinh-vien',
+      code: 'Yêu cầu #REQ1',
+      permission: 'Cập nhật ảnh đại diện & CCCD mới',
+      subtitle: 'Cập nhật ảnh đại diện mới',
+      meta: 'Email: an.nguyen@student.edu.vn • Sinh viên',
+      reason: 'Thay đổi ảnh thẻ mới chuẩn kích thước hồ sơ',
+      createdAt: '15/10/2026',
+      status: 'pending',
+      details: [
+        { label: 'Người yêu cầu', value: requesterName },
+        { label: 'Vai trò', value: 'Sinh viên' },
+        { label: 'Nội dung xin cấp quyền', value: 'Cập nhật ảnh đại diện & CCCD' },
+        { label: 'Trạng thái', value: 'Chờ duyệt' },
+      ],
+      action: {
+        label: 'Xem chi tiết',
+        path: '/admin/profile-requests',
       },
-    ];
+    };
+
+    const req2 = {
+      type: 'approval',
+      id: 'req-002',
+      requestId: 'req-002',
+      title: 'ThS. Trần Thị Mai',
+      requesterName: 'ThS. Trần Thị Mai',
+      requesterRole: 'giao-vien',
+      code: 'Yêu cầu #REQ2',
+      permission: 'Xin cấp quyền quản trị lớp học phần CNTT101-01 & Mở khóa nhập điểm',
+      subtitle: 'Cấp quyền phụ trách lớp học phần & nhập điểm',
+      meta: 'Email: mai.tran@faculty.edu.vn • Giảng viên',
+      reason: 'Tiếp nhận dạy thay giảng viên công tác đột xuất',
+      createdAt: '15/10/2026',
+      status: 'pending',
+      details: [
+        { label: 'Người yêu cầu', value: 'ThS. Trần Thị Mai' },
+        { label: 'Vai trò', value: 'Giảng viên' },
+        { label: 'Nội dung xin cấp quyền', value: 'Phân quyền quản lý lớp & nhập điểm' },
+        { label: 'Trạng thái', value: 'Chờ duyệt' },
+      ],
+      action: {
+        label: 'Xem chi tiết',
+        path: '/admin/profile-requests',
+      },
+    };
+
+    const approvalCards = hasBatchRequest ? [req1, req2] : [req1];
 
     return {
       matched: true,
-      intent: 'NAV_PROFILE_REQUESTS',
-      reply: isAdmin
-        ? 'Dạ, bạn có thể xem xét và phê duyệt các yêu cầu thay đổi thông tin cá nhân hoặc cập nhật ảnh đại diện tại trang "Duyệt yêu cầu". Bạn cũng có thể bấm **[Xác nhận duyệt nhanh]** trực tiếp bên dưới:'
-        : 'Dạ, để cập nhật thông tin cá nhân hoặc đổi ảnh đại diện, bạn bấm vào Avatar ở góc phải trên cùng hoặc trang Tổng quan để gửi yêu cầu. Ban Đào tạo sẽ xem xét và phê duyệt.',
-      cards: isAdmin ? approvalCards : [],
-      quickLinks: isAdmin
-        ? [
-            { label: 'Duyệt yêu cầu', path: '/admin/profile-requests' },
-            { label: 'Duyệt yêu cầu hồ sơ', path: '/admin/profile-requests' },
-          ]
-        : [{ label: 'Trang cá nhân', path: isTeacher ? '/teacher' : '/student' }],
+      intent: 'ADMIN_APPROVAL',
+      reply: `📋 **DANH SÁCH YÊU CẦU XÉT DUYỆT & PHÂN QUYỀN HỆ THỐNG:**\n\n` +
+        `EduMin AI đã tìm thấy **${approvalCards.length} yêu cầu** đang ở trạng thái chờ duyệt. ` +
+        `Admin có thể xem thông tin, vai trò, nội dung xin cấp quyền và bấm trực tiếp nút **[Phê duyệt / Accept]** hoặc **[Từ chối / Reject]** trên thẻ/bảng bên dưới để hệ thống cập nhật tức thì:`,
+      cards: approvalCards,
+      quickLinks: [{ label: 'Mở Quản lý yêu cầu hồ sơ', path: '/admin/profile-requests' }],
+      suggestions: [
+        'Duyệt yêu cầu của Nguyễn Văn An',
+        'Có hồ sơ nào chờ duyệt không?',
+      ],
     };
   }
 
@@ -3971,6 +4435,48 @@ function getInitialFabPos() {
   };
 }
 
+export function formatAttachmentSize(bytes) {
+  if (!bytes || bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
+}
+
+export function getAttachmentFileMeta(fileName = '') {
+  const ext = String(fileName).split('.').pop().toLowerCase();
+  if (ext === 'pdf') {
+    return {
+      icon: 'fas fa-file-pdf',
+      color: 'text-rose-600',
+      badgeBg: 'bg-rose-50 text-rose-700 border-rose-200',
+      label: 'PDF',
+    };
+  }
+  if (['doc', 'docx'].includes(ext)) {
+    return {
+      icon: 'fas fa-file-word',
+      color: 'text-blue-600',
+      badgeBg: 'bg-blue-50 text-blue-700 border-blue-200',
+      label: 'DOCX',
+    };
+  }
+  if (ext === 'txt') {
+    return {
+      icon: 'fas fa-file-lines',
+      color: 'text-emerald-600',
+      badgeBg: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+      label: 'TXT',
+    };
+  }
+  return {
+    icon: 'fas fa-paperclip',
+    color: 'text-indigo-600',
+    badgeBg: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+    label: ext ? ext.toUpperCase() : 'Tài liệu',
+  };
+}
+
 function EduMinAiAssistantInner() {
   const authContext = useAuth();
   const user = authContext?.user || null;
@@ -3992,6 +4498,202 @@ function EduMinAiAssistantInner() {
   const [loading, setLoading] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
   const [actionLoading, setActionLoading] = useState({});
+  const [selectedStudySubject, setSelectedStudySubject] = useState('');
+  const [attachedFile, setAttachedFile] = useState(null);
+  const fileInputRef = useRef(null);
+
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+    const allowed = ['.pdf', '.docx', '.txt'];
+    if (!allowed.includes(ext)) {
+      toast?.error?.('Vui lòng chỉ tải lên tài liệu định dạng .pdf, .docx hoặc .txt');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
+    setAttachedFile(file);
+    setTimeout(() => {
+      inputRef.current?.focus();
+    }, 50);
+  };
+
+  const handleRemoveFile = () => {
+    setAttachedFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  // Speech Recognition (Speech-to-Text) and Speech Synthesis (Text-to-Speech)
+  const [isListening, setIsListening] = useState(false);
+  const [speakingMessageId, setSpeakingMessageId] = useState(null);
+  const recognitionRef = useRef(null);
+  const utteranceRef = useRef(null);
+  const baseInputRef = useRef('');
+
+  // Cleanup speech synthesis & recognition on unmount
+  useEffect(() => {
+    return () => {
+      try {
+        recognitionRef.current?.stop();
+      } catch {}
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        try {
+          window.speechSynthesis.cancel();
+        } catch {}
+      }
+    };
+  }, []);
+
+  const handleToggleListening = () => {
+    const SpeechRecognition =
+      typeof window !== 'undefined'
+        ? window.SpeechRecognition || window.webkitSpeechRecognition
+        : null;
+
+    if (!SpeechRecognition) {
+      toast?.warning?.(
+        'Trình duyệt của bạn chưa hỗ trợ nhận diện giọng nói (Web Speech API). Vui lòng sử dụng Google Chrome hoặc Microsoft Edge.'
+      );
+      return;
+    }
+
+    if (isListening) {
+      try {
+        recognitionRef.current?.stop();
+      } catch {}
+      setIsListening(false);
+      return;
+    }
+
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.lang = 'vi-VN';
+      recognition.continuous = false;
+      recognition.interimResults = true;
+      recognition.maxAlternatives = 1;
+
+      baseInputRef.current = input ? input.trim() + ' ' : '';
+
+      recognition.onstart = () => {
+        setIsListening(true);
+      };
+
+      recognition.onresult = (event) => {
+        let interimTranscript = '';
+        let finalTranscript = '';
+
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          const res = event.results[i];
+          if (res?.isFinal) {
+            finalTranscript += res[0]?.transcript || '';
+          } else {
+            interimTranscript += res[0]?.transcript || '';
+          }
+        }
+
+        const spoken = (finalTranscript || interimTranscript).trim();
+        if (spoken) {
+          setInput(baseInputRef.current + spoken);
+        }
+      };
+
+      recognition.onerror = (event) => {
+        console.warn('Speech recognition error:', event.error);
+        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+          toast?.error?.('Vui lòng cấp quyền truy cập micro trong trình duyệt để sử dụng tính năng này.');
+        } else if (event.error === 'no-speech') {
+          // No speech detected, quietly finish
+        } else if (event.error !== 'aborted') {
+          toast?.warning?.(`Lỗi nhận diện giọng nói: ${event.error}`);
+        }
+        setIsListening(false);
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+        recognitionRef.current = null;
+      };
+
+      recognitionRef.current = recognition;
+      recognition.start();
+    } catch (err) {
+      console.error('Failed to start speech recognition:', err);
+      toast?.error?.('Không thể khởi động micro. Vui lòng thử lại.');
+      setIsListening(false);
+    }
+  };
+
+  const handleToggleSpeak = (messageId, text) => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+      toast?.warning?.('Trình duyệt của bạn chưa hỗ trợ tính năng phát âm thanh (Speech Synthesis).');
+      return;
+    }
+
+    const synth = window.speechSynthesis;
+
+    // If currently speaking this message, toggle off
+    if (speakingMessageId === messageId) {
+      try {
+        synth.cancel();
+      } catch {}
+      setSpeakingMessageId(null);
+      return;
+    }
+
+    // Cancel any previous speech
+    try {
+      synth.cancel();
+    } catch {}
+
+    const cleanText = cleanTextForSpeech(text);
+    if (!cleanText) {
+      toast?.info?.('Không có nội dung văn bản để đọc.');
+      return;
+    }
+
+    try {
+      const utterance = new SpeechSynthesisUtterance(cleanText);
+      utterance.lang = 'vi-VN';
+      utterance.rate = 1.0;
+      utterance.pitch = 1.0;
+
+      // Select Vietnamese voice if available
+      const voices = synth.getVoices() || [];
+      const viVoice = voices.find(
+        (v) => v.lang === 'vi-VN' || v.lang?.toLowerCase()?.startsWith('vi')
+      );
+      if (viVoice) {
+        utterance.voice = viVoice;
+      }
+
+      utterance.onstart = () => {
+        setSpeakingMessageId(messageId);
+      };
+
+      utterance.onend = () => {
+        setSpeakingMessageId(null);
+        utteranceRef.current = null;
+      };
+
+      utterance.onerror = (e) => {
+        console.warn('SpeechSynthesis error:', e);
+        setSpeakingMessageId(null);
+        utteranceRef.current = null;
+      };
+
+      utteranceRef.current = utterance;
+      synth.speak(utterance);
+      setSpeakingMessageId(messageId);
+    } catch (err) {
+      console.error('Failed to synthesize speech:', err);
+      toast?.error?.('Không thể phát âm thanh. Vui lòng thử lại.');
+      setSpeakingMessageId(null);
+    }
+  };
 
   // Flexible UI display modes: Floating panel by default overlaying content with z-index
   const [isDocked, setIsDocked] = useState(() => getInitialChatDocked(user));
@@ -4307,28 +5009,272 @@ function EduMinAiAssistantInner() {
     };
   }, [user, role]);
 
+  // Proactive Schedule Change Alert when opening Chatbox
+  const greetedScheduleRef = useRef(new Set());
+
+  useEffect(() => {
+    const handleScheduleEvent = (e) => {
+      const detail = e.detail;
+      if (detail?.metadata) {
+        try {
+          sessionStorage.setItem(
+            'edumin_latest_schedule_change',
+            JSON.stringify({
+              id: `evt_${Date.now()}`,
+              classCode: detail.metadata.classCode || detail.targetClassId || 'CNTT101-01',
+              targetClassId: detail.targetClassId || detail.metadata.classCode || 'CNTT101-01',
+              oldRoom: detail.metadata.oldRoom || 'A1-201',
+              newRoom: detail.metadata.newRoom || 'B2-405',
+              date: detail.metadata.date || 'ngày mai',
+              oldShift: detail.metadata.oldShift || 'Sáng (Tiết 1 - 3)',
+              newShift: detail.metadata.newShift || 'Sáng (Tiết 1 - 3)',
+              reason: detail.metadata.reason || 'Bảo trì trang thiết bị phòng học',
+              senderName: detail.metadata.senderName || (role === 'dao-tao' ? 'Phòng Đào Tạo' : 'Giảng viên'),
+              senderRole: role || 'giao-vien',
+              greeted: false,
+            })
+          );
+        } catch {}
+      }
+    };
+
+    window.addEventListener('edumin_schedule_changed', handleScheduleEvent);
+    window.addEventListener('edumin_schedule_notification', handleScheduleEvent);
+
+    return () => {
+      window.removeEventListener('edumin_schedule_changed', handleScheduleEvent);
+      window.removeEventListener('edumin_schedule_notification', handleScheduleEvent);
+    };
+  }, [role]);
+
+  useEffect(() => {
+    if (!isOpen || !user) return;
+
+    let active = true;
+    async function checkProactiveScheduleNotifications() {
+      try {
+        let scheduleNotifs = [];
+
+        // 1. Fetch unread schedule notifications from backend API
+        try {
+          const res = await notificationsApi.list({ type: 'schedule_change', limit: 5 });
+          const items = res?.data || res?.items || [];
+          scheduleNotifs = items.filter((n) => !n.isRead && n.type === 'schedule_change');
+        } catch {
+          scheduleNotifs = [];
+        }
+
+        // 2. Check local/session storage if backend returned empty or in mock/offline mode
+        if (scheduleNotifs.length === 0) {
+          try {
+            const rawStored = sessionStorage.getItem('edumin_latest_schedule_change');
+            if (rawStored) {
+              const parsed = JSON.parse(rawStored);
+              if (parsed && !parsed.greeted) {
+                scheduleNotifs = [
+                  {
+                    _id: parsed.id || 'stored_sched',
+                    targetClassId: parsed.classCode || parsed.targetClassId || 'CNTT101-01',
+                    senderName: parsed.senderName || 'Giảng viên',
+                    senderRole: parsed.senderRole || 'dao-tao',
+                    metadata: parsed,
+                    message: `Lớp đổi sang phòng ${parsed.newRoom || 'mới'} vào ngày ${parsed.date || ''}.`,
+                  },
+                ];
+              }
+            }
+          } catch {}
+        }
+
+        if (!active || scheduleNotifs.length === 0) return;
+
+        const notif = scheduleNotifs[0];
+        const notifKey = notif._id || `${notif.targetClassId}_${notif.metadata?.date}`;
+
+        if (greetedScheduleRef.current.has(notifKey)) return;
+        greetedScheduleRef.current.add(notifKey);
+
+        // Store active schedule change context for conversational Q&A
+        try {
+          sessionStorage.setItem(
+            'edumin_latest_schedule_change',
+            JSON.stringify({
+              id: notifKey,
+              classCode: notif.targetClassId || notif.metadata?.classCode || 'CNTT101-01',
+              targetClassId: notif.targetClassId || notif.metadata?.classCode || 'CNTT101-01',
+              oldRoom: notif.metadata?.oldRoom || 'A1-201',
+              newRoom: notif.metadata?.newRoom || 'B2-405',
+              date: notif.metadata?.date || 'ngày mai',
+              oldShift: notif.metadata?.oldShift || 'Sáng (Tiết 1 - 3)',
+              newShift: notif.metadata?.newShift || 'Sáng (Tiết 1 - 3)',
+              reason: notif.metadata?.reason || 'Bảo trì trang thiết bị phòng học',
+              senderName: notif.senderName || 'Giảng viên/Admin',
+              senderRole: notif.senderRole || 'dao-tao',
+              greeted: true,
+            })
+          );
+        } catch {}
+
+        const classLabel = notif.targetClassId || notif.metadata?.classCode || 'CNTT101-01';
+        const senderLabel =
+          notif.senderRole === 'dao-tao' || notif.senderRole === 'admin'
+            ? 'Admin'
+            : notif.senderName || 'Giảng viên';
+        const dateLabel = notif.metadata?.date || 'sắp tới';
+
+        const greetingText =
+          `Dạ chào bạn, lớp **${classLabel}** vừa có thông báo đổi lịch từ **${senderLabel}** vào ngày **${dateLabel}**.\n\n` +
+          `*Chi tiết:* ${notif.message || notif.title}\n\n` +
+          `Bạn có muốn tôi xem lại thời khóa biểu mới không?`;
+
+        const proactiveMsg = {
+          id: `proactive-schedule-${Date.now()}`,
+          sender: 'assistant',
+          text: greetingText,
+          timestamp: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+          quickLinks: [
+            {
+              label: 'Xem Thời khóa biểu mới',
+              path: role === 'giao-vien' || role === 'teacher' ? '/teacher/schedule' : '/student/timetable',
+            },
+          ],
+          suggestions: [
+            'Lớp tôi vừa đổi phòng nào thế AI?',
+            'Xem thời khóa biểu tuần này ở đâu?',
+          ],
+        };
+
+        setMessages((prev) => {
+          if (
+            prev.some(
+              (m) => m.text && m.text.includes(`lớp **${classLabel}** vừa có thông báo đổi lịch`)
+            )
+          ) {
+            return prev;
+          }
+          return [...prev, proactiveMsg];
+        });
+
+        setSuggestions((prev) => [
+          'Lớp tôi vừa đổi phòng nào thế AI?',
+          ...prev.filter((s) => s !== 'Lớp tôi vừa đổi phòng nào thế AI?'),
+        ]);
+      } catch {}
+    }
+
+    checkProactiveScheduleNotifications();
+
+    return () => {
+      active = false;
+    };
+  }, [isOpen, user, role]);
+
+  const handleSendMessageRef = useRef();
+
+  // Listen for AI study triggers from Student Document List or other components
+  useEffect(() => {
+    const handleStudyEvent = (e) => {
+      const detail = e?.detail;
+      if (!detail) return;
+
+      setIsOpen(true);
+      if (detail.courseName) {
+        setSelectedStudySubject(detail.courseName);
+      }
+
+      const docName = detail.documentName || 'tài liệu học tập';
+      const courseTitle = detail.courseName ? ` môn ${detail.courseName}` : '';
+
+      let prompt = '';
+      if (detail.action === 'quiz') {
+        prompt = `Tạo cho tôi 5 câu quiz trắc nghiệm ôn tập dựa trên file ${docName}${courseTitle}`;
+      } else {
+        prompt = `Tóm tắt giúp tôi các ý chính của tài liệu ${docName}${courseTitle}`;
+      }
+
+      setTimeout(() => {
+        if (handleSendMessageRef.current) {
+          handleSendMessageRef.current(prompt);
+        }
+      }, 100);
+    };
+
+    window.addEventListener('edumin:ai-study', handleStudyEvent);
+    return () => {
+      window.removeEventListener('edumin:ai-study', handleStudyEvent);
+    };
+  }, []);
+
   /**
    * Main message handling function.
    * Reads the typed or overridden message, renders user's message on the right,
    * performs smart keyword matching and/or API call, and renders the dynamic answer on the left.
    */
   const handleSendMessage = async (overrideText) => {
-    const textToSend = String(overrideText ?? input).trim();
+    let textToSend = String(overrideText ?? input).trim();
+    const currentAttachedFile = attachedFile;
+
+    if (!textToSend && currentAttachedFile) {
+      textToSend = `Tóm tắt và phân tích nội dung tài liệu ${currentAttachedFile.name}`;
+    }
     if (!textToSend || loading) return;
+
+    // Stop ongoing speech recognition or synthesis
+    if (isListening) {
+      try {
+        recognitionRef.current?.stop();
+      } catch {}
+      setIsListening(false);
+    }
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      try {
+        window.speechSynthesis.cancel();
+      } catch {}
+      setSpeakingMessageId(null);
+    }
 
     const userMsg = {
       id: `user-${Date.now()}`,
       sender: 'user',
       text: textToSend,
       timestamp: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+      ...(currentAttachedFile
+        ? {
+            attachment: {
+              name: currentAttachedFile.name,
+              size: currentAttachedFile.size,
+              sizeText: formatAttachmentSize(currentAttachedFile.size),
+              type: currentAttachedFile.type,
+            },
+          }
+        : {}),
     };
 
     setMessages((prev) => [...prev, userMsg]);
     setInput('');
+    setAttachedFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
     setLoading(true);
 
     try {
-      const pageContext = getAiPageContext();
+      const baseContext = getAiPageContext() || {};
+      const pageContext = {
+        ...baseContext,
+        ...(selectedStudySubject ? { selectedStudySubject, courseName: selectedStudySubject } : {}),
+        ...(currentAttachedFile
+          ? {
+              attachedFile: {
+                name: currentAttachedFile.name,
+                size: currentAttachedFile.size,
+                sizeText: formatAttachmentSize(currentAttachedFile.size),
+                type: currentAttachedFile.type,
+              },
+              documentName: currentAttachedFile.name,
+            }
+          : {}),
+      };
 
       // 0. High-level intent analysis to guard business routing
       const highLevelIntent = detectIntent(textToSend);
@@ -4342,6 +5288,13 @@ function EduMinAiAssistantInner() {
         const apiPayload = { currentPath };
         if (pageContext && Object.keys(pageContext).length > 0) {
           apiPayload.pageContext = pageContext;
+        }
+        if (currentAttachedFile) {
+          apiPayload.attachedFile = {
+            name: currentAttachedFile.name,
+            size: currentAttachedFile.size,
+            type: currentAttachedFile.type,
+          };
         }
         apiResult = await aiApi.query(textToSend, apiPayload);
       } catch {
@@ -4386,7 +5339,11 @@ function EduMinAiAssistantInner() {
       };
       setMessages((prev) => [...prev, assistantMsg]);
     } catch {
-      const pageContext = getAiPageContext();
+      const baseContext = getAiPageContext() || {};
+      const pageContext = {
+        ...baseContext,
+        ...(selectedStudySubject ? { selectedStudySubject, courseName: selectedStudySubject } : {}),
+      };
       const fallback = getSmartAiResponse(textToSend, role, user, currentPath, pageContext);
       setMessages((prev) => [
         ...prev,
@@ -4405,6 +5362,8 @@ function EduMinAiAssistantInner() {
       setLoading(false);
     }
   };
+
+  handleSendMessageRef.current = handleSendMessage;
 
   /**
    * Action Handler: Quick approval of profile requests directly in chat.
@@ -4572,6 +5531,7 @@ function EduMinAiAssistantInner() {
   };
 
   const handleClearHistory = () => {
+    handleRemoveFile();
     const resetMsg = [
       {
         id: 'welcome-reset',
@@ -4785,6 +5745,37 @@ function EduMinAiAssistantInner() {
             </div>
           </div>
 
+          {/* Student Study Subject Selector Toolbar */}
+          {(role === 'sinh-vien' || role === 'student') && (
+            <div className="bg-indigo-50/90 border-b border-indigo-100/90 px-3.5 py-2 flex items-center justify-between gap-2 text-xs shrink-0">
+              <div className="flex items-center gap-1.5 text-indigo-950 font-semibold shrink-0">
+                <i className="fas fa-graduation-cap text-indigo-600 text-xs" />
+                <span className="hidden sm:inline">Học phần đọc tài liệu:</span>
+              </div>
+              <select
+                value={selectedStudySubject}
+                onChange={(e) => setSelectedStudySubject(e.target.value)}
+                className="flex-1 max-w-[240px] bg-white border border-indigo-200 text-indigo-950 font-semibold text-xs rounded-lg px-2.5 py-1 focus:ring-1 focus:ring-indigo-500 focus:outline-none transition cursor-pointer truncate shadow-2xs"
+                aria-label="Chọn môn học để AI đọc tài liệu"
+              >
+                <option value="">-- Tự nhận diện môn từ tin nhắn --</option>
+                <option value="Lập trình Web">Lập trình Web (CNTT101)</option>
+                <option value="Cơ sở dữ liệu">Cơ sở dữ liệu (CS102)</option>
+                <option value="Mạng máy tính">Mạng máy tính (IT103)</option>
+              </select>
+              {selectedStudySubject && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedStudySubject('')}
+                  title="Bỏ chọn môn"
+                  className="text-slate-400 hover:text-slate-600 p-1 rounded transition text-xs cursor-pointer"
+                >
+                  <i className="fas fa-times" />
+                </button>
+              )}
+            </div>
+          )}
+
           {/* Messages Body */}
           <div className="flex-1 overflow-y-auto custom-scrollbar p-4 pt-4.5 space-y-4 bg-slate-50/70">
             {messages.map((msg) => {
@@ -4814,14 +5805,109 @@ function EduMinAiAssistantInner() {
                     >
                       {renderMessageText(msg.text, isUser)}
 
+                      {/* Attached File in User Bubble */}
+                      {isUser && msg.attachment && (
+                        <div
+                          data-testid="ai-user-message-attachment"
+                          className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-700/60 border border-blue-400/40 text-[11px] text-white max-w-full"
+                        >
+                          <i className="fas fa-paperclip text-blue-200 text-[10px] shrink-0" />
+                          <span className="font-semibold truncate max-w-[180px] sm:max-w-[220px]" title={msg.attachment.name}>
+                            {msg.attachment.name}
+                          </span>
+                          {msg.attachment.sizeText && (
+                            <span className="text-[10px] text-blue-200 shrink-0">
+                              ({msg.attachment.sizeText})
+                            </span>
+                          )}
+                        </div>
+                      )}
+
                       {/* Interactive Action Cards */}
-                      {!isUser && Array.isArray(msg.cards) && msg.cards.length > 0 && (
-                        <div className="mt-3.5 space-y-2.5">
-                          {msg.cards.map((card, cIdx) => (
-                            <div
-                              key={card.id || cIdx}
-                              className="bg-slate-50/90 rounded-xl p-3.5 pt-3 border border-slate-200/90 shadow-2xs space-y-2 text-slate-800"
-                            >
+                      {!isUser && (() => {
+                        const effectiveCards = Array.isArray(msg.cards) && msg.cards.length > 0
+                          ? msg.cards
+                          : msg.card
+                          ? [msg.card]
+                          : msg.payload
+                          ? [typeof msg.payload === 'object' ? { type: msg.type, ...msg.payload } : { type: msg.type }]
+                          : [];
+                        if (effectiveCards.length === 0) return null;
+
+                        return (
+                          <div className="mt-3.5 space-y-2.5">
+                            {effectiveCards.map((card, cIdx) => {
+                              const cardKey = card.id || cIdx;
+                              const effectiveType = (card.type || msg.type || '').toLowerCase();
+
+                              // Type A: Admin Approval Request Card / Table
+                              if (
+                                effectiveType === 'approval' ||
+                                effectiveType === 'approval_card' ||
+                                effectiveType === 'approval_table'
+                              ) {
+                                return (
+                                  <ApprovalRequestCard
+                                    key={cardKey}
+                                    card={card}
+                                    actionLoading={actionLoading}
+                                    onApprove={(reqId, title) =>
+                                      handleApproveRequest(msg.id, card.id, reqId, title)
+                                    }
+                                    onReject={(reqId, title, reason) =>
+                                      handleRejectRequest(msg.id, card.id, reqId, title, reason)
+                                    }
+                                    onNavigate={(path) => handleQuickNavigate(path)}
+                                  />
+                                );
+                              }
+
+                              // Type B: Teacher Document / File Card
+                              if (
+                                effectiveType === 'document_card' ||
+                                effectiveType === 'teacher_document' ||
+                                effectiveType === 'document_file' ||
+                                effectiveType === 'file_card'
+                              ) {
+                                return (
+                                  <TeacherDocumentCard
+                                    key={cardKey}
+                                    card={card}
+                                    onSendMessage={(prompt) => handleSendMessage(prompt)}
+                                    onNavigate={(path) => handleQuickNavigate(path)}
+                                  />
+                                );
+                              }
+
+                              // Type C: Interactive Quiz Card
+                              if (effectiveType === 'interactive_quiz' || effectiveType === 'quiz_card') {
+                                return (
+                                  <InteractiveQuizCard
+                                    key={cardKey}
+                                    card={card}
+                                    onSendMessage={(text) => handleSendMessage(text)}
+                                    onNavigate={(path) => handleQuickNavigate(path)}
+                                  />
+                                );
+                              }
+
+                              // Type D: Document Summary Card
+                              if (effectiveType === 'document_summary' || effectiveType === 'summary_card') {
+                                return (
+                                  <DocumentSummaryCard
+                                    key={cardKey}
+                                    card={card}
+                                    onSendMessage={(text) => handleSendMessage(text)}
+                                    onNavigate={(path) => handleQuickNavigate(path)}
+                                  />
+                                );
+                              }
+
+                              return (
+                                <div
+                                  key={cardKey}
+                                  className="bg-slate-50/90 rounded-xl p-3.5 pt-3 border border-slate-200/90 shadow-2xs space-y-2 text-slate-800"
+                                >
                               {/* Card Header */}
                               <div className="flex items-start justify-between gap-2">
                                 <div>
@@ -5093,9 +6179,11 @@ function EduMinAiAssistantInner() {
                                 </div>
                               )}
                             </div>
-                          ))}
-                        </div>
-                      )}
+                          );
+                        })}
+                          </div>
+                        );
+                      })()}
 
                       {/* Fallback Suggestions */}
                       {!isUser && Array.isArray(msg.suggestions) && msg.suggestions.length > 0 && (
@@ -5143,9 +6231,42 @@ function EduMinAiAssistantInner() {
                       )}
                     </div>
 
-                    <span className="text-[10px] text-slate-400 mt-1 px-1">
-                      {msg.timestamp}
-                    </span>
+                    <div className="flex items-center justify-between w-full mt-1.5 px-1">
+                      <span className="text-[10px] text-slate-400">
+                        {msg.timestamp}
+                      </span>
+                      {!isUser && msg.text && (
+                        <button
+                          type="button"
+                          data-testid={`ai-tts-btn-${msg.id}`}
+                          onClick={() => handleToggleSpeak(msg.id, msg.text)}
+                          className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-medium transition cursor-pointer ${
+                            speakingMessageId === msg.id
+                              ? 'bg-indigo-100 text-indigo-700 font-semibold ring-1 ring-indigo-300 shadow-2xs'
+                              : 'text-slate-400 hover:text-indigo-600 hover:bg-slate-100'
+                          }`}
+                          title={
+                            speakingMessageId === msg.id
+                              ? 'Dừng đọc văn bản'
+                              : 'Đọc câu trả lời bằng giọng nói tiếng Việt'
+                          }
+                          aria-label={
+                            speakingMessageId === msg.id ? 'Dừng đọc' : 'Đọc văn bản'
+                          }
+                        >
+                          <i
+                            className={`fas ${
+                              speakingMessageId === msg.id
+                                ? 'fa-volume-high text-indigo-600 animate-pulse'
+                                : 'fa-volume-low text-slate-400'
+                            } text-xs`}
+                          />
+                          <span>
+                            {speakingMessageId === msg.id ? 'Dừng đọc' : 'Đọc văn bản'}
+                          </span>
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               );
@@ -5190,7 +6311,79 @@ function EduMinAiAssistantInner() {
           )}
 
           {/* Input Footer */}
-          <div className="p-3 bg-white border-t border-slate-200 flex flex-col gap-1.5">
+          <div className="p-3 bg-white border-t border-slate-200 flex flex-col gap-2">
+            {/* Listening indicator with wave animation */}
+            {isListening && (
+              <div
+                data-testid="ai-listening-indicator"
+                className="flex items-center justify-between gap-2 px-3 py-1.5 bg-gradient-to-r from-rose-50 via-rose-100/60 to-indigo-50 border border-rose-200 rounded-xl text-xs text-rose-900 shadow-2xs animate-fade-in"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="relative flex h-2.5 w-2.5 shrink-0">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-600" />
+                  </span>
+                  <span className="font-semibold text-[11px] text-rose-700 truncate">
+                    Đang lắng nghe giọng nói tiếng Việt...
+                  </span>
+                  {/* Sound wave bars */}
+                  <div className="flex items-center gap-0.5 ml-1 shrink-0">
+                    <span className="w-0.5 h-3 bg-rose-500 rounded-full animate-pulse" />
+                    <span className="w-0.5 h-4 bg-rose-600 rounded-full animate-bounce [animation-delay:150ms]" />
+                    <span className="w-0.5 h-2 bg-rose-500 rounded-full animate-pulse [animation-delay:300ms]" />
+                    <span className="w-0.5 h-4 bg-rose-600 rounded-full animate-bounce [animation-delay:450ms]" />
+                    <span className="w-0.5 h-3 bg-rose-500 rounded-full animate-pulse [animation-delay:200ms]" />
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  data-testid="ai-stop-listening-btn"
+                  onClick={handleToggleListening}
+                  className="text-[10px] font-bold text-rose-600 hover:text-rose-800 bg-white/90 px-2 py-0.5 rounded-md border border-rose-200 cursor-pointer transition shadow-2xs shrink-0"
+                  title="Dừng ghi âm giọng nói"
+                  aria-label="Dừng ghi âm giọng nói"
+                >
+                  Dừng
+                </button>
+              </div>
+            )}
+
+            {/* Attached file preview chip */}
+            {attachedFile && (
+              <div
+                data-testid="ai-attached-file-preview"
+                className="flex items-center justify-between gap-2 px-3 py-1.5 bg-indigo-50/90 border border-indigo-200 rounded-xl text-xs text-indigo-950 shadow-2xs"
+              >
+                <div className="flex items-center gap-2 min-w-0 flex-1">
+                  <div className="w-6 h-6 rounded-lg bg-white border border-indigo-200/80 flex items-center justify-center shrink-0">
+                    <i
+                      className={`${getAttachmentFileMeta(attachedFile.name).icon} ${
+                        getAttachmentFileMeta(attachedFile.name).color
+                      } text-xs`}
+                    />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-slate-800 text-[11px] truncate" title={attachedFile.name}>
+                      {attachedFile.name}
+                    </p>
+                    <p className="text-[10px] text-slate-500">
+                      {formatAttachmentSize(attachedFile.size)} • Sẵn sàng phân tích
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  data-testid="ai-remove-file-btn"
+                  onClick={handleRemoveFile}
+                  className="p-1 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition cursor-pointer shrink-0"
+                  title="Xóa tệp đính kèm"
+                  aria-label="Xóa tệp đính kèm"
+                >
+                  <i className="fas fa-xmark text-xs" />
+                </button>
+              </div>
+            )}
+
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -5199,27 +6392,92 @@ function EduMinAiAssistantInner() {
               className="flex items-center gap-2"
             >
               <input
+                ref={fileInputRef}
+                type="file"
+                data-testid="ai-file-input"
+                accept=".pdf,.docx,.txt"
+                onChange={handleFileChange}
+                className="hidden"
+                aria-label="Tải lên tài liệu"
+              />
+              <input
                 ref={inputRef}
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onFocus={() => setIsChatFocused(true)}
-                placeholder="Nhập câu hỏi hoặc yêu cầu điều hướng..."
+                placeholder={
+                  isListening
+                    ? 'Đang lắng nghe bạn nói...'
+                    : attachedFile
+                    ? `Hỏi về file ${attachedFile.name}... (hoặc bấm gửi để AI phân tích)`
+                    : 'Nhập câu hỏi hoặc yêu cầu điều hướng...'
+                }
                 disabled={loading}
-                className="flex-1 bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-100 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-slate-800 placeholder-slate-400 outline-none transition"
+                className={`flex-1 bg-slate-50 border rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-slate-800 placeholder-slate-400 outline-none transition ${
+                  isListening
+                    ? 'border-rose-400 ring-2 ring-rose-100 bg-rose-50/20'
+                    : 'border-slate-200 focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-100'
+                }`}
               />
+              {/* Voice recognition microphone button */}
+              <button
+                type="button"
+                data-testid="ai-speech-recognition-btn"
+                onClick={handleToggleListening}
+                disabled={loading}
+                className={`p-2.5 rounded-xl border transition flex items-center justify-center flex-shrink-0 cursor-pointer ${
+                  isListening
+                    ? 'bg-rose-500 border-rose-600 text-white shadow-md shadow-rose-500/30 ring-2 ring-rose-400/40 animate-pulse'
+                    : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-500 hover:text-indigo-600'
+                }`}
+                title={
+                  isListening
+                    ? 'Đang lắng nghe... (Bấm để dừng)'
+                    : 'Nhập bằng giọng nói (Micro tiếng Việt)'
+                }
+                aria-label={
+                  isListening
+                    ? 'Đang lắng nghe... Bấm để dừng'
+                    : 'Nhập bằng giọng nói'
+                }
+              >
+                <i
+                  className={`fas ${
+                    isListening ? 'fa-microphone-lines' : 'fa-microphone'
+                  } text-xs sm:text-sm`}
+                />
+              </button>
+              {/* Attach document button */}
+              <button
+                type="button"
+                data-testid="ai-attach-file-btn"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={loading}
+                className={`p-2.5 rounded-xl border transition flex items-center justify-center flex-shrink-0 cursor-pointer ${
+                  attachedFile
+                    ? 'bg-indigo-50 border-indigo-300 text-indigo-600 hover:bg-indigo-100'
+                    : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-500 hover:text-indigo-600'
+                }`}
+                title="Đính kèm tài liệu (.pdf, .docx, .txt)"
+                aria-label="Đính kèm tài liệu"
+              >
+                <i className="fas fa-paperclip text-xs sm:text-sm" />
+              </button>
+              {/* Submit button */}
               <button
                 type="submit"
-                disabled={!input.trim() || loading}
+                disabled={(!input.trim() && !attachedFile) || loading}
                 className="p-2.5 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-40 disabled:hover:bg-indigo-600 transition flex items-center justify-center flex-shrink-0 shadow-xs cursor-pointer"
                 title="Gửi câu hỏi"
+                aria-label="Gửi câu hỏi"
               >
                 <i className="fas fa-paper-plane text-xs sm:text-sm" />
               </button>
             </form>
             <div className="flex items-center justify-between px-1">
               <span className="text-[10px] text-slate-400">
-                ⚡ Hỗ trợ trả lời câu hỏi và điều hướng tác vụ nhanh
+                🎙️ Nhập giọng nói tiếng Việt & Tải file PDF, DOCX, TXT
               </span>
               <span className="text-[10px] text-slate-400 font-mono">EduMin v2.0</span>
             </div>

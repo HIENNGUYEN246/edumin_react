@@ -5,20 +5,6 @@ import rateLimit from 'express-rate-limit';
 import { config } from './config/env.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { apiRouter } from './routes.js';
-import cors from 'cors'; // <-- Thêm dòng này lên đầu file
-
-export function createApp() {
-  const app = express();
-
-  // <-- Kích hoạt CORS ngay trong hàm createApp
-  app.use(cors({
-    origin: '*', 
-    credentials: true
-  }));
-
-  app.use(express.json());
-  // ... các phần còn lại giữ nguyên ...
-}
 export function createApp() {
   const app = express();
 

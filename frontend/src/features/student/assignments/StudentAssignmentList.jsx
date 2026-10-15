@@ -36,14 +36,14 @@ function AssignmentCard({ assignment, onOpen, courses = [] }) {
 
       <div className="p-4 sm:p-5 pl-5 sm:pl-6 flex-1 flex flex-col justify-between space-y-3">
         <div>
-          {/* Header row: Type badge, Course tag, Due date */}
+          {/* Header row: Type badge, Course tag, Due date status tag */}
           <div className="flex items-start justify-between gap-2.5">
             <div className="flex flex-wrap items-center gap-1.5">
               <span
                 className={`inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full border ${
                   quiz
-                    ? 'text-teal-800 bg-teal-50 border-teal-200'
-                    : 'text-cyan-800 bg-cyan-50 border-cyan-200'
+                    ? 'text-teal-700 bg-teal-50 border-teal-200'
+                    : 'text-indigo-700 bg-indigo-50 border-indigo-200'
                 }`}
               >
                 <i className={`fas ${quiz ? 'fa-list-check' : 'fa-file-lines'} text-[10px]`} />
@@ -51,22 +51,22 @@ function AssignmentCard({ assignment, onOpen, courses = [] }) {
               </span>
 
               {assignment.courseId && (
-                <span className="font-mono text-[11px] font-bold bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-md border border-indigo-100">
+                <span className="font-mono text-[11px] font-bold bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md border border-slate-200/80">
                   {assignment.courseId}
                 </span>
               )}
             </div>
 
-            {assignment.dueDate && (
-              <span
-                className={`text-xs font-semibold whitespace-nowrap px-2 py-0.5 rounded-md ${
-                  overdue
-                    ? 'text-rose-600 bg-rose-50 border border-rose-100'
-                    : 'text-teal-700 bg-teal-50/80 border border-teal-100'
-                }`}
-              >
-                <i className="far fa-clock mr-1 text-[11px]" />
-                {overdue ? 'Hết hạn' : `Hạn ${assignment.dueDate}`}
+            {/* Standardized Status Tag: Hết hạn vs Đang mở */}
+            {overdue ? (
+              <span className="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider whitespace-nowrap px-2.5 py-1 rounded-full text-rose-700 bg-rose-50 border border-rose-200">
+                <i className="fas fa-circle-xmark text-[10px] text-rose-500" />
+                <span>Hết hạn</span>
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider whitespace-nowrap px-2.5 py-1 rounded-full text-emerald-700 bg-emerald-50 border border-emerald-200">
+                <i className="fas fa-circle-check text-[10px] text-emerald-500" />
+                <span>{assignment.dueDate ? `Đang mở (${assignment.dueDate})` : 'Đang mở'}</span>
               </span>
             )}
           </div>
@@ -114,7 +114,7 @@ function AssignmentCard({ assignment, onOpen, courses = [] }) {
                   <i className="fas fa-circle-check" /> Hoàn thành
                 </span>
                 <p className="mt-0.5 text-[11px] text-slate-500">
-                  Kết quả: <strong className="text-slate-800 font-bold">{submission.score}/10</strong>
+                  Kết quả: <strong className="text-emerald-700 font-extrabold">{submission.score}/10</strong>
                 </p>
               </div>
             ) : missed ? (
@@ -137,12 +137,12 @@ function AssignmentCard({ assignment, onOpen, courses = [] }) {
                 type="button"
                 onClick={() => onOpen(assignment)}
                 disabled={overdue && !submission}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-2xs hover:shadow active:scale-95 cursor-pointer ${
+                className={`h-8 px-3.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition shadow-2xs hover:shadow active:scale-95 cursor-pointer ${
                   submission
                     ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
                     : overdue
                     ? 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200'
-                    : 'bg-teal-600 hover:bg-teal-700 text-white'
+                    : 'bg-teal-600 hover:bg-teal-700 text-white shadow-teal-600/20'
                 }`}
               >
                 <span>{submission ? 'Xem kết quả' : overdue ? 'Đã đóng' : 'Làm bài'}</span>
@@ -228,14 +228,21 @@ export function StudentAssignmentList() {
 
     list.forEach((cls) => {
       cls.assignments = allAssignments.filter((a) => {
+        if (a.classRef && cls._id && String(a.classRef) === String(cls._id)) {
+          assignedIds.add(a._id);
+          return true;
+        }
         if (a.classId) {
-          if (a.classId === cls.classId || a.classId === cls.key) {
+          const itemCId = String(a.classId).trim().toLowerCase();
+          const grpCId = String(cls.classId || '').trim().toLowerCase();
+          const grpKey = String(cls.key || '').trim().toLowerCase();
+          if (itemCId === grpCId || itemCId === grpKey || itemCId.replace(/[-_]/g, '') === grpCId.replace(/[-_]/g, '')) {
             assignedIds.add(a._id);
             return true;
           }
           return false;
         }
-        if (a.courseId && a.courseId === cls.courseId) {
+        if (a.courseId && cls.courseId && a.courseId.trim().toUpperCase() === cls.courseId.trim().toUpperCase()) {
           assignedIds.add(a._id);
           return true;
         }

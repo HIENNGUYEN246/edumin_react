@@ -22,8 +22,11 @@ function toStudentDto(assignment) {
   };
 }
 
-async function requireCourseTeacher(user, courseId) {
+async function requireCourseTeacher(user, courseId, doc = null) {
   if (user.role === ROLES.ADMIN) return;
+  if (doc?.createdByRef && user.teacher && String(doc.createdByRef) === String(user.teacher)) {
+    return;
+  }
   const allowed = await canAccessCourse(user, courseId);
   if (!allowed) throw AppError.forbidden('Bạn không phụ trách học phần này');
 }
@@ -131,7 +134,7 @@ export async function createAssignment(payload, user) {
 export async function updateAssignment(id, payload, user) {
   const doc = await Assignment.findById(id);
   if (!doc) throw AppError.notFound('Không tìm thấy bài tập');
-  await requireCourseTeacher(user, doc.courseId);
+  await requireCourseTeacher(user, doc.courseId, doc);
 
   if (payload.classId !== undefined) {
     if (payload.classId) {
@@ -155,7 +158,7 @@ export async function updateAssignment(id, payload, user) {
 export async function deleteAssignment(id, user) {
   const doc = await Assignment.findById(id);
   if (!doc) throw AppError.notFound('Không tìm thấy bài tập');
-  await requireCourseTeacher(user, doc.courseId);
+  await requireCourseTeacher(user, doc.courseId, doc);
   await Submission.deleteMany({ assignmentRef: doc._id });
   await Assignment.deleteOne({ _id: doc._id });
   return { success: true };
@@ -164,7 +167,7 @@ export async function deleteAssignment(id, user) {
 export async function listSubmissions(id, user) {
   const doc = await Assignment.findById(id);
   if (!doc) throw AppError.notFound('Không tìm thấy bài tập');
-  await requireCourseTeacher(user, doc.courseId);
+  await requireCourseTeacher(user, doc.courseId, doc);
   const submissions = await Submission.find({ assignmentRef: doc._id })
     .populate({ path: 'student', select: 'id hoTen email avatar className' })
     .sort({ score: -1 })

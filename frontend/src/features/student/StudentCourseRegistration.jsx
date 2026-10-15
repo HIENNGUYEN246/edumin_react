@@ -13,6 +13,8 @@ import {
   getCurrentDateTimeLocalWithSeconds,
   formatRegistrationDateTime,
   registrationDateTimeInput,
+  calculateGpa,
+  DEFAULT_GRADE_WEIGHTS,
 } from '../../lib/format.js';
 import { useAuth } from '../../app/providers/AuthProvider.jsx';
 import { useOpenClasses, useMyEnrollments, useEnrollmentMutations } from './useEnrollments.js';
@@ -25,6 +27,48 @@ import {
 } from '../../components/schedule/ScheduleBadge.jsx';
 
 export const MAX_CREDITS = 25;
+
+/**
+ * Checks whether the student has passed (GPA >= 4.0) all prerequisite courses.
+ */
+export function checkCoursePrerequisites(prerequisites, passedCourseIds) {
+  if (!prerequisites || typeof prerequisites !== 'string') return { satisfied: true };
+  const trimmed = prerequisites.trim();
+  if (!trimmed) return { satisfied: true };
+  const lower = trimmed.toLowerCase();
+  if (lower === 'không' || lower === 'không có' || lower === 'none' || lower === 'n/a') {
+    return { satisfied: true };
+  }
+
+  const tokens = trimmed.split(/[,;]+/).map((s) => s.trim()).filter(Boolean);
+  if (tokens.length === 0) return { satisfied: true };
+
+  const missing = [];
+  for (const token of tokens) {
+    const idMatch = token.match(/([a-zA-Z]{2,}[0-9]{2,}[a-zA-Z0-9_-]*)/);
+    const targetId = idMatch ? idMatch[1] : token;
+
+    const isPassed =
+      passedCourseIds.has(targetId) ||
+      passedCourseIds.has(targetId.toLowerCase()) ||
+      passedCourseIds.has(token) ||
+      passedCourseIds.has(token.toLowerCase());
+
+    if (!isPassed) {
+      missing.push(token);
+    }
+  }
+
+  if (missing.length > 0) {
+    return {
+      satisfied: false,
+      missingPrerequisites: missing.join(', '),
+      message: `Yêu cầu hoàn thành môn tiên quyết: ${missing.join(', ')} trước khi đăng ký`,
+    };
+  }
+
+  return { satisfied: true };
+}
 
 export const KNOWN_DEPARTMENT_GROUPS = [
   ['cntt', 'công nghệ thông tin', 'khoa công nghệ thông tin', 'it', 'information technology'],
@@ -137,7 +181,7 @@ function groupByCourse(classes) {
   return [...map.values()];
 }
 
-function ClassRow({ cls, state, onEnroll, onCancel, pending }) {
+function ClassRow({ cls, state, onEnroll, onCancel, pending, prereqCheck }) {
   const full = cls.capacity > 0 && cls.enrolledCount >= cls.capacity;
   const isTimeLocked =
     cls.status !== 'Đang mở' ||
@@ -145,7 +189,8 @@ function ClassRow({ cls, state, onEnroll, onCancel, pending }) {
       cls.registrationEnd &&
       registrationDateTimeInput(cls.registrationEnd, true) < getCurrentDateTimeLocalWithSeconds()
     );
-  const disabled = pending || state.enrolledThisClass || state.enrolledOtherInCourse || full || isTimeLocked;
+  const isPrereqBlocked = Boolean(prereqCheck && !prereqCheck.satisfied && !state.enrolledThisClass);
+  const disabled = pending || state.enrolledThisClass || state.enrolledOtherInCourse || full || isTimeLocked || isPrereqBlocked;
 
   let action;
   if (state.enrolledThisClass) {
@@ -178,6 +223,18 @@ function ClassRow({ cls, state, onEnroll, onCancel, pending }) {
         Đã khóa (hết hạn)
       </span>
     );
+  } else if (isPrereqBlocked) {
+    action = (
+      <button
+        type="button"
+        disabled={true}
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 text-amber-800 text-xs font-bold border border-amber-200 cursor-not-allowed select-none shadow-2xs"
+        title={prereqCheck.message}
+      >
+        <i className="fas fa-lock text-[10px] text-amber-600" />
+        <span>Chưa đạt tiên quyết</span>
+      </button>
+    );
   } else if (state.enrolledOtherInCourse) {
     action = (
       <span
@@ -199,7 +256,7 @@ function ClassRow({ cls, state, onEnroll, onCancel, pending }) {
     action = (
       <button
         type="button"
-        onClick={() => onEnroll(cls)}
+        onClick={() => onEnroll(cls, prereqCheck)}
         disabled={disabled}
         className="px-3.5 py-1.5 rounded-xl bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 disabled:opacity-60 transition shadow-xs cursor-pointer active:scale-95"
       >
@@ -215,6 +272,8 @@ function ClassRow({ cls, state, onEnroll, onCancel, pending }) {
           ? 'border-2 border-emerald-400 bg-emerald-50/20 shadow-xs ring-1 ring-emerald-400/20'
           : state.enrolledOtherInCourse
           ? 'border-slate-200/90 bg-slate-50/60 opacity-70'
+          : isPrereqBlocked
+          ? 'border-amber-200 bg-amber-50/30'
           : isTimeLocked
           ? 'border-amber-200/80 bg-amber-50/20'
           : 'border-slate-200/80 bg-white hover:border-indigo-300 hover:shadow-xs'
@@ -268,6 +327,14 @@ function ClassRow({ cls, state, onEnroll, onCancel, pending }) {
         </span>
       )}
       <div className="ml-auto">{action}</div>
+
+      {/* Cảnh báo môn tiên quyết nếu chưa hoàn thành */}
+      {isPrereqBlocked && (
+        <div className="w-full flex items-center gap-2 px-3 py-1.5 rounded-xl bg-amber-50/90 border border-amber-200 text-amber-800 text-[11px] font-semibold">
+          <i className="fas fa-triangle-exclamation text-amber-600 shrink-0" />
+          <span>{prereqCheck.message}</span>
+        </div>
+      )}
     </div>
   );
 }
@@ -400,6 +467,38 @@ export function StudentCourseRegistration() {
     [enrollments]
   );
 
+  // Bảng điểm / Các môn học đã đạt (GPA hoặc Điểm tổng kết >= 4.0 / 10) để kiểm tra điều kiện tiên quyết
+  const passedCourseIds = useMemo(() => {
+    const passed = new Set();
+    rawEnrollments.forEach((e) => {
+      const cls = e.class || {};
+      const courseId = cls.courseId;
+      if (!courseId) return;
+
+      let score = null;
+      if (e.finalScore != null && !isNaN(e.finalScore)) {
+        score = Number(e.finalScore);
+      } else if (e.manualGrades) {
+        const mg = e.manualGrades;
+        const weights = cls.gradeWeights || DEFAULT_GRADE_WEIGHTS;
+        const compGrades = {
+          attendance: mg.attendance ?? null,
+          homework: mg.assignment ?? mg.homework ?? null,
+          midterm: mg.midterm ?? null,
+          presentation: mg.presentation ?? null,
+          final: mg.final ?? null,
+        };
+        score = calculateGpa(compGrades, weights);
+      }
+
+      if (score != null && Number.isFinite(score) && score >= 4.0) {
+        passed.add(courseId.trim());
+        passed.add(courseId.trim().toLowerCase());
+      }
+    });
+    return passed;
+  }, [rawEnrollments]);
+
   const totalEnrolledCredits = useMemo(() => {
     return enrollments.reduce((sum, e) => sum + (Number(e.class?.credits) || 0), 0);
   }, [enrollments]);
@@ -450,7 +549,13 @@ export function StudentCourseRegistration() {
     });
   }, [rawGroups, searchQuery, courseFilter, enrolledCourseIds]);
 
-  const doEnroll = async (cls) => {
+  const doEnroll = async (cls, prereqCheck) => {
+    // 0. Prerequisite Check Validation
+    if (prereqCheck && !prereqCheck.satisfied) {
+      toast.error(prereqCheck.message);
+      return;
+    }
+
     // 1. Exclusive Selection Constraint: Only 1 class per course
     if (enrolledCourseIds.has(cls.courseId)) {
       toast.error(
@@ -903,6 +1008,7 @@ export function StudentCourseRegistration() {
               const registeredInCourse = enrolledCourseIds.has(group.courseId);
               const enrolledClass = enrollments.find((e) => e.class?.courseId === group.courseId)?.class;
               const isExpanded = expandedCourses.has(group.courseId);
+              const prereqCheck = checkCoursePrerequisites(group.prerequisites, passedCourseIds);
 
               return (
                 <section
@@ -949,6 +1055,14 @@ export function StudentCourseRegistration() {
                             ({group.classes.length} lớp học phần)
                           </span>
                         </button>
+
+                        {/* Cảnh báo môn học chưa hoàn thành điều kiện tiên quyết */}
+                        {!prereqCheck.satisfied && (
+                          <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-semibold shadow-2xs">
+                            <i className="fas fa-triangle-exclamation text-amber-600 text-xs shrink-0" />
+                            <span>{prereqCheck.message}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -1002,7 +1116,8 @@ export function StudentCourseRegistration() {
                                 enrolledThisClass: isEnrolledThis,
                                 enrolledOtherInCourse: isEnrolledOther,
                               }}
-                              onEnroll={doEnroll}
+                              prereqCheck={prereqCheck}
+                              onEnroll={(c) => doEnroll(c, prereqCheck)}
                               onCancel={thisEnrollment ? () => doCancel(thisEnrollment) : null}
                             />
                           );

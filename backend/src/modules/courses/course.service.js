@@ -38,6 +38,11 @@ export async function createCourse(payload) {
     name: payload.name,
     credits: payload.credits,
     fee: payload.fee,
+    courseType: payload.courseType || 'LT_TH',
+    theoryPeriods: payload.theoryPeriods ?? 0,
+    practicePeriods: payload.practicePeriods ?? 0,
+    prerequisites: payload.prerequisites || '',
+    description: payload.description || '',
     gradeWeights: payload.gradeWeights,
   });
   await applyDepartment(course, payload.departmentId);

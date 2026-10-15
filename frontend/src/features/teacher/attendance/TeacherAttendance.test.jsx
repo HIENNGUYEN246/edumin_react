@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { TeacherAttendance } from './TeacherAttendance.jsx';
 
 const mockToast = {
@@ -132,11 +132,22 @@ describe('TeacherAttendance - LMS Matrix Attendance Grid', () => {
     attendanceApi.saveBulk.mockResolvedValue({ success: true });
   });
 
-  const renderComponent = () =>
+  const renderComponent = (initialEntries = ['/teacher/attendance']) =>
     render(
       <QueryClientProvider client={queryClient}>
-        <MemoryRouter>
+        <MemoryRouter initialEntries={initialEntries}>
           <TeacherAttendance />
+        </MemoryRouter>
+      </QueryClientProvider>
+    );
+
+  const renderWithRoute = (initialEntry = '/teacher/attendance/TA1-L01') =>
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={[initialEntry]}>
+          <Routes>
+            <Route path="/teacher/attendance/:classId" element={<TeacherAttendance />} />
+          </Routes>
         </MemoryRouter>
       </QueryClientProvider>
     );
@@ -326,5 +337,60 @@ describe('TeacherAttendance - LMS Matrix Attendance Grid', () => {
     // Modal should close
     expect(screen.queryByText(/Ghi chú & Đánh giá buổi học — Trương Quang Mạnh/i)).not.toBeInTheDocument();
   });
+
+  it('matches class code from query param (?classId=TA1-L01) and renders matrix without empty error', async () => {
+    renderComponent(['/teacher/attendance?classId=TA1-L01']);
+
+    expect(await screen.findByText('Tiếng Anh 1')).toBeInTheDocument();
+    expect(screen.queryByText(/Không tìm thấy lớp học phần phù hợp/i)).not.toBeInTheDocument();
+    expect(attendanceApi.getAll).toHaveBeenCalledWith(
+      expect.objectContaining({ regId: 'TA1-L01', classId: 'TA1-L01' })
+    );
+  });
+
+  it('matches class Mongo ObjectId from query param (?classId=c1) and sets dropdown correctly', async () => {
+    renderComponent(['/teacher/attendance?classId=c1']);
+
+    expect(await screen.findByText('Tiếng Anh 1')).toBeInTheDocument();
+    expect(screen.queryByText(/Không tìm thấy lớp học phần phù hợp/i)).not.toBeInTheDocument();
+
+    const classSelect = screen.getAllByRole('combobox')[0];
+    expect(classSelect.value).toBe('TA1-L01');
+  });
+
+  it('supports path parameter :classId in route (/teacher/attendance/:classId)', async () => {
+    renderWithRoute('/teacher/attendance/TA1-L01');
+
+    expect(await screen.findByText('Tiếng Anh 1')).toBeInTheDocument();
+    expect(screen.queryByText(/Không tìm thấy lớp học phần phù hợp/i)).not.toBeInTheDocument();
+  });
+
+  it('displays loading state gracefully without prematurely rendering "Không tìm thấy lớp học phần phù hợp"', () => {
+    useMyTeacherClasses.mockReturnValue({
+      data: null,
+      isLoading: true,
+      isPending: true,
+    });
+
+    renderComponent(['/teacher/attendance?classId=TA1-L01']);
+
+    expect(screen.getByText(/Đang tải dữ liệu Điểm danh & Chuyên cần/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Không tìm thấy lớp học phần phù hợp/i)).not.toBeInTheDocument();
+  });
+
+  it('displays empty state with recovery button when non-existent class is requested, and clicking button resets filter', async () => {
+    renderComponent(['/teacher/attendance?classId=NON_EXISTENT']);
+
+    expect(await screen.findByText(/Không tìm thấy lớp học phần phù hợp/i)).toBeInTheDocument();
+
+    const resetBtn = screen.getByRole('button', { name: /Xem tất cả lớp phụ trách/i });
+    expect(resetBtn).toBeInTheDocument();
+
+    fireEvent.click(resetBtn);
+
+    expect(await screen.findByText('Tiếng Anh 1')).toBeInTheDocument();
+    expect(screen.queryByText(/Không tìm thấy lớp học phần phù hợp/i)).not.toBeInTheDocument();
+  });
 });
+
 

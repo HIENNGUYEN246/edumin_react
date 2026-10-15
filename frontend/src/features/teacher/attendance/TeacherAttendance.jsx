@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useParams, useSearchParams, useLocation } from 'react-router-dom';
 import { PageHeader } from '../../../components/ui/PageHeader.jsx';
 import { Spinner } from '../../../components/ui/Spinner.jsx';
 import { Modal } from '../../../components/ui/Modal.jsx';
@@ -40,7 +40,7 @@ function TeacherClassAccordionCard({
   teacherProfile,
 }) {
   const toast = useToast();
-  const classId = classItem.id || classItem._id;
+  const classId = classItem?.id || classItem?._id || '';
 
   // Enrolled students in this class
   const { data: studentsData, isLoading: studentsLoading } = useClassStudents(classId);
@@ -54,7 +54,7 @@ function TeacherClassAccordionCard({
     if (!classId) return;
     try {
       setLoadingClassRecords(true);
-      const res = await attendanceApi.getAll({ regId: classId });
+      const res = await attendanceApi.getAll({ regId: classId, classId });
       setClassAttendanceRecords(Array.isArray(res) ? res : res?.data || []);
     } catch {
       // Ignore
@@ -1389,38 +1389,67 @@ function TeacherClassAccordionCard({
  */
 export function TeacherAttendance() {
   const { user, profile } = useAuth();
+  const params = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
-  const initialClassId = searchParams.get('classId') || '';
+  const location = useLocation();
+
+  // Extract class ID from route param (:classId, :id), search param (?classId, ?id, ?regId), or navigation state
+  const rawParamId =
+    params.classId ||
+    params.id ||
+    searchParams.get('classId') ||
+    searchParams.get('id') ||
+    searchParams.get('regId') ||
+    location.state?.classId ||
+    location.state?.id ||
+    '';
+
+  const routeClassId = useMemo(() => {
+    if (!rawParamId || rawParamId === 'undefined' || rawParamId === 'null') return '';
+    return String(rawParamId).trim();
+  }, [rawParamId]);
 
   // View tabs: 'matrix' (Ma trận điểm danh thẻ lớp) | 'classes' (Tổng quan lớp phụ trách)
   const [activeTab, setActiveTab] = useState('matrix');
 
   // Classes taught by teacher
   const { data: classData, isLoading: classesLoading, isPending: classesPending } = useMyTeacherClasses();
-  const isTeacherClassesLoading = classesPending || (classesLoading && !classData);
+  const isTeacherClassesLoading = classesPending || classesLoading || !classData;
   const classes = useMemo(() => classData?.data || [], [classData]);
 
+  // Flexible helper to match a class item against a target identifier (by class code id or Mongo _id)
+  const isClassMatching = useCallback((cls, targetId) => {
+    if (!cls || !targetId || targetId === 'all') return false;
+    const t = String(targetId).trim().toLowerCase();
+    const cId = String(cls.id || '').trim().toLowerCase();
+    const cMongoId = String(cls._id || '').trim().toLowerCase();
+    return cId === t || cMongoId === t;
+  }, []);
+
   // Selected filter class ID: 'all' or specific class ID
-  const [filterClassId, setFilterClassId] = useState(initialClassId || 'all');
+  const [filterClassId, setFilterClassId] = useState(() => routeClassId || 'all');
 
   // Expanded card keys: Set of class IDs
   const [expandedClassIds, setExpandedClassIds] = useState(() => new Set());
 
-  // Auto-expand initial class or first class when loaded (only once)
+  // Auto-expand and sync filter when classes data loads or route param changes
   const hasInitializedRef = useRef(false);
   useEffect(() => {
-    if (classes.length > 0 && !hasInitializedRef.current) {
-      hasInitializedRef.current = true;
-      const firstId = initialClassId || classes[0].id || classes[0]._id;
-      if (firstId) {
-        setExpandedClassIds(new Set([firstId]));
-      }
-      if (initialClassId) {
-        setFilterClassId(initialClassId);
+    if (classes.length > 0) {
+      if (routeClassId && routeClassId !== 'all') {
+        const found = classes.find((c) => isClassMatching(c, routeClassId));
+        const resolvedId = found ? (found.id || found._id) : routeClassId;
+        setFilterClassId(resolvedId);
+        setExpandedClassIds(new Set([resolvedId]));
+      } else if (!hasInitializedRef.current) {
+        hasInitializedRef.current = true;
+        const firstId = classes[0].id || classes[0]._id;
+        if (firstId) {
+          setExpandedClassIds(new Set([firstId]));
+        }
       }
     }
-  }, [classes, initialClassId]);
-
+  }, [classes, routeClassId, isClassMatching]);
 
   // Handle class filter dropdown change
   const handleFilterClassChange = (cId) => {
@@ -1429,6 +1458,7 @@ export function TeacherAttendance() {
       setExpandedClassIds(new Set([cId]));
       setSearchParams({ classId: cId });
     } else {
+      setExpandedClassIds(new Set(classes.map((c) => c.id || c._id)));
       setSearchParams({});
     }
   };
@@ -1457,14 +1487,24 @@ export function TeacherAttendance() {
 
   // Filtered classes list
   const displayedClasses = useMemo(() => {
-    if (filterClassId === 'all') return classes;
-    return classes.filter((c) => (c.id || c._id) === filterClassId);
-  }, [classes, filterClassId]);
+    if (!filterClassId || filterClassId === 'all') return classes;
+    return classes.filter((c) => isClassMatching(c, filterClassId));
+  }, [classes, filterClassId, isClassMatching]);
 
-  if (classesLoading) {
+  // Selected value for the dropdown selector
+  const selectedDropdownValue = useMemo(() => {
+    if (!filterClassId || filterClassId === 'all') return 'all';
+    const found = classes.find((c) => isClassMatching(c, filterClassId));
+    return found ? (found.id || found._id) : filterClassId;
+  }, [classes, filterClassId, isClassMatching]);
+
+  if (isTeacherClassesLoading && classes.length === 0) {
     return (
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs p-16 flex justify-center">
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs p-16 flex flex-col items-center justify-center gap-3">
         <Spinner />
+        <span className="text-xs font-semibold text-slate-500 animate-pulse">
+          Đang tải dữ liệu Điểm danh & Chuyên cần...
+        </span>
       </div>
     );
   }
@@ -1481,16 +1521,19 @@ export function TeacherAttendance() {
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold text-slate-500 whitespace-nowrap">Lớp học phần:</span>
               <select
-                value={filterClassId}
+                value={selectedDropdownValue}
                 onChange={(e) => handleFilterClassChange(e.target.value)}
                 className="px-3 py-2 rounded-xl text-xs font-bold bg-white border border-slate-300 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition shadow-2xs cursor-pointer max-w-[280px] truncate"
               >
                 <option value="all">Tất cả lớp phụ trách ({classes.length})</option>
-                {classes.map((c) => (
-                  <option key={c.id || c._id} value={c.id || c._id}>
-                    {c.courseName || c.name} · {c.id}
-                  </option>
-                ))}
+                {classes.map((c) => {
+                  const val = c.id || c._id;
+                  return (
+                    <option key={val} value={val}>
+                      {c.courseName || c.name} · {c.id}
+                    </option>
+                  );
+                })}
               </select>
             </div>
           </div>
@@ -1565,9 +1608,21 @@ export function TeacherAttendance() {
               </span>
             </div>
           ) : displayedClasses.length === 0 ? (
-            <div className="bg-white rounded-2xl border border-slate-200 p-16 text-center text-slate-400 space-y-2">
+            <div className="bg-white rounded-2xl border border-slate-200 p-16 text-center text-slate-400 space-y-3">
               <i className="fas fa-folder-open text-3xl text-slate-300" />
               <p className="text-sm font-bold text-slate-600">Không tìm thấy lớp học phần phù hợp.</p>
+              {filterClassId !== 'all' && (
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => handleFilterClassChange('all')}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-indigo-50 text-indigo-700 text-xs font-bold hover:bg-indigo-100 transition cursor-pointer"
+                  >
+                    <i className="fas fa-list text-[11px]" />
+                    <span>Xem tất cả lớp phụ trách ({classes.length})</span>
+                  </button>
+                </div>
+              )}
             </div>
           ) : (
             displayedClasses.map((cls) => {

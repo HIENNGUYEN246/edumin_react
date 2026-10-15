@@ -114,6 +114,26 @@ export function StudentDocumentList() {
     }
   };
 
+  const handleAiStudyAction = (doc, group, action) => {
+    const documentName = doc.name || 'tài liệu học tập';
+    const courseName = group.courseName || group.className || 'môn học';
+    const courseId = group.courseId;
+    const classId = group.classId;
+
+    window.dispatchEvent(
+      new CustomEvent('edumin:ai-study', {
+        detail: {
+          action, // 'summarize' | 'quiz'
+          documentId: doc._id,
+          documentName,
+          courseName,
+          courseId,
+          classId,
+        },
+      })
+    );
+  };
+
   // Group documents by Class and Course
   const classGroups = useMemo(() => {
     const classes = enrollments
@@ -162,14 +182,21 @@ export function StudentDocumentList() {
 
     list.forEach((cls) => {
       cls.docs = allDocs.filter((d) => {
+        if (d.classRef && cls._id && String(d.classRef) === String(cls._id)) {
+          assignedIds.add(d._id);
+          return true;
+        }
         if (d.classId) {
-          if (d.classId === cls.classId || d.classId === cls.key) {
+          const itemCId = String(d.classId).trim().toLowerCase();
+          const grpCId = String(cls.classId || '').trim().toLowerCase();
+          const grpKey = String(cls.key || '').trim().toLowerCase();
+          if (itemCId === grpCId || itemCId === grpKey || itemCId.replace(/[-_]/g, '') === grpCId.replace(/[-_]/g, '')) {
             assignedIds.add(d._id);
             return true;
           }
           return false;
         }
-        if (d.courseId && d.courseId === cls.courseId) {
+        if (d.courseId && cls.courseId && d.courseId.trim().toUpperCase() === cls.courseId.trim().toUpperCase()) {
           assignedIds.add(d._id);
           return true;
         }
@@ -623,7 +650,27 @@ export function StudentDocumentList() {
 
                                   {/* Action buttons */}
                                   <td className="px-4 py-3.5 text-right whitespace-nowrap">
-                                    <div className="flex items-center justify-end gap-2">
+                                    <div className="flex items-center justify-end gap-1.5">
+                                      {/* AI Study Actions */}
+                                      <button
+                                        type="button"
+                                        onClick={() => handleAiStudyAction(doc, group, 'summarize')}
+                                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-xs font-semibold transition active:scale-95 cursor-pointer shadow-2xs"
+                                        title="AI tóm tắt các ý chính và khái niệm của tài liệu này"
+                                      >
+                                        <i className="fas fa-wand-magic-sparkles text-[10px] text-purple-600" />
+                                        <span>AI Tóm tắt</span>
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleAiStudyAction(doc, group, 'quiz')}
+                                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-semibold transition active:scale-95 cursor-pointer shadow-2xs"
+                                        title="AI tạo 5 câu quiz trắc nghiệm ôn tập từ tài liệu này"
+                                      >
+                                        <i className="fas fa-clipboard-question text-[10px] text-amber-600" />
+                                        <span>Tạo Quiz</span>
+                                      </button>
+
                                       {(doc.hasFile || doc.size > 0 || (doc.format && doc.format !== 'Liên kết')) && (
                                         <button
                                           type="button"
@@ -651,7 +698,7 @@ export function StudentDocumentList() {
                                           href={doc.link}
                                           target="_blank"
                                           rel="noopener noreferrer"
-                                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-xs font-bold transition shadow-2xs hover:shadow active:scale-95 cursor-pointer"
+                                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold transition shadow-2xs hover:shadow active:scale-95 cursor-pointer"
                                           title="Mở liên kết bài giảng / tài liệu ngoài"
                                         >
                                           <i className="fas fa-arrow-up-right-from-square text-[10px]" />

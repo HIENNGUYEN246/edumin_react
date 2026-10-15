@@ -85,11 +85,11 @@ router.get('/suggestions', authenticate, (req, res) => {
     ];
   } else if (role === ROLES.STUDENT || role === 'student' || role === 'sinh-vien') {
     suggestions = [
+      'Tóm tắt giúp tôi các ý chính của tài liệu chương 1 môn Lập trình Web',
+      'Tạo cho tôi 5 câu quiz trắc nghiệm ôn tập dựa trên file tài liệu buổi học hôm nay',
       'Thời khóa biểu của tôi',
       'Đăng ký học phần ở đâu?',
       'Xem điểm danh & chuyên cần',
-      'Xem bài tập & làm quiz',
-      'Tải tài liệu học tập ở đâu?',
     ];
   } else {
     suggestions = [
