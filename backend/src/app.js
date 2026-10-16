@@ -8,7 +8,10 @@ import { apiRouter } from './routes.js';
 
 export function createApp() {
   const app = express();
-app.use(cors());
+app.use(cors({
+  origin: true, // Cho phép mọi origin tự động phản hồi lại mà không cần liệt kê cứng
+  credentials: true
+}));
   app.set('trust proxy', 1);
   app.use(helmet({ crossOriginResourcePolicy: false }));
 
