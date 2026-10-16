@@ -8,7 +8,7 @@ import { apiRouter } from './routes.js';
 
 export function createApp() {
   const app = express();
-
+app.use(cors());
   app.set('trust proxy', 1);
   app.use(helmet({ crossOriginResourcePolicy: false }));
 
