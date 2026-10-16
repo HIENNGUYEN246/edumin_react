@@ -60,6 +60,9 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     setAuthListeners({
       onUnauthorized: () => {
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('edumin:clear-toasts'));
+        }
         tokenStore.clear();
         setHasToken(false);
         setCachedUser(null);
@@ -78,6 +81,10 @@ export function AuthProvider({ children }) {
   }, [queryClient]);
 
   const primeSession = (result) => {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('edumin:clear-toasts'));
+    }
+    queryClient.removeQueries({ queryKey: ['profile-requests'] });
     setHasToken(true);
     setLockInfo(null);
     setStoredJson(LOCK_KEY, null);
@@ -106,6 +113,9 @@ export function AuthProvider({ children }) {
   };
 
   const logout = () => {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('edumin:clear-toasts'));
+    }
     authApi.logout();
     setHasToken(false);
     setLockInfo(null);
@@ -134,6 +144,13 @@ export function AuthProvider({ children }) {
       }
     : rawUser;
 
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('edumin:clear-toasts'));
+    }
+    queryClient.removeQueries({ queryKey: ['profile-requests'] });
+  }, [currentUser?._id, queryClient]);
+
   const value = useMemo(
     () => ({
       user: currentUser,
@@ -160,7 +177,20 @@ export function AuthProvider({ children }) {
 
 export function useAuth() {
   const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
+  if (!ctx) {
+    return {
+      user: null,
+      profile: null,
+      isLoading: false,
+      isAuthenticated: false,
+      lockInfo: null,
+      dismissLock: () => {},
+      login: async () => {},
+      register: async () => {},
+      logout: () => {},
+      refetch: async () => {},
+    };
+  }
   return ctx;
 }
 

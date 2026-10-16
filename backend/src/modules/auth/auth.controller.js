@@ -27,7 +27,23 @@ export const changePassword = asyncHandler(async (req, res) => {
 });
 
 export const updateAvatar = asyncHandler(async (req, res) => {
-  res.json(await authService.updateMyAvatar(req.user, req.file));
+  const result = await authService.updateMyAvatar(req.user, req.file);
+  const approved = Boolean(result?.approved);
+  const status = result?.status || (approved ? 'approved' : 'rejected');
+  const success = typeof result?.success === 'boolean' ? result.success : (approved || (result?.isValid && !result?.pending));
+  const message =
+    result?.message ||
+    (approved
+      ? 'Cập nhật ảnh đại diện thành công'
+      : 'Ảnh không hợp lệ: Yêu cầu bắt buộc phải có đúng 1 người trong khung hình!');
+
+  res.json({
+    ...result,
+    success,
+    approved,
+    status,
+    message,
+  });
 });
 
 export const updateProfile = asyncHandler(async (req, res) => {

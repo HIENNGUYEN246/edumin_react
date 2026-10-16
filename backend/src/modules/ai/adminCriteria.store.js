@@ -65,7 +65,8 @@ export function parseCriteriaFromText(rawText = '') {
     norm.includes('khong con vat') ||
     norm.includes('khong anime') ||
     norm.includes('khong hoat hinh') ||
-    norm.includes('khong do vat');
+    norm.includes('khong do vat') ||
+    (hasAvatarKeyword && (norm.includes('nguoi') || norm.includes('human') || norm.includes('person')));
 
   const mentionsSinglePerson =
     norm.includes('1 nguoi') ||
@@ -84,7 +85,11 @@ export function parseCriteriaFromText(rawText = '') {
     norm.includes('hinh nguoi va chi 1 nguoi') ||
     norm.includes('hinh nguoi va 1 nguoi') ||
     norm.includes('nguoi that va chi 1 nguoi') ||
-    norm.includes('chan dung 1 nguoi');
+    norm.includes('chan dung 1 nguoi') ||
+    norm.includes('avatar 1 nguoi') ||
+    norm.includes('avatar chi 1 nguoi') ||
+    norm.includes('anh 1 nguoi') ||
+    norm.includes('anh dai dien 1 nguoi');
 
   const requireHumanAvatar = requireHumanSingleAvatar || (hasAvatarKeyword && mentionsHuman);
   const requireSinglePersonAvatar = requireHumanSingleAvatar || (hasAvatarKeyword && mentionsSinglePerson);
@@ -133,34 +138,62 @@ export function evaluateRequestAgainstCriteria(r, rules = {}) {
 
   const fails = [];
 
-  const avatarObj = reqData.avatar || curData.avatar;
-  const isAvatarChange = Boolean(reqData.avatar) || r.type === 'avatar';
+  const avatarRaw = reqData.avatar || reqData.avatarUrl || curData.avatar || curData.avatarUrl;
+  const isAvatarChange = Boolean(reqData.avatar || reqData.avatarUrl) || r.type === 'avatar';
 
-  if (isAvatarChange && avatarObj) {
+  if (isAvatarChange && avatarRaw) {
+    const avatarObj = typeof avatarRaw === 'object' && avatarRaw !== null ? avatarRaw : { url: String(avatarRaw || '') };
     if (rules?.noAvatar) {
       fails.push('Chính sách tạm dừng đổi avatar');
     }
     if (rules?.requireHumanSingleAvatar || rules?.requireHumanAvatar || rules?.requireSinglePersonAvatar) {
+      // Check if this request was already flagged/held back during upload
+      const hasPriorFailure =
+        r.adminNote &&
+        (r.adminNote.includes('Chưa đạt tiêu chí') ||
+          r.adminNote.includes('Ảnh không hợp lệ') ||
+          r.adminNote.includes('không phải hình người') ||
+          r.adminNote.includes('bắt buộc phải có đúng 1 người'));
+
       let analysis = avatarObj.analysis;
       if (!analysis) {
-        const nameToInspect = avatarObj.originalName || avatarObj.originalname || avatarObj.publicId || avatarObj.url || '';
-        analysis = inspectImageHeuristics({ originalname: nameToInspect, publicId: avatarObj.publicId || '' });
+        const cleanPublicId = String(avatarObj.publicId || '').replace(/^.*[\\/]/, '');
+        const urlFilename = String(avatarObj.url || '').split('?')[0].split('/').pop() || '';
+        const nameToInspect = avatarObj.originalName || avatarObj.originalname || cleanPublicId || urlFilename || '';
+        analysis = inspectImageHeuristics({ originalname: nameToInspect, publicId: cleanPublicId });
       }
 
-      if (rules?.requireHumanSingleAvatar) {
-        if (analysis.isHuman === false) {
-          fails.push(analysis.rejectReason || 'Avatar không phải hình người (phát hiện con vật/đồ vật/anime/phong cảnh)');
-        } else if (analysis.personCount > 1 || analysis.isSinglePerson === false) {
-          fails.push(analysis.rejectReason || `Avatar phát hiện ${analysis.personCount || 'nhiều'} người, tiêu chuẩn chỉ cho phép đúng 1 người`);
-        } else if (!analysis.meetsCriteria && analysis.rejectReason) {
-          fails.push(analysis.rejectReason);
+      if (hasPriorFailure) {
+        fails.push(r.adminNote);
+      } else if (rules?.requireHumanSingleAvatar) {
+        // STRICT: Only approve if isValid === true and isHuman === true and personCount is 1
+        const isStrictValid =
+          analysis?.isValid === true &&
+          analysis?.isHuman === true &&
+          (analysis?.personCount === undefined || analysis?.personCount === 1);
+        if (!isStrictValid) {
+          const detailMsg =
+            analysis?.rejectReason ||
+            analysis?.reason ||
+            (analysis?.isHuman === false
+              ? 'Avatar không phải hình người (phát hiện con vật/đồ vật/anime/phong cảnh)'
+              : analysis?.personCount !== 1
+              ? `Avatar phát hiện ${analysis?.personCount ?? 'nhiều'} người, tiêu chuẩn chỉ cho phép đúng 1 người`
+              : 'Ảnh không hợp lệ: Yêu cầu bắt buộc phải có đúng 1 người trong khung hình!');
+          fails.push(detailMsg);
         }
       } else {
-        if (rules?.requireHumanAvatar && analysis.isHuman === false) {
-          fails.push(analysis.rejectReason || 'Avatar không phải hình người thật');
+        if (rules?.requireHumanAvatar) {
+          const isHuman = analysis?.isValid === true && analysis?.isHuman === true;
+          if (!isHuman) {
+            fails.push(analysis?.reason || analysis?.rejectReason || 'Avatar không phải hình người thật');
+          }
         }
-        if (rules?.requireSinglePersonAvatar && (analysis.personCount > 1 || analysis.isSinglePerson === false)) {
-          fails.push(analysis.rejectReason || `Avatar phát hiện ${analysis.personCount || 'nhiều'} người, tiêu chuẩn chỉ cho phép đúng 1 người`);
+        if (rules?.requireSinglePersonAvatar) {
+          const isSingle = (analysis?.isValid === true || analysis?.isSinglePerson === true) && analysis?.personCount === 1;
+          if (!isSingle) {
+            fails.push(analysis?.reason || analysis?.rejectReason || `Avatar phát hiện ${analysis?.personCount ?? 'nhiều'} người, tiêu chuẩn chỉ cho phép đúng 1 người`);
+          }
         }
       }
     }

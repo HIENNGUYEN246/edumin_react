@@ -37,6 +37,7 @@ apiRouter.use('/attendance', attendanceRoutes);
 apiRouter.use('/feedbacks', feedbackRoutes);
 apiRouter.use('/notifications', notificationRoutes);
 apiRouter.use('/profile-requests', profileRequestRoutes);
+apiRouter.use('/admin/requests', profileRequestRoutes);
 apiRouter.use('/tuition', tuitionRoutes);
 apiRouter.use('/ai', aiRoutes);
 

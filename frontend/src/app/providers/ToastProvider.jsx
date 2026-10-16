@@ -1,8 +1,29 @@
-import { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { useInRouterContext, useLocation } from 'react-router-dom';
 
 const ToastContext = createContext(null);
 
 let idSeq = 0;
+
+function RouteWatcherInner({ onClear }) {
+  const location = useLocation();
+  const prevPathRef = useRef(location.pathname);
+
+  useEffect(() => {
+    if (prevPathRef.current !== location.pathname) {
+      prevPathRef.current = location.pathname;
+      onClear();
+    }
+  }, [location.pathname, onClear]);
+
+  return null;
+}
+
+function RouteWatcher({ onClear }) {
+  const inRouter = useInRouterContext();
+  if (!inRouter) return null;
+  return <RouteWatcherInner onClear={onClear} />;
+}
 
 export function ToastProvider({ children }) {
   const [toasts, setToasts] = useState([]);
@@ -16,6 +37,26 @@ export function ToastProvider({ children }) {
       timers.current.delete(id);
     }
   }, []);
+
+  const clearAll = useCallback(() => {
+    timers.current.forEach((timer) => clearTimeout(timer));
+    timers.current.clear();
+    setToasts([]);
+  }, []);
+
+  useEffect(() => {
+    const handleClear = () => {
+      clearAll();
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('edumin:clear-toasts', handleClear);
+      window.addEventListener('popstate', handleClear);
+      return () => {
+        window.removeEventListener('edumin:clear-toasts', handleClear);
+        window.removeEventListener('popstate', handleClear);
+      };
+    }
+  }, [clearAll]);
 
   const show = useCallback(
     (message, type = 'success', duration = 3000) => {
@@ -37,12 +78,14 @@ export function ToastProvider({ children }) {
       info: (m, d) => show(m, 'info', d),
       warning: (m, d) => show(m, 'warning', d),
       dismiss,
+      clearAll,
     }),
-    [show, dismiss]
+    [show, dismiss, clearAll]
   );
 
   return (
     <ToastContext.Provider value={value}>
+      <RouteWatcher onClear={clearAll} />
       {children}
       <div className="fixed top-5 right-5 z-[9999] flex flex-col gap-3">
         {toasts.map((toast) => (
@@ -84,6 +127,7 @@ export function useToast() {
       info: () => {},
       warning: () => {},
       dismiss: () => {},
+      clearAll: () => {},
     };
   }
   return ctx;

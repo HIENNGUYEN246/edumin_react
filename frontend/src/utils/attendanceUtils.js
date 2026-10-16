@@ -11,8 +11,6 @@ export const EVALUATION_QUICK_TAGS = [
   'Nghỉ có phép',
 ];
 
-<<<<<<< HEAD
-=======
 export const MATRIX_STATUS_MAP = {
   'Có mặt': {
     label: 'Có mặt',
@@ -51,7 +49,6 @@ export const MATRIX_STATUS_MAP = {
   },
 };
 
->>>>>>> 7ded0d7aef75db1a8591cb8ecebd6c005b29d082
 export const SHIFT_OPTIONS = [
   { id: '1', label: 'Ca 1 (07:00 - 09:15)' },
   { id: '2', label: 'Ca 2 (09:30 - 11:45)' },
@@ -60,8 +57,6 @@ export const SHIFT_OPTIONS = [
   { id: '5', label: 'Ca 5 (18:00 - 20:15)' },
 ];
 
-<<<<<<< HEAD
-=======
 export const SHIFT_NORMALIZATION_MAP = {
   // Ca 1 / Sáng 1
   '1': { label: 'Ca 1 (07:00 - 09:15)', time: '07:00 - 09:15', name: 'Ca 1' },
@@ -109,7 +104,6 @@ export const SHIFT_NORMALIZATION_MAP = {
   'tiết 13 - 15': { label: 'Ca 5 (18:00 - 20:15)', time: '18:00 - 20:15', name: 'Ca 5' },
 };
 
->>>>>>> 7ded0d7aef75db1a8591cb8ecebd6c005b29d082
 export function getTodayDateString() {
   const d = new Date();
   const year = d.getFullYear();
@@ -119,11 +113,7 @@ export function getTodayDateString() {
 }
 
 export function formatAttendanceDate(dateStr) {
-<<<<<<< HEAD
-  if (!dateStr) return '';
-=======
   if (!dateStr) return 'Chưa cập nhật';
->>>>>>> 7ded0d7aef75db1a8591cb8ecebd6c005b29d082
   const parts = String(dateStr).split('-');
   if (parts.length === 3) {
     return `${parts[2]}/${parts[1]}/${parts[0]}`;
@@ -131,11 +121,6 @@ export function formatAttendanceDate(dateStr) {
   return dateStr;
 }
 
-<<<<<<< HEAD
-export function getShiftLabel(shiftId) {
-  const found = SHIFT_OPTIONS.find((s) => String(s.id) === String(shiftId));
-  return found ? found.label : `Ca ${shiftId}`;
-=======
 export function getShiftInfo(shiftId, shiftLabel = '') {
   const normLabel = String(shiftLabel || '').trim();
   if (normLabel && /\(\d{2}:\d{2}\s*-\s*\d{2}:\d{2}\)/.test(normLabel)) {
@@ -175,23 +160,11 @@ export function getShiftInfo(shiftId, shiftLabel = '') {
 
 export function getShiftLabel(shiftId, shiftLabel = '') {
   return getShiftInfo(shiftId, shiftLabel).label;
->>>>>>> 7ded0d7aef75db1a8591cb8ecebd6c005b29d082
 }
 
 export function getStatusBadgeClass(status) {
   switch (status) {
     case 'Có mặt':
-<<<<<<< HEAD
-      return 'bg-emerald-100 text-emerald-700 border-emerald-200';
-    case 'Đi muộn':
-      return 'bg-amber-100 text-amber-700 border-amber-200';
-    case 'Vắng có phép':
-      return 'bg-blue-100 text-blue-700 border-blue-200';
-    case 'Vắng mặt':
-      return 'bg-rose-100 text-rose-700 border-rose-200';
-    default:
-      return 'bg-gray-100 text-gray-700 border-gray-200';
-=======
       return 'bg-emerald-100 text-emerald-700 border border-emerald-200';
     case 'Đi muộn':
       return 'bg-amber-100 text-amber-700 border border-amber-200';
@@ -201,7 +174,6 @@ export function getStatusBadgeClass(status) {
       return 'bg-rose-100 text-rose-700 border border-rose-200';
     default:
       return 'bg-gray-100 text-gray-700 border border-gray-200';
->>>>>>> 7ded0d7aef75db1a8591cb8ecebd6c005b29d082
   }
 }
 
@@ -249,8 +221,6 @@ export function calculateStudentAttendanceStats(records = [], studentId = null) 
     avgScore,
   };
 }
-<<<<<<< HEAD
-=======
 
 export const DAY_ID_TO_WEEKDAY = {
   '2': 1, // Thứ 2 = Monday
@@ -318,135 +288,136 @@ export function generateScheduleAlignedSessions(classItem, existingRecords = [])
       if (!r?.date) return;
       const d = new Date(`${String(r.date).slice(0, 10)}T12:00:00`);
       if (!isNaN(d.getTime())) {
-        const dow = d.getDay();
-        if (!presentWeekdays.has(dow)) {
-          presentWeekdays.add(dow);
-          targetDays.push({
-            dayOfWeek: dow,
-            dayId: WEEKDAY_TO_DAY_ID[dow] || String(dow),
-            shiftId: String(r.shiftId || '1'),
-          });
-        }
+        presentWeekdays.add(d.getDay());
       }
     });
+
+    if (presentWeekdays.size > 0) {
+      presentWeekdays.forEach((dayOfWeek) => {
+        const dayId = WEEKDAY_TO_DAY_ID[dayOfWeek] || '2';
+        targetDays.push({
+          dayOfWeek,
+          dayId,
+          shiftId: '1',
+        });
+      });
+    }
   }
 
-  // Determine date bounds
-  const rawStart = classItem?.studyStart ? String(classItem.studyStart).slice(0, 10) : '';
-  const rawEnd = classItem?.studyEnd ? String(classItem.studyEnd).slice(0, 10) : '';
+  // Determine study date range
+  const now = new Date();
+  let startDate = classItem?.studyStart ? new Date(`${String(classItem.studyStart).slice(0, 10)}T00:00:00`) : null;
+  let endDate = classItem?.studyEnd ? new Date(`${String(classItem.studyEnd).slice(0, 10)}T23:59:59`) : null;
 
-  const validRecordDates = (Array.isArray(existingRecords) ? existingRecords : [])
-    .map((r) => String(r?.date || '').slice(0, 10))
-    .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d))
-    .sort();
-
-  let startDate = rawStart ? new Date(`${rawStart}T12:00:00`) : null;
+  // Fallback date window if not defined: 4 weeks before today up to 4 weeks after today
   if (!startDate || isNaN(startDate.getTime())) {
-    if (validRecordDates.length > 0) {
-      startDate = new Date(`${validRecordDates[0]}T12:00:00`);
-    } else {
-      startDate = new Date();
-    }
+    startDate = new Date(now);
+    startDate.setDate(now.getDate() - 28);
   }
-
-  // If there are existing records earlier than studyStart that match class schedule, include them
-  if (validRecordDates.length > 0) {
-    const earliestRec = new Date(`${validRecordDates[0]}T12:00:00`);
-    if (earliestRec < startDate) {
-      startDate = earliestRec;
-    }
-  }
-
-  let endDate = rawEnd ? new Date(`${rawEnd}T12:00:00`) : null;
   if (!endDate || isNaN(endDate.getTime())) {
-    if (validRecordDates.length > 0) {
-      const latestRec = new Date(`${validRecordDates[validRecordDates.length - 1]}T12:00:00`);
-      const defaultDuration = new Date(startDate.getTime() + 105 * 24 * 60 * 60 * 1000); // 15 weeks
-      endDate = latestRec > defaultDuration ? latestRec : defaultDuration;
-    } else {
-      endDate = new Date(startDate.getTime() + 105 * 24 * 60 * 60 * 1000);
-    }
-  } else if (validRecordDates.length > 0) {
-    const latestRec = new Date(`${validRecordDates[validRecordDates.length - 1]}T12:00:00`);
-    if (latestRec > endDate) {
-      endDate = latestRec;
-    }
+    endDate = new Date(now);
+    endDate.setDate(now.getDate() + 28);
   }
 
-  // Step 1: Generate all regular sessions strictly matching weekly schedules
+  // Cap generation at a max of 20 scheduled sessions to avoid overflow
+  const MAX_SCHEDULED_SESSIONS = 20;
+  let scheduledCount = 0;
+
   if (targetDays.length > 0) {
     const cur = new Date(startDate);
-    const maxLimit = Math.min(endDate.getTime(), startDate.getTime() + 180 * 24 * 60 * 60 * 1000);
+    while (cur <= endDate && scheduledCount < MAX_SCHEDULED_SESSIONS) {
+      const dayOfWeek = cur.getDay();
+      const matchingTargets = targetDays.filter((t) => t.dayOfWeek === dayOfWeek);
 
-    while (cur.getTime() <= maxLimit && sessionMap.size < 60) {
-      const curDow = cur.getDay();
-      const matched = targetDays.find((t) => t.dayOfWeek === curDow);
-      if (matched) {
+      matchingTargets.forEach((target) => {
         const yyyy = cur.getFullYear();
         const mm = String(cur.getMonth() + 1).padStart(2, '0');
         const dd = String(cur.getDate()).padStart(2, '0');
         const dateStr = `${yyyy}-${mm}-${dd}`;
+        const shortDate = `${dd}/${mm}`;
+        const dayInfo = WEEKDAY_LABELS[target.dayId] || { label: `Thứ ${target.dayId}`, short: `T${target.dayId}` };
 
         if (!sessionMap.has(dateStr)) {
-          const dayMeta = WEEKDAY_LABELS[matched.dayId] || { label: `Thứ ${matched.dayId}`, short: `T${matched.dayId}` };
           sessionMap.set(dateStr, {
             date: dateStr,
-            shortDate: `${dd}/${mm}`,
-            dayId: matched.dayId,
-            dayOfWeek: curDow,
-            dayName: dayMeta.label,
-            dayShort: dayMeta.short,
-            shiftId: matched.shiftId,
-            shiftLabel: getShiftLabel(matched.shiftId),
+            shortDate,
+            dayId: target.dayId,
+            dayOfWeek: target.dayOfWeek,
+            dayName: dayInfo.label,
+            dayShort: dayInfo.short,
+            shiftId: target.shiftId,
+            shiftLabel: getShiftLabel(target.shiftId),
             isScheduled: true,
           });
+          scheduledCount += 1;
         }
-      }
+      });
+
       cur.setDate(cur.getDate() + 1);
     }
   }
 
-  // Step 2: Include any existing records (e.g. ad-hoc / makeup sessions or historical records)
-  // so no saved attendance data is ever lost
+  // Step 2: Merge in any existing attendance records that occurred outside regular schedules (e.g., make-up classes)
   if (Array.isArray(existingRecords)) {
-    existingRecords.forEach((rec) => {
-      if (!rec?.date) return;
-      const dateStr = String(rec.date).slice(0, 10).trim();
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return;
+    existingRecords.forEach((r) => {
+      if (!r?.date) return;
+      const rawDate = String(r.date).slice(0, 10);
+      if (!sessionMap.has(rawDate)) {
+        const d = new Date(`${rawDate}T12:00:00`);
+        if (!isNaN(d.getTime())) {
+          const dayOfWeek = d.getDay();
+          const dayId = WEEKDAY_TO_DAY_ID[dayOfWeek] || '2';
+          const dayInfo = WEEKDAY_LABELS[dayId] || { label: 'Buổi học', short: 'BH' };
+          const dd = String(d.getDate()).padStart(2, '0');
+          const mm = String(d.getMonth() + 1).padStart(2, '0');
+          const shiftId = String(r.shiftId || '1');
 
-      if (!sessionMap.has(dateStr)) {
-        const d = new Date(`${dateStr}T12:00:00`);
-        const dow = !isNaN(d.getTime()) ? d.getDay() : 1;
-        const dayId = WEEKDAY_TO_DAY_ID[dow] || '2';
-        const dayMeta = WEEKDAY_LABELS[dayId] || { label: `Thứ ${dayId}`, short: `T${dayId}` };
-        const parts = dateStr.split('-');
-        const dd = parts[2];
-        const mm = parts[1];
-
-        sessionMap.set(dateStr, {
-          date: dateStr,
-          shortDate: `${dd}/${mm}`,
-          dayId,
-          dayOfWeek: dow,
-          dayName: dayMeta.label,
-          dayShort: dayMeta.short,
-          shiftId: String(rec.shiftId || '1'),
-          shiftLabel: getShiftLabel(rec.shiftId),
-          isScheduled: false,
-          isMakeUp: true,
-        });
+          sessionMap.set(rawDate, {
+            date: rawDate,
+            shortDate: `${dd}/${mm}`,
+            dayId,
+            dayOfWeek,
+            dayName: `${dayInfo.label} (Bù)`,
+            dayShort: dayInfo.short,
+            shiftId,
+            shiftLabel: getShiftLabel(shiftId, r.shiftLabel),
+            isScheduled: false,
+            isMakeUp: true,
+          });
+        }
       }
     });
   }
 
-  // Step 3: Fallback if no sessions generated at all
+  // Step 3: If still completely empty (no schedule, no records), generate default placeholder session for today
   if (sessionMap.size === 0) {
-    const base = new Date();
-    for (let i = 0; i < 10; i++) {
-      const d = new Date(base.getTime() + i * 7 * 24 * 60 * 60 * 1000);
-      const yyyy = d.getFullYear();
-      const mm = String(d.getMonth() + 1).padStart(2, '0');
-      const dd = String(d.getDate()).padStart(2, '0');
+    const todayStr = getTodayDateString();
+    const d = new Date(`${todayStr}T12:00:00`);
+    const dayOfWeek = d.getDay();
+    const dayId = WEEKDAY_TO_DAY_ID[dayOfWeek] || '2';
+    const dayInfo = WEEKDAY_LABELS[dayId] || { label: 'Hôm nay', short: 'HN' };
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+
+    sessionMap.set(todayStr, {
+      date: todayStr,
+      shortDate: `${dd}/${mm}`,
+      dayId,
+      dayOfWeek,
+      dayName: dayInfo.label,
+      dayShort: dayInfo.short,
+      shiftId: '1',
+      shiftLabel: getShiftLabel('1'),
+      isScheduled: true,
+    });
+
+    // Add 4 more weekly sessions ahead
+    for (let i = 1; i <= 4; i++) {
+      const nextDate = new Date(d);
+      nextDate.setDate(d.getDate() + i * 7);
+      const yyyy = nextDate.getFullYear();
+      const mm = String(nextDate.getMonth() + 1).padStart(2, '0');
+      const dd = String(nextDate.getDate()).padStart(2, '0');
       const dateStr = `${yyyy}-${mm}-${dd}`;
       sessionMap.set(dateStr, {
         date: dateStr,
@@ -472,5 +443,3 @@ export function generateScheduleAlignedSessions(classItem, existingRecords = [])
     sessionNumber: idx + 1,
   }));
 }
-
->>>>>>> 7ded0d7aef75db1a8591cb8ecebd6c005b29d082

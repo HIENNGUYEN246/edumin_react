@@ -105,6 +105,24 @@ export function AppRouter() {
       </Route>
 
       {/* Legacy and deprecated route redirects */}
+      <Route path="/sv/documents" element={<Navigate to="/student/documents" replace />} />
+      <Route path="/sv/assignments" element={<Navigate to="/student/assignments" replace />} />
+      <Route path="/sv/course-registration" element={<Navigate to="/student/course-registration" replace />} />
+      <Route path="/sv/timetable" element={<Navigate to="/student/timetable" replace />} />
+      <Route path="/sv-dashboard" element={<Navigate to="/student" replace />} />
+      <Route path="/gv/documents" element={<Navigate to="/teacher/documents" replace />} />
+      <Route path="/gv/assignments" element={<Navigate to="/teacher/assignments" replace />} />
+      <Route path="/gv/classes" element={<Navigate to="/teacher/classes" replace />} />
+      <Route path="/gv/schedule" element={<Navigate to="/teacher/schedule" replace />} />
+      <Route path="/gv-dashboard" element={<Navigate to="/teacher" replace />} />
+      <Route path="/pdt-dashboard" element={<Navigate to="/admin" replace />} />
+      <Route path="/pdt/manage-teachers" element={<Navigate to="/admin/teachers" replace />} />
+      <Route path="/pdt/teacher-accounts" element={<Navigate to="/admin/teacher-accounts" replace />} />
+      <Route path="/pdt/manage-students" element={<Navigate to="/admin/students" replace />} />
+      <Route path="/pdt/student-accounts" element={<Navigate to="/admin/student-accounts" replace />} />
+      <Route path="/pdt/manage-departments" element={<Navigate to="/admin/departments" replace />} />
+      <Route path="/pdt/manage-courses" element={<Navigate to="/admin/courses" replace />} />
+      <Route path="/pdt/course-registrations" element={<Navigate to="/admin/courses" replace />} />
       <Route path="/admin/attendance" element={<Navigate to="/teacher/attendance" replace />} />
       <Route path="/admin/tuition" element={<Navigate to="/admin" replace />} />
       <Route path="/accountant/*" element={<Navigate to="/admin" replace />} />

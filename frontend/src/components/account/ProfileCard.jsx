@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Avatar } from '../ui/Avatar.jsx';
 import { authApi } from '../../api/authApi.js';
@@ -12,6 +12,11 @@ export function ProfileCard({ profile, user, code, fields = [] }) {
   const queryClient = useQueryClient();
   const fileRef = useRef(null);
   const [editOpen, setEditOpen] = useState(false);
+  const [dismissedAlertId, setDismissedAlertId] = useState(null);
+
+  useEffect(() => {
+    setDismissedAlertId(null);
+  }, [user?._id]);
 
   const isSelfService =
     user?.role === 'giao-vien' ||
@@ -27,6 +32,11 @@ export function ProfileCard({ profile, user, code, fields = [] }) {
     staleTime: 10000,
   });
 
+  const isAlertDismissed = Boolean(
+    dismissedAlertId &&
+    (dismissedAlertId === latestRequest?._id || dismissedAlertId === latestRequest?.updatedAt || dismissedAlertId === 'dismissed')
+  );
+
   const mutation = useMutation({
     mutationFn: (file) => authApi.updateAvatar(file),
     onSuccess: (data) => {
@@ -34,12 +44,14 @@ export function ProfileCard({ profile, user, code, fields = [] }) {
       queryClient.invalidateQueries({ queryKey: ['profile-requests'] });
       window.dispatchEvent(new CustomEvent('edumin_profile_request_updated'));
 
-      if (data?.autoApproved) {
+      if (data?.autoApproved || (data?.approved === true && !data?.pending)) {
         toast.success(data.message || 'EduMin AI đã tự động phê duyệt ảnh đại diện theo tiêu chí của Quản trị viên!');
       } else if (data?.pending) {
         toast.info(data.message || 'Yêu cầu thay đổi ảnh đại diện đã được gửi đến Quản trị viên để phê duyệt');
+      } else if (data?.status === 'rejected' || data?.success === false) {
+        toast.error(data.message || 'Không thể cập nhật ảnh đại diện');
       } else {
-        toast.success('Đã cập nhật ảnh đại diện');
+        toast.success(data.message || 'Đã cập nhật ảnh đại diện');
       }
     },
     onError: (error) => toast.error(error.message || 'Lỗi khi cập nhật ảnh đại diện'),
@@ -149,13 +161,24 @@ export function ProfileCard({ profile, user, code, fields = [] }) {
             )}
 
             {/* Recently rejected alert */}
-            {latestRequest?.status === 'rejected' && latestRequest.adminNote && (
-              <div className="mt-4 p-3 bg-rose-50 border border-rose-200 rounded-2xl flex items-start gap-3 text-xs text-rose-900">
-                <i className="fas fa-info-circle text-rose-500 mt-0.5 text-sm" />
-                <div>
-                  <p className="font-bold">Yêu cầu thay đổi gần đây bị từ chối</p>
-                  <p className="text-rose-700 mt-0.5">Lý do: {latestRequest.adminNote}</p>
+            {latestRequest?.status === 'rejected' && latestRequest.adminNote && !isAlertDismissed && (
+              <div className="mt-4 p-3 bg-rose-50 border border-rose-200 rounded-2xl flex items-start justify-between gap-3 text-xs text-rose-900">
+                <div className="flex items-start gap-3">
+                  <i className="fas fa-exclamation-circle text-rose-500 mt-0.5 text-sm" />
+                  <div>
+                    <p className="font-bold">Yêu cầu thay đổi gần đây bị từ chối</p>
+                    <p className="text-rose-700 mt-0.5 font-medium">Lý do: {latestRequest.adminNote}</p>
+                  </div>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setDismissedAlertId(latestRequest._id || latestRequest.updatedAt || 'dismissed')}
+                  className="text-rose-400 hover:text-rose-700 p-1 text-xs font-bold transition cursor-pointer"
+                  title="Đóng thông báo"
+                  aria-label="Đóng thông báo"
+                >
+                  <i className="fas fa-times" />
+                </button>
               </div>
             )}
           </div>
