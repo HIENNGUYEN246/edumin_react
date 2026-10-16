@@ -11,6 +11,8 @@ import { formatCurrency } from '../../../lib/format.js';
 import { departmentsApi } from '../../../api/departmentsApi.js';
 import { classesApi } from '../../../api/classesApi.js';
 import { useCourses, useCourseMutations } from '../courses/useCourses.js';
+import { ScheduleChangeNotificationModal } from '../../../components/notifications/ScheduleChangeNotificationModal.jsx';
+
 
 export function ManageClasses() {
   const toast = useToast();
@@ -20,6 +22,7 @@ export function ManageClasses() {
   const [searchText, setSearchText] = useState('');
   const search = useDebounce(searchText);
   const [selectedDept, setSelectedDept] = useState('');
+  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
 
   const params = useMemo(
     () => ({ page, limit: 10, search, department: selectedDept || undefined }),
@@ -128,10 +131,20 @@ export function ManageClasses() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-6">
       <PageHeader
         title="Quản lý Lớp học phần"
         subtitle="Danh sách học phần từ danh mục; chọn một học phần để quản lý các lớp được mở"
+        actions={
+          <button
+            type="button"
+            onClick={() => setIsScheduleModalOpen(true)}
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs shadow-sm hover:shadow transition"
+          >
+            <i className="fas fa-bullhorn" />
+            <span>Thông báo đổi lịch học</span>
+          </button>
+        }
       />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -214,19 +227,30 @@ export function ManageClasses() {
         </div>
       </div>
 
-      <DataTable
-        columns={columns}
-        rows={courses}
-        rowKey={(course) => course._id || course.id}
-        isLoading={isLoading}
-        emptyText="Không có học phần nào phù hợp điều kiện lọc."
-      />
+      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden">
+        <DataTable
+          columns={columns}
+          rows={courses}
+          rowKey={(course) => course._id || course.id}
+          isLoading={isLoading}
+          emptyText="Không có học phần nào phù hợp điều kiện lọc."
+          cellPadding="px-4 py-4 sm:py-5"
+        />
+      </div>
       <Pagination
         page={meta.page}
         pages={meta.pages}
         total={meta.total}
         onPageChange={setPage}
       />
+
+      {isScheduleModalOpen && (
+        <ScheduleChangeNotificationModal
+          isOpen={isScheduleModalOpen}
+          onClose={() => setIsScheduleModalOpen(false)}
+          userRole="dao-tao"
+        />
+      )}
     </div>
   );
 }

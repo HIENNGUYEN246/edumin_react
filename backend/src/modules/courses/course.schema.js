@@ -7,6 +7,11 @@ export const createCourseSchema = z.object({
   credits: z.coerce.number().min(0).max(20).optional().default(0),
   fee: z.coerce.number().min(0).optional().default(0),
   departmentId: z.string().trim().optional().default(''),
+  courseType: z.enum(['LT', 'TH', 'LT_TH']).optional().default('LT_TH'),
+  theoryPeriods: z.coerce.number().min(0).optional().default(0),
+  practicePeriods: z.coerce.number().min(0).optional().default(0),
+  prerequisites: z.string().trim().optional().default(''),
+  description: z.string().trim().optional().default(''),
   gradeWeights: gradeWeightsSchema.optional(),
 });
 
@@ -15,6 +20,11 @@ export const updateCourseSchema = z.object({
   credits: z.coerce.number().min(0).max(20).optional(),
   fee: z.coerce.number().min(0).optional(),
   departmentId: z.string().trim().optional(),
+  courseType: z.enum(['LT', 'TH', 'LT_TH']).optional(),
+  theoryPeriods: z.coerce.number().min(0).optional(),
+  practicePeriods: z.coerce.number().min(0).optional(),
+  prerequisites: z.string().trim().optional(),
+  description: z.string().trim().optional(),
   gradeWeights: gradeWeightsSchema.optional(),
 });
 

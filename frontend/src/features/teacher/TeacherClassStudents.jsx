@@ -69,7 +69,7 @@ export function TeacherClassStudents() {
           {/* Tab 3: Điểm danh */}
           <button
             type="button"
-            onClick={() => navigate(`/teacher/attendance?classId=${id}`)}
+            onClick={() => navigate(`/teacher/attendance?classId=${id}`, { state: { classId: id } })}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-slate-700 hover:text-emerald-700 hover:bg-white transition cursor-pointer"
           >
             <i className="fa-solid fa-clipboard-user text-emerald-600" />

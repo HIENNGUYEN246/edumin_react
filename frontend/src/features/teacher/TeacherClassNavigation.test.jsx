@@ -89,7 +89,9 @@ describe('Teacher Gradebook Navigation & UI Enhancements', () => {
     expect(gradebookBtn).toHaveAttribute('href', '/teacher/classes/cls-123/grades');
 
     // Also check Attendance and Students buttons exist
-    expect(screen.getByRole('link', { name: /Điểm danh/i })).toBeInTheDocument();
+    const attendanceBtn = screen.getByRole('link', { name: /Điểm danh/i });
+    expect(attendanceBtn).toBeInTheDocument();
+    expect(attendanceBtn).toHaveAttribute('href', '/teacher/attendance?classId=IT101-01');
     expect(screen.getByRole('link', { name: /Danh sách sinh viên lớp IT101-01/i })).toBeInTheDocument();
   });
 

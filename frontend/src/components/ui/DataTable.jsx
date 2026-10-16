@@ -19,6 +19,7 @@ export function DataTable({
   onSelectAll,
   bulkActions,
   minWidth = 'min-w-[850px]',
+  cellPadding = 'px-4 py-4 sm:py-5',
 }) {
   if (isLoading) return <Spinner />;
 
@@ -67,7 +68,7 @@ export function DataTable({
           <thead>
             <tr className="bg-slate-50/80 text-slate-600 text-left border-b border-slate-200/70 whitespace-nowrap">
               {selectable && (
-                <th className="w-12 px-4 py-3.5 text-center whitespace-nowrap">
+                <th className="w-12 px-4 py-4 text-center whitespace-nowrap">
                   <input
                     type="checkbox"
                     className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer transition"
@@ -83,7 +84,7 @@ export function DataTable({
               {columns.map((col) => (
                 <th
                   key={col.key}
-                  className={`px-4 py-3.5 font-semibold uppercase text-[11px] tracking-wider text-slate-500 whitespace-nowrap ${
+                  className={`px-4 py-4 font-semibold uppercase text-[11px] tracking-wider text-slate-500 whitespace-nowrap ${
                     col.headerClassName || col.className || ''
                   }`}
                 >
@@ -117,7 +118,7 @@ export function DataTable({
                   >
                     {selectable && (
                       <td
-                        className="w-12 px-4 py-3.5 text-center align-middle"
+                        className={`w-12 ${cellPadding} text-center align-middle`}
                         onClick={(e) => e.stopPropagation()}
                       >
                         <input
@@ -132,7 +133,7 @@ export function DataTable({
                     {columns.map((col) => (
                       <td
                         key={col.key}
-                        className={`px-4 py-3.5 text-slate-700 align-middle ${
+                        className={`${cellPadding} text-slate-700 align-middle ${
                           col.cellClassName || col.className || ''
                         }`}
                       >

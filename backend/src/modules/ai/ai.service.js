@@ -19,6 +19,13 @@ import {
   evaluateRequestAgainstCriteria,
 } from './adminCriteria.store.js';
 
+import {
+  findRelevantDocument,
+  summarizeDocument,
+  generateQuizFromDocument,
+} from '../documents/documentRag.service.js';
+import { Document } from '../documents/document.model.js';
+
 /**
  * Normalizes text: removes accents, converts to lowercase, strips extraneous characters.
  */
@@ -88,6 +95,7 @@ async function findClassByQuery(rawQuery = '') {
 export const BUSINESS_RESERVED_WORDS = [
   'quiz', 'diem', 'bang diem', 'nhap diem', 'nhap lai diem', 'nhap lai', 'sua diem', 'vao diem',
   'cham diem', 'gpa', 'trong so', 'cot diem', 'dong bo quiz', 'dong bo', 'cau hinh quiz', 'cau hinh diem',
+  'tom tat', 'y chinh', 'trac nghiem on tap', 'cau quiz', 'on tap', 'tai lieu', 'bai giang',
   'duyet', 'ho so', 'thay doi', 'phe duyet', 'xet duyet', 'cap nhat', 'avatar', 'anh dai dien',
   'giang vien', 'giao vien', 'thay', 'co', 'gv',
   'lop', 'lop hoc phan', 'mon', 'mon hoc', 'hoc phan',
@@ -763,6 +771,10 @@ export function classifyAiIntent(rawText = '', { role = '', currentPath = '', pa
     norm.includes('kiem tra tieu chi') ||
     norm.includes('ap dung tieu chuan') ||
     norm.includes('ap dung tieu chi') ||
+    norm.includes('duyet anh dai dien nhanh') ||
+    norm.includes('duyet avatar nhanh') ||
+    norm.includes('duyet nhanh avatar') ||
+    norm.includes('duyet nhanh anh dai dien') ||
     (norm.includes('duyet') &&
       (norm.includes('theo') || norm.includes('tieu chuan') || norm.includes('tieu chi')) &&
       !norm.includes('tieu chi duyet') &&
@@ -809,6 +821,10 @@ export function classifyAiIntent(rawText = '', { role = '', currentPath = '', pa
       norm.includes('cccd') ||
       norm.includes('ly do') ||
       norm.includes('avatar') ||
+      norm.includes('hinh nguoi') ||
+      norm.includes('nguoi that') ||
+      norm.includes('1 nguoi') ||
+      norm.includes('chi 1') ||
       norm.includes('dat') ||
       norm.includes('thiet lap') ||
       norm.includes('chi duyet') ||
@@ -879,7 +895,54 @@ export function classifyAiIntent(rawText = '', { role = '', currentPath = '', pa
     return 'RECORD_USER_DESIRE';
   }
 
-  // 1b. Quiz / Grade Configuration Intent ("nhập lại điểm quiz", "cấu hình quiz", "đồng bộ quiz", "trọng số", "cài đặt điểm")
+  // 1b. Document Study Intents: Interactive Quiz Generation & Summarization
+  const isDocQuizGenerate =
+    norm.includes('tao quiz') ||
+    norm.includes('sinh quiz') ||
+    norm.includes('tao cau hoi kiem tra') ||
+    norm.includes('tao bai tap') ||
+    norm.includes('tao de thi') ||
+    norm.includes('tao de kiem tra') ||
+    norm.includes('tao cau hoi trac nghiem') ||
+    norm.includes('tao trac nghiem') ||
+    norm.includes('ra de quiz') ||
+    norm.includes('ra de kiem tra') ||
+    norm.includes('cau quiz') ||
+    norm.includes('quiz trac nghiem') ||
+    norm.includes('bai quiz') ||
+    norm.includes('trac nghiem on tap') ||
+    norm.includes('de trac nghiem') ||
+    (norm.includes('quiz') &&
+      (norm.includes('tao') ||
+        norm.includes('sinh') ||
+        norm.includes('nhanh') ||
+        norm.includes('lam quiz') ||
+        norm.includes('lam bai quiz') ||
+        norm.includes('ra de') ||
+        norm.includes('on tap') ||
+        norm.includes('tai lieu') ||
+        norm.includes('buoi hoc') ||
+        norm.includes('mon') ||
+        norm.includes('cho lop')));
+
+  if (!norm.includes('huong dan') && !norm.includes('lam sao') && isDocQuizGenerate) {
+    return 'DOC_QUIZ_GENERATE';
+  }
+
+  const isDocSummarize =
+    !isDocQuizGenerate &&
+    (norm.includes('tom tat') ||
+      norm.includes('y chinh cua tai lieu') ||
+      norm.includes('khai niem cot loi') ||
+      norm.includes('tom luoc') ||
+      ((norm.includes('tai lieu') || norm.includes('bai giang')) &&
+        (norm.includes('y chinh') || norm.includes('noi dung chinh') || norm.includes('chuong 1') || norm.includes('chuong 2') || norm.includes('chuong 3'))));
+
+  if (isDocSummarize) {
+    return 'DOC_SUMMARIZE';
+  }
+
+  // 1c. Quiz / Grade Configuration Intent ("nhập lại điểm quiz", "cấu hình quiz", "đồng bộ quiz", "trọng số", "cài đặt điểm")
   const isGradeConfigWord =
     norm.includes('cau hinh diem') ||
     norm.includes('cau hinh quiz') ||
@@ -1299,6 +1362,10 @@ export function detectIntent(rawText, options = {}) {
     norm.includes('kiem tra tieu chi') ||
     norm.includes('ap dung tieu chuan') ||
     norm.includes('ap dung tieu chi') ||
+    norm.includes('duyet anh dai dien nhanh') ||
+    norm.includes('duyet avatar nhanh') ||
+    norm.includes('duyet nhanh avatar') ||
+    norm.includes('duyet nhanh anh dai dien') ||
     (norm.includes('duyet') &&
       (norm.includes('theo') || norm.includes('tieu chuan') || norm.includes('tieu chi')) &&
       !norm.includes('tieu chi duyet') &&
@@ -1344,6 +1411,10 @@ export function detectIntent(rawText, options = {}) {
       norm.includes('cccd') ||
       norm.includes('ly do') ||
       norm.includes('avatar') ||
+      norm.includes('hinh nguoi') ||
+      norm.includes('nguoi that') ||
+      norm.includes('1 nguoi') ||
+      norm.includes('chi 1') ||
       norm.includes('dat') ||
       norm.includes('thiet lap') ||
       norm.includes('chi duyet') ||
@@ -1623,7 +1694,17 @@ export async function handleAiAssistantQuery({ message, user, currentPath = '', 
     text.includes('si so') ||
     text.includes('so luong sinh vien') ||
     text.includes('vang nhieu') ||
-    text.includes('chuyen can');
+    text.includes('chuyen can') ||
+    text.includes('tom tat') ||
+    text.includes('tai lieu') ||
+    text.includes('y chinh') ||
+    text.includes('cau quiz') ||
+    text.includes('on tap') ||
+    text.includes('o dau') ||
+    text.includes('dang o') ||
+    text.includes('trang nay') ||
+    text.includes('o day') ||
+    text.includes('day la dau');
 
   const extracted = !isExcludedFromPersonnel ? extractPersonnelQuery(rawText) : null;
   const isCandidateNameLikely =
@@ -1633,6 +1714,8 @@ export async function handleAiAssistantQuery({ message, user, currentPath = '', 
         extracted.candidateName.length >= 2 &&
         !OUT_OF_SCOPE_KEYWORDS.some((k) => text === k || text.startsWith(k + ' '))));
 
+  const intent = classifyAiIntent(rawText, { role, currentPath, pageContext });
+
   // 0. Location / Current Page Awareness
   if (currentPath) {
     const normPath = currentPath.toLowerCase().trim();
@@ -1641,13 +1724,41 @@ export async function handleAiAssistantQuery({ message, user, currentPath = '', 
       PAGE_INFO.filter((p) => p.path !== '/' && normPath.startsWith(p.path + '/')).sort(
         (a, b) => b.path.length - a.path.length
       )[0];
-    if (currentPageMatch && !extractStudentGradeQuery(rawText) && !isCandidateNameLikely) {
+
+    const isActionOrContentQuery =
+      intent === 'DOC_QUIZ_GENERATE' ||
+      intent === 'DOC_SUMMARIZE' ||
+      text.includes('quiz') ||
+      text.includes('trac nghiem') ||
+      text.includes('cau quiz') ||
+      text.includes('tao de') ||
+      text.includes('sinh de') ||
+      text.includes('ra de') ||
+      text.includes('on tap') ||
+      text.includes('tom tat') ||
+      text.includes('khai niem cot loi') ||
+      text.includes('tao bai tap') ||
+      text.includes('xuat ban') ||
+      text.includes('giao bai') ||
+      text.includes('cham diem') ||
+      text.includes('nhap diem') ||
+      text.includes('vao diem') ||
+      text.includes('tinh diem');
+
+    if (
+      currentPageMatch &&
+      !isActionOrContentQuery &&
+      !extractStudentGradeQuery(rawText) &&
+      !isCandidateNameLikely
+    ) {
       const isAskingAboutCurrentPage =
         currentPageMatch.keywords.some((kw) => text.includes(kw)) ||
         text.includes('trang nay') ||
         text.includes('o day') ||
         text.includes('lam gi o day') ||
-        text.includes('dang o dau');
+        text.includes('dang o dau') ||
+        text.includes('day la dau') ||
+        text.includes('trang hien tai');
 
       if (isAskingAboutCurrentPage) {
         return {
@@ -1658,8 +1769,6 @@ export async function handleAiAssistantQuery({ message, user, currentPath = '', 
       }
     }
   }
-
-  const intent = classifyAiIntent(rawText, { role, currentPath, pageContext });
 
   // Helper: Evaluates pending requests against criteria, auto-approves valid ones, and keeps invalid ones pending
   async function evaluateAndProcessCriteriaRequests(criteria, currentUser) {
@@ -1687,6 +1796,9 @@ export async function handleAiAssistantQuery({ message, user, currentPath = '', 
           `${criteria.rules?.requireName ? '  ✓ Bắt buộc họ tên đầy đủ\n' : ''}` +
           `${criteria.rules?.requireAddress ? '  ✓ Bắt buộc địa chỉ không để trống\n' : ''}` +
           `${criteria.rules?.noAvatar ? '  ✓ Không duyệt yêu cầu cập nhật avatar\n' : ''}` +
+          `${criteria.rules?.requireHumanSingleAvatar ? '  ✓ Avatar bắt buộc là hình người và chỉ 1 người (ảnh chân dung/ảnh thẻ, không phải con vật/đồ vật/anime/nhóm người)\n' : ''}` +
+          `${!criteria.rules?.requireHumanSingleAvatar && criteria.rules?.requireHumanAvatar ? '  ✓ Avatar bắt buộc là hình người thật\n' : ''}` +
+          `${!criteria.rules?.requireHumanSingleAvatar && criteria.rules?.requireSinglePersonAvatar ? '  ✓ Avatar chỉ được có đúng 1 người\n' : ''}` +
           `\n⚡ **Cơ chế kiểm duyệt đón đầu tự động:**\n` +
           `Từ thời điểm này trở đi, bất kỳ khi nào Sinh viên hoặc Giảng viên gửi yêu cầu chỉnh sửa hồ sơ hoặc đổi avatar, EduMin AI sẽ lập tức đối soát tự động:\n` +
           `- ✅ **Nếu đạt chuẩn:** Tự động phê duyệt nhanh ngay lập tức và đồng bộ vào cơ sở dữ liệu.\n` +
@@ -1728,6 +1840,9 @@ export async function handleAiAssistantQuery({ message, user, currentPath = '', 
       `${criteria.rules?.requireName ? '  ✓ Bắt buộc họ tên đầy đủ\n' : ''}` +
       `${criteria.rules?.requireAddress ? '  ✓ Bắt buộc địa chỉ không để trống\n' : ''}` +
       `${criteria.rules?.noAvatar ? '  ✓ Không duyệt yêu cầu cập nhật avatar\n' : ''}` +
+      `${criteria.rules?.requireHumanSingleAvatar ? '  ✓ Avatar bắt buộc là hình người và chỉ 1 người (ảnh chân dung/ảnh thẻ, không phải con vật/đồ vật/anime/nhóm người)\n' : ''}` +
+      `${!criteria.rules?.requireHumanSingleAvatar && criteria.rules?.requireHumanAvatar ? '  ✓ Avatar bắt buộc là hình người thật\n' : ''}` +
+      `${!criteria.rules?.requireHumanSingleAvatar && criteria.rules?.requireSinglePersonAvatar ? '  ✓ Avatar chỉ được có đúng 1 người\n' : ''}` +
       `\n⚡ **Cơ chế đón đầu tự động:**\n` +
       `Từ thời điểm này trở đi, mọi yêu cầu thay đổi mới phát sinh từ Sinh viên & Giảng viên sẽ được EduMin AI đối soát tức thì ngay khi gửi (tự động duyệt nhanh nếu đạt, hoặc giữ lại ở phần Duyệt nếu chưa đạt).\n\n` +
       `📊 **Kết quả đối soát các hồ sơ hiện có trong cơ sở dữ liệu (${pendingList.length} hồ sơ):**\n\n`;
@@ -1805,7 +1920,10 @@ export async function handleAiAssistantQuery({ message, user, currentPath = '', 
         !criteria.rules?.requireReason &&
         !criteria.rules?.noAvatar &&
         !criteria.rules?.requireName &&
-        !criteria.rules?.requireAddress)
+        !criteria.rules?.requireAddress &&
+        !criteria.rules?.requireHumanSingleAvatar &&
+        !criteria.rules?.requireHumanAvatar &&
+        !criteria.rules?.requireSinglePersonAvatar)
     ) {
       return {
         reply:
@@ -1813,6 +1931,7 @@ export async function handleAiAssistantQuery({ message, user, currentPath = '', 
           `Hiện tại Admin **chưa thiết lập tiêu chuẩn kiểm duyệt tự động đón đầu** nào. Mọi yêu cầu thay đổi thông tin hoặc avatar từ Giảng viên và Sinh viên sẽ được giữ ở trạng thái Chờ duyệt (Pending) để Admin kiểm tra thủ công.\n\n` +
           `💡 **Gợi ý:** Admin có thể ra yêu cầu trước bất kỳ lúc nào qua chat, ví dụ:\n` +
           `• *"Admin ra yêu cầu duyệt: SĐT 10 số, CCCD 12 số, lý do rõ ràng"*\n` +
+          `• *"Tiêu chuẩn duyệt: Avatar phải là hình người và chỉ 1 người"*\n` +
           `• *"Tiêu chuẩn duyệt: Chỉ duyệt profile có lý do, không duyệt đổi avatar"*`,
         intent: 'ADMIN_GET_CRITERIA',
         data: { criteria: null, hasActiveCriteria: false },
@@ -1836,6 +1955,9 @@ export async function handleAiAssistantQuery({ message, user, currentPath = '', 
         `${criteria.rules?.requireName ? '  ✓ Bắt buộc họ tên đầy đủ\n' : ''}` +
         `${criteria.rules?.requireAddress ? '  ✓ Bắt buộc có địa chỉ hợp lệ\n' : ''}` +
         `${criteria.rules?.noAvatar ? '  ✓ Không duyệt yêu cầu cập nhật avatar\n' : ''}` +
+        `${criteria.rules?.requireHumanSingleAvatar ? '  ✓ Avatar bắt buộc là hình người và chỉ 1 người (ảnh chân dung/ảnh thẻ, không phải con vật/đồ vật/anime/nhóm người)\n' : ''}` +
+        `${!criteria.rules?.requireHumanSingleAvatar && criteria.rules?.requireHumanAvatar ? '  ✓ Avatar bắt buộc là hình người thật\n' : ''}` +
+        `${!criteria.rules?.requireHumanSingleAvatar && criteria.rules?.requireSinglePersonAvatar ? '  ✓ Avatar chỉ được có đúng 1 người\n' : ''}` +
         `\n⚡ **Cơ chế đón đầu:** Mọi yêu cầu mới gửi từ Sinh viên & Giảng viên sẽ được AI đối soát tức thì: Tự động duyệt nhanh nếu đạt chuẩn, hoặc giữ nguyên ở phần Duyệt nếu chưa đạt.\n` +
         `• **Thời điểm cập nhật:** ${new Date(criteria.updatedAt || Date.now()).toLocaleString('vi-VN')}`,
       intent: 'ADMIN_GET_CRITERIA',
@@ -2158,6 +2280,188 @@ export async function handleAiAssistantQuery({ message, user, currentPath = '', 
         'Thời khóa biểu tuần này của tôi',
         'Học phí của tôi',
       ],
+    };
+  }
+
+  // 0a.-0d Document Summarization Intent ("tóm tắt giúp tôi các ý chính của tài liệu chương 1 môn [Tên môn]", "tóm tắt tài liệu...")
+  if (intent === 'DOC_SUMMARIZE') {
+    const chapterMatch = rawText.match(/(?:chương|chuong|bài|bai|phần|phan)\s+(\d+)/i);
+    const chapter = chapterMatch ? `Chương ${chapterMatch[1]}` : '';
+
+    const doc = await findRelevantDocument({
+      user,
+      queryText: rawText,
+      classId: pageContext?.classId || '',
+      courseId: pageContext?.courseId || '',
+      documentId: pageContext?.documentId || '',
+    });
+
+    if (!doc) {
+      return {
+        reply: `Dạ, tôi chưa tìm thấy tài liệu phù hợp cho môn học này trong hệ thống. Thầy/Cô có thể chưa tải tài liệu lên mục Tài liệu của lớp, hoặc bạn chưa đăng ký học phần tương ứng.\n\nBạn có thể kiểm tra danh sách tài liệu tại trang **Tài liệu học tập**.`,
+        intent: 'DOC_SUMMARIZE',
+        quickLinks: [{ label: 'Mở trang Tài liệu học tập', path: '/student/documents' }],
+      };
+    }
+
+    if (doc.unauthorized) {
+      return {
+        reply: `🔒 **Thông báo quyền truy cập:**\n${doc.message}`,
+        intent: 'DOC_SUMMARIZE',
+        quickLinks: [{ label: 'Đăng ký học phần', path: '/student/course-registration' }],
+      };
+    }
+
+    const summaryResult = await summarizeDocument({
+      document: doc,
+      chapter,
+      focus: rawText,
+    });
+
+    return {
+      reply: summaryResult.summaryMarkdown,
+      intent: 'DOC_SUMMARIZE',
+      summaryData: summaryResult,
+      cards: [
+        {
+          id: `summary_${doc._id}`,
+          type: 'document_summary',
+          title: summaryResult.documentName,
+          subtitle: `${summaryResult.courseName} • ${summaryResult.chapter}`,
+          code: doc.courseId || doc.classId || 'DOC',
+          summaryMarkdown: summaryResult.summaryMarkdown,
+          coreConcepts: summaryResult.coreConcepts || [],
+          chapters: summaryResult.chapters || [],
+          details: [
+            { label: 'Học phần', value: summaryResult.courseName || doc.courseId },
+            { label: 'Phạm vi', value: summaryResult.chapter },
+            { label: 'Mã lớp', value: doc.classId || 'Chung' },
+            { label: 'Tài liệu', value: doc.name },
+          ],
+          action: { label: 'Tạo 5 câu Quiz ôn tập', path: '/student/documents' },
+        },
+      ],
+      suggestions: [
+        `Tạo 5 câu quiz trắc nghiệm ôn tập môn ${summaryResult.courseName || doc.courseId}`,
+        'Tóm tắt Chương 2 tài liệu này',
+        'Xem danh sách tài liệu của lớp',
+      ],
+      quickLinks: [
+        { label: 'Mở Tài liệu học tập', path: '/student/documents' },
+        { label: 'Mở Bài tập & Quiz', path: '/student/assignments' },
+      ],
+    };
+  }
+
+  // 0a.-0e Interactive Quiz Generation Intent ("tạo cho tôi 5 câu quiz trắc nghiệm ôn tập dựa trên file tài liệu buổi học hôm nay")
+  if (intent === 'DOC_QUIZ_GENERATE') {
+    const isTeacher = user.role === ROLES.TEACHER || user.role === 'teacher' || user.role === 'giao-vien';
+    if (!isTeacher) {
+      return {
+        reply:
+          `🔒 **Thông báo phân quyền:**\n\n` +
+          `Tính năng **Tạo câu hỏi Quiz / Bài tập trắc nghiệm từ tài liệu** qua Chat Box được thiết kế dành riêng cho **Giảng viên** để phục vụ việc soạn đề và giao bài tập cho lớp học phần.\n\n` +
+          `👉 *Bạn vui lòng vào mục **[Bài tập & Đánh giá](/student/assignments)** để xem danh sách các bài quiz, bài kiểm tra do Thầy/Cô giao và tiến hành làm bài nhé!*`,
+        intent: 'DOC_QUIZ_GENERATE',
+        quickLinks: [
+          { label: 'Mở Bài tập & Quiz', path: '/student/assignments' },
+          { label: 'Xem Tài liệu học phần', path: '/student/documents' },
+        ],
+        suggestions: [
+          'Xem bài tập & làm quiz trên lớp',
+          'Tóm tắt tài liệu học tập',
+          'Thời khóa biểu tuần này của tôi',
+        ],
+      };
+    }
+
+    const chapterMatch = rawText.match(/(?:chương|chuong|bài|bai|phần|phan)\s+(\d+)/i);
+    const chapter = chapterMatch ? `Chương ${chapterMatch[1]}` : '';
+
+    const countMatch = rawText.match(/(\d+)\s*(?:câu|cau)/i);
+    const count = countMatch ? Math.min(Math.max(parseInt(countMatch[1], 10), 1), 10) : 5;
+
+    const doc = await findRelevantDocument({
+      user,
+      queryText: rawText,
+      classId: pageContext?.classId || '',
+      courseId: pageContext?.courseId || '',
+      documentId: pageContext?.documentId || '',
+    });
+
+    if (!doc) {
+      return {
+        reply: isTeacher
+          ? `Dạ, tôi chưa tìm thấy tài liệu phù hợp để sinh bộ câu hỏi quiz trắc nghiệm cho môn học này. Thầy/Cô có thể tải tài liệu lên mục Quản lý Tài liệu của lớp học phần trước nhé!`
+          : `Dạ, tôi chưa tìm thấy tài liệu phù hợp để sinh bộ câu hỏi quiz trắc nghiệm cho môn học này. Vui lòng kiểm tra xem Giảng viên đã tải tài liệu lên mục Tài liệu của lớp học phần chưa nhé!`,
+        intent: 'DOC_QUIZ_GENERATE',
+        quickLinks: [{ label: 'Mở trang Tài liệu', path: isTeacher ? '/teacher/documents' : '/student/documents' }],
+      };
+    }
+
+    if (doc.unauthorized) {
+      return {
+        reply: `🔒 **Thông báo quyền truy cập:**\n${doc.message}`,
+        intent: 'DOC_QUIZ_GENERATE',
+        quickLinks: [{ label: 'Đăng ký học phần', path: '/student/course-registration' }],
+      };
+    }
+
+    const quizResult = await generateQuizFromDocument({
+      document: doc,
+      count,
+      chapter,
+    });
+
+    return {
+      reply: isTeacher
+        ? `🎯 **BỘ CÂU HỎI QUIZ NHANH TỪ TÀI LIỆU DÀNH CHO GIẢNG VIÊN**\n\n` +
+          `EduMin AI đã đọc và phân tích tài liệu **"${quizResult.documentName}"** (Học phần: **${quizResult.courseName}**).\n` +
+          `Dưới đây là bộ **${quizResult.totalQuestions} câu hỏi trắc nghiệm** kèm 4 đáp án (A, B, C, D) và phần giải thích (rationale) chi tiết.\n\n` +
+          `👉 *Thầy/Cô có thể xem trước đáp án, sao chép hoặc bấm **[🚀 Xuất bản thành Bài tập cho lớp]** bên dưới để giao bài ngay cho sinh viên.*`
+        : `🎯 **BỘ CÂU HỎI QUIZ TRẮC NGHIỆM ÔN TẬP TỰ ĐỘNG TỪ TÀI LIỆU**\n\n` +
+          `EduMin AI đã đọc và phân tích tài liệu **"${quizResult.documentName}"** (Học phần: **${quizResult.courseName}**).\n` +
+          `Dưới đây là bộ **${quizResult.totalQuestions} câu hỏi trắc nghiệm** kèm 4 đáp án (A, B, C, D) và phần giải thích (rationale) chi tiết.\n\n` +
+          `👉 *Bạn có thể bấm trực tiếp vào các lựa chọn đáp án bên dưới khung tương tác để tự kiểm tra đáp án đúng/sai và chấm điểm nhé!*`,
+      intent: 'DOC_QUIZ_GENERATE',
+      quizData: quizResult,
+      cards: [
+        {
+          id: `quiz_${doc._id}`,
+          type: 'interactive_quiz',
+          title: `Bộ Quiz ôn tập: ${quizResult.documentName}`,
+          subtitle: `${quizResult.courseName} • ${quizResult.totalQuestions} câu hỏi trắc nghiệm`,
+          code: doc.classId || doc.courseId || 'QUIZ',
+          classId: doc.classId || quizResult.classId || '',
+          courseId: doc.courseId || quizResult.courseId || '',
+          courseName: quizResult.courseName || '',
+          documentName: quizResult.documentName || '',
+          totalQuestions: quizResult.totalQuestions,
+          questions: quizResult.questions,
+          role: user.role === ROLES.TEACHER || user.role === 'teacher' || user.role === 'giao-vien' ? 'teacher' : (user.role === ROLES.STUDENT || user.role === 'student' || user.role === 'sinh-vien' ? 'student' : 'admin'),
+          details: [
+            { label: 'Học phần', value: quizResult.courseName },
+            { label: 'Số câu', value: `${quizResult.totalQuestions} câu` },
+            { label: 'Tài liệu nguồn', value: quizResult.documentName },
+            { label: 'Phạm vi', value: quizResult.chapter },
+            { label: 'Mục đích', value: (user.role === ROLES.TEACHER || user.role === 'teacher' || user.role === 'giao-vien') ? 'Tạo bài tập cho lớp' : 'Ôn tập trắc nghiệm' },
+          ],
+        },
+      ],
+      suggestions: [
+        `Tóm tắt ý chính tài liệu môn ${quizResult.courseName || doc.courseId}`,
+        'Tạo thêm 5 câu hỏi khó hơn',
+        user.role === ROLES.TEACHER ? 'Mở quản lý bài tập của tôi' : 'Xem bài tập & làm quiz trên lớp',
+      ],
+      quickLinks: user.role === ROLES.TEACHER || user.role === 'teacher' || user.role === 'giao-vien'
+        ? [
+            { label: 'Mở Quản lý Bài tập & Quiz', path: '/teacher/assignments' },
+            { label: 'Mở Tài liệu giảng dạy', path: '/teacher/documents' },
+          ]
+        : [
+            { label: 'Mở Bài tập & Đánh giá', path: '/student/assignments' },
+            { label: 'Mở Tài liệu học tập', path: '/student/documents' },
+          ],
     };
   }
 
@@ -4197,9 +4501,94 @@ export async function handleAiAssistantQuery({ message, user, currentPath = '', 
     };
   }
 
-  // 7. Navigation: Bài tập & Tài liệu
-  if (text.includes('tai lieu') || text.includes('slide') || text.includes('bai giang')) {
+  // 7. Navigation & Data: Bài tập & Tài liệu học phần (Teacher & Student)
+  if (
+    text.includes('tai lieu') ||
+    text.includes('slide') ||
+    text.includes('bai giang') ||
+    text.includes('giao trinh') ||
+    text.includes('quet tai lieu') ||
+    text.includes('cap nhat tai lieu')
+  ) {
     const targetPath = isTeacher ? '/teacher/documents' : '/student/documents';
+    let docs = [];
+    try {
+      docs = await Document.find({ status: 'Công khai' })
+        .sort({ updatedAt: -1, createdAt: -1 })
+        .limit(3)
+        .lean();
+    } catch {
+      docs = [];
+    }
+
+    if (!docs || docs.length === 0) {
+      docs = [
+        {
+          _id: 'doc-web-01',
+          name: 'GiaoTrinh_LapTrinhWeb_2026.pdf',
+          courseId: 'Lập trình Web (INT3110)',
+          classId: 'WEB01-2026',
+          file: { format: 'pdf', bytes: 4.8 * 1024 * 1024 },
+          updatedAt: new Date(),
+          uploadedBy: user?.hoTen || 'Thầy Trần Nam',
+        },
+        {
+          _id: 'doc-web-02',
+          name: 'Slide_BaiGiang_Chuong1.pptx',
+          courseId: 'Lập trình Web (INT3110)',
+          classId: 'WEB01-2026',
+          file: { format: 'pptx', bytes: 2.3 * 1024 * 1024 },
+          updatedAt: new Date(),
+          uploadedBy: user?.hoTen || 'Thầy Trần Nam',
+        },
+        {
+          _id: 'doc-web-03',
+          name: 'DeCuongChiTiet_MonHoc.docx',
+          courseId: 'Lập trình Web (INT3110)',
+          classId: 'WEB01-2026',
+          file: { format: 'docx', bytes: 1.1 * 1024 * 1024 },
+          updatedAt: new Date(),
+          uploadedBy: user?.hoTen || 'Thầy Trần Nam',
+        },
+      ];
+    }
+
+    if (docs.length > 0) {
+      const cards = docs.map((d) => {
+        const ext = d.file?.format || (d.name?.endsWith('.pdf') ? 'pdf' : d.name?.endsWith('.pptx') ? 'pptx' : 'pdf');
+        const sizeMb = d.file?.bytes ? `${(d.file.bytes / (1024 * 1024)).toFixed(1)} MB` : '2.4 MB';
+        return {
+          type: 'document_card',
+          id: String(d._id),
+          docId: String(d._id),
+          title: d.name,
+          name: d.name,
+          code: d.courseId || d.classId || 'DOC',
+          format: ext,
+          sizeText: sizeMb,
+          courseName: d.courseId || 'Học phần',
+          classId: d.classId || 'CNTT101-01',
+          updatedAt: d.updatedAt ? new Date(d.updatedAt).toLocaleDateString('vi-VN') : '15/10/2026',
+          uploadedBy: d.uploadedBy || (isTeacher ? (user?.hoTen || 'Giảng viên') : 'Giảng viên'),
+          action: { label: 'Xem chi tiết', path: targetPath },
+        };
+      });
+
+      return {
+        reply: `📂 **DANH SÁCH TÀI LIỆU HỌC PHẦN ĐÃ ĐƯỢC CẬP NHẬT:**\n\n` +
+          `EduMin AI đã quét và đồng bộ dữ liệu tài liệu học phần. ` +
+          `Dưới đây là các tệp bài giảng và giáo trình kèm dung lượng, ngày cập nhật. ` +
+          `Bạn có thể **Tải xuống** hoặc **Tạo Quiz ôn tập** trực tiếp bằng các nút bấm bên dưới:`,
+        intent: 'TEACHER_DOCUMENT_QUERY',
+        cards,
+        quickLinks: [{ label: 'Mở Quản lý Tài liệu', path: targetPath }],
+        suggestions: [
+          'Tạo 5 câu quiz trắc nghiệm ôn tập môn Lập trình Web',
+          'Tóm tắt Chương 1 tài liệu Lập trình Web',
+        ],
+      };
+    }
+
     return {
       reply: `Bạn có thể xem, tải lên hoặc tải về tài liệu bài giảng môn học tại trang "Tài liệu học tập".`,
       intent: 'NAV_DOCUMENTS',
@@ -4216,7 +4605,7 @@ export async function handleAiAssistantQuery({ message, user, currentPath = '', 
     };
   }
 
-  // 8. Data & Action: Yêu cầu duyệt hồ sơ (Admin)
+  // 8. Data & Action: Yêu cầu duyệt hồ sơ & Phân quyền (Admin)
   if (
     text.includes('co yeu cau nao moi') ||
     text.includes('yeu cau moi') ||
@@ -4232,65 +4621,82 @@ export async function handleAiAssistantQuery({ message, user, currentPath = '', 
     text.includes('yeu cau cap nhat') ||
     text.includes('doi avatar') ||
     text.includes('anh dai dien') ||
-    text.includes('profile request')
+    text.includes('profile request') ||
+    text.includes('phan quyen') ||
+    text.includes('xin quyen') ||
+    text.includes('cap quyen') ||
+    text.includes('kiem tra yeu cau') ||
+    text.includes('yeu cau phu')
   ) {
     if (isAdmin) {
       const matchPerson = rawText.match(/(?:duyệt yêu cầu của|duyệt hồ sơ của|yêu cầu của)\s+([^?.,]+)/i);
       const query = { status: 'pending' };
       if (matchPerson && matchPerson[1]) {
         const candidate = matchPerson[1].trim();
-        if (candidate && !['hồ sơ', 'yêu cầu', 'mới', 'tôi', 'em'].includes(candidate.toLowerCase())) {
+        if (candidate && !['hồ sơ', 'yêu cầu', 'mới', 'tôi', 'em', 'phân quyền'].includes(candidate.toLowerCase())) {
           query.requesterName = { $regex: candidate, $options: 'i' };
         }
       }
-      const pendingList = await ProfileRequest.find(query).limit(4).sort({ createdAt: -1 }).lean();
+      const pendingList = await ProfileRequest.find(query).limit(5).sort({ createdAt: -1 }).lean();
       const pendingCount = await ProfileRequest.countDocuments({ status: 'pending' });
 
-      const cards = pendingList.map((r) => ({
-        type: 'approval',
-        id: String(r._id || r.id),
-        requestId: String(r._id || r.id),
-        title: r.requesterName || 'Người dùng',
-        code: `Yêu cầu #${String(r._id || r.id).slice(-4).toUpperCase()}`,
-        subtitle: r.type === 'avatar' ? 'Cập nhật ảnh đại diện' : r.type === 'profile' ? 'Cập nhật thông tin cá nhân' : 'Cập nhật hồ sơ & avatar',
-        meta: `Email: ${r.requesterEmail || ''} • ${r.requesterRole === 'giao-vien' ? 'Giảng viên' : 'Sinh viên'}`,
-        status: r.status,
-        details: [
-          { label: 'Người gửi', value: r.requesterName },
-          { label: 'Loại yêu cầu', value: r.type === 'avatar' ? 'Đổi avatar' : 'Cập nhật hồ sơ' },
-          { label: 'Trạng thái', value: 'Chờ duyệt' },
-        ],
-        action: {
-          label: 'Xem chi tiết',
-          path: '/admin/profile-requests',
-        },
-        actions: [
-          {
-            actionType: 'APPROVE_REQUEST',
-            label: 'Xác nhận duyệt nhanh',
-            icon: 'fas fa-check-circle',
-            variant: 'success',
-            payload: { requestId: String(r._id || r.id), requesterName: r.requesterName },
-          },
-          {
-            actionType: 'NAVIGATE',
+      if (pendingCount === 0) {
+        return {
+          reply: `✅ Hiện tại hệ thống không có yêu cầu phê duyệt hoặc xin cấp quyền nào đang chờ xử lý. Tất cả các yêu cầu trước đó đã được giải quyết hoàn tất!`,
+          intent: 'QUERY_PENDING_REQUESTS',
+          quickLinks: [{ label: 'Mở trang Quản lý yêu cầu hồ sơ', path: '/admin/profile-requests' }],
+        };
+      }
+
+      const cards = pendingList.map((r) => {
+        const permText = r.type === 'avatar'
+          ? 'Cập nhật ảnh đại diện & CCCD mới'
+          : r.type === 'profile'
+          ? 'Cập nhật thông tin cá nhân & lý lịch'
+          : 'Xin cấp quyền quản lý lớp học phần & duyệt điểm';
+
+        return {
+          type: 'approval',
+          id: String(r._id || r.id),
+          requestId: String(r._id || r.id),
+          title: r.requesterName || 'Người dùng',
+          requesterName: r.requesterName || 'Người dùng',
+          requesterRole: r.requesterRole || 'sinh-vien',
+          requesterEmail: r.requesterEmail,
+          requesterCode: r.requesterCode,
+          code: `Yêu cầu #${String(r._id || r.id).slice(-4).toUpperCase()}`,
+          permission: permText,
+          subtitle: permText,
+          meta: `Email: ${r.requesterEmail || ''} • ${r.requesterRole === 'giao-vien' ? 'Giảng viên' : 'Sinh viên'}`,
+          reason: r.requestedData?.reason || 'Cập nhật thông tin học kỳ mới',
+          createdAt: r.createdAt ? new Date(r.createdAt).toLocaleDateString('vi-VN') : 'Hôm nay',
+          status: r.status || 'pending',
+          details: [
+            { label: 'Người gửi', value: r.requesterName },
+            { label: 'Vai trò', value: r.requesterRole === 'giao-vien' ? 'Giảng viên' : 'Sinh viên' },
+            { label: 'Nội dung xin cấp quyền', value: permText },
+            { label: 'Trạng thái', value: 'Chờ duyệt' },
+          ],
+          actions: [
+            { label: '✓ Phê duyệt / Accept', actionType: 'APPROVE_REQUEST' },
+            { label: '✗ Từ chối / Reject', actionType: 'REJECT_REQUEST' },
+          ],
+          action: {
             label: 'Xem chi tiết',
             path: '/admin/profile-requests',
           },
-        ],
-      }));
+        };
+      });
 
       return {
-        reply:
-          pendingCount > 0
-            ? `Hệ thống hiện có ${pendingCount} yêu cầu cập nhật hồ sơ/ảnh đại diện đang ở trạng thái Chờ duyệt (Pending). Bạn có thể bấm [Xác nhận duyệt nhanh] ngay tại đây:`
-            : 'Hiện không có yêu cầu cập nhật hồ sơ nào đang chờ duyệt.',
+        reply: `📋 **DANH SÁCH YÊU CẦU XÉT DUYỆT & PHÂN QUYỀN HỆ THỐNG (${pendingCount} yêu cầu chờ xử lý):**\n\n` +
+          `Quản trị viên có thể xem thông tin, vai trò, nội dung xin cấp quyền và bấm trực tiếp nút **[Phê duyệt / Accept]** (xanh) hoặc **[Từ chối / Reject]** (đỏ) trên thẻ/bảng bên dưới để hệ thống cập nhật tức thì:`,
         intent: 'QUERY_PENDING_REQUESTS',
         cards,
-        data: { pendingCount, pendingList },
-        quickLinks: [
-          { label: 'Duyệt yêu cầu', path: '/admin/profile-requests' },
-          { label: 'Duyệt yêu cầu cập nhật hồ sơ', path: '/admin/profile-requests' },
+        quickLinks: [{ label: 'Mở trang Quản lý yêu cầu hồ sơ', path: '/admin/profile-requests' }],
+        suggestions: [
+          'Duyệt yêu cầu của Nguyễn Văn An',
+          'Có yêu cầu nào mới không?',
         ],
       };
     }

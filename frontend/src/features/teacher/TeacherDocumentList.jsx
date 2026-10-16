@@ -8,7 +8,6 @@ import { useConfirm } from '../../app/providers/ConfirmProvider.jsx';
 import { useCourseOptions } from '../shared/useCourseOptions.js';
 import { useDocuments, useDocumentMutations, downloadDocument } from '../shared/useDocuments.js';
 import { useMyTeacherClasses } from './useTeacherClasses.js';
-import { ScheduleRoomBadge } from '../../components/schedule/ScheduleBadge.jsx';
 import { formatDate } from '../../lib/format.js';
 
 function formatFileSize(bytes) {
@@ -101,9 +100,19 @@ export function TeacherDocumentList() {
   const { create, update, remove } = useDocumentMutations();
 
   const [uploadModal, setUploadModal] = useState(false);
-  const [uploadForm, setUploadForm] = useState({ courseId: '', name: '', files: [], link: '' });
+  const [uploadForm, setUploadForm] = useState({
+    courseId: '',
+    courseName: '',
+    classId: '',
+    className: '',
+    isLockedContext: false,
+    name: '',
+    files: [],
+    link: '',
+  });
   const [editTarget, setEditTarget] = useState(null);
-  const [editForm, setEditForm] = useState({ name: '', link: '' });
+  const [editForm, setEditForm] = useState({ name: '', link: '', status: 'Công khai', file: null });
+  const editFileInputRef = useRef(null);
   const [downloadingId, setDownloadingId] = useState(null);
 
   // Filters & State
@@ -158,14 +167,21 @@ export function TeacherDocumentList() {
 
     list.forEach((cls) => {
       cls.docs = allDocs.filter((d) => {
+        if (d.classRef && cls._id && String(d.classRef) === String(cls._id)) {
+          assignedIds.add(d._id);
+          return true;
+        }
         if (d.classId) {
-          if (d.classId === cls.classId || d.classId === cls.key) {
+          const itemCId = String(d.classId).trim().toLowerCase();
+          const grpCId = String(cls.classId || '').trim().toLowerCase();
+          const grpKey = String(cls.key || '').trim().toLowerCase();
+          if (itemCId === grpCId || itemCId === grpKey || itemCId.replace(/[-_]/g, '') === grpCId.replace(/[-_]/g, '')) {
             assignedIds.add(d._id);
             return true;
           }
           return false;
         }
-        if (d.courseId && d.courseId === cls.courseId) {
+        if (d.courseId && cls.courseId && d.courseId.trim().toUpperCase() === cls.courseId.trim().toUpperCase()) {
           assignedIds.add(d._id);
           return true;
         }
@@ -232,6 +248,29 @@ export function TeacherDocumentList() {
     });
   };
 
+  const handleAiStudyAction = (doc, group, action) => {
+    const documentName = doc.name || 'tài liệu học tập';
+    const courseName = group?.courseName || group?.className || 'môn học';
+    const courseId = group?.courseId || doc.courseId || '';
+    const classId = group?.classId || doc.classId || '';
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('edumin:ai-study', {
+          detail: {
+            action, // 'summarize' | 'quiz'
+            documentId: doc._id,
+            documentName,
+            courseName,
+            courseId,
+            classId,
+            role: 'teacher',
+          },
+        })
+      );
+    }
+  };
+
   // Filtered classes & documents
   const filteredGroups = useMemo(() => {
     return classGroups
@@ -290,6 +329,45 @@ export function TeacherDocumentList() {
     setUploadForm((f) => ({ ...f, files: selected }));
   };
 
+  const openUploadForClass = (group) => {
+    setUploadForm({
+      courseId: group.courseId && group.courseId !== 'CHUNG' ? group.courseId : '',
+      courseName: group.courseName || '',
+      classId: group.classId && group.classId !== 'CHUNG' && group.classId !== group.courseId ? group.classId : '',
+      className: group.className || '',
+      isLockedContext: Boolean(group.courseId && group.courseId !== 'CHUNG'),
+      name: '',
+      files: [],
+      link: '',
+    });
+    setUploadModal(true);
+  };
+
+  const openUploadGeneric = () => {
+    const activeGroup =
+      filterClass !== 'all'
+        ? classGroups.find(
+            (g) => g.key === filterClass || g.classId === filterClass || g.courseId === filterClass
+          )
+        : null;
+
+    if (activeGroup && activeGroup.courseId && activeGroup.courseId !== 'CHUNG') {
+      openUploadForClass(activeGroup);
+    } else {
+      setUploadForm({
+        courseId: '',
+        courseName: '',
+        classId: '',
+        className: '',
+        isLockedContext: false,
+        name: '',
+        files: [],
+        link: '',
+      });
+      setUploadModal(true);
+    }
+  };
+
   const submitUpload = async (e) => {
     e.preventDefault();
     if (!uploadForm.courseId) {
@@ -304,6 +382,7 @@ export function TeacherDocumentList() {
     try {
       await create.mutateAsync({
         courseId: uploadForm.courseId,
+        classId: uploadForm.classId || '',
         name: uploadForm.name.trim(),
         files: uploadForm.files,
         link: uploadForm.link.trim(),
@@ -311,7 +390,16 @@ export function TeacherDocumentList() {
       const count = uploadForm.files.length;
       toast.success(count > 1 ? `Đã tải lên ${count} tài liệu thành công` : 'Đã tải lên tài liệu thành công');
       setUploadModal(false);
-      setUploadForm({ courseId: '', name: '', files: [], link: '' });
+      setUploadForm({
+        courseId: '',
+        courseName: '',
+        classId: '',
+        className: '',
+        isLockedContext: false,
+        name: '',
+        files: [],
+        link: '',
+      });
       if (fileRef.current) fileRef.current.value = '';
     } catch (error) {
       toast.error(error.message);
@@ -320,7 +408,34 @@ export function TeacherDocumentList() {
 
   const openEdit = (d) => {
     setEditTarget(d);
-    setEditForm({ name: d.name, link: d.link || '' });
+    setEditForm({
+      name: d.name || '',
+      link: d.link || '',
+      status: d.status || 'Công khai',
+      file: null,
+    });
+  };
+
+  const handleEditFileChange = (e) => {
+    const selected = e.target.files?.[0];
+    if (selected) {
+      setEditForm((f) => ({
+        ...f,
+        file: selected,
+        name: f.name ? f.name : selected.name.replace(/\.[^/.]+$/, ''),
+      }));
+    }
+  };
+
+  const handleRemoveEditFile = () => {
+    setEditForm((f) => ({ ...f, file: null }));
+    if (editFileInputRef.current) editFileInputRef.current.value = '';
+  };
+
+  const closeEditModal = () => {
+    setEditTarget(null);
+    setEditForm({ name: '', link: '', status: 'Công khai', file: null });
+    if (editFileInputRef.current) editFileInputRef.current.value = '';
   };
 
   const submitEdit = async (e) => {
@@ -330,13 +445,18 @@ export function TeacherDocumentList() {
       return;
     }
     try {
-      await update.mutateAsync({
+      const payload = {
         id: editTarget._id,
         name: editForm.name.trim(),
         link: editForm.link.trim(),
-      });
-      toast.success('Đã cập nhật tài liệu');
-      setEditTarget(null);
+        status: editForm.status || editTarget.status || 'Công khai',
+      };
+      if (editForm.file) {
+        payload.file = editForm.file;
+      }
+      await update.mutateAsync(payload);
+      toast.success('Đã cập nhật tài liệu thành công');
+      closeEditModal();
     } catch (error) {
       toast.error(error.message);
     }
@@ -394,10 +514,7 @@ export function TeacherDocumentList() {
             </span>
             <button
               type="button"
-              onClick={() => {
-                setUploadForm({ courseId: '', name: '', files: [], link: '' });
-                setUploadModal(true);
-              }}
+              onClick={openUploadGeneric}
               className="px-4 py-2.5 rounded-xl bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 whitespace-nowrap transition flex items-center gap-2 cursor-pointer shadow-2xs hover:shadow active:scale-95"
             >
               <i className="fas fa-upload text-xs" />
@@ -570,7 +687,7 @@ export function TeacherDocumentList() {
                   }`}
                 >
                   {/* Left: Folder Icon & Class Information */}
-                  <div className="flex items-start gap-3.5">
+                  <div className="flex items-center gap-3.5 min-w-0">
                     <div
                       className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 shadow-2xs border transition-colors ${
                         hasDocs
@@ -581,39 +698,20 @@ export function TeacherDocumentList() {
                       <i className={`fas ${isExpanded ? 'fa-folder-open' : 'fa-folder'} text-lg`} />
                     </div>
 
-                    <div className="space-y-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-black text-sm sm:text-base text-slate-800 tracking-tight">
-                          {group.courseName}
+                    <div className="flex flex-wrap items-center gap-2 min-w-0">
+                      {group.classId && group.classId !== 'CHUNG' && (
+                        <span className="text-xs font-bold bg-slate-100 text-slate-700 px-2.5 py-1 rounded-lg border border-slate-200/80 shrink-0">
+                          Lớp {group.classId}
                         </span>
-                        {group.courseId && (
-                          <span className="font-mono text-[11px] font-bold bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-md border border-indigo-100">
-                            {group.courseId}
-                          </span>
-                        )}
-                        {group.classId && group.classId !== group.courseId && (
-                          <span className="text-[11px] font-bold bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md border border-slate-200/80">
-                            Lớp {group.classId}
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
-                        {group.schedules?.length > 0 && (
-                          <ScheduleRoomBadge
-                            schedules={group.schedules}
-                            room={group.room}
-                            studyStart={group.studyStart}
-                            studyEnd={group.studyEnd}
-                          />
-                        )}
-                        {group.room && !group.schedules?.length && (
-                          <span className="inline-flex items-center gap-1 text-slate-500">
-                            <i className="fas fa-door-open text-slate-400 text-[11px]" />
-                            <span>Phòng {group.room}</span>
-                          </span>
-                        )}
-                      </div>
+                      )}
+                      <h4 className="font-black text-sm sm:text-base text-slate-800 tracking-tight truncate">
+                        {group.courseName}
+                      </h4>
+                      {group.courseId && group.courseId !== 'CHUNG' && group.classId !== group.courseId && (
+                        <span className="font-mono text-[11px] font-bold bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-md border border-indigo-100 shrink-0">
+                          {group.courseId}
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -633,32 +731,40 @@ export function TeacherDocumentList() {
                       <span>{group.docs.length} tài liệu</span>
                     </span>
 
-                    {/* Quick upload button for this specific course */}
+                    {/* Quick upload & Quick quiz buttons for this specific course */}
                     {group.courseId && group.courseId !== 'CHUNG' && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setUploadForm({ courseId: group.courseId, name: '', files: [], link: '' });
-                          setUploadModal(true);
-                        }}
-                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold border border-indigo-200/60 shadow-2xs transition active:scale-95 cursor-pointer"
-                        title="Tải lên tài liệu cho học phần này"
-                      >
-                        <i className="fas fa-plus text-[10px]" />
-                        <span>Thêm tài liệu</span>
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => handleAiStudyAction(group.docs[0] || { name: `Tài liệu ${group.courseName}`, courseId: group.courseId, classId: group.classId }, group, 'quiz')}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-bold border border-amber-200 shadow-2xs transition active:scale-95 cursor-pointer"
+                          title="AI tạo nhanh bộ quiz trắc nghiệm từ tài liệu của lớp này"
+                        >
+                          <i className="fas fa-wand-magic-sparkles text-[10px] text-amber-600" />
+                          <span>Tạo Quiz nhanh AI</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openUploadForClass(group)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold border border-indigo-200/60 shadow-2xs transition active:scale-95 cursor-pointer"
+                          title="Tải lên tài liệu cho học phần này"
+                        >
+                          <i className="fas fa-plus text-[10px]" />
+                          <span>Thêm tài liệu</span>
+                        </button>
+                      </>
                     )}
 
                     <button
                       type="button"
                       onClick={() => toggleExpand(group.key)}
                       aria-label={isExpanded ? 'Thu gọn thư mục lớp' : 'Mở rộng thư mục lớp'}
-                      className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition cursor-pointer"
+                      className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition cursor-pointer"
                     >
                       <i
-                        className={`fas fa-chevron-down text-xs transition-transform duration-200 ${
-                          isExpanded ? 'rotate-180 text-indigo-600' : ''
-                        }`}
+                        className={`fas ${
+                          isExpanded ? 'fa-chevron-down rotate-180 text-indigo-600' : 'fa-chevron-down'
+                        } text-xs transition-transform duration-200`}
                       />
                     </button>
                   </div>
@@ -676,10 +782,7 @@ export function TeacherDocumentList() {
                         {group.courseId && group.courseId !== 'CHUNG' && (
                           <button
                             type="button"
-                            onClick={() => {
-                              setUploadForm({ courseId: group.courseId, name: '', files: [], link: '' });
-                              setUploadModal(true);
-                            }}
+                            onClick={() => openUploadForClass(group)}
                             className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition shadow-2xs cursor-pointer"
                           >
                             <i className="fas fa-upload text-[11px]" />
@@ -790,6 +893,26 @@ export function TeacherDocumentList() {
                                   {/* Actions */}
                                   <td className="px-4 py-3.5 text-right whitespace-nowrap">
                                     <div className="flex items-center justify-end gap-1.5">
+                                      {/* AI Study Actions for Teacher */}
+                                      <button
+                                        type="button"
+                                        onClick={() => handleAiStudyAction(d, group, 'summarize')}
+                                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-xs font-semibold transition active:scale-95 cursor-pointer shadow-2xs"
+                                        title="AI tóm tắt các ý chính và nội dung trọng tâm của tài liệu này"
+                                      >
+                                        <i className="fas fa-wand-magic-sparkles text-[10px] text-purple-600" />
+                                        <span>AI Tóm tắt</span>
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleAiStudyAction(d, group, 'quiz')}
+                                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-semibold transition active:scale-95 cursor-pointer shadow-2xs"
+                                        title="AI tạo nhanh bộ quiz trắc nghiệm gợi ý từ tài liệu này để làm đề bài tập/kiểm tra cho lớp"
+                                      >
+                                        <i className="fas fa-wand-magic-sparkles text-[10px] text-amber-600" />
+                                        <span>Tạo Quiz nhanh</span>
+                                      </button>
+
                                       {(d.hasFile || d.size > 0) && (
                                         <button
                                           type="button"
@@ -841,20 +964,57 @@ export function TeacherDocumentList() {
       {/* Upload Modal with multi-files and link input */}
       <Modal open={uploadModal} onClose={() => setUploadModal(false)} title="Tải lên tài liệu" size="md">
         <form onSubmit={submitUpload} className="space-y-4">
-          <FormField label="Học phần" required>
-            <select
-              className={inputClass}
-              value={uploadForm.courseId}
-              onChange={(e) => setUploadForm((f) => ({ ...f, courseId: e.target.value }))}
-            >
-              <option value="">Chọn học phần</option>
-              {courses.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.id} — {c.name}
-                </option>
-              ))}
-            </select>
-          </FormField>
+          {uploadForm.isLockedContext ? (
+            <div className="p-3.5 bg-gradient-to-r from-indigo-50/90 to-blue-50/70 border border-indigo-100 rounded-2xl flex items-center justify-between gap-3 shadow-2xs">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 text-sm shadow-2xs">
+                  <i className="fas fa-book-open" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[11px] font-bold text-indigo-600 uppercase tracking-wider">Học phần & Lớp áp dụng</p>
+                  <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                    <span className="font-extrabold text-sm text-slate-800 truncate">
+                      {uploadForm.courseName || uploadForm.courseId}
+                    </span>
+                    <span className="font-mono text-xs font-bold bg-white text-indigo-700 px-2 py-0.5 rounded-md border border-indigo-200">
+                      {uploadForm.courseId}
+                    </span>
+                    {uploadForm.classId && (
+                      <span className="text-xs font-bold bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md border border-slate-200">
+                        Lớp {uploadForm.classId}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <span className="shrink-0 inline-flex items-center gap-1 text-[11px] font-bold text-indigo-700 bg-white/90 px-2.5 py-1 rounded-lg border border-indigo-100 shadow-2xs">
+                <i className="fas fa-lock text-[10px]" />
+                <span>Tự động gán</span>
+              </span>
+            </div>
+          ) : (
+            <FormField label="Học phần" required>
+              <select
+                className={inputClass}
+                value={uploadForm.courseId}
+                onChange={(e) => {
+                  const found = courses.find((c) => c.id === e.target.value);
+                  setUploadForm((f) => ({
+                    ...f,
+                    courseId: e.target.value,
+                    courseName: found?.name || '',
+                  }));
+                }}
+              >
+                <option value="">Chọn học phần</option>
+                {courses.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.id} — {c.name}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+          )}
 
           <FormField
             label="Chọn tệp tài liệu (chọn được 2 - 3 tệp cùng lúc)"
@@ -946,23 +1106,129 @@ export function TeacherDocumentList() {
         </form>
       </Modal>
 
-      {/* Edit Modal for Name & Link */}
-      <Modal open={Boolean(editTarget)} onClose={() => setEditTarget(null)} title="Chỉnh sửa tài liệu" size="sm">
+      {/* Edit Modal for Name, File & Link */}
+      <Modal open={Boolean(editTarget)} onClose={closeEditModal} title="Chỉnh sửa tài liệu" size="md">
         <form onSubmit={submitEdit} className="space-y-4">
           <FormField label="Tên tài liệu" required>
             <input
               className={inputClass}
               value={editForm.name}
               onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
+              placeholder="Nhập tên tài liệu hiển thị..."
             />
           </FormField>
 
+          {/* Current Saved File Information (if any) */}
+          {editTarget?.hasFile && !editForm.file && (
+            <div className="p-3.5 bg-slate-50 border border-slate-200/80 rounded-2xl flex items-center justify-between gap-3 shadow-2xs">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center shrink-0 text-sm shadow-2xs">
+                  <i className="fas fa-file-lines" />
+                </div>
+                <div className="min-w-0">
+                  <p className="font-bold text-xs text-slate-800 truncate" title={editTarget.name}>
+                    Tệp hiện tại: {editTarget.name}
+                  </p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    {editTarget.format ? `Định dạng .${String(editTarget.format).toLowerCase()}` : 'Tệp đính kèm'}
+                    {editTarget.size ? ` • ${formatFileSize(editTarget.size)}` : ''}
+                  </p>
+                </div>
+              </div>
+              <span className="shrink-0 inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
+                <i className="fas fa-check-circle text-[10px]" />
+                <span>Đang sử dụng</span>
+              </span>
+            </div>
+          )}
+
+          {/* File Upload Area (Optional / Non-mandatory) */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                Tệp tài liệu tải lên <span className="text-[11px] font-normal text-slate-400 lowercase">(tùy chọn)</span>
+              </label>
+              {editTarget?.hasFile && !editForm.file && (
+                <span className="text-[11px] text-slate-500 italic">
+                  (Chọn tệp mới nếu muốn thay thế tệp hiện tại)
+                </span>
+              )}
+            </div>
+
+            <input
+              ref={editFileInputRef}
+              type="file"
+              data-testid="edit-document-file-input"
+              accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar,.7z,.txt,image/*"
+              onChange={handleEditFileChange}
+              className="hidden"
+            />
+
+            {/* Display newly selected file with size and actions */}
+            {editForm.file ? (
+              <div
+                data-testid="edit-file-preview-card"
+                className="p-3.5 bg-gradient-to-r from-indigo-50/90 to-blue-50/70 border border-indigo-200 rounded-2xl flex items-center justify-between gap-3 shadow-2xs"
+              >
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 text-sm shadow-2xs">
+                    <i className="fas fa-cloud-arrow-up" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-bold text-xs text-indigo-950 truncate" title={editForm.file.name}>
+                      {editForm.file.name}
+                    </p>
+                    <p className="text-[11px] text-indigo-600 font-medium mt-0.5">
+                      {formatFileSize(editForm.file.size)} • Sẵn sàng cập nhật
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    data-testid="edit-change-file-btn"
+                    onClick={() => editFileInputRef.current?.click()}
+                    className="px-2.5 py-1 text-xs font-bold text-indigo-700 bg-white hover:bg-indigo-50 border border-indigo-200 rounded-lg shadow-2xs transition cursor-pointer"
+                  >
+                    Đổi file
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="edit-remove-file-btn"
+                    onClick={handleRemoveEditFile}
+                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                    title="Hủy chọn tệp mới"
+                    aria-label="Hủy chọn tệp mới"
+                  >
+                    <i className="fas fa-times text-xs" />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div
+                data-testid="edit-document-dropzone"
+                onClick={() => editFileInputRef.current?.click()}
+                className="border-2 border-dashed border-slate-200 hover:border-indigo-400 hover:bg-indigo-50/20 rounded-2xl p-4 text-center cursor-pointer transition duration-150 group"
+              >
+                <div className="w-9 h-9 mx-auto rounded-xl bg-slate-100 group-hover:bg-indigo-100 text-slate-500 group-hover:text-indigo-600 flex items-center justify-center transition mb-1.5 shadow-2xs">
+                  <i className="fas fa-arrow-up-from-bracket text-sm" />
+                </div>
+                <p className="text-xs font-bold text-slate-700 group-hover:text-indigo-700 transition">
+                  {editTarget?.hasFile ? 'Bấm để chọn tệp mới thay thế' : 'Bấm để tải tệp lên'}
+                </p>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Hỗ trợ PDF, Word, Excel, PowerPoint, ZIP, hình ảnh (tối đa 25MB)
+                </p>
+              </div>
+            )}
+          </div>
+
           <FormField
             label="Đường link tài liệu cá nhân / ngoài"
-            hint="Liên kết Google Drive, OneDrive, GitHub..."
+            hint="Liên kết Google Drive, OneDrive, GitHub, tài liệu tham khảo..."
           >
             <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
                 <i className="fas fa-link text-xs" />
               </div>
               <input
@@ -975,20 +1241,41 @@ export function TeacherDocumentList() {
             </div>
           </FormField>
 
-          <div className="flex justify-end gap-3 pt-2 border-t border-gray-100">
+          <FormField label="Trạng thái hiển thị">
+            <select
+              className={inputClass}
+              value={editForm.status}
+              onChange={(e) => setEditForm((f) => ({ ...f, status: e.target.value }))}
+            >
+              <option value="Công khai">Công khai (Sinh viên có thể xem và tải)</option>
+              <option value="Ẩn">Ẩn (Chỉ giảng viên phụ trách xem được)</option>
+            </select>
+          </FormField>
+
+          <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
             <button
               type="button"
-              onClick={() => setEditTarget(null)}
-              className="px-4 py-2 rounded-xl text-sm font-semibold bg-gray-100 text-gray-600 hover:bg-gray-200 transition"
+              onClick={closeEditModal}
+              className="px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 transition cursor-pointer"
             >
               Hủy
             </button>
             <button
               type="submit"
               disabled={update.isPending}
-              className="px-5 py-2 rounded-xl text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 transition"
+              className="px-5 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60 transition flex items-center gap-2 cursor-pointer shadow-xs"
             >
-              {update.isPending ? 'Đang lưu...' : 'Lưu thay đổi'}
+              {update.isPending ? (
+                <>
+                  <i className="fas fa-spinner fa-spin text-xs" />
+                  <span>Đang lưu...</span>
+                </>
+              ) : (
+                <>
+                  <i className="fas fa-check text-xs" />
+                  <span>Lưu thay đổi</span>
+                </>
+              )}
             </button>
           </div>
         </form>

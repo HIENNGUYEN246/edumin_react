@@ -22,8 +22,11 @@ function toStudentDto(assignment) {
   };
 }
 
-async function requireCourseTeacher(user, courseId) {
+async function requireCourseTeacher(user, courseId, doc = null) {
   if (user.role === ROLES.ADMIN) return;
+  if (doc?.createdByRef && user.teacher && String(doc.createdByRef) === String(user.teacher)) {
+    return;
+  }
   const allowed = await canAccessCourse(user, courseId);
   if (!allowed) throw AppError.forbidden('Bạn không phụ trách học phần này');
 }
@@ -94,34 +97,44 @@ export async function getAssignment(id, user) {
 }
 
 export async function createAssignment(payload, user) {
-  const course = await Course.findOne({ id: payload.courseId });
-  if (!course) throw AppError.badRequest('Học phần không tồn tại');
-  await requireCourseTeacher(user, payload.courseId);
-
+  let courseId = payload.courseId;
   let classRef = null;
-  let classId = '';
+  let classId = payload.classId || '';
+
   if (payload.classId) {
-    const cls = await CourseClass.findOne({ id: payload.classId });
+    const isObjectId = /^[0-9a-fA-F]{24}$/.test(String(payload.classId).trim());
+    const cls = await CourseClass.findOne({
+      $or: [
+        { id: payload.classId },
+        ...(isObjectId ? [{ _id: payload.classId }] : []),
+      ],
+    });
     if (cls) {
       classRef = cls._id;
       classId = cls.id;
-    } else {
-      classId = payload.classId;
+      if (!courseId) {
+        courseId = cls.courseId;
+      }
     }
   }
 
+  const course = await Course.findOne({ id: courseId });
+  if (!course) throw AppError.badRequest('Học phần không tồn tại');
+  await requireCourseTeacher(user, courseId);
+
+  const defaultDueDate = new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString().split('T')[0];
   const teacher = user.role === ROLES.TEACHER ? await Teacher.findById(user.teacher).lean() : null;
   const doc = await Assignment.create({
     courseRef: course._id,
     courseId: course.id,
     classRef,
     classId,
-    type: payload.type,
+    type: payload.type || 'quiz',
     title: payload.title,
-    description: payload.description,
-    dueDate: payload.dueDate,
-    status: payload.status,
-    questions: payload.type === 'quiz' ? payload.questions : [],
+    description: payload.description || '',
+    dueDate: payload.dueDate || defaultDueDate,
+    status: payload.status || 'Công khai',
+    questions: (payload.type === 'quiz' || !payload.type) ? payload.questions : [],
     createdByRef: teacher?._id || null,
     createdBy: teacher?.hoTen || user.email,
   });
@@ -131,7 +144,7 @@ export async function createAssignment(payload, user) {
 export async function updateAssignment(id, payload, user) {
   const doc = await Assignment.findById(id);
   if (!doc) throw AppError.notFound('Không tìm thấy bài tập');
-  await requireCourseTeacher(user, doc.courseId);
+  await requireCourseTeacher(user, doc.courseId, doc);
 
   if (payload.classId !== undefined) {
     if (payload.classId) {
@@ -155,7 +168,7 @@ export async function updateAssignment(id, payload, user) {
 export async function deleteAssignment(id, user) {
   const doc = await Assignment.findById(id);
   if (!doc) throw AppError.notFound('Không tìm thấy bài tập');
-  await requireCourseTeacher(user, doc.courseId);
+  await requireCourseTeacher(user, doc.courseId, doc);
   await Submission.deleteMany({ assignmentRef: doc._id });
   await Assignment.deleteOne({ _id: doc._id });
   return { success: true };
@@ -164,7 +177,7 @@ export async function deleteAssignment(id, user) {
 export async function listSubmissions(id, user) {
   const doc = await Assignment.findById(id);
   if (!doc) throw AppError.notFound('Không tìm thấy bài tập');
-  await requireCourseTeacher(user, doc.courseId);
+  await requireCourseTeacher(user, doc.courseId, doc);
   const submissions = await Submission.find({ assignmentRef: doc._id })
     .populate({ path: 'student', select: 'id hoTen email avatar className' })
     .sort({ score: -1 })
@@ -225,7 +238,11 @@ export async function submitQuiz(id, answers, user) {
     score,
     correctCount: correct,
     total: questions.length,
-    answerKey: questions.map((q) => ({ id: q.id, correctIndex: q.correctIndex })),
+    answerKey: questions.map((q) => ({
+      id: q.id,
+      correctIndex: q.correctIndex,
+      explanation: q.explanation || '',
+    })),
   };
 }
 
@@ -240,7 +257,11 @@ export async function getMySubmission(id, user) {
     submission,
     answerKey:
       assignment.type === 'quiz'
-        ? (assignment.questions || []).map((q) => ({ id: q.id, correctIndex: q.correctIndex }))
+        ? (assignment.questions || []).map((q) => ({
+            id: q.id,
+            correctIndex: q.correctIndex,
+            explanation: q.explanation || '',
+          }))
         : null,
   };
 }

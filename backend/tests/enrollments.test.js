@@ -170,4 +170,47 @@ describe('Enrollments', () => {
     const res = await request(app).post('/api/enrollments').set(authHeader(adminToken)).send({ classId: 'x' });
     expect(res.status).toBe(403);
   });
+
+  it('rejects enrollment if prerequisite course is not completed or not passed', async () => {
+    const { token, student } = await makeStudent(99, 'prereq.test@edu.vn');
+
+    // Create prerequisite course and dependent course
+    const it100 = await Course.create({ id: 'IT100', name: 'Lập trình Cơ sở' });
+    const it102 = await Course.create({ id: 'IT102', name: 'Lập trình Nâng cao', prerequisites: 'IT100' });
+    const cls102 = await makeClass('IT102-01', [{ dayId: '3', shiftId: 'S2' }], {
+      courseId: it102.id,
+      courseRef: it102._id,
+      courseName: it102.name,
+    });
+
+    // 1. Without taking IT100: fails
+    const res1 = await request(app).post('/api/enrollments').set(authHeader(token)).send({ classId: cls102._id });
+    expect(res1.status).toBe(400);
+    expect(res1.body.error.message).toMatch(/Yêu cầu hoàn thành môn tiên quyết: IT100 trước khi đăng ký/);
+
+    // 2. Taking IT100 but failed with finalScore 3.0 (< 4.0): fails
+    const cls100 = await makeClass('IT100-01', [{ dayId: '5', shiftId: 'S1' }], {
+      courseId: it100.id,
+      courseRef: it100._id,
+      courseName: it100.name,
+    });
+    const enr100 = await Enrollment.create({
+      student: student._id,
+      classRef: cls100._id,
+      classId: cls100.id,
+      finalScore: 3.0,
+    });
+
+    const res2 = await request(app).post('/api/enrollments').set(authHeader(token)).send({ classId: cls102._id });
+    expect(res2.status).toBe(400);
+    expect(res2.body.error.message).toMatch(/Yêu cầu hoàn thành môn tiên quyết: IT100 trước khi đăng ký/);
+
+    // 3. Update score of IT100 to passing grade 7.5: succeeds
+    enr100.finalScore = 7.5;
+    await enr100.save();
+
+    const res3 = await request(app).post('/api/enrollments').set(authHeader(token)).send({ classId: cls102._id });
+    expect(res3.status).toBe(201);
+    expect(res3.body.classId).toBe('IT102-01');
+  });
 });

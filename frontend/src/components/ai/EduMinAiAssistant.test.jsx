@@ -1,10 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import {
   EduMinAiAssistant,
   getChatUserStorageKey,
   getChatOpenStorageKey,
+  formatAttachmentSize,
+  getAttachmentFileMeta,
+  cleanTextForSpeech,
 } from './EduMinAiAssistant.jsx';
 
 const mockNavigate = vi.fn();
@@ -1193,6 +1196,343 @@ describe('Role-based rendering authorization for EduMinAiAssistant', () => {
     expect(res.reply).toContain('Điểm trung bình tích lũy');
     expect(res.reply).toContain('Đánh giá của Giảng viên');
   });
+
+  it('guides Student away from creating quiz via Chatbox and directs to /student/assignments', () => {
+    const res = getSmartAiResponse('tạo 5 câu quiz trắc nghiệm ôn tập', 'sinh-vien');
+    expect(res.matched).toBe(true);
+    expect(res.intent).toBe('DOC_QUIZ_GENERATE');
+    expect(res.reply).toContain('Thông báo phân quyền');
+    expect(res.cards).toBeUndefined();
+    expect(res.quickLinks.some((l) => l.path === '/student/assignments')).toBe(true);
+  });
+
+  it('allows Teacher to generate interactive quiz card via Chatbox with publishing actions', () => {
+    const res = getSmartAiResponse('tạo 5 câu quiz trắc nghiệm ôn tập môn Lập trình Web', 'giao-vien');
+    expect(res.matched).toBe(true);
+    expect(res.intent).toBe('DOC_QUIZ_GENERATE');
+    expect(res.cards).toBeDefined();
+    expect(res.cards[0].type).toBe('interactive_quiz');
+    expect(res.cards[0].role).toBe('teacher');
+    expect(res.quickLinks.some((l) => l.path === '/teacher/assignments')).toBe(true);
+  });
+
+  it('does NOT intercept quiz generation on /teacher/documents with CURRENT_PAGE_ALREADY', () => {
+    const res = getSmartAiResponse(
+      'Gợi ý và tạo bộ 5 câu hỏi quiz trắc nghiệm kèm đáp án và giải thích từ tài liệu Chương 1 môn Lập trình Web để làm tư liệu kiểm tra/bài tập cho lớp',
+      'teacher',
+      { hoTen: 'ThS. Nguyễn Văn A', role: 'teacher' },
+      '/teacher/documents',
+      { courseName: 'Lập trình Web', classId: 'CNTT101-01', courseId: 'CNTT101' }
+    );
+    expect(res.intent).toBe('DOC_QUIZ_GENERATE');
+    expect(res.intent).not.toBe('CURRENT_PAGE_ALREADY');
+    expect(res.reply).not.toContain('hiện tại bạn đang ở ngay trang');
+    expect(res.cards).toBeDefined();
+    expect(res.cards[0].type).toBe('interactive_quiz');
+    expect(res.cards[0].classId).toBe('CNTT101-01');
+    expect(res.cards[0].role).toBe('teacher');
+  });
+
+  it('triggers CURRENT_PAGE_ALREADY on /teacher/documents only when genuinely asking about location', () => {
+    const res = getSmartAiResponse(
+      'Tôi đang ở đâu?',
+      'teacher',
+      { hoTen: 'ThS. Nguyễn Văn A', role: 'teacher' },
+      '/teacher/documents'
+    );
+    expect(res.intent).toBe('CURRENT_PAGE_ALREADY');
+    expect(res.reply).toContain('Tài liệu giảng dạy');
+  });
 });
+
+describe('EduMinAiAssistant File Attachment & RAG Integration', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    sessionStorage.clear();
+    mockCurrentUser = { role: 'sinh-vien', hoTen: 'Trần Minh Quân' };
+    aiApi.suggestions.mockResolvedValue({ success: true, suggestions: [] });
+  });
+
+  it('correctly calculates formatAttachmentSize and getAttachmentFileMeta', () => {
+    expect(formatAttachmentSize(0)).toBe('0 B');
+    expect(formatAttachmentSize(1024)).toBe('1 KB');
+    expect(formatAttachmentSize(1024 * 500)).toBe('500 KB');
+    expect(formatAttachmentSize(1024 * 1024 * 2.5)).toBe('2.5 MB');
+
+    expect(getAttachmentFileMeta('bai_giang.pdf').label).toBe('PDF');
+    expect(getAttachmentFileMeta('bai_tap.docx').label).toBe('DOCX');
+    expect(getAttachmentFileMeta('de_cuong.txt').label).toBe('TXT');
+  });
+
+  it('renders paperclip file attachment button and hidden file input with correct accept attributes', async () => {
+    render(
+      <MemoryRouter>
+        <EduMinAiAssistant />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Mở trợ lý ảo EduMin/i }));
+
+    const attachBtn = screen.getByTestId('ai-attach-file-btn');
+    expect(attachBtn).toBeInTheDocument();
+    expect(attachBtn).toHaveAttribute('title', 'Đính kèm tài liệu (.pdf, .docx, .txt)');
+
+    const fileInput = screen.getByTestId('ai-file-input');
+    expect(fileInput).toBeInTheDocument();
+    expect(fileInput).toHaveAttribute('accept', '.pdf,.docx,.txt');
+  });
+
+  it('displays compact file preview chip with filename and remove button when file is selected', async () => {
+    render(
+      <MemoryRouter>
+        <EduMinAiAssistant />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Mở trợ lý ảo EduMin/i }));
+
+    const fileInput = screen.getByTestId('ai-file-input');
+    const fakeFile = new File(['nội dung tài liệu ôn thi web'], 'TaiLieu_Chuong1.pdf', {
+      type: 'application/pdf',
+    });
+
+    fireEvent.change(fileInput, { target: { files: [fakeFile] } });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('ai-attached-file-preview')).toBeInTheDocument();
+      expect(screen.getByText('TaiLieu_Chuong1.pdf')).toBeInTheDocument();
+      expect(screen.getByTestId('ai-remove-file-btn')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId('ai-remove-file-btn'));
+    expect(screen.queryByTestId('ai-attached-file-preview')).not.toBeInTheDocument();
+  });
+
+  it('handles message submission with attached file and displays attachment in user bubble', async () => {
+    render(
+      <MemoryRouter>
+        <EduMinAiAssistant />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Mở trợ lý ảo EduMin/i }));
+
+    const fileInput = screen.getByTestId('ai-file-input');
+    const fakeFile = new File(['nội dung'], 'Chuong1_Web.pdf', { type: 'application/pdf' });
+    fireEvent.change(fileInput, { target: { files: [fakeFile] } });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('ai-attached-file-preview')).toBeInTheDocument();
+    });
+
+    const sendBtn = screen.getByRole('button', { name: /Gửi câu hỏi/i });
+    expect(sendBtn).not.toBeDisabled();
+    fireEvent.click(sendBtn);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('ai-user-message-attachment')).toBeInTheDocument();
+      expect(screen.getByText('Chuong1_Web.pdf')).toBeInTheDocument();
+    });
+
+    expect(screen.queryByTestId('ai-attached-file-preview')).not.toBeInTheDocument();
+  });
+
+  describe('Speech-to-Text & Text-to-Speech Web Speech API Integration', () => {
+    let originalSpeechRecognition;
+    let originalWebkitSpeechRecognition;
+    let originalSpeechSynthesis;
+    let originalSpeechSynthesisUtterance;
+
+    beforeEach(() => {
+      originalSpeechRecognition = window.SpeechRecognition;
+      originalWebkitSpeechRecognition = window.webkitSpeechRecognition;
+      originalSpeechSynthesis = window.speechSynthesis;
+      originalSpeechSynthesisUtterance = window.SpeechSynthesisUtterance;
+    });
+
+    afterEach(() => {
+      window.SpeechRecognition = originalSpeechRecognition;
+      window.webkitSpeechRecognition = originalWebkitSpeechRecognition;
+      window.speechSynthesis = originalSpeechSynthesis;
+      window.SpeechSynthesisUtterance = originalSpeechSynthesisUtterance;
+    });
+
+    it('cleanTextForSpeech cleans markdown, code blocks, tables and emojis', () => {
+      const rawText =
+        '🤖 **Xin chào!**\n' +
+        '### Danh sách môn học:\n' +
+        '- Môn [Toán](http://link.com)\n' +
+        '- `Mã môn: CNTT101`\n' +
+        '| Cột 1 | Cột 2 |\n' +
+        '| A | B |\n' +
+        'Chúc bạn học tốt! 🎓';
+
+      const cleaned = cleanTextForSpeech(rawText);
+      expect(cleaned).not.toContain('**');
+      expect(cleaned).not.toContain('###');
+      expect(cleaned).not.toContain('`');
+      expect(cleaned).not.toContain('http://link.com');
+      expect(cleaned).toContain('Toán');
+      expect(cleaned).toContain('Mã môn: CNTT101');
+      expect(cleaned).toContain('Chúc bạn học tốt!');
+      expect(cleaned).not.toContain('🎓');
+      expect(cleaned).not.toContain('🤖');
+    });
+
+    it('renders microphone button and activates voice recognition when clicked', async () => {
+      let createdRecognition = null;
+      class MockSpeechRecognition {
+        constructor() {
+          this.lang = '';
+          this.continuous = false;
+          this.interimResults = false;
+          this.onstart = null;
+          this.onresult = null;
+          this.onerror = null;
+          this.onend = null;
+          createdRecognition = this;
+        }
+        start() {
+          if (this.onstart) this.onstart();
+        }
+        stop() {
+          if (this.onend) this.onend();
+        }
+      }
+
+      window.SpeechRecognition = MockSpeechRecognition;
+
+      render(
+        <MemoryRouter>
+          <EduMinAiAssistant />
+        </MemoryRouter>
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: /Mở trợ lý ảo EduMin/i }));
+
+      const micBtn = screen.getByTestId('ai-speech-recognition-btn');
+      expect(micBtn).toBeInTheDocument();
+      expect(micBtn).toHaveAttribute('aria-label', 'Nhập bằng giọng nói');
+
+      // Click mic to start listening
+      fireEvent.click(micBtn);
+
+      expect(createdRecognition).not.toBeNull();
+      expect(createdRecognition.lang).toBe('vi-VN');
+      expect(createdRecognition.interimResults).toBe(true);
+
+      // Listening wave indicator should appear
+      expect(screen.getByTestId('ai-listening-indicator')).toBeInTheDocument();
+      expect(screen.getByText(/Đang lắng nghe giọng nói tiếng Việt/i)).toBeInTheDocument();
+
+      // Simulate voice speech result
+      act(() => {
+        createdRecognition.onresult({
+          resultIndex: 0,
+          results: [
+            [
+              {
+                transcript: 'Tóm tắt bài học hôm nay',
+              },
+            ],
+          ],
+        });
+      });
+
+      await waitFor(() => {
+        const inputElem = screen.getByPlaceholderText(/Đang lắng nghe bạn nói/i);
+        expect(inputElem.value).toBe('Tóm tắt bài học hôm nay');
+      });
+
+      // Click stop listening button
+      const stopBtn = screen.getByTestId('ai-stop-listening-btn');
+      fireEvent.click(stopBtn);
+
+      expect(screen.queryByTestId('ai-listening-indicator')).not.toBeInTheDocument();
+    });
+
+    it('handles SpeechRecognition unsupported browser gracefully', async () => {
+      delete window.SpeechRecognition;
+      delete window.webkitSpeechRecognition;
+
+      render(
+        <MemoryRouter>
+          <EduMinAiAssistant />
+        </MemoryRouter>
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: /Mở trợ lý ảo EduMin/i }));
+
+      const micBtn = screen.getByTestId('ai-speech-recognition-btn');
+      fireEvent.click(micBtn);
+
+      // Does not throw and does not show listening wave indicator
+      expect(screen.queryByTestId('ai-listening-indicator')).not.toBeInTheDocument();
+    });
+
+    it('renders speaker button on AI message and reads text via window.speechSynthesis', async () => {
+      const mockSpeak = vi.fn();
+      const mockCancel = vi.fn();
+      const mockGetVoices = vi.fn().mockReturnValue([
+        { lang: 'vi-VN', name: 'Google Tiếng Việt' },
+        { lang: 'en-US', name: 'Google US English' },
+      ]);
+
+      window.speechSynthesis = {
+        speak: mockSpeak,
+        cancel: mockCancel,
+        getVoices: mockGetVoices,
+      };
+
+      class MockUtterance {
+        constructor(text) {
+          this.text = text;
+          this.lang = '';
+          this.rate = 1;
+          this.pitch = 1;
+          this.voice = null;
+          this.onstart = null;
+          this.onend = null;
+          this.onerror = null;
+        }
+      }
+
+      window.SpeechSynthesisUtterance = MockUtterance;
+
+      render(
+        <MemoryRouter>
+          <EduMinAiAssistant />
+        </MemoryRouter>
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: /Mở trợ lý ảo EduMin/i }));
+
+      // Find speaker button on welcome message
+      const ttsButtons = screen.getAllByTitle(/Đọc câu trả lời/i);
+      expect(ttsButtons.length).toBeGreaterThan(0);
+
+      const firstTtsBtn = ttsButtons[0];
+      expect(firstTtsBtn).toHaveTextContent('Đọc văn bản');
+
+      // Click to speak
+      fireEvent.click(firstTtsBtn);
+
+      expect(mockSpeak).toHaveBeenCalled();
+      const passedUtterance = mockSpeak.mock.calls[0][0];
+      expect(passedUtterance.lang).toBe('vi-VN');
+      expect(passedUtterance.voice?.lang).toBe('vi-VN');
+      expect(passedUtterance.text.length).toBeGreaterThan(0);
+
+      // Button toggles to "Đang đọc..." / "Dừng đọc"
+      expect(firstTtsBtn).toHaveTextContent('Dừng đọc');
+
+      // Clicking again cancels speech
+      fireEvent.click(firstTtsBtn);
+      expect(mockCancel).toHaveBeenCalled();
+      expect(firstTtsBtn).toHaveTextContent('Đọc văn bản');
+    });
+  });
+});
+
 
 

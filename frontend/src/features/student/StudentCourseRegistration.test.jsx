@@ -861,5 +861,114 @@ describe('StudentCourseRegistration Course Details Modal & General Education Fil
     expect(screen.queryByText(/Hiện không có lớp học phần nào đang mở đăng ký cho/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Chưa đăng ký học phần nào/i)).not.toBeInTheDocument();
   });
+
+  it('locks the register button and displays a warning banner when course prerequisites are not met', async () => {
+    mockIsOpenLoading = false;
+    mockIsMineLoading = false;
+
+    // Course HOA201 requires prerequisite HOA100
+    mockOpenClassesList = [
+      {
+        _id: 'class-hoa-advanced',
+        id: 'HOA201-01',
+        courseId: 'HOA201',
+        courseName: 'Hóa Học Vô Cơ Nâng Cao',
+        department: 'Khoa Hóa Học',
+        credits: 3,
+        fee: 1500000,
+        status: 'Đang mở',
+        enrolledCount: 2,
+        capacity: 30,
+        prerequisites: 'HOA100',
+        courseRef: {
+          prerequisites: 'HOA100',
+        },
+        schedules: [{ dayId: '2', shiftId: 'S1' }],
+        room: 'Lab-A101',
+      },
+    ];
+
+    // Student has not taken or passed HOA100
+    mockMyEnrollmentsList = [];
+
+    renderWithClient();
+
+    // 1. Warning label is shown on course header
+    expect(
+      screen.getByText(/Yêu cầu hoàn thành môn tiên quyết: HOA100 trước khi đăng ký/i)
+    ).toBeInTheDocument();
+
+    // 2. Open accordion to view class
+    const viewClassBtn = screen.getByRole('button', { name: /Xem lớp \(1\)/i });
+    fireEvent.click(viewClassBtn);
+
+    // 3. Button inside ClassRow is disabled with "Chưa đạt tiên quyết"
+    const prereqLockedBtn = screen.getByRole('button', { name: /Chưa đạt tiên quyết/i });
+    expect(prereqLockedBtn).toBeInTheDocument();
+    expect(prereqLockedBtn).toBeDisabled();
+
+    // 4. Normal active "Đăng ký" button is NOT clickable
+    expect(screen.queryByRole('button', { name: /^Đăng ký$/i })).not.toBeInTheDocument();
+  });
+
+  it('allows registration when the student has successfully passed the prerequisite course (score >= 4.0)', async () => {
+    mockIsOpenLoading = false;
+    mockIsMineLoading = false;
+
+    // Course HOA201 requires prerequisite HOA100
+    mockOpenClassesList = [
+      {
+        _id: 'class-hoa-advanced',
+        id: 'HOA201-01',
+        courseId: 'HOA201',
+        courseName: 'Hóa Học Vô Cơ Nâng Cao',
+        department: 'Khoa Hóa Học',
+        credits: 3,
+        fee: 1500000,
+        status: 'Đang mở',
+        enrolledCount: 2,
+        capacity: 30,
+        prerequisites: 'HOA100',
+        schedules: [{ dayId: '2', shiftId: 'S1' }],
+        room: 'Lab-A101',
+      },
+    ];
+
+    // Student has completed HOA100 with finalScore 8.0 (passed)
+    mockMyEnrollmentsList = [
+      {
+        _id: 'enr-hoa-100',
+        classId: 'HOA100-01',
+        finalScore: 8.0,
+        class: {
+          _id: 'class-hoa-100',
+          id: 'HOA100-01',
+          courseId: 'HOA100',
+          courseName: 'Hóa Đại Cương',
+          department: 'Khoa Hóa Học',
+          credits: 3,
+        },
+      },
+    ];
+
+    renderWithClient();
+
+    // 1. Prerequisite warning is NOT shown
+    expect(
+      screen.queryByText(/Yêu cầu hoàn thành môn tiên quyết: HOA100 trước khi đăng ký/i)
+    ).not.toBeInTheDocument();
+
+    // 2. Open accordion
+    const viewClassBtn = screen.getByRole('button', { name: /Xem lớp \(1\)/i });
+    fireEvent.click(viewClassBtn);
+
+    // 3. Normal active "Đăng ký" button is present and enabled
+    const enrollBtn = screen.getByRole('button', { name: /^Đăng ký$/i });
+    expect(enrollBtn).toBeInTheDocument();
+    expect(enrollBtn).not.toBeDisabled();
+
+    fireEvent.click(enrollBtn);
+    expect(mockEnrollMutateAsync).toHaveBeenCalledWith('class-hoa-advanced');
+  });
 });
 

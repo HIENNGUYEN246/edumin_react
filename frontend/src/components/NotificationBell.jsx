@@ -76,6 +76,8 @@ export default function NotificationBell({ currentUser, customRole }) {
         type: n.type || 'system',
         title: n.title,
         message: n.message,
+        targetClassId: n.targetClassId || n.metadata?.classCode || '',
+        metadata: n.metadata || {},
         time: formatTimeAgo(n.createdAt),
         link: n.link,
         isRead: Boolean(n.isRead),
@@ -176,16 +178,24 @@ export default function NotificationBell({ currentUser, customRole }) {
       }
     };
 
+    const handleScheduleUpdate = () => {
+      fetchBackendNotifications();
+    };
+
     window.addEventListener('edumin_feedback_updated', handleFeedbackUpdate);
     window.addEventListener('edumin_attendance_updated', handleAttendanceUpdate);
     window.addEventListener('edumin_profile_request_updated', handleProfileRequestUpdate);
-    window.addEventListener('edumin_notification_created', handleProfileRequestUpdate);
+    window.addEventListener('edumin_notification_created', handleScheduleUpdate);
+    window.addEventListener('edumin_schedule_changed', handleScheduleUpdate);
+    window.addEventListener('edumin_schedule_notification', handleScheduleUpdate);
 
     return () => {
       window.removeEventListener('edumin_feedback_updated', handleFeedbackUpdate);
       window.removeEventListener('edumin_attendance_updated', handleAttendanceUpdate);
       window.removeEventListener('edumin_profile_request_updated', handleProfileRequestUpdate);
-      window.removeEventListener('edumin_notification_created', handleProfileRequestUpdate);
+      window.removeEventListener('edumin_notification_created', handleScheduleUpdate);
+      window.removeEventListener('edumin_schedule_changed', handleScheduleUpdate);
+      window.removeEventListener('edumin_schedule_notification', handleScheduleUpdate);
     };
   }, [role, user, fetchBackendNotifications]);
 
@@ -262,6 +272,8 @@ export default function NotificationBell({ currentUser, customRole }) {
         return { icon: 'fa-user-check', bg: 'bg-emerald-50 text-emerald-600' };
       case 'assignment':
         return { icon: 'fa-clipboard-list', bg: 'bg-amber-50 text-amber-600' };
+      case 'schedule_change':
+        return { icon: 'fa-calendar-alt', bg: 'bg-amber-50 text-amber-600' };
       case 'system':
       default:
         return { icon: 'fa-bell', bg: 'bg-blue-50 text-blue-600' };
@@ -376,14 +388,42 @@ export default function NotificationBell({ currentUser, customRole }) {
 
                     <div className="flex-1 min-w-0 pr-4">
                       <div className="flex items-center justify-between gap-1">
-                        <h5 className={`text-xs truncate ${!item.isRead ? 'font-bold text-gray-900' : 'font-medium text-gray-700'}`}>
-                          {item.title}
-                        </h5>
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          {item.targetClassId && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-700 shrink-0">
+                              {item.targetClassId}
+                            </span>
+                          )}
+                          <h5 className={`text-xs truncate ${!item.isRead ? 'font-bold text-gray-900' : 'font-medium text-gray-700'}`}>
+                            {item.title}
+                          </h5>
+                        </div>
                         <span className="text-[10px] text-gray-400 shrink-0">{item.time}</span>
                       </div>
                       <p className="text-[11px] text-gray-500 mt-0.5 line-clamp-2 leading-relaxed">
                         {item.message}
                       </p>
+                      {item.metadata?.changeType && (
+                        <div className="mt-1 flex flex-wrap items-center gap-1">
+                          {item.metadata.newRoom && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium bg-amber-50 text-amber-700 border border-amber-200/60">
+                              <i className="fas fa-door-open mr-1 text-[8px]" />
+                              {item.metadata.oldRoom ? `${item.metadata.oldRoom} ➔ ` : ''}{item.metadata.newRoom}
+                            </span>
+                          )}
+                          {item.metadata.newShift && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium bg-blue-50 text-blue-700 border border-blue-200/60">
+                              <i className="far fa-clock mr-1 text-[8px]" />
+                              {item.metadata.newShift}
+                            </span>
+                          )}
+                          {item.metadata.date && (
+                            <span className="text-[9px] text-gray-400">
+                              {item.metadata.date}
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     <button

@@ -327,11 +327,11 @@ export function CourseDetail() {
   ];
 
   return (
-    <div>
+    <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-6">
       <button
         type="button"
         onClick={() => navigate('/admin/classes')}
-        className="inline-flex items-center gap-2 text-sm font-semibold text-gray-500 hover:text-indigo-600 mb-4"
+        className="inline-flex items-center gap-2 text-sm font-semibold text-gray-500 hover:text-indigo-600 mb-2"
       >
         <i className="fas fa-arrow-left" /> Quản lý lớp học phần
       </button>
@@ -393,7 +393,15 @@ export function CourseDetail() {
           </button>
         </div>
       </div>
-      <DataTable columns={columns} rows={classes} isLoading={classesLoading} emptyText="Môn học này chưa có lớp học phần nào được mở" />
+      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden">
+        <DataTable
+          columns={columns}
+          rows={classes}
+          isLoading={classesLoading}
+          emptyText="Môn học này chưa có lớp học phần nào được mở"
+          cellPadding="px-4 py-4 sm:py-5"
+        />
+      </div>
 
       {formModal && (
         <ClassFormModal

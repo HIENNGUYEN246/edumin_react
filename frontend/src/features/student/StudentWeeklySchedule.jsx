@@ -1,14 +1,14 @@
 import { useMemo, useState } from 'react';
-import { DAYS, SHIFTS } from '../../lib/schedule.js';
+import { DAYS, SHIFTS, shiftInfo } from '../../lib/schedule.js';
 
-const SESSION_GROUPS = [
+export const SESSION_GROUPS = [
   {
     id: 'sang',
     label: 'Sáng',
     lessons: 'Tiết 1 - 6',
     time: '07:00 - 11:45',
     icon: 'fa-sun',
-    shifts: ['S1', 'S2'],
+    shifts: ['S1', 'S2', '1', '2', 'SI', 'SII'],
   },
   {
     id: 'chieu',
@@ -16,7 +16,7 @@ const SESSION_GROUPS = [
     lessons: 'Tiết 7 - 12',
     time: '12:30 - 17:15',
     icon: 'fa-cloud-sun',
-    shifts: ['C1', 'C2'],
+    shifts: ['C1', 'C2', '3', '4', 'CI', 'CII'],
   },
   {
     id: 'toi',
@@ -24,9 +24,106 @@ const SESSION_GROUPS = [
     lessons: 'Tiết 13 - 15',
     time: '18:00 - 20:15',
     icon: 'fa-moon',
-    shifts: ['T1'],
+    shifts: ['T1', '5', 'TI'],
   },
 ];
+
+export function findShift(shiftId) {
+  if (!shiftId) return null;
+  const s = String(shiftId).trim().toUpperCase();
+  const direct = SHIFTS.find((item) => item.id.toUpperCase() === s);
+  if (direct) return direct;
+
+  const aliasMap = {
+    '1': 'S1',
+    SI: 'S1',
+    '2': 'S2',
+    SII: 'S2',
+    '3': 'C1',
+    CI: 'C1',
+    '4': 'C2',
+    CII: 'C2',
+    '5': 'T1',
+    TI: 'T1',
+  };
+  const targetId = aliasMap[s];
+  if (targetId) {
+    return SHIFTS.find((item) => item.id === targetId);
+  }
+
+  return shiftInfo(shiftId);
+}
+
+export function isSlotInGroup(slot, group) {
+  if (!slot?.shiftId) return false;
+  const s = String(slot.shiftId).trim().toUpperCase();
+  if (group.shifts.some((gs) => gs.toUpperCase() === s)) {
+    return true;
+  }
+  const resolved = findShift(slot.shiftId);
+  if (resolved && (resolved.group === group.id || group.shifts.includes(resolved.id))) {
+    return true;
+  }
+  return false;
+}
+
+export function getStartPeriod(slot = {}, shift = {}, cls = {}) {
+  // 1. Explicit startPeriod / tietBatDau / fromPeriod on slot or cls
+  if (slot.startPeriod != null && !Number.isNaN(Number(slot.startPeriod))) {
+    return Number(slot.startPeriod);
+  }
+  if (cls.startPeriod != null && !Number.isNaN(Number(cls.startPeriod))) {
+    return Number(cls.startPeriod);
+  }
+  if (slot.tietBatDau != null && !Number.isNaN(Number(slot.tietBatDau))) {
+    return Number(slot.tietBatDau);
+  }
+  if (cls.tietBatDau != null && !Number.isNaN(Number(cls.tietBatDau))) {
+    return Number(cls.tietBatDau);
+  }
+  if (slot.fromPeriod != null && !Number.isNaN(Number(slot.fromPeriod))) {
+    return Number(slot.fromPeriod);
+  }
+
+  // 2. Parse lessons string e.g. "Tiết 1 - 3" -> 1, "Tiết 4 - 6" -> 4, "Tiết 7-9" -> 7
+  const lessonsStr = shift?.lessons || slot?.lessons || shift?.label || '';
+  const match = lessonsStr.match(/tiết\s*(\d+)/i);
+  if (match) {
+    return parseInt(match[1], 10);
+  }
+
+  // 3. Known shift IDs
+  const shiftId = String(slot.shiftId || shift?.id || '').trim().toUpperCase();
+  const shiftOrderMap = {
+    S1: 1,
+    '1': 1,
+    SI: 1,
+    S2: 4,
+    '2': 4,
+    SII: 4,
+    C1: 7,
+    '3': 7,
+    CI: 7,
+    C2: 10,
+    '4': 10,
+    CII: 10,
+    T1: 13,
+    '5': 13,
+    TI: 13,
+  };
+  if (shiftOrderMap[shiftId] != null) {
+    return shiftOrderMap[shiftId];
+  }
+
+  // 4. Start time string "07:00 - 09:15" -> minutes since midnight
+  const timeStr = shift?.time || slot?.time || '';
+  const timeMatch = timeStr.match(/^(\d{1,2}):(\d{2})/);
+  if (timeMatch) {
+    return parseInt(timeMatch[1], 10) * 60 + parseInt(timeMatch[2], 10);
+  }
+
+  return 999;
+}
 
 const CARD_STYLES = [
   'border-indigo-500 bg-indigo-50 text-indigo-950',
@@ -277,19 +374,37 @@ export function StudentWeeklySchedule({ classes = [], audience = 'student' }) {
                 {DAYS.map((day, index) => {
                   const date = dates[index];
                   const isToday = toDateInputValue(date) === today;
-                  const items = classes.flatMap((cls) =>
-                    (cls.schedules || [])
-                      .filter(
-                        (slot) =>
-                          String(slot.dayId) === day.id &&
-                          group.shifts.includes(slot.shiftId) &&
-                          isClassActiveOnDate(cls, date)
-                      )
-                      .map((slot) => ({
-                        cls,
-                        shift: SHIFTS.find((item) => item.id === slot.shiftId),
-                      }))
-                  );
+                  const items = classes
+                    .flatMap((cls) =>
+                      (cls.schedules || [])
+                        .filter(
+                          (slot) =>
+                            String(slot.dayId) === day.id &&
+                            isSlotInGroup(slot, group) &&
+                            isClassActiveOnDate(cls, date)
+                        )
+                        .map((slot) => {
+                          const shift = findShift(slot.shiftId) || {
+                            id: slot.shiftId,
+                            lessons: `Ca ${slot.shiftId}`,
+                            time: '',
+                          };
+                          return {
+                            cls,
+                            slot,
+                            shift,
+                            startPeriod: getStartPeriod(slot, shift, cls),
+                          };
+                        })
+                    )
+                    .sort((a, b) => {
+                      if (a.startPeriod !== b.startPeriod) {
+                        return a.startPeriod - b.startPeriod;
+                      }
+                      const nameA = a.cls.courseName || a.cls.courseId || a.cls.id || '';
+                      const nameB = b.cls.courseName || b.cls.courseId || b.cls.id || '';
+                      return nameA.localeCompare(nameB);
+                    });
 
                   return (
                     <td

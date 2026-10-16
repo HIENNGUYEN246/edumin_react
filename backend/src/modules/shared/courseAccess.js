@@ -22,16 +22,28 @@ export async function canAccessCourse(user, courseId) {
     const course = await Course.findOne({ id: courseId }).lean();
     if (!course) return false;
 
-    // Teachers can only access courses matching their department (if department is set)
-    if (teacher?.department && course.department && teacher.department !== course.department) {
-      return false;
+    // Direct check: if teacher is assigned to any class of this course, allow full access
+    const teacherFilter = [{ teacherRef: user.teacher }];
+    if (user.teacher && mongoose.Types.ObjectId.isValid(user.teacher)) {
+      teacherFilter.push({ teacherRef: new mongoose.Types.ObjectId(user.teacher) });
     }
-    if (teacher?.departmentRef && course.departmentRef && String(teacher.departmentRef) !== String(course.departmentRef)) {
-      return false;
-    }
+    if (teacher?.hoTen) teacherFilter.push({ teacher: teacher.hoTen });
+    if (teacher?.id) teacherFilter.push({ teacherId: teacher.id });
+    if (user.hoTen) teacherFilter.push({ teacher: user.hoTen });
 
-    const count = await CourseClass.countDocuments({ courseId, teacherRef: user.teacher });
+    const count = await CourseClass.countDocuments({
+      $or: [{ courseId: course.id }, { courseId }],
+      $and: [{ $or: teacherFilter }],
+    });
     if (count > 0) return true;
+
+    // Check department match
+    if (teacher?.department && course.department && teacher.department === course.department) {
+      return true;
+    }
+    if (teacher?.departmentRef && course.departmentRef && String(teacher.departmentRef) === String(course.departmentRef)) {
+      return true;
+    }
 
     const allowed = await teacherAccessibleCourseIds(user);
     return allowed.includes(courseId);
@@ -50,8 +62,8 @@ export async function canAccessCourse(user, courseId) {
 
 /**
  * The set of course.id codes a teacher has access to:
+ * - Courses they teach at least one class of
  * - Courses belonging to their department / chuyên ngành
- * - Courses they teach at least one class of (matching their department)
  * @param {object} user
  * @returns {Promise<string[]>}
  */
@@ -62,18 +74,24 @@ export async function teacherAccessibleCourseIds(user) {
   const CourseClass = mongoose.model('CourseClass');
 
   const teacher = await Teacher.findById(user.teacher).lean();
-  let taughtCourseIds = await CourseClass.find({ teacherRef: user.teacher }).distinct('courseId');
+  const teacherFilter = [{ teacherRef: user.teacher }];
+  if (user.teacher && mongoose.Types.ObjectId.isValid(user.teacher)) {
+    teacherFilter.push({ teacherRef: new mongoose.Types.ObjectId(user.teacher) });
+  }
+  if (teacher?.hoTen) teacherFilter.push({ teacher: teacher.hoTen });
+  if (teacher?.id) teacherFilter.push({ teacherId: teacher.id });
+  if (user.hoTen) teacherFilter.push({ teacher: user.hoTen });
 
+  // 1. Courses the teacher is assigned to teach
+  const taughtCourseIds = await CourseClass.find({ $or: teacherFilter }).distinct('courseId');
+
+  // 2. Courses belonging to their department
   let deptCourseIds = [];
   if (teacher?.departmentRef || teacher?.department) {
     const deptFilter = [];
     if (teacher.departmentRef) deptFilter.push({ departmentRef: teacher.departmentRef });
     if (teacher.department) deptFilter.push({ department: teacher.department });
     deptCourseIds = await Course.find({ $or: deptFilter }).distinct('id');
-
-    // Taught courses must also belong to the teacher's department if defined
-    const validTaught = await Course.find({ id: { $in: taughtCourseIds }, $or: deptFilter }).distinct('id');
-    taughtCourseIds = validTaught;
   }
 
   return Array.from(new Set([...taughtCourseIds, ...deptCourseIds].filter(Boolean)));

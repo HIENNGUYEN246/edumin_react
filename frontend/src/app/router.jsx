@@ -1,9 +1,15 @@
 import { lazy } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { RequireRole } from './RequireRole.jsx';
 import { ROLES } from './navConfig.js';
 import { AppLayout } from '../components/layout/AppLayout.jsx';
 import { LoginPage } from '../features/auth/LoginPage.jsx';
+
+function DiemDanhRedirect() {
+  const { classId, id } = useParams();
+  const targetId = classId || id;
+  return <Navigate to={targetId ? `/teacher/attendance?classId=${encodeURIComponent(targetId)}` : '/teacher/attendance'} replace />;
+}
 
 // Feature pages are code-split so each route loads on demand.
 const AdminDashboard = lazy(() => import('../features/admin/AdminDashboard.jsx'));
@@ -75,7 +81,9 @@ export function AppRouter() {
         <Route path="/teacher/classes" element={<TeacherClassList />} />
         <Route path="/teacher/classes/:id/students" element={<TeacherClassStudents />} />
         <Route path="/teacher/classes/:id/grades" element={<TeacherClassGradebook />} />
+        <Route path="/teacher/classes/:id/attendance" element={<TeacherAttendance />} />
         <Route path="/teacher/attendance" element={<TeacherAttendance />} />
+        <Route path="/teacher/attendance/:classId" element={<TeacherAttendance />} />
         <Route path="/teacher/documents" element={<TeacherDocumentList />} />
         <Route path="/teacher/assignments" element={<TeacherAssignmentList />} />
       </Route>
@@ -105,6 +113,8 @@ export function AppRouter() {
       <Route path="/pdt/manage-attendance" element={<Navigate to="/teacher/attendance" replace />} />
       <Route path="/pdt/manage-feedbacks" element={<Navigate to="/admin/feedbacks" replace />} />
       <Route path="/gv/attendance" element={<Navigate to="/teacher/attendance" replace />} />
+      <Route path="/diem-danh/:classId" element={<DiemDanhRedirect />} />
+      <Route path="/diem-danh" element={<Navigate to="/teacher/attendance" replace />} />
       <Route path="/sv/attendance" element={<Navigate to="/student/attendance" replace />} />
       <Route path="/sv/feedback" element={<Navigate to="/student" replace />} />
 
