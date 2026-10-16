@@ -30,7 +30,7 @@ function resolveApiBaseUrl() {
 }
 
 export const API_BASE_URL = resolveApiBaseUrl();
-export const API_URL = API_BASE_URL.endsWith('/api') ? API_BASE_URL : `${API_BASE_URL}/api`;
+export const API_URL = API_BASE_URL;
 
 const TOKEN_KEY = 'authToken';
 
