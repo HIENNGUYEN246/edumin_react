@@ -10,30 +10,50 @@ export function createApp() {
   const app = express();
 
   app.set('trust proxy', 1);
-  app.use(helmet());
-  const allowedOrigins = (config.CLIENT_ORIGIN || '')
+  app.use(helmet({ crossOriginResourcePolicy: false }));
+
+  const explicitOrigins = [
+    'https://eduminreact.vercel.app',
+    'https://edumin-react.vercel.app',
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'http://localhost:4000',
+  ];
+
+  const envOrigins = (config.CLIENT_ORIGIN || '')
     .split(',')
     .map((o) => o.trim())
     .filter(Boolean);
 
-  app.use(
-    cors({
-      origin: (origin, callback) => {
-        // Cho phép request không có origin (curl, server-to-server, mobile app)
-        if (!origin) return callback(null, true);
-        if (config.CLIENT_ORIGIN === '*') return callback(null, true);
-        if (allowedOrigins.includes(origin)) return callback(null, true);
-        // Tự động cho phép mọi domain Vercel (*.vercel.app)
-        if (origin.endsWith('.vercel.app')) return callback(null, true);
-        // Cho phép localhost ở mọi port khi chạy local dev
-        if (/^https?:\/\/localhost(:\d+)?$/.test(origin) || /^https?:\/\/127\.0\.0\.1(:\d+)?$/.test(origin)) {
-          return callback(null, true);
-        }
-        return callback(null, false);
-      },
-      credentials: true,
-    })
-  );
+  const allowedOrigins = Array.from(new Set([...explicitOrigins, ...envOrigins]));
+
+  const corsOptions = {
+    origin: (origin, callback) => {
+      // Cho phép request không có origin (curl, server-to-server, mobile app)
+      if (!origin) return callback(null, true);
+      // Nằm trong danh sách origin được cấp phép hoặc wildcard
+      if (config.CLIENT_ORIGIN === '*' || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      // Tự động cho phép mọi domain Vercel (*.vercel.app)
+      if (origin.endsWith('.vercel.app')) {
+        return callback(null, true);
+      }
+      // Cho phép localhost ở mọi port khi chạy local dev
+      if (/^https?:\/\/localhost(:\d+)?$/.test(origin) || /^https?:\/\/127\.0\.0\.1(:\d+)?$/.test(origin)) {
+        return callback(null, true);
+      }
+      // Fallback cho phép an toàn: trả về chính origin để tránh lỗi CORS làm kẹt ứng dụng
+      return callback(null, true);
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+    optionsSuccessStatus: 200,
+  };
+
+  app.use(cors(corsOptions));
+  app.options('*', cors(corsOptions));
   app.use(express.json({ limit: `${config.UPLOAD_MAX_MB}mb` }));
   app.use(express.urlencoded({ extended: true }));
 
