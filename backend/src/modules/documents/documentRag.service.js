@@ -66,6 +66,24 @@ export async function findRelevantDocument({ user, queryText = '', classId = '',
   let targetCourseId = courseId;
   let targetClassId = classId;
 
+  // Search by exact or partial document title in query
+  const availableDocs = await Document.find({ status: 'Công khai' }).populate('courseRef').populate('classRef').lean();
+  for (const d of availableDocs) {
+    const normDocName = normalizeText(d.name);
+    if (normDocName && normDocName.length >= 3 && normQuery.includes(normDocName)) {
+      if (user.role === ROLES.STUDENT) {
+        const allowedCourses = await enrolledCourseIds(user);
+        if (allowedCourses.length && !allowedCourses.includes(d.courseId)) {
+          return {
+            unauthorized: true,
+            message: `Bạn chưa đăng ký học phần ${d.courseId} nên không thể truy xuất tài liệu này.`,
+          };
+        }
+      }
+      return d;
+    }
+  }
+
   // Search for class pattern (e.g. CNTT101-01, IT101-01, CS102-02)
   const classMatch = queryText.match(/\b([A-Z0-9]{2,10}-[0-9]{1,3})\b/i);
   if (classMatch) {
@@ -90,9 +108,27 @@ export async function findRelevantDocument({ user, queryText = '', classId = '',
     }
   }
 
+  // If teacher and still no course, resolve from teacher's classes
+  if (!targetCourseId && !targetClassId && user.role === ROLES.TEACHER) {
+    const teacherClasses = await CourseClass.find({
+      $or: [{ teacherRef: user.teacher }, { teacher: user.hoTen }],
+    }).lean();
+    if (teacherClasses.length > 0) {
+      targetCourseId = teacherClasses[0].courseId;
+      targetClassId = teacherClasses[0].id;
+    }
+  }
+
   // If still no specific course/class matched, check student's enrolled classes to pick the active or default one
   if (!targetCourseId && !targetClassId && user.role === ROLES.STUDENT && allowedCourseIds.length > 0) {
     targetCourseId = allowedCourseIds[0];
+  }
+
+  if (!targetCourseId && !targetClassId) {
+    const defaultCourse = await Course.findOne({}).lean();
+    if (defaultCourse) {
+      targetCourseId = defaultCourse.id;
+    }
   }
 
   // 4. Build query filter
@@ -130,19 +166,43 @@ export async function findRelevantDocument({ user, queryText = '', classId = '',
   }
 
   if (!docs.length) {
-    // If absolutely no document uploaded yet, synthesize an official syllabus document for the course
+    // If absolutely no document uploaded yet, synthesize an official syllabus/theory document for the course
+    let course = null;
     if (targetCourseId) {
-      const course = await Course.findOne({ id: targetCourseId }).lean();
-      if (course) {
-        return {
-          _id: `synth_${course.id}`,
-          name: `Giáo trình & Đề cương chi tiết: ${course.name}`,
-          courseId: course.id,
-          classId: targetClassId || `${course.id}-01`,
-          courseRef: course,
-          isSynthetic: true,
-        };
+      course = await Course.findOne({
+        $or: [{ id: targetCourseId }, { name: new RegExp(targetCourseId, 'i') }],
+      }).lean();
+    }
+    if (!course && targetClassId) {
+      const cls = await CourseClass.findOne({
+        $or: [{ id: targetClassId }, { classId: targetClassId }],
+      }).populate('courseRef').lean();
+      if (cls) {
+        course = cls.courseRef || (await Course.findOne({ id: cls.courseId }).lean());
       }
+    }
+    if (!course) {
+      const allCourses = await Course.find({}).lean();
+      for (const c of allCourses) {
+        if (normQuery.includes(normalizeText(c.name)) || normQuery.includes(normalizeText(c.id))) {
+          course = c;
+          break;
+        }
+      }
+    }
+    if (!course) {
+      course = await Course.findOne({}).lean();
+    }
+
+    if (course) {
+      return {
+        _id: `synth_${course.id}`,
+        name: `Giáo trình & Đề cương lý thuyết: ${course.name}`,
+        courseId: course.id,
+        classId: targetClassId || `${course.id}-01`,
+        courseRef: course,
+        isSynthetic: true,
+      };
     }
     return null;
   }

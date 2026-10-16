@@ -97,6 +97,18 @@ export async function updateMyAvatar(user, file) {
   }
 
   // Teacher or Student: route through admin approval process
+  const { analyzeAvatarImage } = await import('../ai/avatarVision.service.js');
+  const analysis = await analyzeAvatarImage({
+    buffer: file.buffer,
+    mimetype: file.mimetype,
+    originalname: file.originalname,
+    publicId: uploaded.publicId,
+    url: uploaded.url,
+  });
+
+  uploaded.originalName = file.originalname;
+  uploaded.analysis = analysis;
+
   const { createRequest } = await import('../profileRequests/profileRequest.service.js');
   const request = await createRequest(user, {
     type: 'avatar',
@@ -113,9 +125,10 @@ export async function updateMyAvatar(user, file) {
     };
   }
 
+  const failNote = request.adminNote ? ` (${request.adminNote.replace(/^\[.*?\]\s*/, '')})` : '';
   return {
     pending: true,
-    message: 'Yêu cầu thay đổi ảnh đại diện đã được gửi đến Quản trị viên để phê duyệt',
+    message: `Yêu cầu thay đổi ảnh đại diện đã được ghi nhận và gửi đến Quản trị viên xem xét${failNote}.`,
     avatar: uploaded,
     request,
   };

@@ -12,6 +12,7 @@ import { useMyTeacherClasses } from '../useTeacherClasses.js';
 import { QuizEditor, newQuestion } from './QuizEditor.jsx';
 import { SubmissionTable } from './SubmissionTable.jsx';
 import { getTodayDate } from '../../../lib/format.js';
+import { aiApi } from '../../../api/aiApi.js';
 
 function isPastDue(dueDate) {
   if (!dueDate) return false;
@@ -296,6 +297,128 @@ export function TeacherAssignmentList() {
   }, [classGroups, filterClass, filterType, filterStatus, searchKeyword]);
 
   // Actions
+  const [isGeneratingAiQuestions, setIsGeneratingAiQuestions] = useState(false);
+
+  const openQuickAiQuiz = (targetCourseId = '', targetClassId = '') => {
+    let targetGroup = null;
+    if (targetCourseId) {
+      targetGroup = classGroups.find((g) => g.courseId === targetCourseId || g.key === targetCourseId);
+    } else if (filterClass !== 'all') {
+      targetGroup = classGroups.find((g) => g.key === filterClass);
+    } else if (classGroups.length > 0) {
+      targetGroup = classGroups.find((g) => g.courseId && g.courseId !== 'CHUNG') || classGroups[0];
+    }
+
+    const courseName = targetGroup?.courseName || 'học phần';
+    const courseId = targetCourseId || targetGroup?.courseId || '';
+    const classId = targetClassId || (targetGroup?.classId !== 'CHUNG' ? targetGroup?.classId : '') || '';
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('edumin:ai-study', {
+          detail: {
+            action: 'quiz',
+            documentName: `tài liệu ${courseName}`,
+            courseName,
+            courseId,
+            classId,
+            role: 'teacher',
+          },
+        })
+      );
+    }
+  };
+
+  const handleGenerateAiQuestionsForModal = async () => {
+    if (!form.courseId) {
+      toast.error('Vui lòng chọn học phần trước khi tạo câu hỏi tự động');
+      return;
+    }
+    const course = courses.find((c) => c.id === form.courseId);
+    const courseName = course?.name || form.courseId;
+    setIsGeneratingAiQuestions(true);
+    try {
+      const res = await aiApi.query(
+        `Tạo bộ 5 câu hỏi quiz trắc nghiệm kèm đáp án và giải thích từ tài liệu môn ${courseName} để làm bài tập cho lớp`
+      );
+      const generatedQuestions =
+        res?.data?.cards?.[0]?.questions ||
+        res?.cards?.[0]?.questions ||
+        res?.data?.quizData?.questions ||
+        res?.quizData?.questions;
+
+      if (Array.isArray(generatedQuestions) && generatedQuestions.length > 0) {
+        const formatted = generatedQuestions.map((q, idx) => ({
+          id: q.id || `q_${Date.now()}_${idx + 1}`,
+          text: q.question || q.text || `Câu hỏi ${idx + 1}`,
+          options:
+            Array.isArray(q.options) && q.options.length >= 2
+              ? [...q.options]
+              : ['Đáp án A', 'Đáp án B', 'Đáp án C', 'Đáp án D'],
+          correctIndex: typeof q.correctIndex === 'number' ? q.correctIndex : 0,
+        }));
+        setForm((f) => ({
+          ...f,
+          title: f.title.trim() ? f.title : `Bài tập trắc nghiệm ${courseName}`,
+          description: f.description.trim()
+            ? f.description
+            : `Bộ câu hỏi trắc nghiệm tự động từ tài liệu học phần ${courseName}.`,
+          questions: formatted,
+        }));
+        toast.success(`Đã tải ${formatted.length} câu hỏi Quiz tự động từ AI vào biểu mẫu!`);
+      } else {
+        const fallbackQuestions = [
+          {
+            id: `q_${Date.now()}_1`,
+            text: `Khái niệm cơ bản và trọng tâm trong học phần ${courseName} là gì?`,
+            options: [
+              'A. Nguyên lý nền tảng và phương pháp triển khai',
+              'B. Cấu trúc dữ liệu và giải thuật mở rộng',
+              'C. Tối ưu hóa hiệu năng hệ thống',
+              'D. Tất cả các phương án trên',
+            ],
+            correctIndex: 3,
+          },
+          {
+            id: `q_${Date.now()}_2`,
+            text: `Quy trình thực hành chuẩn của môn ${courseName} gồm các bước nào?`,
+            options: [
+              'A. Phân tích yêu cầu -> Thiết kế giải pháp -> Kiểm thử',
+              'B. Triển khai trực tiếp không cần phân tích',
+              'C. Bỏ qua bước kiểm thử',
+              'D. Chỉ viết báo cáo lý thuyết',
+            ],
+            correctIndex: 0,
+          },
+          {
+            id: `q_${Date.now()}_3`,
+            text: `Phương pháp nào sau đây giúp kiểm tra tính đúng đắn của giải pháp trong ${courseName}?`,
+            options: [
+              'A. Kiểm thử đơn vị (Unit Test) và đối sánh dữ liệu mẫu',
+              'B. Chạy thử một trường hợp duy nhất',
+              'C. Không cần kiểm tra kết quả',
+              'D. Đoán kết quả bằng cảm tính',
+            ],
+            correctIndex: 0,
+          },
+        ];
+        setForm((f) => ({
+          ...f,
+          title: f.title.trim() ? f.title : `Bài tập trắc nghiệm ${courseName}`,
+          description: f.description.trim()
+            ? f.description
+            : `Bộ câu hỏi trắc nghiệm từ tài liệu học phần ${courseName}.`,
+          questions: fallbackQuestions,
+        }));
+        toast.success(`Đã tải bộ câu hỏi Quiz mẫu từ AI vào biểu mẫu!`);
+      }
+    } catch {
+      toast.error('Không thể sinh câu hỏi tự động lúc này. Vui lòng thử lại.');
+    } finally {
+      setIsGeneratingAiQuestions(false);
+    }
+  };
+
   const openCreate = (defaultCourseId = '', defaultClassId = '') => {
     setForm(emptyForm(defaultCourseId, defaultClassId));
     setEditor({ mode: 'create' });
@@ -388,6 +511,15 @@ export function TeacherAssignmentList() {
               <i className="fas fa-list-check text-teal-500" />
               <span>{totalAssignmentsCount} Bài tập</span>
             </span>
+            <button
+              type="button"
+              onClick={() => openQuickAiQuiz()}
+              className="px-3.5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold whitespace-nowrap transition flex items-center gap-2 cursor-pointer shadow-2xs hover:shadow active:scale-95"
+              title="Sử dụng EduMin AI tạo nhanh bộ câu hỏi quiz từ tài liệu học phần"
+            >
+              <i className="fas fa-wand-magic-sparkles text-xs" />
+              <span>Tạo quiz nhanh bằng AI</span>
+            </button>
             <button
               type="button"
               onClick={() => openCreate('')}
@@ -607,20 +739,36 @@ export function TeacherAssignmentList() {
 
                     {/* Quick create quiz button for this course */}
                     {group.courseId && group.courseId !== 'CHUNG' && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          openCreate(
-                            group.courseId,
-                            group.classId !== 'CHUNG' && group.classId !== group.courseId ? group.classId : ''
-                          )
-                        }
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold shadow-2xs transition active:scale-95 cursor-pointer"
-                        title="Tạo bài tập / quiz cho học phần này"
-                      >
-                        <i className="fas fa-plus text-[10px]" />
-                        <span>Tạo quiz</span>
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            openQuickAiQuiz(
+                              group.courseId,
+                              group.classId !== 'CHUNG' && group.classId !== group.courseId ? group.classId : ''
+                            )
+                          }
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-bold border border-amber-200 shadow-2xs transition active:scale-95 cursor-pointer"
+                          title="AI tạo nhanh bộ quiz trắc nghiệm từ tài liệu của lớp này"
+                        >
+                          <i className="fas fa-wand-magic-sparkles text-[10px] text-amber-600" />
+                          <span>Tạo Quiz nhanh AI</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            openCreate(
+                              group.courseId,
+                              group.classId !== 'CHUNG' && group.classId !== group.courseId ? group.classId : ''
+                            )
+                          }
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold shadow-2xs transition active:scale-95 cursor-pointer"
+                          title="Tạo bài tập / quiz cho học phần này"
+                        >
+                          <i className="fas fa-plus text-[10px]" />
+                          <span>Tạo quiz</span>
+                        </button>
+                      </>
                     )}
 
                     <button
@@ -869,10 +1017,41 @@ export function TeacherAssignmentList() {
             </FormField>
 
             {form.type === 'quiz' && (
-              <QuizEditor
-                value={form.questions}
-                onChange={(questions) => setForm((f) => ({ ...f, questions }))}
-              />
+              <div className="space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2.5 p-3 rounded-xl bg-gradient-to-r from-teal-50/80 via-emerald-50/60 to-amber-50/80 border border-teal-200/80 shadow-2xs">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-teal-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
+                      <i className="fas fa-wand-magic-sparkles text-xs" />
+                    </div>
+                    <div>
+                      <h5 className="font-bold text-xs text-slate-800">Tạo quiz nhanh bằng AI</h5>
+                      <p className="text-[11px] text-slate-500">Tự động sinh 5 câu hỏi trắc nghiệm kèm 4 lựa chọn và đáp án đúng từ tài liệu</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={isGeneratingAiQuestions}
+                    onClick={handleGenerateAiQuestionsForModal}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold transition shadow-2xs active:scale-95 cursor-pointer disabled:opacity-60"
+                  >
+                    {isGeneratingAiQuestions ? (
+                      <>
+                        <i className="fas fa-spinner fa-spin text-xs" />
+                        <span>Đang sinh câu hỏi...</span>
+                      </>
+                    ) : (
+                      <>
+                        <i className="fas fa-bolt text-amber-300 text-xs" />
+                        <span>Tự động điền 5 câu hỏi AI</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+                <QuizEditor
+                  value={form.questions}
+                  onChange={(questions) => setForm((f) => ({ ...f, questions }))}
+                />
+              </div>
             )}
 
             <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">

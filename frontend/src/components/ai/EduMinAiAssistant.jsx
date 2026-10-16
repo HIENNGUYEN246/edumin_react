@@ -849,6 +849,10 @@ export function classifyAiIntent(rawText = '', { role = '', currentPath = '', pa
     norm.includes('kiem tra tieu chi') ||
     norm.includes('ap dung tieu chuan') ||
     norm.includes('ap dung tieu chi') ||
+    norm.includes('duyet anh dai dien nhanh') ||
+    norm.includes('duyet avatar nhanh') ||
+    norm.includes('duyet nhanh avatar') ||
+    norm.includes('duyet nhanh anh dai dien') ||
     (norm.includes('duyet') &&
       (norm.includes('theo') || norm.includes('tieu chuan') || norm.includes('tieu chi')) &&
       !norm.includes('tieu chi duyet') &&
@@ -895,6 +899,10 @@ export function classifyAiIntent(rawText = '', { role = '', currentPath = '', pa
       norm.includes('cccd') ||
       norm.includes('ly do') ||
       norm.includes('avatar') ||
+      norm.includes('hinh nguoi') ||
+      norm.includes('nguoi that') ||
+      norm.includes('1 nguoi') ||
+      norm.includes('chi 1') ||
       norm.includes('dat') ||
       norm.includes('thiet lap') ||
       norm.includes('chi duyet') ||
@@ -965,46 +973,56 @@ export function classifyAiIntent(rawText = '', { role = '', currentPath = '', pa
     return 'RECORD_USER_DESIRE';
   }
 
-  // 1b. Document Study Intents: Summarization & Interactive Quiz Generation
+  // 1b. Document Study Intents: Interactive Quiz Generation & Summarization
+  const isDocQuizGenerate =
+    norm.includes('tao quiz') ||
+    norm.includes('sinh quiz') ||
+    norm.includes('tao cau hoi kiem tra') ||
+    norm.includes('tao bai tap') ||
+    norm.includes('tao de thi') ||
+    norm.includes('tao de kiem tra') ||
+    norm.includes('tao cau hoi trac nghiem') ||
+    norm.includes('tao trac nghiem') ||
+    norm.includes('ra de quiz') ||
+    norm.includes('ra de kiem tra') ||
+    norm.includes('cau quiz') ||
+    norm.includes('quiz trac nghiem') ||
+    norm.includes('bai quiz') ||
+    norm.includes('trac nghiem on tap') ||
+    norm.includes('de trac nghiem') ||
+    (norm.includes('quiz') &&
+      (norm.includes('tao') ||
+        norm.includes('sinh') ||
+        norm.includes('nhanh') ||
+        norm.includes('lam quiz') ||
+        norm.includes('lam bai quiz') ||
+        norm.includes('ra de') ||
+        norm.includes('on tap') ||
+        norm.includes('tai lieu') ||
+        norm.includes('buoi hoc') ||
+        norm.includes('mon') ||
+        norm.includes('cho lop')));
+
+  if (!norm.includes('huong dan') && !norm.includes('lam sao') && isDocQuizGenerate) {
+    return 'DOC_QUIZ_GENERATE';
+  }
+
   const isDocSummarize =
-    norm.includes('tom tat') ||
-    norm.includes('y chinh cua tai lieu') ||
-    norm.includes('khai niem cot loi') ||
-    norm.includes('tom luoc') ||
-    norm.includes('phan tich tai lieu') ||
-    norm.includes('phan tich noi dung') ||
-    norm.includes('phan tich file') ||
-    norm.includes('doc tai lieu') ||
-    norm.includes('doc file') ||
-    ((norm.includes('tai lieu') || norm.includes('bai giang') || norm.includes('tep') || norm.includes('file')) &&
-      (norm.includes('y chinh') || norm.includes('noi dung chinh') || norm.includes('chuong 1') || norm.includes('chuong 2') || norm.includes('chuong 3') || norm.includes('phan tich') || norm.includes('doc')));
+    !isDocQuizGenerate &&
+    (norm.includes('tom tat') ||
+      norm.includes('y chinh cua tai lieu') ||
+      norm.includes('khai niem cot loi') ||
+      norm.includes('tom luoc') ||
+      norm.includes('phan tich tai lieu') ||
+      norm.includes('phan tich noi dung') ||
+      norm.includes('phan tich file') ||
+      norm.includes('doc tai lieu') ||
+      norm.includes('doc file') ||
+      ((norm.includes('tai lieu') || norm.includes('bai giang') || norm.includes('tep') || norm.includes('file')) &&
+        (norm.includes('y chinh') || norm.includes('noi dung chinh') || norm.includes('chuong 1') || norm.includes('chuong 2') || norm.includes('chuong 3') || norm.includes('phan tich') || norm.includes('doc'))));
 
   if (isDocSummarize) {
     return 'DOC_SUMMARIZE';
-  }
-
-  const isDocQuizGenerate =
-    (norm.includes('cau quiz') ||
-      norm.includes('quiz trac nghiem') ||
-      norm.includes('bai quiz') ||
-      norm.includes('trac nghiem on tap') ||
-      norm.includes('de trac nghiem') ||
-      norm.includes('de kiem tra') ||
-      (norm.includes('quiz') && (norm.includes('on tap') || norm.includes('tai lieu') || norm.includes('buoi hoc') || norm.includes('mon') || norm.includes('lop') || norm.includes('bai tap')))) &&
-    (norm.includes('tao') ||
-      norm.includes('sinh') ||
-      norm.includes('lam') ||
-      norm.includes('on tap') ||
-      norm.includes('ra') ||
-      norm.includes('goi y') ||
-      norm.includes('cho toi') ||
-      norm.includes('giup toi') ||
-      norm.includes('5 cau') ||
-      norm.includes('10 cau') ||
-      norm.includes('cau hoi'));
-
-  if (isDocQuizGenerate) {
-    return 'DOC_QUIZ_GENERATE';
   }
 
   // 1c. Quiz / Grade Configuration Intent ("nhập lại điểm quiz", "cấu hình quiz", "đồng bộ quiz", "trọng số", "cài đặt điểm")
@@ -1369,6 +1387,10 @@ export function detectIntent(rawText, options = {}) {
       norm.includes('cccd') ||
       norm.includes('ly do') ||
       norm.includes('avatar') ||
+      norm.includes('hinh nguoi') ||
+      norm.includes('nguoi that') ||
+      norm.includes('1 nguoi') ||
+      norm.includes('chi 1') ||
       norm.includes('dat') ||
       norm.includes('thiet lap') ||
       norm.includes('chi duyet') ||
@@ -1391,6 +1413,10 @@ export function detectIntent(rawText, options = {}) {
     norm.includes('kiem tra tieu chi') ||
     norm.includes('ap dung tieu chuan') ||
     norm.includes('ap dung tieu chi') ||
+    norm.includes('duyet anh dai dien nhanh') ||
+    norm.includes('duyet avatar nhanh') ||
+    norm.includes('duyet nhanh avatar') ||
+    norm.includes('duyet nhanh anh dai dien') ||
     (norm.includes('duyet') && (norm.includes('tieu chuan') || norm.includes('tieu chi') || norm.includes('dieu kien')));
   if (isApplyCriteria) {
     return 'ADMIN_APPLY_CRITERIA_APPROVAL';
@@ -1640,7 +1666,12 @@ export function getSmartAiResponse(rawText = '', role = '', user = null, current
     text.includes('y kien') ||
     text.includes('phan hoi') ||
     text.includes('feedback') ||
-    text.includes('gop y');
+    text.includes('gop y') ||
+    text.includes('o dau') ||
+    text.includes('dang o') ||
+    text.includes('trang nay') ||
+    text.includes('o day') ||
+    text.includes('day la dau');
 
   const extracted = !isExcludedFromPersonnel ? extractPersonnelQuery(rawText) : null;
   const isCandidateNameLikely =
@@ -1650,6 +1681,8 @@ export function getSmartAiResponse(rawText = '', role = '', user = null, current
         extracted.candidateName.length >= 2 &&
         !OUT_OF_SCOPE_KEYWORDS.some((k) => text === k || text.startsWith(k + ' '))));
 
+  const intent = classifyAiIntent(rawText, { role, currentPath, pageContext });
+
   // 0. Location / Current Page Awareness
   if (currentPath) {
     const normPath = currentPath.toLowerCase().trim();
@@ -1658,13 +1691,41 @@ export function getSmartAiResponse(rawText = '', role = '', user = null, current
       PAGE_INFO.filter((p) => p.path !== '/' && normPath.startsWith(p.path + '/')).sort(
         (a, b) => b.path.length - a.path.length
       )[0];
-    if (currentPageMatch && !extractStudentGradeQuery(rawText) && !isCandidateNameLikely) {
+
+    const isActionOrContentQuery =
+      intent === 'DOC_QUIZ_GENERATE' ||
+      intent === 'DOC_SUMMARIZE' ||
+      text.includes('quiz') ||
+      text.includes('trac nghiem') ||
+      text.includes('cau quiz') ||
+      text.includes('tao de') ||
+      text.includes('sinh de') ||
+      text.includes('ra de') ||
+      text.includes('on tap') ||
+      text.includes('tom tat') ||
+      text.includes('khai niem cot loi') ||
+      text.includes('tao bai tap') ||
+      text.includes('xuat ban') ||
+      text.includes('giao bai') ||
+      text.includes('cham diem') ||
+      text.includes('nhap diem') ||
+      text.includes('vao diem') ||
+      text.includes('tinh diem');
+
+    if (
+      currentPageMatch &&
+      !isActionOrContentQuery &&
+      !extractStudentGradeQuery(rawText) &&
+      !isCandidateNameLikely
+    ) {
       const isAskingAboutCurrentPage =
         currentPageMatch.keywords.some((kw) => text.includes(kw)) ||
         text.includes('trang nay') ||
         text.includes('o day') ||
         text.includes('lam gi o day') ||
-        text.includes('dang o dau');
+        text.includes('dang o dau') ||
+        text.includes('day la dau') ||
+        text.includes('trang hien tai');
 
       if (isAskingAboutCurrentPage) {
         return {
@@ -1676,8 +1737,6 @@ export function getSmartAiResponse(rawText = '', role = '', user = null, current
       }
     }
   }
-
-  const intent = classifyAiIntent(rawText, { role, currentPath, pageContext });
 
   // 0a.-0w Admin Get Active Criteria ("xem tiêu chí duyệt")
   if (intent === 'ADMIN_GET_CRITERIA') {
@@ -1710,16 +1769,23 @@ export function getSmartAiResponse(rawText = '', role = '', user = null, current
 
   // 0a.-0x Admin Criteria Setup ("tiêu chuẩn duyệt: ...", "ra yêu cầu duyệt: ...")
   if (intent === 'ADMIN_SET_CRITERIA') {
+    const isAvatarCriteria = text.includes('avatar') || text.includes('anh dai dien') || text.includes('hinh nguoi') || text.includes('1 nguoi');
+    const summaryText = isAvatarCriteria
+      ? 'Avatar phải là hình người và chỉ 1 người (ảnh chân dung/ảnh thẻ, không phải con vật/đồ vật/anime/nhóm người)'
+      : 'SĐT 10 số, CCCD 12 số (sẵn sàng cho cải tiến, không ràng buộc) và có lý do thay đổi rõ ràng';
+
+    const bullets = isAvatarCriteria
+      ? '  ✓ Avatar bắt buộc là hình người thật và chỉ có đúng 1 người\n  ✓ Không duyệt ảnh con vật, đồ vật, tranh vẽ, anime, hoạt hình hoặc ảnh nhóm nhiều người\n'
+      : '  ✓ Số điện thoại bắt buộc đủ 10 chữ số\n  ✓ Căn cước công dân (CCCD): Đủ 12 chữ số (sẵn sàng cho cải tiến, không ràng buộc khi form chưa có trường nhập CCCD)\n  ✓ Bắt buộc ghi rõ lý do cập nhật\n';
+
     return {
       matched: true,
       reply:
         `🛡️ **QUY CHUẨN KIỂM DUYỆT TỰ ĐỘNG ĐÃ ĐƯỢC THIẾT LẬP ĐÓN ĐẦU (PRE-CONFIGURED POLICY)**\n\n` +
         `Quy chuẩn kiểm duyệt tự động đã được lưu và kích hoạt trước trên toàn hệ thống:\n` +
-        `• **Nội dung tiêu chuẩn:** SĐT 10 số, CCCD 12 số (sẵn sàng cho cải tiến, không ràng buộc) và có lý do thay đổi rõ ràng\n` +
+        `• **Nội dung tiêu chuẩn:** ${summaryText}\n` +
         `• **Tiêu chí kiểm định đón đầu:**\n` +
-        `  ✓ Số điện thoại bắt buộc đủ 10 chữ số\n` +
-        `  ✓ Căn cước công dân (CCCD): Đủ 12 chữ số (sẵn sàng cho cải tiến, không ràng buộc khi form chưa có trường nhập CCCD)\n` +
-        `  ✓ Bắt buộc ghi rõ lý do cập nhật\n` +
+        bullets +
         `\n⚡ **Cơ chế kiểm duyệt đón đầu tự động:**\n` +
         `Từ thời điểm này trở đi, bất kỳ khi nào Sinh viên hoặc Giảng viên gửi yêu cầu chỉnh sửa hồ sơ hoặc đổi avatar, EduMin AI sẽ lập tức đối soát tự động:\n` +
         `- ✅ **Nếu đạt chuẩn:** Tự động phê duyệt nhanh ngay lập tức và đồng bộ vào cơ sở dữ liệu.\n` +
@@ -2339,14 +2405,15 @@ export function getSmartAiResponse(rawText = '', role = '', user = null, current
           ],
       suggestions: isTeacher
         ? [
+            `⚡ Tạo Quiz nhanh từ tài liệu môn ${courseName}`,
             `Tạo bộ 5 câu hỏi quiz trắc nghiệm môn ${courseName}`,
             `Tóm tắt Chương 2 tài liệu môn ${courseName}`,
             'Danh sách lớp tôi đang phụ trách',
           ]
         : [
-            `Tạo 5 câu quiz trắc nghiệm ôn tập môn ${courseName}`,
-            `Tóm tắt Chương 2 tài liệu môn ${courseName}`,
-            'Xem bài tập & làm quiz',
+            `Tóm tắt nội dung trọng tâm môn ${courseName}`,
+            `Giải thích các khái niệm cốt lõi môn ${courseName}`,
+            'Xem bài tập & làm quiz trên lớp',
           ],
     };
   }
@@ -2354,9 +2421,29 @@ export function getSmartAiResponse(rawText = '', role = '', user = null, current
   // 0a.-0f Interactive Quiz Generation Intent ("tạo cho tôi 5 câu quiz trắc nghiệm ôn tập dựa trên file tài liệu buổi học hôm nay")
   if (intent === 'DOC_QUIZ_GENERATE') {
     const norm = normalizeText(rawText);
-    let courseName = pageContext?.selectedStudySubject || pageContext?.courseName || 'Lập trình Web';
-    let courseCode = 'CNTT101';
-    let classId = 'CNTT101-01';
+    let courseName = pageContext?.courseName || pageContext?.selectedStudySubject || 'Lập trình Web';
+    let courseCode = pageContext?.courseId || 'CNTT101';
+    let classId = pageContext?.classId || 'CNTT101-01';
+
+    if (!isTeacher) {
+      return {
+        matched: true,
+        reply:
+          `🔒 **Thông báo phân quyền:**\n\n` +
+          `Tính năng **Tạo câu hỏi Quiz / Bài tập trắc nghiệm từ tài liệu** qua Chat Box được thiết kế dành riêng cho **Giảng viên** để phục vụ việc soạn đề và giao bài tập cho lớp học phần.\n\n` +
+          `👉 *Bạn vui lòng vào mục **[Bài tập & Đánh giá](/student/assignments)** để xem danh sách các bài quiz, bài kiểm tra do Thầy/Cô giao và tiến hành làm bài nhé!*`,
+        intent: 'DOC_QUIZ_GENERATE',
+        quickLinks: [
+          { label: 'Mở Bài tập & Quiz', path: '/student/assignments' },
+          { label: 'Xem Tài liệu học tập', path: '/student/documents' },
+        ],
+        suggestions: [
+          `Tóm tắt ý chính tài liệu môn ${courseName}`,
+          'Xem bài tập & làm quiz trên lớp',
+          'Thời khóa biểu tuần này của tôi',
+        ],
+      };
+    }
 
     if (norm.includes('sql') || norm.includes('du lieu') || norm.includes('database') || norm.includes('csdl')) {
       courseName = 'Cơ sở dữ liệu';
@@ -2370,6 +2457,7 @@ export function getSmartAiResponse(rawText = '', role = '', user = null, current
       courseCode = 'CS102';
       classId = 'CS102-01';
     }
+    const courseId = pageContext?.courseId || courseCode;
 
     const questions = courseCode === 'CS102'
       ? [
@@ -2457,7 +2545,10 @@ export function getSmartAiResponse(rawText = '', role = '', user = null, current
           },
         ];
 
-    const docSource = pageContext?.attachedFile?.name || `Tài liệu ${courseName}`;
+    const docSource =
+      pageContext?.documentName ||
+      pageContext?.attachedFile?.name ||
+      `Tài liệu lý thuyết ${courseName}`;
 
     const card = {
       id: `quiz-${Date.now()}`,
@@ -2465,11 +2556,14 @@ export function getSmartAiResponse(rawText = '', role = '', user = null, current
       title: pageContext?.attachedFile?.name
         ? `Bộ Quiz: ${pageContext.attachedFile.name}`
         : isTeacher
-        ? `Bộ câu hỏi Quiz đề xuất: ${courseName}`
-        : `Bộ Quiz ôn tập: Tài liệu ${courseName}`,
+        ? `Bộ câu hỏi Quiz đề xuất: ${docSource}`
+        : `Bộ Quiz ôn tập: ${docSource}`,
       subtitle: `${courseName} • 5 câu hỏi trắc nghiệm kèm giải thích`,
       code: classId,
+      classId,
       courseId,
+      courseName,
+      documentName: docSource,
       totalQuestions: 5,
       questions,
       role: isTeacher ? 'teacher' : 'student',
@@ -2485,10 +2579,10 @@ export function getSmartAiResponse(rawText = '', role = '', user = null, current
     return {
       matched: true,
       reply: isTeacher
-        ? `🎯 **BỘ CÂU HỎI QUIZ GỢI Ý TỪ TÀI LIỆU DÀNH CHO GIẢNG VIÊN**\n\n` +
+        ? `🎯 **BỘ CÂU HỎI QUIZ NHANH TỪ TÀI LIỆU DÀNH CHO GIẢNG VIÊN**\n\n` +
           `EduMin AI đã phân tích tài liệu **${docSource}** (${courseName} - \`${classId}\`).\n` +
           `Dưới đây là bộ **5 câu hỏi trắc nghiệm** mẫu kèm 4 đáp án (A, B, C, D) và phần giải thích (rationale) chi tiết.\n\n` +
-          `👉 *Thầy/Cô có thể bấm **"Dùng làm bài tập cho lớp"** bên dưới để chuyển trực tiếp bộ câu hỏi này vào biểu mẫu tạo bài tập lớp, hoặc bấm **"Sao chép"** để xuất đề thi.*`
+          `👉 *Thầy/Cô có thể xem trước đáp án, sao chép hoặc bấm **[🚀 Xuất bản thành Bài tập cho lớp]** bên dưới để giao bài ngay cho sinh viên.*`
         : `🎯 **BỘ CÂU HỎI QUIZ TRẮC NGHIỆM ÔN TẬP TỰ ĐỘNG TỪ TÀI LIỆU**\n\n` +
           `EduMin AI đã đọc và phân tích tài liệu **${docSource}** (${courseName} - \`${classId}\`).\n` +
           `Dưới đây là bộ **5 câu hỏi trắc nghiệm** kèm 4 đáp án (A, B, C, D) và phần giải thích (rationale) chi tiết.\n\n` +
@@ -2507,6 +2601,7 @@ export function getSmartAiResponse(rawText = '', role = '', user = null, current
           ],
       suggestions: isTeacher
         ? [
+            `⚡ Tạo Quiz nhanh từ tài liệu môn ${courseName}`,
             `Tóm tắt tài liệu môn ${courseName}`,
             'Tạo thêm 5 câu hỏi nâng cao',
             'Danh sách lớp tôi đang phụ trách',
@@ -3731,16 +3826,27 @@ export function getSmartAiResponse(rawText = '', role = '', user = null, current
     return {
       matched: true,
       intent: 'TEACHER_DOCUMENT_QUERY',
-      reply: `📂 **DANH SÁCH TÀI LIỆU HỌC PHẦN ĐÃ ĐƯỢC CẬP NHẬT:**\n\n` +
-        `EduMin AI đã quét và đồng bộ dữ liệu tài liệu môn **${courseName}** (\`${classId}\`).\n` +
-        `Dưới đây là các tệp bài giảng và giáo trình kèm dung lượng, ngày cập nhật. ` +
-        `Thầy/Cô có thể **Tải xuống** hoặc **Tạo Quiz ôn tập** trực tiếp bằng các nút bấm bên dưới:`,
+      reply: isTeacher
+        ? `📂 **DANH SÁCH TÀI LIỆU HỌC PHẦN ĐÃ ĐƯỢC CẬP NHẬT:**\n\n` +
+          `EduMin AI đã quét và đồng bộ dữ liệu tài liệu môn **${courseName}** (\`${classId}\`).\n` +
+          `Dưới đây là các tệp bài giảng và giáo trình kèm dung lượng, ngày cập nhật. ` +
+          `Thầy/Cô có thể **Tải xuống** hoặc **Tạo Quiz nhanh** trực tiếp bằng các nút bấm bên dưới:`
+        : `📂 **DANH SÁCH TÀI LIỆU HỌC PHẦN:**\n\n` +
+          `EduMin AI đã tìm thấy danh sách tài liệu môn **${courseName}** (\`${classId}\`).\n` +
+          `Dưới đây là các tệp bài giảng và giáo trình. Bạn có thể tải xuống tài liệu hoặc yêu cầu AI tóm tắt nội dung chính:`,
       cards: docCards,
       quickLinks: [{ label: 'Mở Quản lý Tài liệu', path: isTeacher ? '/teacher/documents' : '/student/documents' }],
-      suggestions: [
-        `Tạo 5 câu quiz trắc nghiệm ôn tập môn ${courseName}`,
-        `Tóm tắt Chương 1 tài liệu môn ${courseName}`,
-      ],
+      suggestions: isTeacher
+        ? [
+            `⚡ Tạo bộ 5 câu hỏi quiz trắc nghiệm môn ${courseName}`,
+            `Tóm tắt Chương 1 tài liệu môn ${courseName}`,
+            'Danh sách lớp tôi phụ trách',
+          ]
+        : [
+            `Tóm tắt Chương 1 tài liệu môn ${courseName}`,
+            `Giải thích khái niệm cốt lõi môn ${courseName}`,
+            `Xem các bài tập môn ${courseName}`,
+          ],
     };
   }
 
@@ -4537,6 +4643,7 @@ function EduMinAiAssistantInner() {
   const [suggestions, setSuggestions] = useState([]);
   const [actionLoading, setActionLoading] = useState({});
   const [selectedStudySubject, setSelectedStudySubject] = useState('');
+  const [activeStudyContext, setActiveStudyContext] = useState(null);
   const [attachedFile, setAttachedFile] = useState(null);
   const fileInputRef = useRef(null);
 
@@ -5016,6 +5123,7 @@ function EduMinAiAssistantInner() {
         if (!active) return;
         if (role === 'giao-vien' || role === 'teacher') {
           setSuggestions([
+            '⚡ Tạo bộ 5 câu hỏi quiz trắc nghiệm từ tài liệu môn Lập trình Web',
             'Làm sao để cấu hình điểm giữa kỳ và Quiz?',
             'Xem lịch giảng dạy hôm nay',
             'Danh sách lớp tôi đang phụ trách',
@@ -5023,6 +5131,7 @@ function EduMinAiAssistantInner() {
           ]);
         } else if (role === 'sinh-vien' || role === 'student') {
           setSuggestions([
+            'Tóm tắt giúp tôi các ý chính của tài liệu học phần',
             'Xem thời khóa biểu tuần này ở đâu?',
             'Cách xem chuyên cần và điểm danh',
             'Hướng dẫn đăng ký học phần',
@@ -5219,6 +5328,13 @@ function EduMinAiAssistantInner() {
       if (detail.courseName) {
         setSelectedStudySubject(detail.courseName);
       }
+      setActiveStudyContext({
+        documentId: detail.documentId || '',
+        documentName: detail.documentName || '',
+        courseName: detail.courseName || '',
+        courseId: detail.courseId || '',
+        classId: detail.classId || '',
+      });
 
       const docName = detail.documentName || 'tài liệu học tập';
       const courseTitle = detail.courseName ? ` môn ${detail.courseName}` : '';
@@ -5310,6 +5426,7 @@ function EduMinAiAssistantInner() {
       const pageContext = {
         ...baseContext,
         ...(selectedStudySubject ? { selectedStudySubject, courseName: selectedStudySubject } : {}),
+        ...(activeStudyContext || {}),
         ...(currentAttachedFile
           ? {
               attachedFile: {
@@ -5390,6 +5507,7 @@ function EduMinAiAssistantInner() {
       const pageContext = {
         ...baseContext,
         ...(selectedStudySubject ? { selectedStudySubject, courseName: selectedStudySubject } : {}),
+        ...(activeStudyContext || {}),
       };
       const fallback = getSmartAiResponse(textToSend, role, user, currentPath, pageContext);
       setMessages((prev) => [
@@ -5605,7 +5723,11 @@ function EduMinAiAssistantInner() {
         }
       }
     } catch {}
-    navigate(path, navOptions);
+    if (navOptions !== undefined) {
+      navigate(path, navOptions);
+    } else {
+      navigate(path);
+    }
     // On small screens, close the chat to allow user to see the page
     if (window.innerWidth < 640) {
       setIsOpen(false);

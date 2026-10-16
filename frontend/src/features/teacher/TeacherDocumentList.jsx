@@ -731,17 +731,28 @@ export function TeacherDocumentList() {
                       <span>{group.docs.length} tài liệu</span>
                     </span>
 
-                    {/* Quick upload button for this specific course */}
+                    {/* Quick upload & Quick quiz buttons for this specific course */}
                     {group.courseId && group.courseId !== 'CHUNG' && (
-                      <button
-                        type="button"
-                        onClick={() => openUploadForClass(group)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold border border-indigo-200/60 shadow-2xs transition active:scale-95 cursor-pointer"
-                        title="Tải lên tài liệu cho học phần này"
-                      >
-                        <i className="fas fa-plus text-[10px]" />
-                        <span>Thêm tài liệu</span>
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => handleAiStudyAction(group.docs[0] || { name: `Tài liệu ${group.courseName}`, courseId: group.courseId, classId: group.classId }, group, 'quiz')}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-bold border border-amber-200 shadow-2xs transition active:scale-95 cursor-pointer"
+                          title="AI tạo nhanh bộ quiz trắc nghiệm từ tài liệu của lớp này"
+                        >
+                          <i className="fas fa-wand-magic-sparkles text-[10px] text-amber-600" />
+                          <span>Tạo Quiz nhanh AI</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openUploadForClass(group)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold border border-indigo-200/60 shadow-2xs transition active:scale-95 cursor-pointer"
+                          title="Tải lên tài liệu cho học phần này"
+                        >
+                          <i className="fas fa-plus text-[10px]" />
+                          <span>Thêm tài liệu</span>
+                        </button>
+                      </>
                     )}
 
                     <button
@@ -896,10 +907,10 @@ export function TeacherDocumentList() {
                                         type="button"
                                         onClick={() => handleAiStudyAction(d, group, 'quiz')}
                                         className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-semibold transition active:scale-95 cursor-pointer shadow-2xs"
-                                        title="AI tạo 5 câu quiz trắc nghiệm gợi ý từ tài liệu này để làm đề bài tập/kiểm tra cho lớp"
+                                        title="AI tạo nhanh bộ quiz trắc nghiệm gợi ý từ tài liệu này để làm đề bài tập/kiểm tra cho lớp"
                                       >
-                                        <i className="fas fa-clipboard-question text-[10px] text-amber-600" />
-                                        <span>Tạo Quiz</span>
+                                        <i className="fas fa-wand-magic-sparkles text-[10px] text-amber-600" />
+                                        <span>Tạo Quiz nhanh</span>
                                       </button>
 
                                       {(d.hasFile || d.size > 0) && (

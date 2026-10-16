@@ -10,6 +10,7 @@ const questionSchema = new Schema(
     options: { type: [String], default: [] },
     // The correct option index. NEVER sent to students before they submit.
     correctIndex: { type: Number, default: 0 },
+    explanation: { type: String, default: '' },
   },
   { _id: false }
 );

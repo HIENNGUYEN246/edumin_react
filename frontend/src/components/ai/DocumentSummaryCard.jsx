@@ -153,25 +153,35 @@ export function DocumentSummaryCard({ card, onSendMessage, onNavigate, userRole 
       {/* Actions */}
       <div className="pt-2 flex flex-wrap items-center justify-between gap-2 border-t border-slate-200/70">
         <div className="flex flex-wrap items-center gap-1.5">
-          {onSendMessage && (
-            <button
-              type="button"
-              onClick={() =>
-                onSendMessage(
-                  isTeacher
-                    ? `Tạo bộ 5 câu hỏi quiz trắc nghiệm kèm đáp án và giải thích từ tài liệu ${
-                        card.title || card.code || ''
-                      } để làm tư liệu kiểm tra cho lớp`
-                    : `Tạo cho tôi 5 câu quiz trắc nghiệm ôn tập dựa trên file tài liệu ${
-                        card.title || card.code || ''
-                      }`
-                )
-              }
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-2xs transition active:scale-95 cursor-pointer"
-            >
-              <i className="fas fa-clipboard-question text-white/90" />
-              <span>{isTeacher ? '🎯 Tạo bộ Quiz đề thi cho lớp' : '🎯 Tạo 5 câu Quiz ôn tập ngay'}</span>
-            </button>
+          {isTeacher ? (
+            onSendMessage && (
+              <button
+                type="button"
+                onClick={() =>
+                  onSendMessage(
+                    `Tạo bộ 5 câu hỏi quiz trắc nghiệm kèm đáp án và giải thích từ tài liệu ${
+                      card.title || card.code || ''
+                    } để làm tư liệu kiểm tra cho lớp`
+                  )
+                }
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-2xs transition active:scale-95 cursor-pointer"
+              >
+                <i className="fas fa-clipboard-question text-white/90" />
+                <span>🎯 Tạo bộ Quiz đề thi cho lớp</span>
+              </button>
+            )
+          ) : (
+            onNavigate && (
+              <button
+                type="button"
+                onClick={() => onNavigate('/student/assignments')}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg shadow-2xs transition active:scale-95 cursor-pointer"
+                title="Mở danh sách bài tập và đề thi Quiz giáo viên đã giao cho lớp"
+              >
+                <i className="fas fa-list-check text-indigo-600 text-xs" />
+                <span>Làm Bài tập & Quiz của lớp</span>
+              </button>
+            )
           )}
           <button
             type="button"

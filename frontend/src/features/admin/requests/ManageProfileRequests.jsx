@@ -467,7 +467,10 @@ export function ManageProfileRequests() {
         activeCriteria.rules?.requireReason ||
         activeCriteria.rules?.noAvatar ||
         activeCriteria.rules?.requireName ||
-        activeCriteria.rules?.requireAddress) ? (
+        activeCriteria.rules?.requireAddress ||
+        activeCriteria.rules?.requireHumanSingleAvatar ||
+        activeCriteria.rules?.requireHumanAvatar ||
+        activeCriteria.rules?.requireSinglePersonAvatar) ? (
         <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-blue-50 border border-blue-200/90 rounded-2xl p-4 shadow-xs">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div className="flex items-start gap-3">
@@ -507,6 +510,11 @@ export function ManageProfileRequests() {
                   {activeCriteria.rules?.noAvatar && (
                     <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200 font-medium text-slate-700">
                       <i className="fas fa-check text-emerald-500 mr-1" /> Không duyệt avatar
+                    </span>
+                  )}
+                  {activeCriteria.rules?.requireHumanSingleAvatar && (
+                    <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200 font-medium text-slate-700">
+                      <i className="fas fa-check text-emerald-500 mr-1" /> Avatar là hình người & chỉ 1 người
                     </span>
                   )}
                   <span className="text-slate-400">• Tự động duyệt nhanh nếu đạt chuẩn, giữ lại Chờ duyệt nếu chưa đạt.</span>

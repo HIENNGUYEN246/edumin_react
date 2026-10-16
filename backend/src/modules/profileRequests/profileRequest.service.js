@@ -71,7 +71,19 @@ export async function createRequest(user, { type = 'avatar', requestedData = {} 
   try {
     const adminCriteria = await getAdminCriteria();
     const rules = adminCriteria?.rules;
-    if (rules && (rules.requirePhone10 || rules.requireCccd12 || rules.requireReason || rules.noAvatar || rules.requireName || rules.requireAddress)) {
+    const hasActiveRules =
+      rules &&
+      (rules.requirePhone10 ||
+        rules.requireCccd12 ||
+        rules.requireReason ||
+        rules.noAvatar ||
+        rules.requireName ||
+        rules.requireAddress ||
+        rules.requireHumanSingleAvatar ||
+        rules.requireHumanAvatar ||
+        rules.requireSinglePersonAvatar);
+
+    if (hasActiveRules) {
       const evaluation = evaluateRequestAgainstCriteria(reqDoc, rules);
       if (evaluation.pass) {
         await approveOne(reqDoc._id, { _id: null, hoTen: 'EduMin AI Assistant (Tự động)', role: ROLES.ADMIN });

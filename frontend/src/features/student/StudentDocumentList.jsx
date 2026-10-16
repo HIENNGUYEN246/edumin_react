@@ -114,7 +114,7 @@ export function StudentDocumentList() {
     }
   };
 
-  const handleAiStudyAction = (doc, group, action) => {
+  const handleAiStudyAction = (doc, group, action = 'summarize') => {
     const documentName = doc.name || 'tài liệu học tập';
     const courseName = group.courseName || group.className || 'môn học';
     const courseId = group.courseId;
@@ -123,12 +123,13 @@ export function StudentDocumentList() {
     window.dispatchEvent(
       new CustomEvent('edumin:ai-study', {
         detail: {
-          action, // 'summarize' | 'quiz'
+          action: 'summarize',
           documentId: doc._id,
           documentName,
           courseName,
           courseId,
           classId,
+          role: 'student',
         },
       })
     );
@@ -651,7 +652,7 @@ export function StudentDocumentList() {
                                   {/* Action buttons */}
                                   <td className="px-4 py-3.5 text-right whitespace-nowrap">
                                     <div className="flex items-center justify-end gap-1.5">
-                                      {/* AI Study Actions */}
+                                      {/* AI Study Action: Tóm tắt bài học */}
                                       <button
                                         type="button"
                                         onClick={() => handleAiStudyAction(doc, group, 'summarize')}
@@ -660,15 +661,6 @@ export function StudentDocumentList() {
                                       >
                                         <i className="fas fa-wand-magic-sparkles text-[10px] text-purple-600" />
                                         <span>AI Tóm tắt</span>
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => handleAiStudyAction(doc, group, 'quiz')}
-                                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-semibold transition active:scale-95 cursor-pointer shadow-2xs"
-                                        title="AI tạo 5 câu quiz trắc nghiệm ôn tập từ tài liệu này"
-                                      >
-                                        <i className="fas fa-clipboard-question text-[10px] text-amber-600" />
-                                        <span>Tạo Quiz</span>
                                       </button>
 
                                       {(doc.hasFile || doc.size > 0 || (doc.format && doc.format !== 'Liên kết')) && (

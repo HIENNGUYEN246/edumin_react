@@ -1196,6 +1196,53 @@ describe('Role-based rendering authorization for EduMinAiAssistant', () => {
     expect(res.reply).toContain('Điểm trung bình tích lũy');
     expect(res.reply).toContain('Đánh giá của Giảng viên');
   });
+
+  it('guides Student away from creating quiz via Chatbox and directs to /student/assignments', () => {
+    const res = getSmartAiResponse('tạo 5 câu quiz trắc nghiệm ôn tập', 'sinh-vien');
+    expect(res.matched).toBe(true);
+    expect(res.intent).toBe('DOC_QUIZ_GENERATE');
+    expect(res.reply).toContain('Thông báo phân quyền');
+    expect(res.cards).toBeUndefined();
+    expect(res.quickLinks.some((l) => l.path === '/student/assignments')).toBe(true);
+  });
+
+  it('allows Teacher to generate interactive quiz card via Chatbox with publishing actions', () => {
+    const res = getSmartAiResponse('tạo 5 câu quiz trắc nghiệm ôn tập môn Lập trình Web', 'giao-vien');
+    expect(res.matched).toBe(true);
+    expect(res.intent).toBe('DOC_QUIZ_GENERATE');
+    expect(res.cards).toBeDefined();
+    expect(res.cards[0].type).toBe('interactive_quiz');
+    expect(res.cards[0].role).toBe('teacher');
+    expect(res.quickLinks.some((l) => l.path === '/teacher/assignments')).toBe(true);
+  });
+
+  it('does NOT intercept quiz generation on /teacher/documents with CURRENT_PAGE_ALREADY', () => {
+    const res = getSmartAiResponse(
+      'Gợi ý và tạo bộ 5 câu hỏi quiz trắc nghiệm kèm đáp án và giải thích từ tài liệu Chương 1 môn Lập trình Web để làm tư liệu kiểm tra/bài tập cho lớp',
+      'teacher',
+      { hoTen: 'ThS. Nguyễn Văn A', role: 'teacher' },
+      '/teacher/documents',
+      { courseName: 'Lập trình Web', classId: 'CNTT101-01', courseId: 'CNTT101' }
+    );
+    expect(res.intent).toBe('DOC_QUIZ_GENERATE');
+    expect(res.intent).not.toBe('CURRENT_PAGE_ALREADY');
+    expect(res.reply).not.toContain('hiện tại bạn đang ở ngay trang');
+    expect(res.cards).toBeDefined();
+    expect(res.cards[0].type).toBe('interactive_quiz');
+    expect(res.cards[0].classId).toBe('CNTT101-01');
+    expect(res.cards[0].role).toBe('teacher');
+  });
+
+  it('triggers CURRENT_PAGE_ALREADY on /teacher/documents only when genuinely asking about location', () => {
+    const res = getSmartAiResponse(
+      'Tôi đang ở đâu?',
+      'teacher',
+      { hoTen: 'ThS. Nguyễn Văn A', role: 'teacher' },
+      '/teacher/documents'
+    );
+    expect(res.intent).toBe('CURRENT_PAGE_ALREADY');
+    expect(res.reply).toContain('Tài liệu giảng dạy');
+  });
 });
 
 describe('EduMinAiAssistant File Attachment & RAG Integration', () => {

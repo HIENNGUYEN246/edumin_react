@@ -172,5 +172,49 @@ describe('TeacherAssignmentList (Grouped by Class)', () => {
 
     expect(mockConfirm).toHaveBeenCalled();
   });
+
+  it('renders "Tạo quiz nhanh bằng AI" in header and dispatches edumin:ai-study on click', async () => {
+    const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
+    renderComponent();
+
+    const quickQuizBtn = screen.getByRole('button', { name: /Tạo quiz nhanh bằng AI/i });
+    expect(quickQuizBtn).toBeInTheDocument();
+
+    fireEvent.click(quickQuizBtn);
+
+    expect(dispatchSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'edumin:ai-study',
+        detail: expect.objectContaining({
+          action: 'quiz',
+          role: 'teacher',
+        }),
+      })
+    );
+    dispatchSpy.mockRestore();
+  });
+
+  it('renders "Tạo Quiz nhanh AI" in class folders and dispatches edumin:ai-study with target class', async () => {
+    const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
+    renderComponent();
+
+    const folderQuickQuizBtns = await screen.findAllByRole('button', { name: /Tạo Quiz nhanh AI/i });
+    expect(folderQuickQuizBtns.length).toBeGreaterThan(0);
+
+    fireEvent.click(folderQuickQuizBtns[0]);
+
+    expect(dispatchSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'edumin:ai-study',
+        detail: expect.objectContaining({
+          action: 'quiz',
+          courseId: 'TA1',
+          classId: 'TA1-L01',
+          role: 'teacher',
+        }),
+      })
+    );
+    dispatchSpy.mockRestore();
+  });
 });
 

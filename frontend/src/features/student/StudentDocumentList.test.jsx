@@ -197,4 +197,31 @@ describe('StudentDocumentList (Grouped by Class)', () => {
     // "Lập trình Web" has no SQL doc, so it should be filtered out
     expect(screen.queryByText('ThS. Nguyễn Văn A')).not.toBeInTheDocument();
   });
+
+  it('renders "AI Tóm tắt" button and does NOT render "Tạo Quiz" button for student', async () => {
+    const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
+    renderComponent();
+
+    // Student should have "AI Tóm tắt"
+    const summarizeBtns = await screen.findAllByRole('button', { name: /AI Tóm tắt/i });
+    expect(summarizeBtns.length).toBeGreaterThan(0);
+
+    // Student should NOT have "Tạo Quiz" (quiz creation is reserved for teachers)
+    expect(screen.queryByRole('button', { name: /Tạo Quiz/i })).not.toBeInTheDocument();
+
+    // Clicking "AI Tóm tắt" dispatches summarize action with role student
+    fireEvent.click(summarizeBtns[0]);
+    expect(dispatchSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'edumin:ai-study',
+        detail: expect.objectContaining({
+          action: 'summarize',
+          documentId: 'doc1',
+          role: 'student',
+        }),
+      })
+    );
+
+    dispatchSpy.mockRestore();
+  });
 });

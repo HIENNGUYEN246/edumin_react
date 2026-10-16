@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
 import { InteractiveQuizCard } from './InteractiveQuizCard.jsx';
 import { DocumentSummaryCard } from './DocumentSummaryCard.jsx';
+import { assignmentsApi } from '../../api/assignmentsApi.js';
 
 describe('InteractiveQuizCard Component', () => {
   const sampleQuizCard = {
@@ -150,6 +151,53 @@ describe('InteractiveQuizCard Component', () => {
     dispatchSpy.mockRestore();
   });
 
+  it('renders class dropdown and [🚀 Xuất bản thành Bài tập cho lớp] button for teachers', () => {
+    const mockClasses = [
+      { id: 'CNTT101-01', className: 'Lập trình Web', courseId: 'CNTT101' },
+      { id: 'CNTT101-02', className: 'Lập trình Web Lớp 2', courseId: 'CNTT101' },
+    ];
+    render(<InteractiveQuizCard card={sampleQuizCard} userRole="teacher" classes={mockClasses} />);
+
+    expect(screen.getByText(/Xuất bản Bài tập trực tiếp cho Sinh viên/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /🚀 Xuất bản thành Bài tập cho lớp/i })).toBeInTheDocument();
+    expect(screen.getByRole('combobox')).toBeInTheDocument();
+  });
+
+  it('directly publishes quiz to assignments collection via assignmentsApi.create, shows success toast, and displays confirmation banner', async () => {
+    const createSpy = vi.spyOn(assignmentsApi, 'create').mockResolvedValue({ id: 'assign-123' });
+    const mockClasses = [
+      { id: 'CNTT101-01', className: 'Lập trình Web', courseId: 'CNTT101' },
+    ];
+
+    render(<InteractiveQuizCard card={sampleQuizCard} userRole="teacher" classes={mockClasses} />);
+
+    const publishBtn = screen.getByRole('button', { name: /🚀 Xuất bản thành Bài tập cho lớp/i });
+    fireEvent.click(publishBtn);
+
+    await waitFor(() => {
+      expect(createSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'quiz',
+          status: 'Công khai',
+          classId: 'CNTT101-01',
+          questions: expect.arrayContaining([
+            expect.objectContaining({
+              id: 'q1',
+              text: expect.stringContaining('Virtual DOM'),
+              correctIndex: 1,
+            }),
+          ]),
+        })
+      );
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText(/Đã xuất bản bài tập thành công cho lớp/i)).toBeInTheDocument();
+    });
+
+    createSpy.mockRestore();
+  });
+
   it('supports copying quiz questions to clipboard', async () => {
     const writeTextMock = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, 'clipboard', {
@@ -163,9 +211,12 @@ describe('InteractiveQuizCard Component', () => {
     const copyBtn = screen.getByRole('button', { name: /Sao chép/i });
     fireEvent.click(copyBtn);
 
-    expect(writeTextMock).toHaveBeenCalledWith(
-      expect.stringContaining('Bộ Quiz ôn tập: Lập trình Web')
-    );
+    await waitFor(() => {
+      expect(writeTextMock).toHaveBeenCalledWith(
+        expect.stringContaining('Bộ Quiz ôn tập: Lập trình Web')
+      );
+    });
+    expect(await screen.findByText('Đã sao chép')).toBeInTheDocument();
   });
 });
 
@@ -211,14 +262,14 @@ describe('DocumentSummaryCard Component', () => {
     expect(screen.getByText('Thu gọn')).toBeInTheDocument();
   });
 
-  it('triggers onSendMessage when clicking Tạo 5 câu Quiz ôn tập ngay', () => {
-    const handleSend = vi.fn();
-    render(<DocumentSummaryCard card={sampleSummaryCard} onSendMessage={handleSend} />);
+  it('navigates to assignments when student clicks Làm Bài tập & Quiz của lớp', () => {
+    const handleNavigate = vi.fn();
+    render(<DocumentSummaryCard card={sampleSummaryCard} onNavigate={handleNavigate} />);
 
-    const createQuizBtn = screen.getByText('🎯 Tạo 5 câu Quiz ôn tập ngay');
-    fireEvent.click(createQuizBtn);
+    const doQuizBtn = screen.getByText('Làm Bài tập & Quiz của lớp');
+    fireEvent.click(doQuizBtn);
 
-    expect(handleSend).toHaveBeenCalledWith(expect.stringContaining('Tạo cho tôi 5 câu quiz trắc nghiệm ôn tập dựa trên file tài liệu'));
+    expect(handleNavigate).toHaveBeenCalledWith('/student/assignments');
   });
 
   it('renders teacher actions when userRole="teacher"', () => {

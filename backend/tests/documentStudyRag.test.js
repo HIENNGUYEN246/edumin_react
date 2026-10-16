@@ -224,9 +224,10 @@ describe('Document Text Extraction & AI Study RAG', () => {
       status: 'Công khai',
     });
 
+    // 1. Teacher generates quiz for class through AI chatbot
     const res = await request(app)
       .post('/api/ai/query')
-      .set(authHeader(studentUser.token))
+      .set(authHeader(teacherUser.token))
       .send({
         message: 'Tạo cho tôi 5 câu quiz trắc nghiệm ôn tập dựa trên file tài liệu buổi học hôm nay',
       });
@@ -238,6 +239,42 @@ describe('Document Text Extraction & AI Study RAG', () => {
     expect(res.body.quizData.questions).toHaveLength(5);
     expect(res.body.cards[0].type).toBe('interactive_quiz');
     expect(res.body.cards[0].questions[0].explanation).toContain('Rationale');
+
+    // 2. Student is politely guided to /student/assignments because quiz creation is reserved for Teachers
+    const studentRes = await request(app)
+      .post('/api/ai/query')
+      .set(authHeader(studentUser.token))
+      .send({
+        message: 'Tạo cho tôi 5 câu quiz trắc nghiệm ôn tập dựa trên file tài liệu buổi học hôm nay',
+      });
+
+    expect(studentRes.status).toBe(200);
+    expect(studentRes.body.intent).toBe('DOC_QUIZ_GENERATE');
+    expect(studentRes.body.reply).toContain('Thông báo phân quyền');
+    expect(studentRes.body.quickLinks[0].path).toBe('/student/assignments');
+  });
+
+  it('Teacher on /teacher/documents generates quiz without being falsely intercepted by CURRENT_PAGE_ALREADY', async () => {
+    const res = await request(app)
+      .post('/api/ai/query')
+      .set(authHeader(teacherUser.token))
+      .send({
+        message: 'Gợi ý và tạo bộ 5 câu hỏi quiz trắc nghiệm kèm đáp án và giải thích từ tài liệu Chương 1 môn Lập trình Web để làm tư liệu kiểm tra/bài tập cho lớp',
+        currentPath: '/teacher/documents',
+        pageContext: {
+          courseName: 'Lập trình Web',
+          courseId: 'CNTT101',
+          classId: 'CNTT101-01',
+        },
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.intent).toBe('DOC_QUIZ_GENERATE');
+    expect(res.body.intent).not.toBe('CURRENT_PAGE_ALREADY');
+    expect(res.body.reply).not.toContain('hiện tại bạn đang ở ngay trang');
+    expect(res.body.cards[0].type).toBe('interactive_quiz');
+    expect(res.body.cards[0].questions).toHaveLength(5);
   });
 });
 

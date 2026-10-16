@@ -202,13 +202,18 @@ describe('TeacherDocumentList (Grouped by Class)', () => {
     const saveBtn = screen.getByRole('button', { name: 'Lưu thay đổi' });
     fireEvent.click(saveBtn);
 
-    expect(mockMutations.update.mutateAsync).toHaveBeenCalledWith(
-      expect.objectContaining({
-        id: 'd1',
-        name: 'Giáo trình Tiếng Anh Unit 1-5',
-        status: 'Công khai',
-      })
-    );
+    await waitFor(() => {
+      expect(mockMutations.update.mutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 'd1',
+          name: 'Giáo trình Tiếng Anh Unit 1-5',
+          status: 'Công khai',
+        })
+      );
+    });
+    await waitFor(() => {
+      expect(screen.queryByRole('heading', { name: 'Chỉnh sửa tài liệu' })).not.toBeInTheDocument();
+    });
   });
 
   it('allows selecting a new file in edit modal and displays file preview card with size', async () => {
@@ -233,12 +238,17 @@ describe('TeacherDocumentList (Grouped by Class)', () => {
     const saveBtn = screen.getByRole('button', { name: 'Lưu thay đổi' });
     fireEvent.click(saveBtn);
 
-    expect(mockMutations.update.mutateAsync).toHaveBeenCalledWith(
-      expect.objectContaining({
-        id: 'd1',
-        file: newFile,
-      })
-    );
+    await waitFor(() => {
+      expect(mockMutations.update.mutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 'd1',
+          file: newFile,
+        })
+      );
+    });
+    await waitFor(() => {
+      expect(screen.queryByRole('heading', { name: 'Chỉnh sửa tài liệu' })).not.toBeInTheDocument();
+    });
   });
 
   it('allows removing selected new file in edit modal to revert to dropzone', async () => {

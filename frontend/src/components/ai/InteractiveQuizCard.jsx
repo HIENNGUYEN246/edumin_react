@@ -1,22 +1,110 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useToast } from '../../app/providers/ToastProvider.jsx';
+import { classesApi } from '../../api/classesApi.js';
+import { assignmentsApi } from '../../api/assignmentsApi.js';
+
+function useSafeQueryClient() {
+  try {
+    return useQueryClient();
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Interactive Quiz Card for EduMin AI Chatbot.
  * Allows students to test their knowledge interactively in chat,
  * see immediate right/wrong feedback, and read detailed rationale explanations.
+ * For Teachers, allows direct publishing to Assignments collection with one click.
  */
-export function InteractiveQuizCard({ card, onSendMessage, onNavigate, userRole }) {
+export function InteractiveQuizCard({ card, onSendMessage, onNavigate, userRole, classes }) {
   const questions = card.questions || [];
   const totalQuestions = questions.length;
 
   const [answers, setAnswers] = useState({});
   const [copied, setCopied] = useState(false);
 
+  const toast = useToast();
+  const queryClient = useSafeQueryClient();
+
   const isTeacher =
     userRole === 'teacher' ||
     userRole === 'giao-vien' ||
+    userRole === 'dao-tao' ||
+    userRole === 'admin' ||
     card?.role === 'teacher' ||
     (typeof window !== 'undefined' && window.location.pathname.startsWith('/teacher'));
+
+  // Load teacher classes for direct assignment publishing
+  const [availableClasses, setAvailableClasses] = useState(classes || []);
+  const [loadingClasses, setLoadingClasses] = useState(false);
+
+  useEffect(() => {
+    if (classes && classes.length > 0) {
+      setAvailableClasses(classes);
+      return;
+    }
+    if (!isTeacher) return;
+    let mounted = true;
+    setLoadingClasses(true);
+    classesApi
+      .list(userRole === 'teacher' || userRole === 'giao-vien' ? { teacher: 'me', limit: 200 } : { limit: 200 })
+      .then((res) => {
+        if (mounted && Array.isArray(res?.data) && res.data.length > 0) {
+          setAvailableClasses(res.data);
+        } else if (mounted) {
+          classesApi
+            .list({ limit: 100 })
+            .then((fallbackRes) => {
+              if (mounted && Array.isArray(fallbackRes?.data)) {
+                setAvailableClasses(fallbackRes.data);
+              }
+            })
+            .catch(() => {});
+        }
+      })
+      .catch(() => {
+        classesApi
+          .list({ limit: 100 })
+          .then((fallbackRes) => {
+            if (mounted && Array.isArray(fallbackRes?.data)) {
+              setAvailableClasses(fallbackRes.data);
+            }
+          })
+          .catch(() => {});
+      })
+      .finally(() => {
+        if (mounted) setLoadingClasses(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [isTeacher, userRole, classes]);
+
+  const defaultClassCode = useMemo(() => {
+    if (card.classId) return card.classId;
+    if (card.code && card.code !== 'QUIZ') return card.code;
+    return availableClasses[0]?.id || 'CNTT101-01';
+  }, [card.classId, card.code, availableClasses]);
+
+  const [selectedClassId, setSelectedClassId] = useState(defaultClassCode);
+
+  useEffect(() => {
+    if (defaultClassCode && (!selectedClassId || selectedClassId === 'QUIZ')) {
+      setSelectedClassId(defaultClassCode);
+    }
+  }, [defaultClassCode]);
+
+  const defaultDueDate = useMemo(() => {
+    const d = new Date(Date.now() + 7 * 24 * 3600 * 1000);
+    return d.toISOString().split('T')[0];
+  }, []);
+
+  const [dueDate, setDueDate] = useState(defaultDueDate);
+  const [isPublishing, setIsPublishing] = useState(false);
+  const [isPublished, setIsPublished] = useState(false);
+  const [publishedClassId, setPublishedClassId] = useState('');
 
   const answeredCount = Object.keys(answers).length;
 
@@ -78,7 +166,7 @@ export function InteractiveQuizCard({ card, onSendMessage, onNavigate, userRole 
 
     const payload = {
       title: card.title || `Bài tập Quiz: ${card.subtitle || ''}`,
-      classId: card.code || '',
+      classId: selectedClassId || card.code || '',
       courseId: card.courseId || '',
       courseName: card.details?.find((d) => d.label === 'Học phần')?.value || '',
       description: `Bộ câu hỏi trắc nghiệm gồm ${questions.length} câu được tạo tự động từ ${
@@ -97,6 +185,64 @@ export function InteractiveQuizCard({ card, onSendMessage, onNavigate, userRole 
 
     if (onNavigate) {
       onNavigate('/teacher/assignments', { state: { importQuiz: payload } });
+    }
+  };
+
+  const handleDirectPublish = async () => {
+    if (isPublishing || isPublished) return;
+    setIsPublishing(true);
+    try {
+      const targetClass = availableClasses.find(
+        (c) => String(c.id || c._id).toLowerCase() === String(selectedClassId || '').toLowerCase()
+      );
+      const finalCourseId = card.courseId || targetClass?.courseId || card.code || '';
+      const finalClassId = selectedClassId || card.classId || card.code || '';
+
+      const formattedQuestions = questions.map((q, idx) => ({
+        id: q.id || `q_${Date.now()}_${idx + 1}`,
+        text: q.question || q.text || `Câu hỏi ${idx + 1}`,
+        options: Array.isArray(q.options) && q.options.length >= 2 ? [...q.options] : ['Đáp án A', 'Đáp án B', 'Đáp án C', 'Đáp án D'],
+        correctIndex: typeof q.correctIndex === 'number' ? q.correctIndex : 0,
+        explanation: q.explanation || '',
+      }));
+
+      const sourceDocTitle =
+        card.details?.find((d) => d.label === 'Tài liệu nguồn')?.value || card.documentName || card.title || 'tài liệu học phần';
+
+      const payload = {
+        title: card.title?.replace(/^Bộ Quiz ôn tập:\s*/i, 'Quiz: ') || `Quiz: ${card.subtitle || 'Bài tập trắc nghiệm'}`,
+        courseId: finalCourseId,
+        classId: finalClassId,
+        type: 'quiz',
+        dueDate: dueDate || defaultDueDate,
+        status: 'Công khai',
+        description: `Bộ câu hỏi trắc nghiệm ${questions.length} câu được tạo tự động bởi AI từ ${sourceDocTitle}.`,
+        questions: formattedQuestions,
+      };
+
+      await assignmentsApi.create(payload);
+
+      if (queryClient) {
+        queryClient.invalidateQueries({ queryKey: ['assignments'] });
+      }
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('edumin:assignment-created', { detail: payload }));
+      }
+
+      setIsPublished(true);
+      setPublishedClassId(finalClassId);
+
+      if (toast) {
+        toast.success('Đã xuất bản bài tập thành công cho lớp học phần!');
+      }
+    } catch (error) {
+      console.error('Lỗi khi xuất bản bài tập:', error);
+      if (toast) {
+        toast.error(error?.message || 'Không thể xuất bản bài tập. Vui lòng thử lại!');
+      }
+    } finally {
+      setIsPublishing(false);
     }
   };
 
@@ -217,7 +363,7 @@ export function InteractiveQuizCard({ card, onSendMessage, onNavigate, userRole 
 
               {/* Question Text */}
               <p className="text-xs sm:text-[13px] font-semibold text-slate-900 leading-snug mb-3">
-                {q.question}
+                {q.question || q.text}
               </p>
 
               {/* Options */}
@@ -277,6 +423,105 @@ export function InteractiveQuizCard({ card, onSendMessage, onNavigate, userRole 
           );
         })}
       </div>
+
+      {/* Teacher Direct Publishing Panel */}
+      {isTeacher && (
+        <div className="bg-gradient-to-br from-indigo-50/70 via-teal-50/50 to-emerald-50/70 border border-teal-200/90 rounded-xl p-3.5 space-y-3 shadow-2xs">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span className="w-6 h-6 rounded-lg bg-teal-600 text-white flex items-center justify-center text-xs shadow-2xs">
+                <i className="fas fa-paper-plane" />
+              </span>
+              <span className="text-xs font-bold text-slate-900">
+                Xuất bản Bài tập trực tiếp cho Sinh viên
+              </span>
+            </div>
+            {isPublished && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                <i className="fas fa-circle-check" />
+                <span>Đã lưu vào CSDL</span>
+              </span>
+            )}
+          </div>
+
+          {isPublished ? (
+            <div className="bg-white/95 border border-emerald-200 rounded-lg p-2.5 text-xs text-emerald-900 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <i className="fas fa-check-circle text-emerald-600 text-sm shrink-0" />
+                <span>
+                  Đã xuất bản bài tập thành công cho lớp <strong>{publishedClassId}</strong>! Sinh viên đã có thể nhìn thấy và làm bài ngay lập tức tại mục Bài tập & Đánh giá.
+                </span>
+              </div>
+              {onNavigate && (
+                <button
+                  type="button"
+                  onClick={() => onNavigate('/teacher/assignments')}
+                  className="shrink-0 px-2.5 py-1 text-[11px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition active:scale-95 cursor-pointer shadow-2xs"
+                >
+                  Xem bài tập
+                </button>
+              )}
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                    Chọn lớp học phần áp dụng:
+                  </label>
+                  <select
+                    value={selectedClassId}
+                    onChange={(e) => setSelectedClassId(e.target.value)}
+                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 font-medium focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition cursor-pointer shadow-2xs"
+                  >
+                    {availableClasses.length > 0 ? (
+                      availableClasses.map((c) => (
+                        <option key={c.id || c._id} value={c.id || c._id}>
+                          {c.id || c._id} - {c.className || c.courseName || c.name || 'Lớp học phần'}
+                        </option>
+                      ))
+                    ) : (
+                      <option value={card.classId || card.code || 'CNTT101-01'}>
+                        {card.classId || card.code || 'CNTT101-01'} (Lớp học phần)
+                      </option>
+                    )}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                    Hạn nộp bài (Due date):
+                  </label>
+                  <input
+                    type="date"
+                    value={dueDate}
+                    onChange={(e) => setDueDate(e.target.value)}
+                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 font-medium focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition cursor-pointer shadow-2xs"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleDirectPublish}
+                disabled={isPublishing}
+                className="w-full bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-700 hover:to-teal-800 text-white font-extrabold text-xs sm:text-sm py-2.5 px-4 rounded-xl shadow-md hover:shadow-lg transition-all active:scale-[0.99] flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {isPublishing ? (
+                  <>
+                    <i className="fas fa-spinner fa-spin text-sm" />
+                    <span>Đang lưu vào CSDL & xuất bản cho lớp...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>🚀 Xuất bản thành Bài tập cho lớp</span>
+                  </>
+                )}
+              </button>
+            </>
+          )}
+        </div>
+      )}
 
       {/* Card Action Buttons */}
       <div className="pt-2 flex flex-wrap items-center justify-between gap-2 border-t border-slate-200/70">
@@ -352,4 +597,3 @@ export function InteractiveQuizCard({ card, onSendMessage, onNavigate, userRole 
 }
 
 export default InteractiveQuizCard;
-
