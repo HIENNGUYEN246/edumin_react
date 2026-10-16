@@ -11,9 +11,26 @@ export function createApp() {
 
   app.set('trust proxy', 1);
   app.use(helmet());
+  const allowedOrigins = (config.CLIENT_ORIGIN || '')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
+
   app.use(
     cors({
-      origin: config.CLIENT_ORIGIN === '*' ? true : config.CLIENT_ORIGIN.split(','),
+      origin: (origin, callback) => {
+        // Cho phép request không có origin (curl, server-to-server, mobile app)
+        if (!origin) return callback(null, true);
+        if (config.CLIENT_ORIGIN === '*') return callback(null, true);
+        if (allowedOrigins.includes(origin)) return callback(null, true);
+        // Tự động cho phép mọi domain Vercel (*.vercel.app)
+        if (origin.endsWith('.vercel.app')) return callback(null, true);
+        // Cho phép localhost ở mọi port khi chạy local dev
+        if (/^https?:\/\/localhost(:\d+)?$/.test(origin) || /^https?:\/\/127\.0\.0\.1(:\d+)?$/.test(origin)) {
+          return callback(null, true);
+        }
+        return callback(null, false);
+      },
       credentials: true,
     })
   );

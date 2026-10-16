@@ -1,6 +1,5 @@
-// API Service - Kết nối backend MongoDB mới
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
-const API_URL = `${API_BASE_URL}/api`;
+import { API_BASE_URL, API_URL } from '../api/http.js';
+export { API_BASE_URL, API_URL };
 
 function ensureArray(value) {
   return Array.isArray(value) ? value : [];
@@ -152,19 +151,46 @@ class APIClient {
   }
 
   async fetchJson(path, options = {}) {
-    const response = await fetch(`${this.baseURL}${path}`, {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      ...options,
-    });
+    const isTestEnv = typeof process !== 'undefined' && (process.env?.VITEST || process.env?.NODE_ENV === 'test');
+    let timeoutId;
+    let signal = options.signal;
 
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`HTTP ${response.status}: ${text}`);
+    if (!signal && !isTestEnv && typeof AbortController !== 'undefined') {
+      try {
+        const controller = new AbortController();
+        timeoutId = setTimeout(() => {
+          try { controller.abort(); } catch {}
+        }, 30000);
+        signal = controller.signal;
+      } catch {}
     }
 
-    return response.json();
+    try {
+      const response = await fetch(`${this.baseURL}${path}`, {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        ...options,
+        ...(signal ? { signal } : {}),
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`HTTP ${response.status}: ${text}`);
+      }
+
+      return await response.json();
+    } catch (networkError) {
+      if (networkError.name === 'AbortError') {
+        throw new Error('Yêu cầu kết nối quá thời gian chờ (30 giây). Máy chủ đang phản hồi chậm hoặc đang khởi động lại (Cold Start).');
+      }
+      if (networkError.message && networkError.message.includes('Failed to fetch')) {
+        throw new Error('Không thể kết nối đến máy chủ backend (Failed to fetch). Vui lòng kiểm tra lại đường truyền mạng hoặc cấu hình VITE_API_URL.');
+      }
+      throw networkError;
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
+    }
   }
 
   normalizeAuthPayload(payload) {

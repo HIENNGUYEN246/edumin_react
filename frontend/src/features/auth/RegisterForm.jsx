@@ -10,9 +10,10 @@ export function RegisterForm({ register, inputClass, onSuccess, onBackToLogin })
   const [form, setForm] = useState(EMPTY);
   const [errors, setErrors] = useState({});
   const [showPassword, setShowPassword] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading: isFetchingOptions } = useQuery({
     queryKey: ['registration-options'],
     queryFn: authApi.registrationOptions,
   });
@@ -21,6 +22,7 @@ export function RegisterForm({ register, inputClass, onSuccess, onBackToLogin })
   const set = (field) => (e) => {
     setForm((f) => ({ ...f, [field]: e.target.value }));
     setErrors((prev) => ({ ...prev, [field]: '' }));
+    setErrorMessage('');
   };
 
   const normalizeStudentEmail = (raw) => {
@@ -60,12 +62,13 @@ export function RegisterForm({ register, inputClass, onSuccess, onBackToLogin })
 
   const submit = async (e) => {
     e.preventDefault();
+    setErrorMessage('');
     const normalizedEmail = normalizeStudentEmail(form.email);
     if (normalizedEmail !== form.email) {
       setForm((f) => ({ ...f, email: normalizedEmail }));
     }
-    if (submitting || !validate(normalizedEmail)) return;
-    setSubmitting(true);
+    if (isLoading || !validate(normalizedEmail)) return;
+    setIsLoading(true);
     try {
       const result = await register({
         hoTen: form.hoTen.trim(),
@@ -77,10 +80,17 @@ export function RegisterForm({ register, inputClass, onSuccess, onBackToLogin })
       toast.success('Tạo tài khoản thành công');
       onSuccess(result);
     } catch (error) {
-      if (error.status === 409) setErrors((p) => ({ ...p, email: 'Email đã được sử dụng' }));
-      else toast.error(error.message || 'Không tạo được tài khoản');
+      let msg = error.message || 'Không tạo được tài khoản';
+      if (error.status === 409) {
+        msg = 'Email đã được sử dụng';
+        setErrors((p) => ({ ...p, email: msg }));
+      } else if (error.code === 'NETWORK_ERROR' || !error.status) {
+        msg = error.message || 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra lại kết nối mạng hoặc thử lại sau.';
+      }
+      setErrorMessage(msg);
+      toast.error(msg);
     } finally {
-      setSubmitting(false);
+      setIsLoading(false);
     }
   };
 
@@ -88,6 +98,15 @@ export function RegisterForm({ register, inputClass, onSuccess, onBackToLogin })
 
   return (
     <form onSubmit={submit} className="space-y-3">
+      {errorMessage && (
+        <div
+          role="alert"
+          className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-700 text-sm flex items-center gap-2"
+        >
+          <i className="fa-solid fa-circle-exclamation text-red-500 flex-shrink-0" />
+          <span>{errorMessage}</span>
+        </div>
+      )}
       <div>
         <input value={form.hoTen} onChange={set('hoTen')} placeholder="Họ và tên" className={cls('hoTen')} />
         {errors.hoTen && <p className="text-xs text-red-600 mt-1">{errors.hoTen}</p>}
@@ -140,10 +159,10 @@ export function RegisterForm({ register, inputClass, onSuccess, onBackToLogin })
       </label>
       <button
         type="submit"
-        disabled={submitting || isLoading}
+        disabled={isLoading || isFetchingOptions}
         className="bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-700 hover:to-teal-600 disabled:opacity-60 w-full font-bold text-white rounded-xl py-3.5 shadow-xl transition-all"
       >
-        {submitting ? 'Đang tạo tài khoản...' : 'Tạo tài khoản sinh viên'}
+        {isLoading ? 'Đang tạo tài khoản...' : 'Tạo tài khoản sinh viên'}
       </button>
       <p className="text-center text-sm text-slate-700">
         Đã có tài khoản?{' '}

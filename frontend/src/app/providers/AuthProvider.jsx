@@ -97,7 +97,9 @@ export function AuthProvider({ children }) {
       setStoredJson(PROFILE_KEY, result.profile);
     }
     queryClient.setQueryData(['auth', 'me'], { user: result.user, profile: result.profile });
-    return queryClient.invalidateQueries({ queryKey: ['auth', 'me'] });
+    // Non-blocking background refetch so slow backend /me or cold starts never stall login
+    queryClient.invalidateQueries({ queryKey: ['auth', 'me'] }).catch(() => {});
+    return Promise.resolve(result);
   };
 
   const login = async (email, password) => {

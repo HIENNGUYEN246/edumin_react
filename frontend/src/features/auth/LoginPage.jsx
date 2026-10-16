@@ -13,10 +13,12 @@ export function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
     setShowPassword(false);
+    setErrorMessage('');
   }, [mode]);
 
   if (isAuthenticated && user) {
@@ -25,21 +27,30 @@ export function LoginPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (submitting) return;
+    if (isLoading) return;
+    setErrorMessage('');
     if (!email.trim() || !password) {
-      toast.error('Vui lòng nhập đầy đủ email và mật khẩu');
+      const msg = 'Vui lòng nhập đầy đủ email và mật khẩu';
+      setErrorMessage(msg);
+      toast.error(msg);
       return;
     }
-    setSubmitting(true);
+    setIsLoading(true);
     try {
       const result = await login(email.trim(), password);
       navigate(roleHome(result.user.role), { replace: true });
     } catch (error) {
-      if (error.status === 401) toast.error('Email hoặc mật khẩu không chính xác');
-      else if (error.status === 423) toast.error(error.message || 'Tài khoản đã bị khóa');
-      else toast.error(error.message || 'Không thể kết nối tới máy chủ');
+      if (error.status === 401) {
+        toast.error('Email hoặc mật khẩu không chính xác');
+      } else if (error.status === 423) {
+        toast.error(error.message || 'Tài khoản đã bị khóa');
+      } else {
+        const netMsg = error.message || 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra lại kết nối mạng hoặc cấu hình VITE_API_URL trên Vercel!';
+        setErrorMessage(netMsg);
+        toast.error(netMsg);
+      }
     } finally {
-      setSubmitting(false);
+      setIsLoading(false);
     }
   };
 
@@ -81,6 +92,15 @@ export function LoginPage() {
 
           {mode === 'login' ? (
             <form onSubmit={handleSubmit} className="space-y-4">
+              {errorMessage && (
+                <div
+                  role="alert"
+                  className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-700 text-sm flex items-center gap-2"
+                >
+                  <i className="fa-solid fa-circle-exclamation text-red-500 flex-shrink-0" />
+                  <span>{errorMessage}</span>
+                </div>
+              )}
               <input
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -109,10 +129,10 @@ export function LoginPage() {
               </div>
               <button
                 type="submit"
-                disabled={submitting}
+                disabled={isLoading}
                 className="bg-gradient-to-r from-indigo-600 to-blue-500 hover:from-indigo-700 hover:to-blue-600 disabled:opacity-60 w-full font-bold text-white rounded-xl py-3.5 shadow-xl transition-all"
               >
-                {submitting ? 'Đang đăng nhập...' : 'Đăng nhập'}
+                {isLoading ? 'Đang đăng nhập...' : 'Đăng nhập'}
               </button>
               <p className="text-center text-sm text-slate-700">
                 Bạn là sinh viên chưa có tài khoản?{' '}
