@@ -1,14 +1,18 @@
 {
   "name": "edumin-react",
   "private": true,
-  "version": "1.0.0",
-  "description": "Edumin education management system",
+  "version": "2.0.0",
+  "description": "Edumin education management system (REST API + React SPA)",
   "scripts": {
     "dev:frontend": "npm --prefix frontend run dev",
     "build:frontend": "npm --prefix frontend run build",
     "preview:frontend": "npm --prefix frontend run preview",
+    "test:frontend": "npm --prefix frontend run test",
+    "lint:frontend": "npm --prefix frontend run lint",
     "dev:backend": "npm --prefix backend run dev",
     "start:backend": "npm --prefix backend run start",
-    "test:backend": "npm --prefix backend run test"
+    "test:backend": "npm --prefix backend run test",
+    "lint:backend": "npm --prefix backend run lint",
+    "seed": "npm --prefix backend run seed"
   }
 }

@@ -1,0 +1,426 @@
+import { useEffect, useState } from 'react';
+import { Modal } from '../../../components/ui/Modal.jsx';
+import { FormField, inputClass } from '../../../components/ui/FormField.jsx';
+import { Avatar } from '../../../components/ui/Avatar.jsx';
+
+const PERSON_NAME_PATTERN = /^[\p{L}\p{M}]+(?: [\p{L}\p{M}]+)*$/u;
+const EDUCATION_PATTERN = /^[\p{L}\p{M}0-9().\/-]+(?: [\p{L}\p{M}0-9().\/-]+)*$/u;
+const ADDRESS_PATTERN = /^[\p{L}\p{M}\p{N}]+(?:[./-][\p{L}\p{M}\p{N}]+)*(?:(?: |, )[\p{L}\p{M}\p{N}]+(?:[./-][\p{L}\p{M}\p{N}]+)*)*$/u;
+
+function getPersonAge(value) {
+  if (!value) return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return null;
+  const [, yearText, monthText, dayText] = match;
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+  const birthDate = new Date(year, month - 1, day);
+  if (birthDate.getFullYear() !== year || birthDate.getMonth() !== month - 1 || birthDate.getDate() !== day) return null;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  if (birthDate > today) return -1;
+
+  let age = today.getFullYear() - year;
+  if (today.getMonth() < month - 1 || (today.getMonth() === month - 1 && today.getDate() < day)) age -= 1;
+  return age;
+}
+
+function normalizeEmailWithDomain(rawEmail, expectedDomain) {
+  if (!rawEmail) return '';
+  const trimmed = rawEmail.trim();
+  if (!trimmed) return '';
+  if (!expectedDomain) return trimmed;
+
+  const domain = expectedDomain.startsWith('@') ? expectedDomain.slice(1) : expectedDomain;
+  if (!trimmed.includes('@')) {
+    return `${trimmed}@${domain}`;
+  }
+  const [username] = trimmed.split('@');
+  if (!username) return trimmed;
+  return `${username}@${domain}`;
+}
+
+function getFieldDomainSuffix(field, entityLabel) {
+  if (field.validation === 'teacherEmail' || entityLabel?.toLowerCase().includes('giáo viên') || entityLabel?.toLowerCase().includes('giảng viên')) {
+    return '@university.edu.vn';
+  }
+  if (field.validation === 'studentEmail' || entityLabel?.toLowerCase().includes('sinh viên')) {
+    return '@student.edu.vn';
+  }
+  return null;
+}
+
+function getEmailPrefix(fullEmail, suffix) {
+  if (!fullEmail) return '';
+  const str = String(fullEmail).trim();
+  if (!str) return '';
+  if (suffix && str.toLowerCase().endsWith(suffix.toLowerCase())) {
+    return str.slice(0, -suffix.length);
+  }
+  if (str.includes('@')) {
+    return str.split('@')[0];
+  }
+  return str;
+}
+
+
+function getFieldError(field, rawValue, departments) {
+  const raw = String(rawValue ?? '');
+  const value = raw.trim();
+  if (field.required && !value) return `${field.label} là bắt buộc`;
+  if (raw !== value) return 'Không nhập khoảng trắng ở đầu hoặc cuối';
+  if (!value) return '';
+
+  if (field.validation === 'name') {
+    if (value.length < 2 || value.length > field.maxLength) return `Họ tên phải từ 2 đến ${field.maxLength} ký tự`;
+    if (!PERSON_NAME_PATTERN.test(value)) return 'Chỉ nhập chữ và một khoảng trắng giữa các từ';
+  }
+  if (field.validation === 'birthDate') {
+    const age = getPersonAge(value);
+    if (age === null) return 'Ngày sinh không hợp lệ';
+    if (age < 0) return 'Ngày sinh không thể ở tương lai';
+    if (age < 24) return 'Giảng viên phải từ 24 tuổi trở lên';
+  }
+  if (field.validation === 'birthDateNoFuture') {
+    const age = getPersonAge(value);
+    if (age === null) return 'Ngày sinh không hợp lệ';
+    if (age < 0) return 'Ngày sinh không thể ở tương lai';
+    if (age < 17) return 'Sinh viên phải từ 17 tuổi trở lên';
+  }
+  if (field.validation === 'phone' && !/^0\d{9}$/.test(value)) {
+    return 'Số điện thoại phải gồm 10 chữ số và bắt đầu bằng 0';
+  }
+  if (field.validation === 'address') {
+    if (value.length > field.maxLength) return `Địa chỉ không được vượt quá ${field.maxLength} ký tự`;
+    if (!ADDRESS_PATTERN.test(value)) return 'Địa chỉ chỉ gồm chữ, số, dấu , . / - và khoảng trắng đơn';
+  }
+  if (field.validation === 'teacherEmail' && !/^[^\s@]+@university\.edu\.vn$/i.test(value)) {
+    return 'Email giảng viên bắt buộc phải có đuôi @university.edu.vn';
+  }
+  if (field.validation === 'studentEmail' && !/^[^\s@]+@student\.edu\.vn$/i.test(value)) {
+    return 'Email sinh viên bắt buộc phải có đuôi @student.edu.vn';
+  }
+  if (field.validation === 'eduEmail' && !/^[^\s@]+@(?:[a-z0-9-]+\.)*edu\.vn$/i.test(value)) {
+    return 'Email nội bộ phải có đuôi edu.vn';
+  }
+  if (field.validation === 'education') {
+    const maxLen = field.maxLength || 80;
+    if (value.length < 2 || value.length > maxLen) return `Trình độ phải từ 2 đến ${maxLen} ký tự`;
+    if (!EDUCATION_PATTERN.test(value)) return 'Trình độ chỉ gồm chữ cái, khoảng trắng và các ký tự (. - /)';
+  }
+  if (field.validation === 'studentClass') {
+    if (value.length < 2 || value.length > field.maxLength) return `Lớp phải từ 2 đến ${field.maxLength} ký tự`;
+    if (!/^[\p{L}\p{M}\p{N}]+(?:[-/][\p{L}\p{M}\p{N}]+)*(?: [\p{L}\p{M}\p{N}]+(?:[-/][\p{L}\p{M}\p{N}]+)*)*$/u.test(value)) {
+      return 'Tên lớp chỉ gồm chữ, số, dấu gạch nối, dấu / và khoảng trắng đơn';
+    }
+  }
+  if (field.validation === 'department' && !departments.some((department) => String(department.id) === value)) {
+    return 'Vui lòng chọn khoa hợp lệ';
+  }
+  return '';
+}
+
+/**
+ * Config-driven create/edit form for a person.
+ * `fields` describe inputs; `departments` populates the department select.
+ */
+export function PersonFormModal({
+  open,
+  mode,
+  title,
+  initial,
+  fields,
+  departments,
+  profilePanel = false,
+  formatCode = (value) => value,
+  entityLabel = 'nhân sự',
+  profileCodeLabel = 'Mã GV',
+  profileDetailField = 'education',
+  profileDetailFallback = 'Trình độ chuyên môn',
+  onClose,
+  onSubmit,
+  saving,
+}) {
+  const [form, setForm] = useState(initial);
+  const [errors, setErrors] = useState({});
+
+  useEffect(() => {
+    setForm(initial);
+    setErrors({});
+  }, [initial, open]);
+
+  const set = (name) => (e) => {
+    let val = e.target.value;
+    const field = fields?.find((f) => f.name === name);
+    if (field?.type === 'date' && field.max) {
+      const maxVal = typeof field.max === 'function' ? field.max() : field.max;
+      if (maxVal && val && val > maxVal) {
+        val = maxVal;
+      }
+    }
+    setForm((f) => ({ ...f, [name]: val }));
+    setErrors((prev) => ({ ...prev, [name]: '' }));
+  };
+
+  const validateField = (field) => {
+    const message = getFieldError(field, form[field.name], departments);
+    setErrors((previous) => ({ ...previous, [field.name]: message }));
+  };
+
+  const handleEmailPrefixChange = (field, suffix) => (e) => {
+    let val = e.target.value;
+    if (val.includes('@')) {
+      val = val.split('@')[0];
+    }
+    val = val.replace(/\s+/g, '');
+    const fullEmail = val ? `${val}${suffix}` : '';
+    setForm((f) => ({ ...f, [field.name]: fullEmail }));
+    setErrors((prev) => ({ ...prev, [field.name]: '' }));
+  };
+
+  const handleEmailBlur = (field) => {
+    const raw = String(form[field.name] || '').trim();
+    if (!raw) {
+      validateField(field);
+      return;
+    }
+    const domain = getFieldDomainSuffix(field, entityLabel);
+
+    if (domain) {
+      const normalized = normalizeEmailWithDomain(raw, domain);
+      if (normalized !== form[field.name]) {
+        setForm((f) => ({ ...f, [field.name]: normalized }));
+        const msg = getFieldError(field, normalized, departments);
+        setErrors((p) => ({ ...p, [field.name]: msg }));
+        return;
+      }
+    }
+    validateField(field);
+  };
+
+  const selectAvatar = (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      setErrors((previous) => ({ ...previous, avatar: 'Chỉ hỗ trợ ảnh JPG, PNG, GIF hoặc WebP' }));
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setForm((current) => ({ ...current, avatarFile: file, avatarPreview: String(reader.result) }));
+      setErrors((previous) => ({ ...previous, avatar: '' }));
+    };
+    reader.onerror = () => setErrors((previous) => ({ ...previous, avatar: 'Không đọc được ảnh đã chọn' }));
+    reader.readAsDataURL(file);
+  };
+
+  const submit = (e) => {
+    e.preventDefault();
+    const nextForm = { ...form };
+
+    // Tự động gắn ngầm chuẩn đuôi email trước khi validate & submit
+    fields.forEach((field) => {
+      if (field.type === 'email' && nextForm[field.name]) {
+        const domain = getFieldDomainSuffix(field, entityLabel);
+        if (domain) {
+          nextForm[field.name] = normalizeEmailWithDomain(nextForm[field.name], domain);
+        }
+      }
+    });
+
+    const next = {};
+    fields.forEach((field) => {
+      if (mode === 'edit' && field.type === 'email') return;
+      const message = getFieldError(field, nextForm[field.name], departments);
+      if (message) next[field.name] = message;
+    });
+    if (mode === 'create' && nextForm.password && nextForm.password.length < 6) {
+      next.password = 'Mật khẩu phải từ 6 ký tự';
+    }
+    setErrors(next);
+    if (Object.keys(next).length) return;
+    setForm(nextForm);
+    onSubmit(nextForm, setErrors);
+  };
+
+  const renderField = (field) => {
+    const maxVal = field.type === 'date' && field.max ? (typeof field.max === 'function' ? field.max() : field.max) : undefined;
+    const minVal = field.type === 'date' && field.min ? (typeof field.min === 'function' ? field.min() : field.min) : undefined;
+    const domainSuffix = field.type === 'email' ? getFieldDomainSuffix(field, entityLabel) : null;
+
+    return (
+      <div key={field.name} className={field.fullWidth ? 'sm:col-span-2' : ''}>
+        <FormField label={field.label} error={errors[field.name]} required={field.required} hint={field.hint}>
+          {field.type === 'select' ? (
+            <select className={inputClass} value={form[field.name] || ''} onChange={set(field.name)} onBlur={() => validateField(field)}>
+              <option value="">{field.placeholder || 'Chọn...'}</option>
+              {form[field.name] &&
+                !(field.name === 'departmentId' ? departments : field.options || []).some(
+                  (opt) => String(opt.id ?? opt.value) === String(form[field.name])
+                ) && <option value={form[field.name]}>{form[field.name]} (Hiện tại)</option>}
+              {(field.name === 'departmentId' ? departments : field.options || []).map((opt) => (
+                <option key={opt.id ?? opt.value} value={opt.id ?? opt.value}>
+                  {opt.name ?? opt.label}
+                </option>
+              ))}
+            </select>
+          ) : field.type === 'email' && domainSuffix ? (
+            <div className="flex rounded-xl shadow-2xs">
+              <input
+                type="text"
+                className={`flex-1 min-w-0 rounded-l-xl rounded-r-none border border-r-0 ${
+                  errors[field.name] ? 'border-red-300 focus:border-red-500' : 'border-gray-200 focus:border-indigo-500'
+                } ${mode === 'edit' ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : 'bg-white text-gray-800'} px-3.5 py-2.5 text-xs focus:ring-2 focus:ring-indigo-100 focus:outline-none transition`}
+                value={getEmailPrefix(form[field.name], domainSuffix)}
+                disabled={mode === 'edit'}
+                onChange={handleEmailPrefixChange(field, domainSuffix)}
+                onBlur={() => handleEmailBlur(field)}
+                placeholder={field.placeholder ? field.placeholder.replace(/@.+$/, '') : 'VD: nguyen.van.a'}
+                maxLength={field.maxLength ? field.maxLength - domainSuffix.length : 60}
+              />
+              <span className="inline-flex items-center px-3 bg-gray-100 text-gray-600 text-xs font-semibold border border-gray-200 rounded-r-xl select-none whitespace-nowrap">
+                {domainSuffix}
+              </span>
+            </div>
+          ) : field.type === 'email' && mode === 'edit' ? (
+            <input className={`${inputClass} bg-gray-50`} value={form[field.name] || ''} disabled />
+          ) : (
+            <input
+              type={field.type === 'email' ? 'email' : field.type === 'date' ? 'date' : 'text'}
+              className={inputClass}
+              value={form[field.name] || ''}
+              onChange={set(field.name)}
+              onBlur={() => (field.type === 'email' ? handleEmailBlur(field) : validateField(field))}
+              placeholder={field.placeholder}
+              maxLength={field.maxLength}
+              max={maxVal}
+              min={minVal}
+              {...(field.type === 'tel' ? { inputMode: 'numeric' } : {})}
+            />
+          )}
+        </FormField>
+      </div>
+    );
+  };
+
+
+  const departmentName = departments.find((department) => String(department.id) === String(form.departmentId))?.name;
+  const avatarPreview = form.avatarPreview || form.avatar?.url || (typeof form.avatar === 'string' ? form.avatar : '') || '';
+
+  return (
+    <Modal open={open} onClose={onClose} title={profilePanel ? undefined : title} size={profilePanel ? '2xl' : 'lg'}>
+      <form
+        onSubmit={submit}
+        className={profilePanel ? '-m-6 grid grid-cols-1 md:grid-cols-[320px_minmax(0,1fr)]' : 'grid grid-cols-1 md:grid-cols-2 gap-4'}
+      >
+        {profilePanel && (
+          <aside className="flex flex-col items-center justify-center bg-gradient-to-b from-indigo-600 to-indigo-700 px-7 py-8 text-center text-white">
+            <label className="group relative mt-1 block cursor-pointer" title="Chọn ảnh đại diện">
+              <Avatar
+                src={avatarPreview}
+                name={form.hoTen || (entityLabel ? `Tên ${entityLabel}` : 'Nhân sự')}
+                size={132}
+                className="border-4 border-white shadow-xl"
+              />
+              <span className="absolute bottom-1 right-1 grid h-10 w-10 place-items-center rounded-full border-2 border-indigo-600 bg-white text-indigo-600 shadow">
+                <i className="fas fa-camera" />
+              </span>
+              <input type="file" accept="image/jpeg,image/png,image/gif,image/webp" className="hidden" onChange={selectAvatar} />
+            </label>
+            {errors.avatar && <p className="mt-2 text-xs text-white">{errors.avatar}</p>}
+            <p className="mt-5 text-xl font-bold">{form.hoTen || `Tên ${entityLabel}`}</p>
+            <p className="mt-1 text-sm text-indigo-100">{form[profileDetailField] || profileDetailFallback}</p>
+
+            <div className="mt-7 w-full space-y-4 border-t border-white/20 pt-5 text-left text-sm">
+              <p className="flex items-start gap-3 break-all text-indigo-50">
+                <i className="fas fa-id-card mt-0.5 w-4 shrink-0" />
+                {form.id ? formatCode(form.id) : `${profileCodeLabel}: Sẽ tạo mới`}
+              </p>
+              <p className="flex items-start gap-3 break-all text-indigo-50">
+                <i className="fas fa-envelope mt-0.5 w-4 shrink-0" />
+                {form.email || 'Email chưa cập nhật'}
+              </p>
+              <p className="flex items-start gap-3 text-indigo-50">
+                <i className="fas fa-building mt-0.5 w-4 shrink-0" />
+                {departmentName || 'Khoa chưa chọn'}
+              </p>
+            </div>
+          </aside>
+        )}
+
+        <div className={profilePanel ? 'min-w-0 p-6' : 'contents'}>
+          {profilePanel && (
+            <div className="mb-6 flex items-center justify-between border-b border-gray-100 pb-4">
+              <h3 className="text-xl font-extrabold text-gray-800">{title}</h3>
+              <button
+                type="button"
+                onClick={onClose}
+                className="grid h-9 w-9 place-items-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+                aria-label="Đóng"
+              >
+                <i className="fas fa-times" />
+              </button>
+            </div>
+          )}
+          {profilePanel ? (
+            <div className="space-y-6">
+              {[
+                { key: 'personal', title: 'THÔNG TIN CÁ NHÂN', icon: 'fa-user' },
+                { key: 'work', title: 'THÔNG TIN CÔNG TÁC', icon: 'fa-briefcase' },
+              ].map((section) => (
+                <section key={section.key}>
+                  <h4 className="mb-3 flex items-center gap-2 text-xs font-bold uppercase text-indigo-600">
+                    <i className={`fas ${section.icon}`} />{section.title}
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {fields.filter((field) => field.section === section.key).map(renderField)}
+                    {section.key === 'work' && mode === 'create' && (
+                      <FormField label="Mật khẩu" error={errors.password} hint="Để trống sẽ sử dụng mật khẩu mặc định 123" className="sm:col-span-2">
+                        <input
+                          type="text"
+                          className={inputClass}
+                          value={form.password || ''}
+                          onChange={set('password')}
+                          placeholder="Tối thiểu 6 ký tự"
+                        />
+                      </FormField>
+                    )}
+                  </div>
+                </section>
+              ))}
+            </div>
+          ) : (
+            fields.map(renderField)
+          )}
+
+          {!profilePanel && mode === 'create' && (
+            <FormField label="Mật khẩu" error={errors.password} hint="Để trống sẽ sử dụng mật khẩu mặc định 123">
+              <input
+                type="text"
+                className={inputClass}
+                value={form.password || ''}
+                onChange={set('password')}
+                placeholder="Tối thiểu 6 ký tự"
+              />
+            </FormField>
+          )}
+
+          <div className={`flex justify-end gap-3 ${profilePanel ? 'mt-6 border-t border-gray-100 pt-5' : 'md:col-span-2 pt-2'}`}>
+            <button type="button" onClick={onClose} className="rounded-xl bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-200">
+              Hủy bỏ
+            </button>
+            <button type="submit" disabled={saving} className="rounded-xl bg-indigo-600 px-5 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60">
+              {saving ? 'Đang lưu...' : 'Lưu dữ liệu'}
+            </button>
+          </div>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+export default PersonFormModal;

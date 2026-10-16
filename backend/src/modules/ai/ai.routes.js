@@ -1,0 +1,111 @@
+import { Router } from 'express';
+import { authenticate } from '../../middleware/authenticate.js';
+import { handleAiAssistantQuery } from './ai.service.js';
+import { getAdminCriteria, setAdminCriteria, clearAdminCriteria } from './adminCriteria.store.js';
+import { ROLES } from '../../lib/roles.js';
+
+const router = Router();
+
+// GET /api/ai/admin-criteria - Lấy quy chuẩn kiểm duyệt tự động đang kích hoạt
+router.get('/admin-criteria', authenticate, async (req, res, next) => {
+  try {
+    const criteria = await getAdminCriteria();
+    res.json({
+      success: true,
+      criteria: criteria || null,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/ai/admin-criteria - Thiết lập trước quy chuẩn kiểm duyệt tự động đón đầu
+router.post('/admin-criteria', authenticate, async (req, res, next) => {
+  try {
+    const { rawCriteriaText } = req.body;
+    const criteria = await setAdminCriteria(rawCriteriaText || '', req.user);
+    res.json({
+      success: true,
+      criteria,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// DELETE /api/ai/admin-criteria - Xóa quy chuẩn kiểm duyệt
+router.delete('/admin-criteria', authenticate, async (req, res, next) => {
+  try {
+    await clearAdminCriteria();
+    res.json({
+      success: true,
+      message: 'Đã hủy quy chuẩn kiểm duyệt tự động',
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/ai/query
+router.post('/query', authenticate, async (req, res, next) => {
+  try {
+    const { message, currentPath, pageContext } = req.body;
+    if (!message || !String(message).trim()) {
+      return res.status(400).json({ error: 'Nội dung câu hỏi không được để trống' });
+    }
+
+    const result = await handleAiAssistantQuery({
+      message: String(message).trim(),
+      user: req.user,
+      currentPath: currentPath || '',
+      pageContext: pageContext || null,
+    });
+
+    res.json({
+      success: true,
+      ...result,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/ai/suggestions
+router.get('/suggestions', authenticate, (req, res) => {
+  const role = req.user?.role;
+  let suggestions = [];
+
+  if (role === ROLES.TEACHER || role === 'teacher' || role === 'giao-vien') {
+    suggestions = [
+      '⚡ Tạo bộ 5 câu hỏi quiz trắc nghiệm từ tài liệu môn Lập trình Web',
+      'Lịch dạy của tôi tuần này',
+      'Làm sao để cấu hình điểm giữa kỳ?',
+      'Danh sách lớp tôi phụ trách',
+      'Xem phản hồi từ sinh viên',
+    ];
+  } else if (role === ROLES.STUDENT || role === 'student' || role === 'sinh-vien') {
+    suggestions = [
+      'Tóm tắt giúp tôi các ý chính của tài liệu chương 1 môn Lập trình Web',
+      'Giải thích các khái niệm quan trọng trong tài liệu học phần',
+      'Thời khóa biểu của tôi',
+      'Đăng ký học phần ở đâu?',
+      'Xem điểm danh & chuyên cần',
+    ];
+  } else {
+    suggestions = [
+      'Thống kê hệ thống',
+      'Có bao nhiêu yêu cầu duyệt hồ sơ?',
+      'Quản lý tài khoản giảng viên',
+      'Quản lý lớp học phần',
+      'Tìm kiếm sinh viên',
+    ];
+  }
+
+  res.json({
+    success: true,
+    suggestions,
+  });
+});
+
+export default router;
+
