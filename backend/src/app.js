@@ -9,44 +9,9 @@ import { apiRouter } from './routes.js';
 export function createApp() {
   const app = express();
 
-  const allowedOrigins = [
-    'https://edumin-react-8fc9-42vgm5vgw-trandinhquan1811062259s-projects.vercel.app',
-    'https://eduminreact.vercel.app',
-    'https://edumin-react.vercel.app',
-    'http://localhost:5173',
-    'http://localhost:3000',
-    'http://localhost:4000',
-    ...(config.CLIENT_ORIGIN ? config.CLIENT_ORIGIN.split(',').map((o) => o.trim()).filter(Boolean) : []),
-  ];
-
-  const corsOptions = {
-    origin: (origin, callback) => {
-      // Cho phép request không có origin (curl, server-to-server, mobile app)
-      if (!origin) return callback(null, true);
-      // Nằm trong danh sách origin được cấp phép hoặc wildcard
-      if (config.CLIENT_ORIGIN === '*' || allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
-      // Tự động cho phép mọi domain Vercel (*.vercel.app)
-      if (origin.endsWith('.vercel.app')) {
-        return callback(null, true);
-      }
-      // Cho phép localhost ở mọi port khi chạy local dev
-      if (/^https?:\/\/localhost(:\d+)?$/.test(origin) || /^https?:\/\/127\.0\.0\.1(:\d+)?$/.test(origin)) {
-        return callback(null, true);
-      }
-      // Fallback an toàn: phản hồi chính origin của request để tránh bị kẹt
-      return callback(null, true);
-    },
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
-    optionsSuccessStatus: 200,
-  };
-
-  // 1. CORS middleware PHẢI ĐƯỢC ĐẶT ĐẦU TIÊN (trước helmet và các route handler)
-  app.use(cors(corsOptions));
-  app.options('*', cors(corsOptions));
+  // 1. CORS middleware PHẢI ĐƯỢC ĐẶT LÊN ĐẦU TIÊN TRƯỚC MỌI ROUTE VÀ MIDDLEWARE KHÁC
+  app.use(cors({ origin: true, credentials: true }));
+  app.options('*', cors({ origin: true, credentials: true }));
 
   // 2. Trust proxy & Helmet security headers
   app.set('trust proxy', 1);
