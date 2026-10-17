@@ -1,5 +1,11 @@
+import dns from 'dns';
 import mongoose from 'mongoose';
 import { config } from './env.js';
+
+// Khắc phục triệt để lỗi querySrv ECONNREFUSED trên Windows / mạng gia đình khi phân giải MongoDB Atlas
+try {
+  dns.setServers(['8.8.8.8', '1.1.1.1', '8.8.4.4']);
+} catch {}
 
 mongoose.set('strictQuery', true);
 
