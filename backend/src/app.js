@@ -11,15 +11,12 @@ export function createApp() {
 
   // 1. CORS middleware PHẢI ĐƯỢC ĐẶT LÊN ĐẦU TIÊN TRƯỚC MỌI ROUTE VÀ MIDDLEWARE KHÁC
   const corsOptions = {
-  origin: [
-    'https://edumin-react.onrender.com',
-    'https://edumin-react-g4zvecikf-trandinhquan1811062259s-projects.vercel.app',
-    /\.vercel\.app$/ // Cho phép tất cả các preview/production deploy trên Vercel
-  ],
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
-};
+    origin: true,
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+    optionsSuccessStatus: 200,
+  };
 
   app.use(cors(corsOptions));
   app.options('*', cors(corsOptions));

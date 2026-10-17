@@ -1,13 +1,24 @@
 function resolveApiBaseUrl() {
-  // Lấy trực tiếp từ Vite build-time injection
   let envUrl = '';
   try {
-    envUrl = import.meta.env.VITE_API_URL || import.meta.env.VITE_BACKEND_URL || '';
+    if (typeof import.meta !== 'undefined' && import.meta.env) {
+      envUrl =
+        import.meta.env.VITE_API_URL ||
+        import.meta.env.VITE_BACKEND_URL ||
+        import.meta.env.REACT_APP_API_URL ||
+        '';
+    }
   } catch {}
 
   if (!envUrl) {
     try {
-      envUrl = process.env.VITE_API_URL || process.env.REACT_APP_API_URL || '';
+      if (typeof process !== 'undefined' && process.env) {
+        envUrl =
+          process.env.VITE_API_URL ||
+          process.env.REACT_APP_API_URL ||
+          process.env.VITE_BACKEND_URL ||
+          '';
+      }
     } catch {}
   }
 
@@ -16,7 +27,15 @@ function resolveApiBaseUrl() {
     return trimmed.replace(/\/+$/, '');
   }
 
-  // Fallback production chuẩn vào Render của ông nếu biến môi trường chưa kịp ăn
+  // Nếu chạy local (localhost / 127.0.0.1), kết nối backend local port 4000
+  if (
+    typeof window !== 'undefined' &&
+    (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+  ) {
+    return 'http://localhost:4000';
+  }
+
+  // Fallback production chuẩn vào Render nếu chạy trên web/Vercel
   return 'https://edumin-react.onrender.com';
 }
 
