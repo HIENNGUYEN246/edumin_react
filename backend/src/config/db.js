@@ -9,6 +9,17 @@ try {
 
 mongoose.set('strictQuery', true);
 
+// Lắng nghe các sự kiện kết nối của Mongoose để chống crash app khi mạng chập chờn
+mongoose.connection.on('error', (err) => {
+  console.error('[MongoDB Error]:', err?.message || err);
+});
+mongoose.connection.on('disconnected', () => {
+  console.warn('[MongoDB Warning]: Mất kết nối tạm thời tới cơ sở dữ liệu. Đang tự động kết nối lại...');
+});
+mongoose.connection.on('reconnected', () => {
+  console.log('[MongoDB Info]: Đã kết nối lại thành công với cơ sở dữ liệu.');
+});
+
 export async function connectDatabase(uri = config.MONGO_URI) {
   await mongoose.connect(uri, {
     serverSelectionTimeoutMS: 10000,
@@ -17,24 +28,43 @@ export async function connectDatabase(uri = config.MONGO_URI) {
 }
 
 export async function disconnectDatabase() {
-  await mongoose.connection.close();
+  try {
+    await mongoose.connection.close();
+  } catch {}
 }
 
 /**
  * Register graceful shutdown handlers so an interrupted process closes its
- * database sockets instead of leaking connections.
+ * database sockets instead of leaking connections or keeping ports busy.
  */
 export function registerShutdown(server) {
   const shutdown = async (signal) => {
-    console.log(`\n${signal} received, shutting down...`);
-    server.close(async () => {
+    console.log(`\n${signal} received, shutting down gracefully...`);
+    try {
+      server.close(async () => {
+        await disconnectDatabase();
+        process.exit(0);
+      });
+    } catch {
       await disconnectDatabase();
       process.exit(0);
-    });
+    }
     // Force-exit if connections do not drain in time.
-    setTimeout(() => process.exit(1), 10000).unref();
+    setTimeout(() => process.exit(1), 5000).unref();
   };
 
   process.on('SIGINT', () => shutdown('SIGINT'));
   process.on('SIGTERM', () => shutdown('SIGTERM'));
+
+  // Hỗ trợ nodemon restart sạch sẽ, giải phóng port 4000 trước khi nodemon khởi động lại tiến trình mới
+  process.once('SIGUSR2', () => {
+    try {
+      server.close(async () => {
+        await disconnectDatabase();
+        process.kill(process.pid, 'SIGUSR2');
+      });
+    } catch {
+      process.kill(process.pid, 'SIGUSR2');
+    }
+  });
 }
