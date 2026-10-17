@@ -11,7 +11,7 @@ export function createApp() {
 
   // 1. CORS middleware PHẢI ĐƯỢC ĐẶT LÊN ĐẦU TIÊN TRƯỚC MỌI ROUTE VÀ MIDDLEWARE KHÁC
   const corsOptions = {
-    origin: true, // Cho phép mọi origin hoặc điền cụ thể domain Vercel của ông vào
+    origin: true,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
