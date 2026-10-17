@@ -1,32 +1,23 @@
 function resolveApiBaseUrl() {
+  // Lấy trực tiếp từ Vite build-time injection
   let envUrl = '';
   try {
-    if (typeof import.meta !== 'undefined' && import.meta.env) {
-      envUrl =
-        import.meta.env.VITE_API_URL ||
-        import.meta.env.VITE_BACKEND_URL ||
-        import.meta.env.REACT_APP_API_URL ||
-        '';
-    }
+    envUrl = import.meta.env.VITE_API_URL || import.meta.env.VITE_BACKEND_URL || '';
   } catch {}
 
-  try {
-    if (!envUrl && typeof process !== 'undefined' && process.env) {
-      envUrl =
-        process.env.REACT_APP_API_URL ||
-        process.env.VITE_API_URL ||
-        process.env.VITE_BACKEND_URL ||
-        '';
-    }
-  } catch {}
+  if (!envUrl) {
+    try {
+      envUrl = process.env.VITE_API_URL || process.env.REACT_APP_API_URL || '';
+    } catch {}
+  }
 
   const trimmed = String(envUrl || '').trim();
   if (trimmed) {
     return trimmed.replace(/\/+$/, '');
   }
 
-  // Fallback cho local development
-  return 'http://localhost:4000';
+  // Fallback production chuẩn vào Render của ông nếu biến môi trường chưa kịp ăn
+  return 'https://edumin-react.onrender.com';
 }
 
 export const API_BASE_URL = resolveApiBaseUrl();
