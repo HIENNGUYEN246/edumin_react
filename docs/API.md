@@ -94,6 +94,18 @@ Deleting a department clears `departmentRef` on teachers, students and courses
 - Admins cannot lock or delete their own account.
 - Locking or resetting a password revokes the target's active JWTs immediately.
 
+## Communications (`/communications`, admin only)
+
+| Method | Path                            | Description |
+| ------ | ------------------------------- | ----------- |
+| GET    | `/communications/recipients?role=giao-vien\|sinh-vien` | Paginated active teacher/student accounts; includes `emailConfigured`. |
+| POST   | `/communications/account-credentials` | `{ recipients: [{ role, accountEmail, recipientEmail }] }`; sends one private email per recipient, up to 100. |
+
+`accountEmail` is the school login displayed in the message; `recipientEmail` is
+the personal Gmail address entered by the administrator. The endpoint only sends
+if the account is active and still uses the default password `123`. Configure
+`GMAIL_USER` and `GMAIL_APP_PASSWORD` on the backend with a Google App Password.
+
 ## Courses (`/courses`)
 
 | Method | Path               | Auth  | Description                                          |

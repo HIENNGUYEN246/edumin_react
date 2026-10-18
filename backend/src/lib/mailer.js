@@ -1,10 +1,30 @@
 /**
  * Email notification service for EduMin system.
  * Handles automatic email dispatch for account creation, course class assignment, etc.
- * Supports mock dispatch (logging + memory queue) and real SMTP when configured.
+ * Uses Gmail SMTP when configured and a memory queue in tests/local development.
  */
+import nodemailer from 'nodemailer';
+import { config } from '../config/env.js';
 
 const sentEmails = [];
+let gmailTransport;
+
+export function isEmailConfigured() {
+  return !config.isTest && Boolean(config.GMAIL_USER && config.GMAIL_APP_PASSWORD);
+}
+
+function getGmailTransport() {
+  if (!gmailTransport) {
+    gmailTransport = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: config.GMAIL_USER,
+        pass: config.GMAIL_APP_PASSWORD,
+      },
+    });
+  }
+  return gmailTransport;
+}
 
 /**
  * Low-level email sending function.
@@ -22,6 +42,21 @@ export async function sendEmail({ to, subject, html, text, metadata = {} }) {
     metadata,
     sentAt: new Date().toISOString(),
   };
+
+  if (isEmailConfigured()) {
+    const result = await getGmailTransport().sendMail({
+      from: `"EduMin" <${config.GMAIL_USER}>`,
+      to,
+      subject,
+      html: html || undefined,
+      text: text || undefined,
+    });
+    mailRecord.messageId = result.messageId;
+    sentEmails.push(mailRecord);
+    if (sentEmails.length > 500) sentEmails.shift();
+    console.log(`[EMAIL SENT] To: ${to} | Subject: "${subject}"`);
+    return { success: true, messageId: result.messageId };
+  }
 
   sentEmails.push(mailRecord);
 
@@ -56,7 +91,14 @@ export function clearSentEmails() {
 /**
  * Trigger (1): Gửi email thông báo tự động khi tài khoản mới được khởi tạo.
  */
-export async function sendAccountCreatedEmail({ email, hoTen, role, password, id }) {
+export async function sendAccountCreatedEmail({
+  email,
+  toEmail = email,
+  hoTen,
+  role,
+  password,
+  id,
+}) {
   if (!email) return null;
 
   const roleLabel =
@@ -71,29 +113,41 @@ export async function sendAccountCreatedEmail({ email, hoTen, role, password, id
   const subject = `[EduMin] Thông tin tài khoản mới - ${hoTen || email}`;
   const codeInfo = id ? `\n- Mã định danh: ${id}` : '';
   const text = `Xin chào ${hoTen || 'bạn'},\n\nTài khoản EduMin của bạn đã được khởi tạo thành công với vai trò ${roleLabel}.${codeInfo}\n- Email / Tên đăng nhập: ${email}\n- Mật khẩu khởi tạo: ${password || '123'}\n\nVui lòng đăng nhập hệ thống và đổi mật khẩu để bảo mật tài khoản.\n\nTrân trọng,\nBan Quản Trị EduMin`;
+  const escapeHtml = (value) =>
+    String(value ?? '').replace(
+      /[&<>"']/g,
+      (char) =>
+        ({
+          '&': '&amp;',
+          '<': '&lt;',
+          '>': '&gt;',
+          '"': '&quot;',
+          "'": '&#39;',
+        })[char]
+    );
 
   const html = `
     <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px;">
-      <h2 style="color: #4f46e5; margin-top: 0;">Chào mừng bạn đến với EduMin</h2>
-      <p>Xin chào <strong>${hoTen || 'bạn'}</strong>,</p>
-      <p>Tài khoản EduMin của bạn đã được khởi tạo thành công với vai trò <strong>${roleLabel}</strong>.</p>
-      <div style="background-color: #f3f4f6; padding: 14px 18px; border-radius: 6px; margin: 16px 0;">
-        ${id ? `<p style="margin: 4px 0;"><strong>Mã định danh:</strong> ${id}</p>` : ''}
-        <p style="margin: 4px 0;"><strong>Tên đăng nhập:</strong> ${email}</p>
-        <p style="margin: 4px 0;"><strong>Mật khẩu mặc định:</strong> ${password || '123'}</p>
-      </div>
-      <p style="color: #4b5563; font-size: 13px;">Vì lý do an toàn, vui lòng đổi mật khẩu ngay sau lần đăng nhập đầu tiên.</p>
+          <h2 style="color: #4f46e5; margin-top: 0;">Chào mừng bạn đến với EduMin</h2>
+          <p>Xin chào <strong>${escapeHtml(hoTen || 'bạn')}</strong>,</p>
+          <p>Tài khoản EduMin của bạn đã được khởi tạo thành công với vai trò <strong>${roleLabel}</strong>.</p>
+          <div style="background-color: #f3f4f6; padding: 14px 18px; border-radius: 6px; margin: 16px 0;">
+            ${id ? `<p style="margin: 4px 0;"><strong>Mã định danh:</strong> ${escapeHtml(id)}</p>` : ''}
+            <p style="margin: 4px 0;"><strong>Tên đăng nhập:</strong> ${escapeHtml(email)}</p>
+            <p style="margin: 4px 0;"><strong>Mật khẩu mặc định:</strong> ${escapeHtml(password || '123')}</p>
+          </div>
+          <p style="color: #4b5563; font-size: 13px;">Mật khẩu mặc định chỉ đăng nhập được nếu bạn chưa đổi mật khẩu. Vì lý do an toàn, vui lòng đổi mật khẩu sau khi đăng nhập.</p>
       <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;" />
       <p style="color: #6b7280; font-size: 12px; margin-bottom: 0;">Trân trọng,<br/><strong>Ban Quản Trị Hệ Thống EduMin</strong></p>
     </div>
   `;
 
   return sendEmail({
-    to: email,
+    to: toEmail,
     subject,
     text,
     html,
-    metadata: { type: 'ACCOUNT_CREATED', role, id },
+    metadata: { type: 'ACCOUNT_CREATED', role, id, accountEmail: email },
   });
 }
 
@@ -152,4 +206,3 @@ export async function sendClassAssignedEmail({
     metadata: { type: 'CLASS_ASSIGNED', role, classId, courseId },
   });
 }
-

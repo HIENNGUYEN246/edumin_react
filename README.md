@@ -40,7 +40,20 @@ cd ../frontend && npm install
 | `CLIENT_ORIGIN` | Origin của frontend cho CORS |
 | `UPLOAD_MAX_MB` | Giới hạn dung lượng tệp tải lên |
 | `CLOUDINARY_CLOUD_NAME` / `CLOUDINARY_API_KEY` / `CLOUDINARY_API_SECRET` / `CLOUDINARY_FOLDER` | Cấu hình Cloudinary |
+| `GMAIL_USER` / `GMAIL_APP_PASSWORD` | Gmail gửi thông báo và Google App Password (không dùng mật khẩu Gmail thường) |
 | `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` | Tài khoản admin do script seed tạo |
+
+Để gửi thông báo tài khoản, bật xác minh 2 bước cho Gmail, tạo **Google App
+Password**, rồi đặt `GMAIL_USER` và `GMAIL_APP_PASSWORD` trong môi trường của
+backend (ví dụ Environment Variables trên Render) và khởi động lại dịch vụ.
+Không đưa App Password vào frontend hoặc commit vào Git.
+
+Trong mục **Gửi thông báo Gmail**, địa chỉ email trường là tên đăng nhập, còn
+Gmail nhận là địa chỉ cá nhân do Phòng Đào tạo nhập. Có thể nhập Gmail ở từng
+dòng hoặc import Excel với các cột **Vai trò**, **Email tài khoản** và
+**Email Gmail nhận** (cột Vai trò có thể bỏ trống nếu chỉ import theo tab đang
+xem). Nội dung email thông báo mật khẩu mặc định `123`; hệ thống chỉ gửi nếu
+tài khoản hiện vẫn đang sử dụng mật khẩu đó.
 
 **frontend/.env** (mẫu ở `frontend/.env.example`):
 

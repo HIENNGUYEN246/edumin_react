@@ -25,6 +25,7 @@ const ClassStudentsPage = lazy(() => import('../features/admin/classes/ClassStud
 const ManageGradebook = lazy(() => import('../features/admin/grades/ManageGradebook.jsx'));
 const ManageFeedbacks = lazy(() => import('../features/admin/feedback/ManageFeedbacks.jsx'));
 const ManageProfileRequests = lazy(() => import('../features/admin/requests/ManageProfileRequests.jsx'));
+const AdminEmailNotifications = lazy(() => import('../features/admin/communications/AdminEmailNotifications.jsx'));
 const TeacherDashboard = lazy(() => import('../features/teacher/TeacherDashboard.jsx'));
 const TeacherSchedule = lazy(() => import('../features/teacher/TeacherSchedule.jsx'));
 const TeacherClassList = lazy(() => import('../features/teacher/TeacherClassList.jsx'));
@@ -67,6 +68,7 @@ export function AppRouter() {
         <Route path="/admin/gradebook" element={<ManageGradebook />} />
         <Route path="/admin/feedbacks" element={<ManageFeedbacks />} />
         <Route path="/admin/profile-requests" element={<ManageProfileRequests />} />
+        <Route path="/admin/email-notifications" element={<AdminEmailNotifications />} />
       </Route>
 
       <Route

@@ -21,6 +21,8 @@ const envSchema = z.object({
   CLOUDINARY_API_KEY: z.string().default(''),
   CLOUDINARY_API_SECRET: z.string().default(''),
   CLOUDINARY_FOLDER: z.string().default('edumin'),
+  GMAIL_USER: z.string().email().or(z.literal('')).default(''),
+  GMAIL_APP_PASSWORD: z.string().default(''),
   SEED_ADMIN_EMAIL: z.string().email().default('admin1@edu.vn'),
   SEED_ADMIN_PASSWORD: z.string().min(6).default('Admin@123'),
 });

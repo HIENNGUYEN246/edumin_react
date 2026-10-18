@@ -37,6 +37,10 @@ export class AppError extends Error {
     return new AppError(423, 'LOCKED', message);
   }
 
+  static serviceUnavailable(message = 'Dịch vụ hiện không khả dụng') {
+    return new AppError(503, 'SERVICE_UNAVAILABLE', message);
+  }
+
   static payloadTooLarge(message = 'Tệp vượt quá dung lượng cho phép') {
     return new AppError(413, 'PAYLOAD_TOO_LARGE', message);
   }

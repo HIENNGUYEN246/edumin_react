@@ -30,6 +30,7 @@ export const NAV_BY_ROLE = {
     { to: '/admin/gradebook', label: 'Quản lý bảng điểm', icon: 'fa-clipboard-list' },
     { to: '/admin/feedbacks', label: 'Ý kiến & Phản hồi', icon: 'fa-comments' },
     { to: '/admin/profile-requests', label: 'Duyệt yêu cầu', icon: 'fa-user-check' },
+    { to: '/admin/email-notifications', label: 'Gửi thông báo Gmail', icon: 'fa-envelope' },
   ],
   [ROLES.TEACHER]: [
     { to: '/teacher', label: 'Tổng quan', icon: 'fa-gauge-high', end: true },

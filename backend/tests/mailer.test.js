@@ -57,6 +57,21 @@ describe('Automatic Email Dispatcher (mailer.js)', () => {
     expect(sent[0].html).toContain('Giảng viên');
   });
 
+  it('delivers account credentials to a personal email while keeping the school email as login', async () => {
+    await sendAccountCreatedEmail({
+      email: 'hiennguyen123@university.edu.vn',
+      toEmail: 'hien.personal@gmail.com',
+      hoTen: 'Nguyễn Hiển',
+      role: 'giao-vien',
+      password: '123',
+    });
+
+    const [sent] = getSentEmails();
+    expect(sent.to).toBe('hien.personal@gmail.com');
+    expect(sent.text).toContain('Email / Tên đăng nhập: hiennguyen123@university.edu.vn');
+    expect(sent.text).toContain('Mật khẩu khởi tạo: 123');
+  });
+
   it('sends class assigned email with course code and class section name', async () => {
     await sendClassAssignedEmail({
       email: 'gv.tran@university.edu.vn',
@@ -173,7 +188,9 @@ describe('Automatic Email Dispatcher (mailer.js)', () => {
     });
 
     const afterClassCreated = getSentEmails();
-    const teacherClassEmail = afterClassCreated.find((m) => m.to === 'eng.teacher@university.edu.vn');
+    const teacherClassEmail = afterClassCreated.find(
+      (m) => m.to === 'eng.teacher@university.edu.vn'
+    );
     expect(teacherClassEmail).toBeDefined();
     expect(teacherClassEmail.subject).toContain('ENG101-01');
     expect(teacherClassEmail.text).toContain('ENG101');
