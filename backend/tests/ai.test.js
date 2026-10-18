@@ -910,6 +910,76 @@ describe('AI Assistant API', () => {
     expect(res.body.reply).toContain('Điểm trung bình tích lũy');
     expect(res.body.reply).toContain('Đánh giá của Giảng viên');
   });
+
+  it('directly approves pending profile request on MongoDB via Admin AI prompt without static guide loop', async () => {
+    const adminUser = await User.findOne({ role: ROLES.ADMIN });
+    const adminToken = signToken(adminUser);
+
+    const studentUser = await User.findOne({ email: 'quyen@student.edu.vn' });
+    const pendingReq = await createRequest(studentUser, {
+      type: 'profile',
+      requestedData: { phone: '0912345678', address: 'Hồ Chí Minh' },
+    });
+
+    expect(pendingReq.status).toBe('pending');
+
+    // Admin asks AI to approve Quyền Huế Trân's request
+    const res = await request(app)
+      .post('/api/ai/query')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ message: 'Phê duyệt yêu cầu của Quyền Huế Trân' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.intent).toBe('ACTION_APPROVE_REQUEST_SUCCESS');
+    expect(res.body.actionTrigger).toBeDefined();
+    expect(res.body.actionTrigger.action).toBe('request_approved');
+    expect(res.body.actionTrigger.requestId).toBe(String(pendingReq._id));
+    expect(res.body.reply).toContain('ĐÃ PHÊ DUYỆT THÀNH CÔNG');
+    expect(res.body.reply).not.toContain('Quản trị viên có thể xem thông tin, vai trò, nội dung xin cấp quyền và bấm trực tiếp nút');
+
+    // Verify MongoDB state
+    const updatedReq = await ProfileRequest.findById(pendingReq._id);
+    expect(updatedReq.status).toBe('approved');
+
+    // Verify /api/admin/requests reflects the approval (pending count is 0)
+    const listRes = await request(app)
+      .get('/api/admin/requests?status=pending')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(listRes.status).toBe(200);
+    expect(listRes.body.data.every((r) => String(r._id) !== String(pendingReq._id))).toBe(true);
+  });
+
+  it('directly rejects pending profile request on MongoDB via Admin AI prompt', async () => {
+    const adminUser = await User.findOne({ role: ROLES.ADMIN });
+    const adminToken = signToken(adminUser);
+
+    const studentUser = await User.findOne({ email: 'quyen@student.edu.vn' });
+    const pendingReq = await createRequest(studentUser, {
+      type: 'avatar',
+      requestedData: { avatar: 'https://example.com/new.jpg' },
+    });
+
+    expect(pendingReq.status).toBe('pending');
+
+    // Admin asks AI to reject Quyền Huế Trân's request
+    const res = await request(app)
+      .post('/api/ai/query')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ message: 'Từ chối yêu cầu của Quyền Huế Trân' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.intent).toBe('ACTION_REJECT_REQUEST_SUCCESS');
+    expect(res.body.actionTrigger).toBeDefined();
+    expect(res.body.actionTrigger.action).toBe('request_rejected');
+    expect(res.body.actionTrigger.requestId).toBe(String(pendingReq._id));
+    expect(res.body.reply).toContain('ĐÃ TỪ CHỐI YÊU CẦU');
+
+    // Verify MongoDB state
+    const updatedReq = await ProfileRequest.findById(pendingReq._id);
+    expect(updatedReq.status).toBe('rejected');
+  });
 });
 
 

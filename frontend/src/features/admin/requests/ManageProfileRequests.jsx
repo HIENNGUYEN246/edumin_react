@@ -68,7 +68,7 @@ export function ManageProfileRequests() {
     }
   }, [rows]);
 
-  // Listen for AI actions
+  // Listen for AI actions & Profile request updates
   useEffect(() => {
     const handleAiAction = (e) => {
       const detail = e.detail;
@@ -76,9 +76,25 @@ export function ManageProfileRequests() {
       if (detail.action === 'filter_requests' && detail.status) {
         setActiveTab(detail.status);
       }
+      if (
+        detail.action === 'request_approved' ||
+        detail.action === 'request_rejected' ||
+        detail.action === 'requests_bulk_approved' ||
+        detail.action === 'criteria_approval_processed'
+      ) {
+        invalidate();
+      }
     };
+    const handleProfileUpdate = () => {
+      invalidate();
+    };
+
     window.addEventListener('edumin:ai-action', handleAiAction);
-    return () => window.removeEventListener('edumin:ai-action', handleAiAction);
+    window.addEventListener('edumin_profile_request_updated', handleProfileUpdate);
+    return () => {
+      window.removeEventListener('edumin:ai-action', handleAiAction);
+      window.removeEventListener('edumin_profile_request_updated', handleProfileUpdate);
+    };
   }, []);
 
   const invalidate = () => {
@@ -92,6 +108,9 @@ export function ManageProfileRequests() {
     mutationFn: (id) => profileRequestsApi.approve(id),
     onSuccess: () => {
       invalidate();
+      queryClient.refetchQueries({ queryKey: ['profile-requests'] });
+      window.dispatchEvent(new CustomEvent('edumin_profile_request_updated'));
+      window.dispatchEvent(new CustomEvent('edumin:ai-action', { detail: { action: 'request_approved' } }));
       toast.success('Đã phê duyệt yêu cầu thay đổi');
     },
     onError: (err) => toast.error(err.message || 'Lỗi khi phê duyệt'),
@@ -101,6 +120,9 @@ export function ManageProfileRequests() {
     mutationFn: ({ id, reason }) => profileRequestsApi.reject(id, reason),
     onSuccess: () => {
       invalidate();
+      queryClient.refetchQueries({ queryKey: ['profile-requests'] });
+      window.dispatchEvent(new CustomEvent('edumin_profile_request_updated'));
+      window.dispatchEvent(new CustomEvent('edumin:ai-action', { detail: { action: 'request_rejected' } }));
       toast.success('Đã từ chối yêu cầu thay đổi');
       setRejectModal({ isOpen: false, targetId: null, isBulk: false, reason: '' });
     },
@@ -111,6 +133,9 @@ export function ManageProfileRequests() {
     mutationFn: (ids) => profileRequestsApi.bulkApprove(ids),
     onSuccess: (res) => {
       invalidate();
+      queryClient.refetchQueries({ queryKey: ['profile-requests'] });
+      window.dispatchEvent(new CustomEvent('edumin_profile_request_updated'));
+      window.dispatchEvent(new CustomEvent('edumin:ai-action', { detail: { action: 'requests_bulk_approved' } }));
       toast.success(`Đã phê duyệt thành công ${res.approvedCount || selectedIds.length} yêu cầu`);
       setSelectedIds([]);
       setBulkApproveModalOpen(false);

@@ -13,8 +13,8 @@ import { ROLES } from '../../app/navConfig.js';
  */
 export function useCourseOptions() {
   const { user, profile } = useAuth();
-  const isTeacher = user?.role === ROLES.TEACHER;
-  const isStudent = user?.role === ROLES.STUDENT;
+  const isTeacher = user?.role === ROLES.TEACHER || user?.role === 'teacher' || user?.role === 'giao-vien';
+  const isStudent = user?.role === ROLES.STUDENT || user?.role === 'student' || user?.role === 'sinh-vien';
 
   const teacherClasses = useQuery({
     queryKey: ['classes', { teacher: 'me' }],

@@ -45,8 +45,12 @@ export function Header() {
       const res = await authApi.updateAvatar(file);
       await queryClient.invalidateQueries({ queryKey: ['auth', 'me'] });
       await queryClient.invalidateQueries({ queryKey: ['profile-requests'] });
-      if (res?.pending) {
+      if (res?.autoApproved || (res?.approved && !res?.pending)) {
+        toast.success(res.message || 'EduMin AI đã tự động phê duyệt ảnh đại diện');
+      } else if (res?.pending) {
         toast.info(res.message || 'Yêu cầu thay đổi ảnh đại diện đã được gửi đến Quản trị viên để phê duyệt');
+      } else if (res?.status === 'rejected' || res?.success === false) {
+        toast.error(res.message || 'Không thể cập nhật ảnh đại diện');
       } else {
         toast.success('Đã cập nhật ảnh đại diện');
       }

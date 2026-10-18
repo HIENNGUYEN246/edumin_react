@@ -81,21 +81,17 @@ export default function NotificationBell({ currentUser, customRole }) {
         time: formatTimeAgo(n.createdAt),
         link: n.link,
         isRead: Boolean(n.isRead),
-        timestamp: new Date(n.createdAt).getTime(),
+        timestamp: n.createdAt ? new Date(n.createdAt).getTime() : Date.now(),
       }));
-    }
-    if (backendItems !== null && backendItems.length === 0) {
-      return [];
     }
     return localItems;
   }, [backendItems, localItems]);
 
-  // Unread count
   const unreadCount = useMemo(() => {
     return notifications.filter((n) => !n.isRead).length;
   }, [notifications]);
 
-  // Close dropdown on click outside
+  // Handle outside click to close dropdown
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
@@ -463,4 +459,3 @@ export default function NotificationBell({ currentUser, customRole }) {
     </div>
   );
 }
-

@@ -11,14 +11,14 @@ profileRequestRoutes.use(authenticate);
 // Current user can check their latest request
 profileRequestRoutes.get('/my-latest', controller.getMyLatest);
 
-// Only Admin can list, approve, reject
-profileRequestRoutes.get('/', authorize(ROLES.ADMIN), controller.list);
-profileRequestRoutes.put('/:id/approve', authorize(ROLES.ADMIN), controller.approve);
-profileRequestRoutes.put('/:id/reject', authorize(ROLES.ADMIN), controller.reject);
-profileRequestRoutes.post('/bulk-approve', authorize(ROLES.ADMIN), controller.bulkApprove);
-profileRequestRoutes.patch('/bulk-approve', authorize(ROLES.ADMIN), controller.bulkApprove);
-profileRequestRoutes.put('/bulk-approve', authorize(ROLES.ADMIN), controller.bulkApprove);
-profileRequestRoutes.post('/bulk-reject', authorize(ROLES.ADMIN), controller.bulkReject);
-profileRequestRoutes.post('/bulk-delete', authorize(ROLES.ADMIN), controller.bulkDelete);
+// Admin or Teacher can list, approve, reject
+profileRequestRoutes.get('/', authorize(ROLES.ADMIN, ROLES.TEACHER), controller.list);
+profileRequestRoutes.put('/:id/approve', authorize(ROLES.ADMIN, ROLES.TEACHER), controller.approve);
+profileRequestRoutes.put('/:id/reject', authorize(ROLES.ADMIN, ROLES.TEACHER), controller.reject);
+profileRequestRoutes.post('/bulk-approve', authorize(ROLES.ADMIN, ROLES.TEACHER), controller.bulkApprove);
+profileRequestRoutes.patch('/bulk-approve', authorize(ROLES.ADMIN, ROLES.TEACHER), controller.bulkApprove);
+profileRequestRoutes.put('/bulk-approve', authorize(ROLES.ADMIN, ROLES.TEACHER), controller.bulkApprove);
+profileRequestRoutes.post('/bulk-reject', authorize(ROLES.ADMIN, ROLES.TEACHER), controller.bulkReject);
+profileRequestRoutes.post('/bulk-delete', authorize(ROLES.ADMIN, ROLES.TEACHER), controller.bulkDelete);
 
 export default profileRequestRoutes;

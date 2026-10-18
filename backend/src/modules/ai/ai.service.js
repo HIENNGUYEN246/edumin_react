@@ -450,21 +450,49 @@ export function extractApprovalQuery(rawText) {
     norm.includes('phe duyet') ||
     norm.includes('xet duyet') ||
     norm.includes('cho duyet') ||
-    norm.includes('tu choi ho so') ||
-    norm.includes('tu choi yeu cau') ||
+    norm.includes('tu choi') ||
+    norm.includes('reject') ||
+    norm.includes('bac bo') ||
+    norm.includes('khong duyet') ||
+    norm.includes('accept') ||
+    norm.includes('approve') ||
+    norm.includes('xac nhan duyet') ||
+    norm.includes('chap thuan') ||
+    norm.includes('profile request') ||
+    norm.includes('yeu cau cho duyet') ||
+    norm.includes('yeu cau moi') ||
+    (norm.includes('yeu cau') && (norm.includes('moi') || norm.includes('cho') || norm.includes('nao') || norm.includes('gi') || norm.includes('xu ly') || norm.includes('duyet'))) ||
+    norm.includes('doi avatar') ||
+    (norm.includes('avatar') && (norm.includes('duyet') || norm.includes('doi') || norm.includes('yeu cau'))) ||
     (norm.includes('ho so') && (norm.includes('cho') || norm.includes('moi') || norm.includes('yeu cau')));
 
   if (!isApproveIntent) return null;
 
   let candidateName = '';
   const matchPerson = raw.match(
-    /(?:duyệt\s+cho\s+(?:sinh\s+viên|bạn|em|thầy|cô|giảng\s+viên)?|duyệt\s+hồ\s+sơ\s+(?:cho\s+|của\s+)?(?:sinh\s+viên|bạn|em|thầy|cô|giảng\s+viên)?|duyệt\s+(?:sinh\s+viên|bạn|em|thầy|cô|giảng\s+viên)\s+|yêu\s+cầu\s+của)\s+([^?.,!]+)/i
+    /(?:(?:duyệt|phê duyệt|chấp thuận|từ chối|bác bỏ)\s+(?:cho\s+|hồ sơ\s+(?:cho\s+|của\s+)?|yêu cầu\s+(?:cho\s+|của\s+)?)?(?:sinh\s+viên|bạn|em|thầy|cô|giảng\s+viên)?|yêu\s+cầu\s+của)\s+([^?.,!]+)/i
   );
   if (matchPerson && matchPerson[1]) {
     const cand = matchPerson[1].trim().replace(/\s+(?:được\s+không|không\s+ạ|không|ko|k|nhé|nha|ạ|ơi|hả|chưa|vậy|\?)+$/i, '').trim();
     const normCand = normalizeText(cand);
-    const ignoreWords = ['ho so', 'yeu cau', 'moi', 'nguoi dung', 'tat ca', 'cho duyet', 'ngay', 'nhanh', 'toi', 'em', 'sinh vien', 'giang vien', 'khong', 'chua', 'nao', 'gi', 'ha', 'vay', 'nhi'];
-    if (cand.length >= 2 && !ignoreWords.includes(normCand)) {
+    const ignoreWords = [
+      'ho so', 'yeu cau', 'moi', 'nguoi dung', 'tat ca', 'cho duyet', 'ngay', 'nhanh', 'toi', 'em',
+      'sinh vien', 'giang vien', 'khong', 'chua', 'nao', 'gi', 'ha', 'vay', 'nhi',
+      'gium', 'gium toi', 'giup', 'giup toi', 'gium minh', 'giup minh', 'ho toi', 'ho minh',
+      'luon', 'luon di', 'ngay', 'di', 'hop le', 'dat chuan', 'dat tieu chuan',
+      'avatar', 'anh dai dien', 'hinh dai dien', '1 nguoi', 'mot nguoi', 'hinh nguoi', 'nguoi that',
+      'theo tieu chuan', 'theo tieu chi', 'cac avatar hop le', 'cac yeu cau hop le', 'cac ho so dat chuan'
+    ];
+    const isIgnore =
+      ignoreWords.includes(normCand) ||
+      normCand.startsWith('gium') ||
+      normCand.startsWith('giup') ||
+      normCand.startsWith('ho ') ||
+      normCand.includes('hop le') ||
+      normCand.includes('dat chuan') ||
+      normCand.includes('tieu chuan') ||
+      normCand.includes('avatar');
+    if (cand.length >= 2 && !isIgnore) {
       candidateName = cand;
     }
   }
@@ -754,41 +782,34 @@ export function classifyAiIntent(rawText = '', { role = '', currentPath = '', pa
       norm.includes('xem dieu kien duyet') ||
       norm.includes('dieu kien duyet hien tai') ||
       norm.includes('quy chuan kiem duyet hien tai') ||
-      norm.includes('xem yeu cau kiem duyet')) &&
+      norm.includes('xem yeu cau kiem duyet') ||
+      norm.includes('tieu chuan kiem duyet') ||
+      norm.includes('tieu chi kiem duyet') ||
+      norm.includes('tieu chuan duyet thong tin') ||
+      norm.includes('tieu chi duyet thong tin') ||
+      norm.includes('tieu chuan duyet avatar') ||
+      norm.includes('tieu chi duyet avatar') ||
+      norm === 'tieu chuan duyet' ||
+      norm === 'tieu chi duyet') &&
     !norm.includes('theo tieu chi') &&
-    !norm.includes('theo tieu chuan');
+    !norm.includes('theo tieu chuan') &&
+    !norm.includes('gium') &&
+    !norm.includes('giup') &&
+    !norm.includes(':');
   if (isGetCriteria) {
     return 'ADMIN_GET_CRITERIA';
   }
 
-  // Admin: Duyệt / kiểm tra hồ sơ theo tiêu chuẩn/tiêu chí đã đặt
-  const isApplyCriteria =
-    norm.includes('theo tieu chuan') ||
-    norm.includes('theo tieu chi') ||
-    norm.includes('ho so dat chuan') ||
-    norm.includes('ho so dat tieu chi') ||
-    norm.includes('kiem tra tieu chuan') ||
-    norm.includes('kiem tra tieu chi') ||
-    norm.includes('ap dung tieu chuan') ||
-    norm.includes('ap dung tieu chi') ||
-    norm.includes('duyet anh dai dien nhanh') ||
-    norm.includes('duyet avatar nhanh') ||
-    norm.includes('duyet nhanh avatar') ||
-    norm.includes('duyet nhanh anh dai dien') ||
-    (norm.includes('duyet') &&
-      (norm.includes('theo') || norm.includes('tieu chuan') || norm.includes('tieu chi')) &&
-      !norm.includes('tieu chi duyet') &&
-      !norm.includes('tieu chuan duyet') &&
-      !norm.includes('ra tieu chi') &&
-      !norm.includes('dat tieu chi') &&
-      !norm.includes('thiet lap') &&
-      !norm.includes('ra yeu cau'));
-  if (isApplyCriteria) {
-    return 'ADMIN_APPLY_CRITERIA_APPROVAL';
-  }
+  const isPureNavProfileRequests =
+    norm === 'duyet ho so' ||
+    norm === 'duyet ho so sinh vien' ||
+    norm === 'duyet yeu cau' ||
+    norm === 'duyet yeu cau cap nhat ho so' ||
+    norm === 'yeu cau cap nhat ho so';
 
   // Admin: Thiết lập tiêu chuẩn/tiêu chí duyệt hồ sơ qua chat (đón đầu trước khi có thay đổi)
   const isSetCriteria =
+    !isPureNavProfileRequests &&
     (norm.includes('tieu chuan duyet') ||
       norm.includes('tieu chi duyet') ||
       norm.includes('ra tieu chi') ||
@@ -804,14 +825,16 @@ export function classifyAiIntent(rawText = '', { role = '', currentPath = '', pa
       norm.includes('dat tieu chuan') ||
       norm.includes('thiet lap tieu chuan') ||
       norm.includes('ra yeu cau') ||
+      norm.includes('dua ra yeu cau') ||
+      norm.includes('admin yeu cau') ||
+      norm.includes('yeu cau cua admin') ||
       norm.includes('yeu cau duyet') ||
       norm.includes('yeu cau kiem duyet') ||
       norm.includes('yeu cau truoc') ||
       norm.includes('ra dieu kien') ||
-      (norm.includes('tieu chuan') && (norm.includes('ho so') || norm.includes('duyet'))) ||
+      (norm.includes('yeu cau') && (norm.includes('avatar') || (norm.includes('ho so') && (norm.includes('10 so') || norm.includes('12 so') || norm.includes('1 nguoi') || norm.includes('hinh nguoi') || norm.includes('dat tieu chuan'))) || norm.includes('hinh nguoi') || norm.includes('1 nguoi'))) ||
+      (norm.includes('tieu chuan') && (norm.includes('ho so') || norm.includes('duyet') || norm.includes('avatar'))) ||
       (norm.includes('tieu chi') && (norm.includes('ho so') || norm.includes('duyet') || norm.includes('admin') || norm.includes('ai')))) &&
-    !norm.includes('theo tieu chi') &&
-    !norm.includes('theo tieu chuan') &&
     !norm.includes('xem tieu chi') &&
     !norm.includes('xem tieu chuan') &&
     !norm.includes('xem quy chuan') &&
@@ -834,9 +857,67 @@ export function classifyAiIntent(rawText = '', { role = '', currentPath = '', pa
       norm.includes('12 so') ||
       norm.includes('tieu chi') ||
       norm.includes('yeu cau') ||
+      norm.includes('duyet gium') ||
+      norm.includes('duyet giup') ||
+      norm.includes('duyet luon') ||
       norm.includes('tu dong'));
   if (isSetCriteria) {
     return 'ADMIN_SET_CRITERIA';
+  }
+
+  // Admin: Kiểm tra / thắc mắc về duyệt hình không có người
+  const isNonHumanAvatarQuery =
+    norm.includes('hinh khong co nguoi') ||
+    norm.includes('anh khong co nguoi') ||
+    norm.includes('avatar khong co nguoi') ||
+    norm.includes('khong co nguoi') ||
+    norm.includes('hinh khong nguoi') ||
+    norm.includes('anh khong nguoi') ||
+    norm.includes('duyet hinh khong co nguoi') ||
+    norm.includes('duyet anh khong co nguoi') ||
+    norm.includes('khac phuc duyet hinh khong co nguoi');
+  if (isNonHumanAvatarQuery) {
+    return 'ADMIN_NON_HUMAN_AVATAR_GUARD';
+  }
+
+  // Admin: Duyệt / kiểm tra hồ sơ theo tiêu chuẩn/tiêu chí đã đặt hoặc duyệt giùm Admin
+  const isApplyCriteria =
+    !isPureNavProfileRequests &&
+    (norm.includes('theo tieu chuan') ||
+      norm.includes('theo tieu chi') ||
+      norm.includes('ho so dat chuan') ||
+      norm.includes('ho so dat tieu chi') ||
+      norm.includes('avatar dat chuan') ||
+      norm.includes('avatar dat tieu chi') ||
+      norm.includes('cac avatar hop le') ||
+      norm.includes('yeu cau hop le') ||
+      norm.includes('ho so hop le') ||
+      norm.includes('kiem tra tieu chuan') ||
+      norm.includes('kiem tra tieu chi') ||
+      norm.includes('ap dung tieu chuan') ||
+      norm.includes('ap dung tieu chi') ||
+      norm.includes('duyet anh dai dien nhanh') ||
+      norm.includes('duyet avatar nhanh') ||
+      norm.includes('duyet nhanh avatar') ||
+      norm.includes('duyet nhanh anh dai dien') ||
+      norm.includes('duyet tat ca ho so dat tieu chuan') ||
+      norm.includes('duyet tat ca ho so dat chuan') ||
+      norm.includes('duyet tat ca avatar hop le') ||
+      norm.includes('duyet tat ca hinh hop le') ||
+      norm.includes('duyet tat ca anh hop le') ||
+      norm.includes('duyet gium') ||
+      norm.includes('duyet giup') ||
+      (norm.includes('duyet ho ') && !norm.includes('duyet ho so')) ||
+      norm.includes('duyet ho toi') ||
+      norm.includes('duyet ho minh') ||
+      norm.includes('duyet ho em') ||
+      norm.includes('duyet luon') ||
+      norm.includes('hay duyet giup') ||
+      norm.includes('hay duyet gium') ||
+      (norm.includes('duyet') && (norm.includes('hop le') || norm.includes('dat chuan') || norm.includes('tieu chuan') || norm.includes('tieu chi'))) ||
+      (norm.includes('duyet') && (norm.includes('avatar') || norm.includes('hinh') || norm.includes('anh') || norm.includes('ho so') || norm.includes('yeu cau')) && (norm.includes('gium') || norm.includes('giup') || norm.includes('luon') || norm.includes('nhanh') || norm.includes('cho toi'))));
+  if (isApplyCriteria) {
+    return 'ADMIN_APPLY_CRITERIA_APPROVAL';
   }
 
   // Admin: Xem tổng hợp ý kiến, nguyện vọng của Sinh viên & Giảng viên
@@ -1848,7 +1929,7 @@ export async function handleAiAssistantQuery({ message, user, currentPath = '', 
       `📊 **Kết quả đối soát các hồ sơ hiện có trong cơ sở dữ liệu (${pendingList.length} hồ sơ):**\n\n`;
 
     if (autoApproved.length > 0) {
-      reply += `✅ **ĐÃ TỰ ĐỘNG DUYỆT NHANH (${autoApproved.length} hồ sơ đạt chuẩn):**\n`;
+      reply += `✅ **ĐÃ TỰ ĐỘNG DUYỆT NHANH (ĐÃ TỰ ĐỘNG DUYỆT NGAY ${autoApproved.length} hồ sơ đạt chuẩn):**\n`;
       autoApproved.forEach((r, idx) => {
         const roleLabel = r.requesterRole === 'giao-vien' ? 'Giảng viên' : 'Sinh viên';
         reply += `  ${idx + 1}. **${r.requesterName}** (${roleLabel}): Đạt tiêu chuẩn, đã được duyệt và cập nhật vào hệ thống.\n`;
@@ -1868,7 +1949,26 @@ export async function handleAiAssistantQuery({ message, user, currentPath = '', 
       reply += `🎉 Toàn bộ hồ sơ chờ duyệt đều thỏa mãn tiêu chuẩn và đã được tự động duyệt nhanh thành công!`;
     }
 
-    const cards = keptPending.map(({ request: r, fails }) => ({
+    const approvedCards = autoApproved.map((r) => ({
+      type: 'approval',
+      id: String(r._id || r.id),
+      requestId: String(r._id || r.id),
+      title: r.requesterName || 'Người dùng',
+      code: `Yêu cầu #${String(r._id || r.id).slice(-4).toUpperCase()}`,
+      subtitle: `✓ Đã tự động phê duyệt thành công (Đạt tiêu chuẩn)`,
+      meta: `Email: ${r.requesterEmail || ''} • ${r.requesterRole === 'giao-vien' ? 'Giảng viên' : 'Sinh viên'}`,
+      status: 'approved',
+      meetsCriteria: true,
+      details: [
+        { label: 'Người gửi', value: r.requesterName },
+        { label: 'Loại yêu cầu', value: r.type === 'avatar' ? 'Đổi avatar' : 'Cập nhật hồ sơ' },
+        { label: 'Trạng thái', value: '✓ Đã duyệt tự động' },
+        { label: 'Tiêu chuẩn', value: criteria.rules?.customSummary || criteria.rawCriteriaText },
+      ],
+      action: { label: 'Xem tại phần Duyệt', path: '/admin/profile-requests' },
+    }));
+
+    const keptCards = keptPending.map(({ request: r, fails }) => ({
       type: 'approval',
       id: String(r._id || r.id),
       requestId: String(r._id || r.id),
@@ -1901,6 +2001,8 @@ export async function handleAiAssistantQuery({ message, user, currentPath = '', 
       ],
     }));
 
+    const cards = [...approvedCards, ...keptCards];
+
     return {
       pendingList,
       autoApproved,
@@ -1927,19 +2029,27 @@ export async function handleAiAssistantQuery({ message, user, currentPath = '', 
     ) {
       return {
         reply:
-          `📋 **QUY CHUẨN KIỂM DUYỆT TỰ ĐỘNG HIỆN TẠI**\n\n` +
-          `Hiện tại Admin **chưa thiết lập tiêu chuẩn kiểm duyệt tự động đón đầu** nào. Mọi yêu cầu thay đổi thông tin hoặc avatar từ Giảng viên và Sinh viên sẽ được giữ ở trạng thái Chờ duyệt (Pending) để Admin kiểm tra thủ công.\n\n` +
-          `💡 **Gợi ý:** Admin có thể ra yêu cầu trước bất kỳ lúc nào qua chat, ví dụ:\n` +
-          `• *"Admin ra yêu cầu duyệt: SĐT 10 số, CCCD 12 số, lý do rõ ràng"*\n` +
-          `• *"Tiêu chuẩn duyệt: Avatar phải là hình người và chỉ 1 người"*\n` +
-          `• *"Tiêu chuẩn duyệt: Chỉ duyệt profile có lý do, không duyệt đổi avatar"*`,
+          `🛡️ **BỘ TIÊU CHUẨN & QUY CÁCH KIỂM DUYỆT TỰ ĐỘNG (EDUMIN AI MODERATION RULES)**\n\n` +
+          `Hệ thống EduMin AI áp dụng quy cách kiểm duyệt thông tin minh bạch và rõ ràng:\n\n` +
+          `👤 **1. Tiêu chuẩn kiểm duyệt Ảnh đại diện (Avatar):**\n` +
+          `  • ✅ **ĐẠT CHUẨN (Được duyệt):** Bắt buộc là ảnh người thật, ảnh chân dung / ảnh thẻ có đúng **duy nhất 1 người** trong khung hình, rõ mặt, đúng tác phong học đường.\n` +
+          `  • ❌ **TỪ CHỐI / GIỮ LẠI:** Ảnh chụp nhóm nhiều người (từ 2 người trở lên); ảnh động vật / thú cưng (chó, mèo); ảnh phong cảnh thiên nhiên; đồ vật, xe cộ, kiến trúc, đồ ăn; tranh vẽ anime / hoạt hình, meme, logo; ảnh tài liệu văn bản hoặc ảnh chụp màn hình.\n\n` +
+          `📋 **2. Tiêu chuẩn kiểm duyệt Thông tin cá nhân (Profile):**\n` +
+          `  • 📞 **Số điện thoại:** Bắt buộc đủ 10 chữ số hợp lệ.\n` +
+          `  • 📝 **Lý do thay đổi:** Bắt buộc có giải trình lý do cập nhật rõ ràng, hợp lý.\n` +
+          `  • 👤 **Họ và tên:** Đầy đủ họ tên, không để trống.\n\n` +
+          `⚡ **Cơ chế duyệt qua Chatbox:** Admin có thể ra lệnh duyệt nhanh bất cứ lúc nào:\n` +
+          `• *"Tiêu chuẩn duyệt: Avatar phải là hình người và chỉ 1 người, hãy duyệt giùm tôi"*\n` +
+          `• *"Duyệt ảnh đại diện nhanh"*\n` +
+          `• *"Duyệt tất cả hồ sơ đạt tiêu chuẩn"*`,
         intent: 'ADMIN_GET_CRITERIA',
         data: { criteria: null, hasActiveCriteria: false },
         quickLinks: [{ label: 'Duyệt yêu cầu hồ sơ', path: '/admin/profile-requests' }],
         suggestions: [
-          'Admin ra yêu cầu duyệt: SĐT 10 số, CCCD 12 số, lý do rõ ràng',
+          'Tiêu chuẩn duyệt: Avatar phải là hình người và chỉ 1 người, hãy duyệt giùm tôi',
+          'Duyệt ảnh đại diện nhanh',
+          'Duyệt tất cả hồ sơ đạt tiêu chuẩn',
           'Cho tôi xem ý kiến người dùng',
-          'Quản lý hồ sơ chờ duyệt',
         ],
       };
     }
@@ -1988,6 +2098,12 @@ export async function handleAiAssistantQuery({ message, user, currentPath = '', 
     return {
       reply: result.reply,
       intent: 'ADMIN_SET_CRITERIA',
+      actionTrigger: {
+        action: 'criteria_approval_processed',
+        autoApprovedCount: result.autoApproved.length,
+        keptPendingCount: result.keptPending.length,
+        autoApprovedIds: result.autoApproved.map((r) => String(r._id)),
+      },
       data: { criteria, autoApprovedCount: result.autoApproved.length, keptPendingCount: result.keptPending.length },
       cards: result.cards,
       quickLinks: [
@@ -2008,6 +2124,12 @@ export async function handleAiAssistantQuery({ message, user, currentPath = '', 
     return {
       reply: result.reply,
       intent: 'ADMIN_APPLY_CRITERIA_APPROVAL',
+      actionTrigger: {
+        action: 'criteria_approval_processed',
+        autoApprovedCount: result.autoApproved.length,
+        keptPendingCount: result.keptPending.length,
+        autoApprovedIds: result.autoApproved.map((r) => String(r._id)),
+      },
       cards: result.cards,
       data: { criteria, autoApprovedCount: result.autoApproved.length, keptPendingCount: result.keptPending.length, total: result.pendingList.length },
       quickLinks: [
@@ -2018,6 +2140,34 @@ export async function handleAiAssistantQuery({ message, user, currentPath = '', 
         'Duyệt tất cả hồ sơ đạt tiêu chuẩn',
         'Cho tôi xem ý kiến người dùng',
       ],
+    };
+  }
+
+  // 0a.-0z1 Admin Non-Human Avatar Guard ("duyệt hình không có người", "hình không có người")
+  if (intent === 'ADMIN_NON_HUMAN_AVATAR_GUARD') {
+    let criteria = await getAdminCriteria();
+    if (!criteria?.rules?.requireHumanSingleAvatar) {
+      criteria = await setAdminCriteria('Tiêu chuẩn duyệt: Avatar phải là hình người và chỉ 1 người', user);
+    }
+    const result = await evaluateAndProcessCriteriaRequests(criteria, user);
+    return {
+      reply:
+        `🛡️ **CƠ CHẾ BẢO VỆ & KIỂM DUYỆT ẢNH ĐẠI DIỆN CHẶT CHẼ (EDUMIN AI GUARD)**\n\n` +
+        `EduMin AI tuân thủ nguyên tắc kiểm duyệt CỰC KỲ NGHIÊM NGẶT đối với hình ảnh đại diện:\n` +
+        `• ❌ **Tuyệt đối KHÔNG tự động duyệt hình không có người:** Toàn bộ ảnh đồ vật, con vật, phong cảnh, xe cộ, tranh vẽ anime, meme hoặc ảnh nhóm nhiều người đều bị chặn tự động duyệt.\n` +
+        `• ⚠️ **Bắt buộc giữ lại Chờ duyệt:** Tất cả các ảnh không có người hoặc không xác thực được chân dung 1 người sẽ được giữ lại ở trạng thái **Chờ duyệt (Pending)** tại trang Duyệt yêu cầu để Admin kiểm tra và quyết định thủ công.\n` +
+        `• ✅ **Chỉ duyệt ảnh 1 người thật:** Chỉ những ảnh chân dung người thật có đúng 1 người trong khung hình mới được phép tự động phê duyệt.\n\n` +
+        result.reply,
+      intent: 'ADMIN_NON_HUMAN_AVATAR_GUARD',
+      actionTrigger: {
+        action: 'criteria_approval_processed',
+        autoApprovedCount: result.autoApproved.length,
+        keptPendingCount: result.keptPending.length,
+        autoApprovedIds: result.autoApproved.map((r) => String(r._id)),
+      },
+      cards: result.cards,
+      quickLinks: [{ label: 'Duyệt yêu cầu hồ sơ', path: '/admin/profile-requests' }],
+      suggestions: ['Xem tiêu chí duyệt hiện tại', 'Cho tôi xem ý kiến người dùng'],
     };
   }
 
@@ -2596,7 +2746,208 @@ export async function handleAiAssistantQuery({ message, user, currentPath = '', 
     const approvalQuery = extractApprovalQuery(rawText);
     const candidateName = approvalQuery?.candidateName || '';
     const normCand = normalizeText(candidateName);
+    const norm = normalizeText(rawText);
 
+    const isRejectAction =
+      norm.includes('tu choi') ||
+      norm.includes('bac bo') ||
+      norm.includes('khong duyet') ||
+      norm.includes('reject');
+
+    const isBulkApprove =
+      !isRejectAction &&
+      (norm.includes('tat ca') || norm.includes('het') || norm.includes('toan bo') || norm.includes('hang loat')) &&
+      (norm.includes('duyet') || norm.includes('phe duyet') || norm.includes('chap thuan') || norm.includes('accept'));
+
+    const isExplicitApprove =
+      !isRejectAction &&
+      !isBulkApprove &&
+      (norm.startsWith('duyet cho') ||
+        norm.startsWith('duyet ho so cho') ||
+        norm.startsWith('duyet yeu cau cua') ||
+        norm.startsWith('phe duyet cho') ||
+        norm.startsWith('phe duyet yeu cau') ||
+        norm.startsWith('phe duyet ho so') ||
+        norm.startsWith('xac nhan duyet') ||
+        norm.startsWith('chap thuan') ||
+        norm === 'duyet' ||
+        norm === 'phe duyet' ||
+        norm === 'accept' ||
+        norm === 'approve' ||
+        norm.includes('duyet ngay') ||
+        norm.includes('dong y duyet') ||
+        (candidateName && (norm.startsWith('duyet') || norm.startsWith('phe duyet'))));
+
+    // Case 1: ACTION REJECT - Thực hiện từ chối trực tiếp trên CSDL
+    if (isRejectAction) {
+      let targetReq = null;
+      if (candidateName) {
+        targetReq = await ProfileRequest.findOne({
+          status: 'pending',
+          requesterName: { $regex: candidateName, $options: 'i' },
+        }).sort({ createdAt: -1 });
+      }
+      if (!targetReq) {
+        targetReq = await ProfileRequest.findOne({ status: 'pending' }).sort({ createdAt: 1 });
+      }
+
+      if (targetReq) {
+        const { rejectOne } = await import('../profileRequests/profileRequest.service.js');
+        await rejectOne(targetReq._id, user, 'Từ chối bởi Quản trị viên qua EduMin AI');
+        const roleLabel = targetReq.requesterRole === 'giao-vien' ? 'Giảng viên' : 'Sinh viên';
+        return {
+          reply: `❌ **ĐÃ TỪ CHỐI YÊU CẦU TRÊN CSDL MONGODB!**\n\nYêu cầu của **${targetReq.requesterName}** (${roleLabel}) đã được đánh dấu là **Từ chối (Rejected)** trong cơ sở dữ liệu. Bản ghi đã biến mất khỏi danh sách chờ duyệt.`,
+          intent: 'ACTION_REJECT_REQUEST_SUCCESS',
+          actionTrigger: {
+            action: 'request_rejected',
+            requestId: String(targetReq._id),
+            requesterName: targetReq.requesterName,
+          },
+          data: { rejectedId: String(targetReq._id), requesterName: targetReq.requesterName },
+          quickLinks: [{ label: 'Duyệt yêu cầu hồ sơ', path: '/admin/profile-requests' }],
+          suggestions: ['Có yêu cầu nào khác đang chờ không?', 'Thống kê hệ thống hiện tại'],
+        };
+      }
+
+      return {
+        reply: candidateName
+          ? `Hiện không tìm thấy yêu cầu chờ duyệt nào của **${candidateName}** để từ chối.`
+          : 'Hiện không có yêu cầu nào đang ở trạng thái chờ duyệt để từ chối.',
+        intent: 'REJECT_PROFILE_REQUEST_EMPTY',
+        quickLinks: [{ label: 'Duyệt yêu cầu hồ sơ', path: '/admin/profile-requests' }],
+      };
+    }
+
+    // Case 2: ACTION BULK APPROVE - Phê duyệt toàn bộ trực tiếp trên CSDL (Có kiểm tra bảo vệ avatar)
+    if (isBulkApprove) {
+      const pendingList = await ProfileRequest.find({ status: 'pending' });
+      if (pendingList.length > 0) {
+        const { bulkApprove } = await import('../profileRequests/profileRequest.service.js');
+        const validIds = [];
+        const keptItems = [];
+        for (const req of pendingList) {
+          const isAvatarReq = req.type === 'avatar' || Boolean(req.requestedData?.avatar);
+          if (isAvatarReq) {
+            const evalResult = evaluateRequestAgainstCriteria(req, { requireHumanSingleAvatar: true });
+            if (!evalResult.pass) {
+              keptItems.push({ req, fails: evalResult.fails });
+              continue;
+            }
+          }
+          validIds.push(req._id);
+        }
+
+        if (validIds.length > 0) {
+          await bulkApprove(validIds, user);
+        }
+
+        let reply = '';
+        if (validIds.length > 0) {
+          reply += `🎉 **ĐÃ PHÊ DUYỆT THÀNH CÔNG ${validIds.length} YÊU CẦU ĐẠT CHUẨN TRÊN CSDL MONGODB!**\n\n`;
+        }
+        if (keptItems.length > 0) {
+          reply += `⚠️ **GIỮ LẠI ${keptItems.length} HỒ SƠ CHỜ DUYỆT THỦ CÔNG (Ảnh không hợp lệ / không có người):**\n`;
+          keptItems.forEach((k, idx) => {
+            reply += `  ${idx + 1}. **${k.req.requesterName}**: ${k.fails.join(', ')} → *Giữ lại để Admin xem xét*.\n`;
+          });
+        }
+        if (validIds.length === 0 && keptItems.length > 0) {
+          reply = `⚠️ **KHÔNG CÓ HỒ SƠ NÀO THỎA MÃN TIÊU CHUẨN ĐỂ DUYỆT TỰ ĐỘNG!**\n\nToàn bộ ${keptItems.length} yêu cầu đang chờ đều có ảnh không hợp lệ (không phải hình người thật 1 người). Đã giữ nguyên trạng thái Chờ duyệt để Admin kiểm tra thủ công.`;
+        }
+
+        return {
+          reply,
+          intent: 'ACTION_APPROVE_REQUEST_SUCCESS',
+          actionTrigger: {
+            action: 'requests_bulk_approved',
+            count: validIds.length,
+            ids: validIds.map(String),
+          },
+          data: { approvedCount: validIds.length, keptCount: keptItems.length },
+          quickLinks: [{ label: 'Duyệt yêu cầu hồ sơ', path: '/admin/profile-requests' }],
+          suggestions: ['Thống kê hệ thống hiện tại', 'Xem tiêu chí duyệt hiện tại'],
+        };
+      }
+
+      return {
+        reply: '✅ Hiện tại không có yêu cầu nào đang ở trạng thái Chờ duyệt (Pending) trong hệ thống.',
+        intent: 'APPROVE_PROFILE_REQUEST_EMPTY',
+        quickLinks: [{ label: 'Duyệt yêu cầu hồ sơ', path: '/admin/profile-requests' }],
+      };
+    }
+
+    // Case 3: ACTION EXPLICIT APPROVE - Phê duyệt trực tiếp yêu cầu cụ thể trên CSDL (Có kiểm tra bảo vệ avatar)
+    if (isExplicitApprove) {
+      let targetReq = null;
+      if (candidateName) {
+        targetReq = await ProfileRequest.findOne({
+          status: 'pending',
+          requesterName: { $regex: candidateName, $options: 'i' },
+        }).sort({ createdAt: -1 });
+      }
+      if (!targetReq) {
+        targetReq = await ProfileRequest.findOne({ status: 'pending' }).sort({ createdAt: 1 });
+      }
+
+      if (targetReq) {
+        const isAvatarReq = targetReq.type === 'avatar' || Boolean(targetReq.requestedData?.avatar);
+        const roleLabel = targetReq.requesterRole === 'giao-vien' ? 'Giảng viên' : 'Sinh viên';
+        if (isAvatarReq) {
+          const evalResult = evaluateRequestAgainstCriteria(targetReq, { requireHumanSingleAvatar: true });
+          if (!evalResult.pass) {
+            const failReason = evalResult.fails.join(', ') || 'Ảnh không hợp lệ: Yêu cầu bắt buộc phải có đúng 1 người trong khung hình!';
+            return {
+              reply: `⚠️ **KHÔNG THỂ PHÊ DUYỆT TỰ ĐỘNG — ẢNH KHÔNG HỢP LỆ!**\n\nYêu cầu đổi ảnh đại diện của **${targetReq.requesterName}** (${roleLabel}) không thể được duyệt tự động vì:\n• ${failReason}\n\n📌 Hồ sơ được giữ nguyên ở trạng thái **Chờ duyệt (Pending)** tại trang Duyệt yêu cầu để Quản trị viên xem xét và xử lý thủ công.`,
+              intent: 'APPROVE_PROFILE_REQUEST_FAILED_CRITERIA',
+              cards: [
+                {
+                  type: 'approval',
+                  id: String(targetReq._id),
+                  requestId: String(targetReq._id),
+                  title: targetReq.requesterName,
+                  code: `Yêu cầu #${String(targetReq._id).slice(-4).toUpperCase()}`,
+                  subtitle: `⚠️ Chưa đạt chuẩn: ${failReason} (Giữ lại bên phần Duyệt)`,
+                  status: 'pending',
+                  meetsCriteria: false,
+                  fails: evalResult.fails,
+                  action: { label: 'Xem tại phần Duyệt', path: '/admin/profile-requests' },
+                },
+              ],
+              quickLinks: [{ label: 'Duyệt yêu cầu hồ sơ', path: '/admin/profile-requests' }],
+              suggestions: ['Xem các yêu cầu đang chờ duyệt', 'Duyệt theo tiêu chuẩn'],
+            };
+          }
+        }
+
+        const { approveOne } = await import('../profileRequests/profileRequest.service.js');
+        await approveOne(targetReq._id, user);
+
+        const typeLabel = targetReq.type === 'avatar' ? 'ảnh đại diện' : 'thông tin cá nhân';
+
+        return {
+          reply: `✅ **ĐÃ PHÊ DUYỆT THÀNH CÔNG TRÊN CSDL MONGODB!**\n\nYêu cầu thay đổi ${typeLabel} của **${targetReq.requesterName}** (${roleLabel}) đã được phê duyệt và áp dụng trực tiếp vào cơ sở dữ liệu. Bản ghi đã biến mất khỏi danh sách chờ duyệt.`,
+          intent: 'ACTION_APPROVE_REQUEST_SUCCESS',
+          actionTrigger: {
+            action: 'request_approved',
+            requestId: String(targetReq._id),
+            requesterName: targetReq.requesterName,
+          },
+          data: { approvedId: String(targetReq._id), requesterName: targetReq.requesterName },
+          quickLinks: [{ label: 'Duyệt yêu cầu hồ sơ', path: '/admin/profile-requests' }],
+          suggestions: ['Có yêu cầu nào khác đang chờ không?', 'Thống kê hệ thống hiện tại'],
+        };
+      }
+
+      return {
+        reply: candidateName
+          ? `Hiện không tìm thấy yêu cầu chờ duyệt nào của **${candidateName}** trong cơ sở dữ liệu. Toàn bộ hồ sơ đã được xử lý xong!`
+          : '✅ Hiện tại không có yêu cầu nào đang ở trạng thái Chờ duyệt (Pending) trong hệ thống.',
+        intent: 'APPROVE_PROFILE_REQUEST_EMPTY',
+        quickLinks: [{ label: 'Duyệt yêu cầu hồ sơ', path: '/admin/profile-requests' }],
+      };
+    }
+
+    // Case 4: QUERY PENDING REQUESTS - Hiển thị danh sách yêu cầu thực tế
     let query = { status: 'pending' };
     if (candidateName) {
       query.requesterName = { $regex: candidateName, $options: 'i' };
@@ -2623,6 +2974,10 @@ export async function handleAiAssistantQuery({ message, user, currentPath = '', 
         id: String(r._id || r.id),
         requestId: String(r._id || r.id),
         title: r.requesterName || 'Người dùng',
+        requesterName: r.requesterName || 'Người dùng',
+        requesterRole: r.requesterRole || 'sinh-vien',
+        requesterEmail: r.requesterEmail,
+        requesterCode: r.requesterCode,
         code: `Yêu cầu #${String(r._id || r.id).slice(-4).toUpperCase()}`,
         subtitle:
           r.type === 'avatar'
@@ -2667,8 +3022,8 @@ export async function handleAiAssistantQuery({ message, user, currentPath = '', 
       }));
 
       const reply = candidateName
-        ? `Dạ, tôi tìm thấy yêu cầu cập nhật hồ sơ đang chờ duyệt của **${pendingList[0].requesterName}** (${pendingList[0].requesterRole === 'giao-vien' ? 'Giảng viên' : 'Sinh viên'}). Bạn có thể phê duyệt hoặc từ chối trực tiếp bên dưới:`
-        : `Hệ thống hiện có **${pendingList.length}** yêu cầu cập nhật hồ sơ/ảnh đại diện đang ở trạng thái Chờ duyệt (Pending). Bạn có thể bấm [Xác nhận duyệt nhanh] hoặc [Từ chối] trực tiếp ngay tại đây:`;
+        ? `Dạ, tôi tìm thấy yêu cầu cập nhật hồ sơ đang chờ duyệt của **${pendingList[0].requesterName}** (${pendingList[0].requesterRole === 'giao-vien' ? 'Giảng viên' : 'Sinh viên'}). Bạn có thể bấm nút duyệt hoặc yêu cầu tôi duyệt ngay:`
+        : `Hệ thống hiện có **${pendingList.length}** yêu cầu cập nhật hồ sơ/ảnh đại diện đang ở trạng thái Chờ duyệt (Pending):`;
 
       return {
         reply,
@@ -4626,16 +4981,215 @@ export async function handleAiAssistantQuery({ message, user, currentPath = '', 
     text.includes('xin quyen') ||
     text.includes('cap quyen') ||
     text.includes('kiem tra yeu cau') ||
-    text.includes('yeu cau phu')
+    text.includes('yeu cau phu') ||
+    text.includes('tu choi') ||
+    text.includes('reject') ||
+    text.includes('phe duyet') ||
+    text.includes('chap thuan')
   ) {
     if (isAdmin) {
-      const matchPerson = rawText.match(/(?:duyệt yêu cầu của|duyệt hồ sơ của|yêu cầu của)\s+([^?.,]+)/i);
-      const query = { status: 'pending' };
+      const matchPerson = rawText.match(/(?:duyệt\s+(?:cho\s+|hồ\s+sơ\s+(?:cho\s+|của\s+)?|yêu\s+cầu\s+(?:cho\s+|của\s+)?)?|từ\s+chối\s+(?:cho\s+|hồ\s+sơ\s+(?:cho\s+|của\s+)?|yêu\s+cầu\s+(?:cho\s+|của\s+)?)?|yêu\s+cầu\s+của)\s+([^?.,!]+)/i);
+      let candidate = '';
       if (matchPerson && matchPerson[1]) {
-        const candidate = matchPerson[1].trim();
-        if (candidate && !['hồ sơ', 'yêu cầu', 'mới', 'tôi', 'em', 'phân quyền'].includes(candidate.toLowerCase())) {
-          query.requesterName = { $regex: candidate, $options: 'i' };
+        const c = matchPerson[1].trim().replace(/\s+(?:được\s+không|không\s+ạ|không|ko|k|nhé|nha|ạ|ơi|hả|chưa|vậy|\?)+$/i, '').trim();
+        const normC = normalizeText(c);
+        const ignoreWords = ['ho so', 'yeu cau', 'moi', 'nguoi dung', 'tat ca', 'cho duyet', 'ngay', 'nhanh', 'toi', 'em', 'sinh vien', 'giang vien', 'khong', 'chua', 'nao', 'gi', 'ha', 'vay', 'nhi'];
+        if (c.length >= 2 && !ignoreWords.includes(normC)) {
+          candidate = c;
         }
+      }
+
+      const isRejectAction =
+        text.includes('tu choi') ||
+        text.includes('bac bo') ||
+        text.includes('khong duyet') ||
+        text.includes('reject');
+
+      const isBulkApprove =
+        !isRejectAction &&
+        (text.includes('tat ca') || text.includes('het') || text.includes('toan bo') || text.includes('hang loat')) &&
+        (text.includes('duyet') || text.includes('phe duyet') || text.includes('chap thuan') || text.includes('accept'));
+
+      const isExplicitApprove =
+        !isRejectAction &&
+        !isBulkApprove &&
+        (text.startsWith('duyet') ||
+          text.startsWith('phe duyet') ||
+          text.startsWith('chap thuan') ||
+          text === 'duyet' ||
+          text === 'phe duyet' ||
+          text === 'accept' ||
+          text === 'approve' ||
+          text.includes('duyet ngay') ||
+          text.includes('dong y duyet') ||
+          text.includes('xac nhan duyet') ||
+          text.includes('duyet nhanh') ||
+          (candidate && (text.startsWith('duyet') || text.startsWith('phe duyet'))));
+
+      // ACTION 1: REJECT
+      if (isRejectAction) {
+        let targetReq = null;
+        if (candidate) {
+          targetReq = await ProfileRequest.findOne({
+            status: 'pending',
+            requesterName: { $regex: candidate, $options: 'i' },
+          }).sort({ createdAt: -1 });
+        }
+        if (!targetReq) {
+          targetReq = await ProfileRequest.findOne({ status: 'pending' }).sort({ createdAt: 1 });
+        }
+
+        if (targetReq) {
+          const { rejectOne } = await import('../profileRequests/profileRequest.service.js');
+          await rejectOne(targetReq._id, user, 'Từ chối bởi Quản trị viên qua EduMin AI');
+          const roleLabel = targetReq.requesterRole === 'giao-vien' ? 'Giảng viên' : 'Sinh viên';
+          return {
+            reply: `❌ **ĐÃ TỪ CHỐI YÊU CẦU TRÊN CSDL MONGODB!**\n\nYêu cầu của **${targetReq.requesterName}** (${roleLabel}) đã được từ chối và cập nhật trực tiếp trên CSDL. Bản ghi đã biến mất khỏi danh sách chờ duyệt.`,
+            intent: 'ACTION_REJECT_REQUEST_SUCCESS',
+            actionTrigger: {
+              action: 'request_rejected',
+              requestId: String(targetReq._id),
+              requesterName: targetReq.requesterName,
+            },
+            data: { rejectedId: String(targetReq._id), requesterName: targetReq.requesterName },
+            quickLinks: [{ label: 'Duyệt yêu cầu hồ sơ', path: '/admin/profile-requests' }],
+          };
+        }
+        return {
+          reply: candidate
+            ? `Hiện không tìm thấy yêu cầu chờ duyệt nào của **${candidate}** để từ chối.`
+            : 'Hiện không có yêu cầu nào đang ở trạng thái chờ duyệt để từ chối.',
+          intent: 'REJECT_PROFILE_REQUEST_EMPTY',
+          quickLinks: [{ label: 'Duyệt yêu cầu hồ sơ', path: '/admin/profile-requests' }],
+        };
+      }
+
+      // ACTION 2: BULK APPROVE (Có kiểm tra bảo vệ avatar)
+      if (isBulkApprove) {
+        const pendingList = await ProfileRequest.find({ status: 'pending' });
+        if (pendingList.length > 0) {
+          const { bulkApprove } = await import('../profileRequests/profileRequest.service.js');
+          const validIds = [];
+          const keptItems = [];
+          for (const req of pendingList) {
+            const isAvatarReq = req.type === 'avatar' || Boolean(req.requestedData?.avatar);
+            if (isAvatarReq) {
+              const evalResult = evaluateRequestAgainstCriteria(req, { requireHumanSingleAvatar: true });
+              if (!evalResult.pass) {
+                keptItems.push({ req, fails: evalResult.fails });
+                continue;
+              }
+            }
+            validIds.push(req._id);
+          }
+
+          if (validIds.length > 0) {
+            await bulkApprove(validIds, user);
+          }
+
+          let reply = '';
+          if (validIds.length > 0) {
+            reply += `🎉 **ĐÃ PHÊ DUYỆT THÀNH CÔNG ${validIds.length} YÊU CẦU ĐẠT CHUẨN TRÊN CSDL MONGODB!**\n\n`;
+          }
+          if (keptItems.length > 0) {
+            reply += `⚠️ **GIỮ LẠI ${keptItems.length} HỒ SƠ CHỜ DUYỆT THỦ CÔNG (Ảnh không hợp lệ / không có người):**\n`;
+            keptItems.forEach((k, idx) => {
+              reply += `  ${idx + 1}. **${k.req.requesterName}**: ${k.fails.join(', ')} → *Giữ lại để Admin xem xét*.\n`;
+            });
+          }
+          if (validIds.length === 0 && keptItems.length > 0) {
+            reply = `⚠️ **KHÔNG CÓ HỒ SƠ NÀO THỎA MÃN TIÊU CHUẨN ĐỂ DUYỆT TỰ ĐỘNG!**\n\nToàn bộ ${keptItems.length} yêu cầu đang chờ đều có ảnh không hợp lệ (không phải hình người thật 1 người). Đã giữ nguyên trạng thái Chờ duyệt để Admin kiểm tra thủ công.`;
+          }
+
+          return {
+            reply,
+            intent: 'ACTION_APPROVE_REQUEST_SUCCESS',
+            actionTrigger: {
+              action: 'requests_bulk_approved',
+              count: validIds.length,
+              ids: validIds.map(String),
+            },
+            data: { approvedCount: validIds.length, keptCount: keptItems.length },
+            quickLinks: [{ label: 'Duyệt yêu cầu hồ sơ', path: '/admin/profile-requests' }],
+          };
+        }
+        return {
+          reply: '✅ Hiện tại không có yêu cầu nào đang ở trạng thái Chờ duyệt (Pending) trong hệ thống.',
+          intent: 'APPROVE_PROFILE_REQUEST_EMPTY',
+          quickLinks: [{ label: 'Duyệt yêu cầu hồ sơ', path: '/admin/profile-requests' }],
+        };
+      }
+
+      // ACTION 3: EXPLICIT APPROVE (Có kiểm tra bảo vệ avatar)
+      if (isExplicitApprove) {
+        let targetReq = null;
+        if (candidate) {
+          targetReq = await ProfileRequest.findOne({
+            status: 'pending',
+            requesterName: { $regex: candidate, $options: 'i' },
+          }).sort({ createdAt: -1 });
+        }
+        if (!targetReq) {
+          targetReq = await ProfileRequest.findOne({ status: 'pending' }).sort({ createdAt: 1 });
+        }
+
+        if (targetReq) {
+          const isAvatarReq = targetReq.type === 'avatar' || Boolean(targetReq.requestedData?.avatar);
+          const roleLabel = targetReq.requesterRole === 'giao-vien' ? 'Giảng viên' : 'Sinh viên';
+          if (isAvatarReq) {
+            const evalResult = evaluateRequestAgainstCriteria(targetReq, { requireHumanSingleAvatar: true });
+            if (!evalResult.pass) {
+              const failReason = evalResult.fails.join(', ') || 'Ảnh không hợp lệ: Yêu cầu bắt buộc phải có đúng 1 người trong khung hình!';
+              return {
+                reply: `⚠️ **KHÔNG THỂ PHÊ DUYỆT TỰ ĐỘNG — ẢNH KHÔNG HỢP LỆ!**\n\nYêu cầu đổi ảnh đại diện của **${targetReq.requesterName}** (${roleLabel}) không thể được duyệt tự động vì:\n• ${failReason}\n\n📌 Hồ sơ được giữ nguyên ở trạng thái **Chờ duyệt (Pending)** tại trang Duyệt yêu cầu để Quản trị viên xem xét và xử lý thủ công.`,
+                intent: 'APPROVE_PROFILE_REQUEST_FAILED_CRITERIA',
+                cards: [
+                  {
+                    type: 'approval',
+                    id: String(targetReq._id),
+                    requestId: String(targetReq._id),
+                    title: targetReq.requesterName,
+                    code: `Yêu cầu #${String(targetReq._id).slice(-4).toUpperCase()}`,
+                    subtitle: `⚠️ Chưa đạt chuẩn: ${failReason} (Giữ lại bên phần Duyệt)`,
+                    status: 'pending',
+                    meetsCriteria: false,
+                    fails: evalResult.fails,
+                    action: { label: 'Xem tại phần Duyệt', path: '/admin/profile-requests' },
+                  },
+                ],
+                quickLinks: [{ label: 'Duyệt yêu cầu hồ sơ', path: '/admin/profile-requests' }],
+              };
+            }
+          }
+
+          const { approveOne } = await import('../profileRequests/profileRequest.service.js');
+          await approveOne(targetReq._id, user);
+          const typeLabel = targetReq.type === 'avatar' ? 'ảnh đại diện' : 'thông tin cá nhân';
+          return {
+            reply: `✅ **ĐÃ PHÊ DUYỆT THÀNH CÔNG TRÊN CSDL MONGODB!**\n\nYêu cầu thay đổi ${typeLabel} của **${targetReq.requesterName}** (${roleLabel}) đã được phê duyệt và cập nhật tức thì vào CSDL. Bản ghi đã biến mất khỏi danh sách chờ duyệt.`,
+            intent: 'ACTION_APPROVE_REQUEST_SUCCESS',
+            actionTrigger: {
+              action: 'request_approved',
+              requestId: String(targetReq._id),
+              requesterName: targetReq.requesterName,
+            },
+            data: { approvedId: String(targetReq._id), requesterName: targetReq.requesterName },
+            quickLinks: [{ label: 'Duyệt yêu cầu hồ sơ', path: '/admin/profile-requests' }],
+          };
+        }
+        return {
+          reply: candidate
+            ? `Hiện không tìm thấy yêu cầu chờ duyệt nào của **${candidate}** trong cơ sở dữ liệu. Toàn bộ hồ sơ đã được xử lý xong!`
+            : '✅ Hiện tại không có yêu cầu nào đang ở trạng thái Chờ duyệt (Pending) trong hệ thống.',
+          intent: 'APPROVE_PROFILE_REQUEST_EMPTY',
+          quickLinks: [{ label: 'Duyệt yêu cầu hồ sơ', path: '/admin/profile-requests' }],
+        };
+      }
+
+      // LIST PENDING REQUESTS
+      const query = { status: 'pending' };
+      if (candidate) {
+        query.requesterName = { $regex: candidate, $options: 'i' };
       }
       const pendingList = await ProfileRequest.find(query).limit(5).sort({ createdAt: -1 }).lean();
       const pendingCount = await ProfileRequest.countDocuments({ status: 'pending' });
@@ -4678,8 +5232,8 @@ export async function handleAiAssistantQuery({ message, user, currentPath = '', 
             { label: 'Trạng thái', value: 'Chờ duyệt' },
           ],
           actions: [
-            { label: '✓ Phê duyệt / Accept', actionType: 'APPROVE_REQUEST' },
-            { label: '✗ Từ chối / Reject', actionType: 'REJECT_REQUEST' },
+            { label: '✓ Phê duyệt / Accept', actionType: 'APPROVE_REQUEST', payload: { requestId: String(r._id || r.id) } },
+            { label: '✗ Từ chối / Reject', actionType: 'REJECT_REQUEST', payload: { requestId: String(r._id || r.id) } },
           ],
           action: {
             label: 'Xem chi tiết',
@@ -4690,12 +5244,12 @@ export async function handleAiAssistantQuery({ message, user, currentPath = '', 
 
       return {
         reply: `📋 **DANH SÁCH YÊU CẦU XÉT DUYỆT & PHÂN QUYỀN HỆ THỐNG (${pendingCount} yêu cầu chờ xử lý):**\n\n` +
-          `Quản trị viên có thể xem thông tin, vai trò, nội dung xin cấp quyền và bấm trực tiếp nút **[Phê duyệt / Accept]** (xanh) hoặc **[Từ chối / Reject]** (đỏ) trên thẻ/bảng bên dưới để hệ thống cập nhật tức thì:`,
+          `Dưới đây là các yêu cầu thay đổi hồ sơ & ảnh đại diện đang chờ Quản trị viên xử lý:`,
         intent: 'QUERY_PENDING_REQUESTS',
         cards,
         quickLinks: [{ label: 'Mở trang Quản lý yêu cầu hồ sơ', path: '/admin/profile-requests' }],
         suggestions: [
-          'Duyệt yêu cầu của Nguyễn Văn An',
+          'Duyệt tất cả hồ sơ',
           'Có yêu cầu nào mới không?',
         ],
       };

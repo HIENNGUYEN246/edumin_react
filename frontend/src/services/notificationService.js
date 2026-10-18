@@ -191,4 +191,3 @@ export const saveStoredNotifications = (role, user, list) => {
     // Ignore storage errors
   }
 };
-

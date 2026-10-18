@@ -505,10 +505,10 @@ describe('EduMinAiAssistant', () => {
     fireEvent.click(screen.getByTitle('Gửi câu hỏi'));
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Xác nhận duyệt nhanh/i })).toBeInTheDocument();
+      expect(screen.getAllByRole('button', { name: /Xác nhận duyệt nhanh/i })[0]).toBeInTheDocument();
     });
 
-    const approveBtn = screen.getByRole('button', { name: /Xác nhận duyệt nhanh/i });
+    const approveBtn = screen.getAllByRole('button', { name: /Xác nhận duyệt nhanh/i })[0];
     fireEvent.click(approveBtn);
 
     expect(profileRequestsApi.approve).toHaveBeenCalledWith('req-001');

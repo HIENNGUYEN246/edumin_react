@@ -9,14 +9,21 @@ import { apiRouter } from './routes.js';
 export function createApp() {
   const app = express();
 
+  // 1. CORS middleware PHẢI ĐƯỢC ĐẶT LÊN ĐẦU TIÊN TRƯỚC MỌI ROUTE VÀ MIDDLEWARE KHÁC
+  const corsOptions = {
+    origin: true,
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+    optionsSuccessStatus: 200,
+  };
+
+  app.use(cors(corsOptions));
+  app.options('*', cors(corsOptions));
+
+  // 2. Trust proxy & Helmet security headers
   app.set('trust proxy', 1);
-  app.use(helmet());
-  app.use(
-    cors({
-      origin: config.CLIENT_ORIGIN === '*' ? true : config.CLIENT_ORIGIN.split(','),
-      credentials: true,
-    })
-  );
+  app.use(helmet({ crossOriginResourcePolicy: false }));
   app.use(express.json({ limit: `${config.UPLOAD_MAX_MB}mb` }));
   app.use(express.urlencoded({ extended: true }));
 
