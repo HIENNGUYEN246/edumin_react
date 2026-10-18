@@ -44,18 +44,23 @@ export async function sendEmail({ to, subject, html, text, metadata = {} }) {
   };
 
   if (isEmailConfigured()) {
-    const result = await getGmailTransport().sendMail({
-      from: `"EduMin" <${config.GMAIL_USER}>`,
-      to,
-      subject,
-      html: html || undefined,
-      text: text || undefined,
-    });
-    mailRecord.messageId = result.messageId;
-    sentEmails.push(mailRecord);
-    if (sentEmails.length > 500) sentEmails.shift();
-    console.log(`[EMAIL SENT] To: ${to} | Subject: "${subject}"`);
-    return { success: true, messageId: result.messageId };
+    try {
+      const result = await getGmailTransport().sendMail({
+        from: `"EduMin" <${config.GMAIL_USER}>`,
+        to,
+        subject,
+        html: html || undefined,
+        text: text || undefined,
+      });
+      mailRecord.messageId = result.messageId;
+      sentEmails.push(mailRecord);
+      if (sentEmails.length > 500) sentEmails.shift();
+      console.log(`[EMAIL SENT] To: ${to} | Subject: "${subject}"`);
+      return { success: true, messageId: result.messageId };
+    } catch (error) {
+      console.error('[EMAIL ERROR]:', error?.message || error);
+      return { success: false, error: error?.message || 'Failed to send email' };
+    }
   }
 
   sentEmails.push(mailRecord);
