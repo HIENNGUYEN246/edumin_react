@@ -5,9 +5,9 @@
   "description": "Edumin education management system (REST API + React SPA)",
   "scripts": {
     "start": "npm --prefix backend start",
-    "build": "npm --prefix backend install",
-    "dev:frontend": "npm --prefix frontend run dev",
-    "build:frontend": "npm --prefix frontend run build",
+    "build": "node scripts/build-frontend.cjs",
+    "build:frontend": "node scripts/build-frontend.cjs",
+    "build:backend": "npm --prefix backend install",
     "preview:frontend": "npm --prefix frontend run preview",
     "test:frontend": "npm --prefix frontend run test",
     "lint:frontend": "npm --prefix frontend run lint",
