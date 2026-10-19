@@ -4,6 +4,24 @@ import userEvent from '@testing-library/user-event';
 import { ForgotPasswordModal } from './ForgotPasswordModal.jsx';
 import { authApi } from '../../api/authApi.js';
 
+const mockNavigate = vi.fn();
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual('react-router-dom');
+  return {
+    ...actual,
+    useNavigate: () => mockNavigate,
+  };
+});
+
+const mockLogin = vi.fn();
+const mockLoginWithSession = vi.fn();
+vi.mock('../../app/providers/AuthProvider.jsx', () => ({
+  useAuth: () => ({
+    login: mockLogin,
+    loginWithSession: mockLoginWithSession,
+  }),
+}));
+
 vi.mock('../../api/authApi.js', () => ({
   authApi: {
     forgotPassword: vi.fn(),
@@ -234,5 +252,85 @@ describe('ForgotPasswordModal', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /Quay lại đăng nhập/i }));
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it('automatically logs in immediately and navigates to role dashboard when "Đăng nhập ngay" is clicked with session token', async () => {
+    const fakeSession = {
+      success: true,
+      role: 'student',
+      username: 'sv.tranvan@student.edu.vn',
+      token: 'jwt-session-token',
+      user: {
+        _id: 'user-sv-1',
+        email: 'sv.tranvan@student.edu.vn',
+        role: 'student',
+      },
+      message: 'Khôi phục mật khẩu thành công! Mật khẩu mới của bạn là: 123',
+    };
+    authApi.forgotPassword.mockResolvedValueOnce(fakeSession);
+    mockLoginWithSession.mockResolvedValueOnce(fakeSession);
+
+    render(<ForgotPasswordModal open={true} onClose={onClose} onSuccess={onSuccess} />);
+
+    await userEvent.type(
+      screen.getByPlaceholderText('Nhập Họ và tên của bạn'),
+      'Trần Văn Sinh Viên'
+    );
+    await userEvent.type(
+      screen.getByPlaceholderText('Nhập Mã sinh viên / Tên đăng nhập'),
+      'SV-001'
+    );
+    await userEvent.click(screen.getByRole('button', { name: /Yêu cầu khôi phục/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Đăng nhập ngay/i })).toBeInTheDocument();
+    });
+
+    // Bấm nút "Đăng nhập ngay"
+    await userEvent.click(screen.getByRole('button', { name: /Đăng nhập ngay/i }));
+
+    // Tự động đăng nhập trực tiếp bằng session
+    await waitFor(() => {
+      expect(mockLoginWithSession).toHaveBeenCalledWith(fakeSession);
+      expect(onClose).toHaveBeenCalled();
+      expect(mockNavigate).toHaveBeenCalledWith('/student', { replace: true });
+    });
+  });
+
+  it('falls back to credentials login when session token is absent and navigates to teacher dashboard', async () => {
+    const fakeResult = {
+      success: true,
+      role: 'teacher',
+      username: 'gv.lehoang@edu.vn',
+      message: 'Khôi phục mật khẩu thành công! Mật khẩu mới của bạn là: 123',
+    };
+    authApi.forgotPassword.mockResolvedValueOnce(fakeResult);
+    mockLogin.mockResolvedValueOnce({
+      user: { email: 'gv.lehoang@edu.vn', role: 'teacher' },
+    });
+
+    render(<ForgotPasswordModal open={true} onClose={onClose} onSuccess={onSuccess} />);
+
+    await userEvent.type(
+      screen.getByPlaceholderText('Nhập Họ và tên của bạn'),
+      'Lê Hoàng'
+    );
+    await userEvent.type(
+      screen.getByPlaceholderText('Nhập Mã sinh viên / Tên đăng nhập'),
+      'GV-001'
+    );
+    await userEvent.click(screen.getByRole('button', { name: /Yêu cầu khôi phục/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Đăng nhập ngay/i })).toBeInTheDocument();
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: /Đăng nhập ngay/i }));
+
+    await waitFor(() => {
+      expect(mockLogin).toHaveBeenCalledWith('gv.lehoang@edu.vn', '123');
+      expect(onClose).toHaveBeenCalled();
+      expect(mockNavigate).toHaveBeenCalledWith('/teacher', { replace: true });
+    });
   });
 });

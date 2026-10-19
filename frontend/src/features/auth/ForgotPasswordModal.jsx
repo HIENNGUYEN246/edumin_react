@@ -1,15 +1,21 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Modal } from '../../components/ui/Modal.jsx';
 import { authApi } from '../../api/authApi.js';
 import { useToast } from '../../app/providers/ToastProvider.jsx';
+import { useAuth } from '../../app/providers/AuthProvider.jsx';
+import { roleHome } from '../../app/navConfig.js';
 
 export function ForgotPasswordModal({ open, onClose, onSuccess }) {
   const toast = useToast();
+  const navigate = useNavigate();
+  const { login, loginWithSession } = useAuth();
   const [recoveryType, setRecoveryType] = useState('password');
   const [hoTen, setHoTen] = useState('');
   const [identifier, setIdentifier] = useState('');
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [successResponse, setSuccessResponse] = useState(null);
 
@@ -21,11 +27,35 @@ export function ForgotPasswordModal({ open, onClose, onSuccess }) {
     setErrorMessage('');
     setSuccessResponse(null);
     setIsLoading(false);
+    setIsLoggingIn(false);
   };
 
   const handleClose = () => {
     resetState();
     onClose?.();
+  };
+
+  const handleImmediateLogin = async () => {
+    if (!successResponse || isLoggingIn) return;
+    setIsLoggingIn(true);
+    try {
+      let session = null;
+      if (successResponse.token && successResponse.user) {
+        session = await loginWithSession(successResponse);
+      } else if (successResponse.username) {
+        session = await login(successResponse.username, '123');
+      }
+
+      const role = session?.user?.role || successResponse.role || 'student';
+      toast.success('Đăng nhập thành công!');
+      handleClose();
+      navigate(roleHome(role), { replace: true });
+    } catch (err) {
+      toast.error(err?.message || 'Không thể tự động đăng nhập. Vui lòng đăng nhập lại.');
+      handleClose();
+    } finally {
+      setIsLoggingIn(false);
+    }
   };
 
   const handleTypeChange = (newType) => {
@@ -374,10 +404,18 @@ export function ForgotPasswordModal({ open, onClose, onSuccess }) {
           ) : (
             <button
               type="button"
-              onClick={handleClose}
-              className="w-full sm:w-auto px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl shadow-md transition cursor-pointer"
+              onClick={handleImmediateLogin}
+              disabled={isLoggingIn}
+              className="w-full sm:w-auto px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-bold rounded-xl shadow-md transition cursor-pointer flex items-center justify-center gap-2"
             >
-              Đăng nhập ngay
+              {isLoggingIn ? (
+                <>
+                  <i className="fa-solid fa-circle-notch fa-spin text-xs" />
+                  <span>Đang đăng nhập...</span>
+                </>
+              ) : (
+                'Đăng nhập ngay'
+              )}
             </button>
           )}
         </div>

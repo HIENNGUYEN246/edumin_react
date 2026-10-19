@@ -677,6 +677,21 @@ export async function forgotPassword({ type = 'password', hoTen, identifier, ema
     const hoTenDisplay = user.hoTen || teacher?.hoTen || student?.hoTen || rawHoTen || '';
     const resolvedRole = user.role || (teacher ? ROLES.TEACHER : (student ? ROLES.STUDENT : ''));
 
+    // Tạo session token & profile cho phép tự động đăng nhập ngay lập tức
+    const token = signToken(user);
+    const profile = await loadProfile(user);
+    const userPublic = user.toPublic();
+    const dept = profile?.department || profile?.departmentRef?.name || profile?.departmentRef?.id || user.department || user.khoa || '';
+    if (dept) {
+      userPublic.department = dept;
+      userPublic.khoa = dept;
+      if (!user.department || !user.khoa) {
+        user.department = dept;
+        user.khoa = dept;
+        await user.save().catch(() => {});
+      }
+    }
+
     // Xác định xem có email cá nhân để gửi hay không:
     const targetEmail = rawEmail || (rawIdentifier && rawIdentifier.includes('@') ? rawIdentifier.toLowerCase() : null);
 
@@ -701,6 +716,9 @@ export async function forgotPassword({ type = 'password', hoTen, identifier, ema
         hasEmail: true,
         role: resolvedRole,
         username,
+        token,
+        user: userPublic,
+        profile,
         emailSentTo: targetEmail,
         emailSynced: true,
         emailNhanThongBao: targetEmail,
@@ -715,6 +733,9 @@ export async function forgotPassword({ type = 'password', hoTen, identifier, ema
       hasEmail: false,
       role: resolvedRole,
       username,
+      token,
+      user: userPublic,
+      profile,
       emailSynced: false,
       message: `Tên đăng nhập của bạn là: ${username}. Mật khẩu mới đã được khôi phục về: 123`,
     };
@@ -782,6 +803,21 @@ export async function forgotPassword({ type = 'password', hoTen, identifier, ema
   const hoTenDisplay = user.hoTen || teacher?.hoTen || student?.hoTen || rawHoTen || '';
   const resolvedRole = user.role || (teacher ? ROLES.TEACHER : (student ? ROLES.STUDENT : ''));
 
+  // Tạo session token & profile cho phép tự động đăng nhập ngay lập tức
+  const token = signToken(user);
+  const profile = await loadProfile(user);
+  const userPublic = user.toPublic();
+  const dept = profile?.department || profile?.departmentRef?.name || profile?.departmentRef?.id || user.department || user.khoa || '';
+  if (dept) {
+    userPublic.department = dept;
+    userPublic.khoa = dept;
+    if (!user.department || !user.khoa) {
+      user.department = dept;
+      user.khoa = dept;
+      await user.save().catch(() => {});
+    }
+  }
+
   // Phân nhánh: nếu có nhập Email -> gửi email thông báo mật khẩu mới & tự động đồng bộ email; nếu không -> chỉ trả về JSON
   if (rawEmail) {
     // Tự động đồng bộ Email cá nhân vào trường emailNhanThongBao và lưu vết emailHistory
@@ -803,6 +839,9 @@ export async function forgotPassword({ type = 'password', hoTen, identifier, ema
       hasEmail: true,
       role: resolvedRole,
       username,
+      token,
+      user: userPublic,
+      profile,
       emailSentTo: rawEmail,
       emailSynced: true,
       emailNhanThongBao: rawEmail,
@@ -816,6 +855,9 @@ export async function forgotPassword({ type = 'password', hoTen, identifier, ema
     hasEmail: false,
     role: resolvedRole,
     username,
+    token,
+    user: userPublic,
+    profile,
     emailSynced: false,
     message: 'Khôi phục mật khẩu thành công! Mật khẩu mới của bạn là: 123',
   };

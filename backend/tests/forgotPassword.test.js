@@ -41,6 +41,10 @@ describe('POST /api/auth/forgot-password', () => {
       expect(res.body.success).toBe(true);
       expect(res.body.hasEmail).toBe(false);
       expect(res.body.message).toBe('Khôi phục mật khẩu thành công! Mật khẩu mới của bạn là: 123');
+      expect(res.body.token).toBeDefined();
+      expect(res.body.user).toBeDefined();
+      expect(res.body.user.email).toBe('test.student@student.edu.vn');
+      expect(res.body.profile).toBeDefined();
 
       // Tuyệt đối không gửi email
       expect(getSentEmails()).toHaveLength(0);
@@ -124,6 +128,9 @@ describe('POST /api/auth/forgot-password', () => {
       expect(res.body.username).toBe('buithi.quenten@student.edu.vn');
       expect(res.body.message).toContain('buithi.quenten@student.edu.vn');
       expect(res.body.message).toContain('123');
+      expect(res.body.token).toBeDefined();
+      expect(res.body.user).toBeDefined();
+      expect(res.body.user.email).toBe('buithi.quenten@student.edu.vn');
       expect(getSentEmails()).toHaveLength(0);
     });
   });
