@@ -110,6 +110,42 @@ describe('ForgotPasswordModal', () => {
     ).toBeInTheDocument();
   });
 
+  it('supports selecting "Giáo viên" role and passes role to API payload', async () => {
+    authApi.forgotPassword.mockResolvedValueOnce({
+      success: true,
+      type: 'password',
+      role: 'giao-vien',
+      message: 'Mật khẩu của bạn đã được khôi phục về: 123. Vui lòng đăng nhập lại!',
+    });
+
+    render(<ForgotPasswordModal open={true} onClose={onClose} onSuccess={onSuccess} />);
+
+    // Select role "Giáo viên"
+    const selectRole = screen.getByLabelText('Bạn là');
+    await userEvent.selectOptions(selectRole, 'teacher');
+
+    expect(screen.getByPlaceholderText('Nhập Mã giảng viên / Tên đăng nhập')).toBeInTheDocument();
+
+    await userEvent.type(
+      screen.getByPlaceholderText('Nhập Mã giảng viên / Tên đăng nhập'),
+      'GV-001'
+    );
+    await userEvent.click(screen.getByRole('button', { name: /Yêu cầu khôi phục/i }));
+
+    expect(authApi.forgotPassword).toHaveBeenCalledWith({
+      type: 'password',
+      role: 'teacher',
+      identifier: 'GV-001',
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Giáo viên')).toBeInTheDocument();
+      expect(
+        screen.getByText('Mật khẩu của bạn đã được khôi phục về: 123. Vui lòng đăng nhập lại!')
+      ).toBeInTheDocument();
+    });
+  });
+
   it('calls onClose when "Quay lại đăng nhập" is clicked', async () => {
     render(<ForgotPasswordModal open={true} onClose={onClose} onSuccess={onSuccess} />);
 

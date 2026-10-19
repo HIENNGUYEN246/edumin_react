@@ -10,26 +10,21 @@ import { sendAccountRecoveryEmail } from '../../lib/mailer.js';
 import { loadProfile } from './profile.js';
 
 /**
- * Find user by student ID, teacher ID, student code (SV-001), or username/email.
+ * Find user by student ID, teacher ID, student code (SV-001), teacher code (GV-001), or username/email.
+ * Supports searching both Student and Teacher collections with optional role hint.
  */
-export async function findUserByIdentifier(rawIdentifier) {
+export async function findUserByIdentifier(rawIdentifier, roleHint = 'all') {
   const input = String(rawIdentifier || '').trim();
   if (!input) return null;
 
-  // 1. Direct match on User.email (case-insensitive)
-  let user = await User.findOne({ email: input.toLowerCase() }).select('+passwordHash +password');
-  if (user) return { user, student: null, teacher: null };
-
-  // 2. Student code match: SV-001, SV001, or numeric 1, 101, etc.
-  const svMatch = input.match(/^[sS][vV]-?(\d+)$/i);
-  const gvMatch = input.match(/^[gG][vV]-?(\d+)$/i);
+  const hint = String(roleHint || 'all').toLowerCase();
+  const svMatch = input.match(/^[sS][vV][-_]?(\d+)$/i);
+  const gvMatch = input.match(/^[gG][vV][-_]?(\d+)$/i);
   const isDigits = /^\d+$/.test(input);
 
-  if (svMatch || isDigits) {
-    const numId = svMatch ? Number(svMatch[1]) : Number(input);
-    const student = await Student.findOne({ id: numId });
+  const resolveUserForPerson = async ({ student, teacher }) => {
     if (student) {
-      user = await User.findOne({
+      const user = await User.findOne({
         $or: [
           { _id: student.userId },
           { student: student._id },
@@ -37,15 +32,10 @@ export async function findUserByIdentifier(rawIdentifier) {
           { email: student.email },
         ],
       }).select('+passwordHash +password');
-      if (user) return { user, student, teacher: null };
+      if (user) return { user, student, teacher: null, role: 'Student' };
     }
-  }
-
-  if (gvMatch || isDigits) {
-    const numId = gvMatch ? Number(gvMatch[1]) : Number(input);
-    const teacher = await Teacher.findOne({ id: numId });
     if (teacher) {
-      user = await User.findOne({
+      const user = await User.findOne({
         $or: [
           { _id: teacher.userId },
           { teacher: teacher._id },
@@ -53,35 +43,133 @@ export async function findUserByIdentifier(rawIdentifier) {
           { email: teacher.email },
         ],
       }).select('+passwordHash +password');
-      if (user) return { user, student: null, teacher };
+      if (user) return { user, student: null, teacher, role: 'Teacher' };
+    }
+    return null;
+  };
+
+  // 1. Explicit GV match (e.g. GV-001, GV001, gv-1)
+  if (gvMatch) {
+    const numId = Number(gvMatch[1]);
+    const teacher = await Teacher.findOne({ id: numId });
+    if (teacher) {
+      const found = await resolveUserForPerson({ teacher });
+      if (found) return found;
     }
   }
 
-  // 3. Search Student.email or Teacher.email
-  const student = await Student.findOne({ email: input.toLowerCase() });
-  if (student) {
-    user = await User.findOne({
-      $or: [
-        { _id: student.userId },
-        { student: student._id },
-        { studentId: student._id },
-        { email: student.email },
-      ],
-    }).select('+passwordHash +password');
-    if (user) return { user, student, teacher: null };
+  // 2. Explicit SV match (e.g. SV-001, SV001, sv-1)
+  if (svMatch) {
+    const numId = Number(svMatch[1]);
+    const student = await Student.findOne({ id: numId });
+    if (student) {
+      const found = await resolveUserForPerson({ student });
+      if (found) return found;
+    }
   }
 
-  const teacher = await Teacher.findOne({ email: input.toLowerCase() });
-  if (teacher) {
-    user = await User.findOne({
-      $or: [
-        { _id: teacher.userId },
-        { teacher: teacher._id },
-        { teacherId: teacher._id },
-        { email: teacher.email },
-      ],
-    }).select('+passwordHash +password');
-    if (user) return { user, student: null, teacher };
+  // 3. Numeric ID (e.g. 1, 101)
+  if (isDigits) {
+    const numId = Number(input);
+    if (hint === 'teacher') {
+      const teacher = await Teacher.findOne({ id: numId });
+      if (teacher) {
+        const found = await resolveUserForPerson({ teacher });
+        if (found) return found;
+      }
+      const student = await Student.findOne({ id: numId });
+      if (student) {
+        const found = await resolveUserForPerson({ student });
+        if (found) return found;
+      }
+    } else if (hint === 'student') {
+      const student = await Student.findOne({ id: numId });
+      if (student) {
+        const found = await resolveUserForPerson({ student });
+        if (found) return found;
+      }
+      const teacher = await Teacher.findOne({ id: numId });
+      if (teacher) {
+        const found = await resolveUserForPerson({ teacher });
+        if (found) return found;
+      }
+    } else {
+      // Check both: search Student and Teacher
+      const [student, teacher] = await Promise.all([
+        Student.findOne({ id: numId }),
+        Teacher.findOne({ id: numId }),
+      ]);
+      if (student) {
+        const found = await resolveUserForPerson({ student });
+        if (found) return found;
+      }
+      if (teacher) {
+        const found = await resolveUserForPerson({ teacher });
+        if (found) return found;
+      }
+    }
+  }
+
+  // 4. Direct match on User.email
+  let user = await User.findOne({ email: input.toLowerCase() }).select('+passwordHash +password');
+  if (user) {
+    const [student, teacher] = await Promise.all([
+      user.student || user.studentId ? Student.findById(user.student || user.studentId) : Student.findOne({ userId: user._id }),
+      user.teacher || user.teacherId ? Teacher.findById(user.teacher || user.teacherId) : Teacher.findOne({ userId: user._id }),
+    ]);
+    return { user, student, teacher, role: user.role };
+  }
+
+  // 5. Search in Teacher and Student by email
+  if (hint === 'teacher') {
+    const teacher = await Teacher.findOne({ email: input.toLowerCase() });
+    if (teacher) {
+      const found = await resolveUserForPerson({ teacher });
+      if (found) return found;
+    }
+    const student = await Student.findOne({ email: input.toLowerCase() });
+    if (student) {
+      const found = await resolveUserForPerson({ student });
+      if (found) return found;
+    }
+  } else if (hint === 'student') {
+    const student = await Student.findOne({ email: input.toLowerCase() });
+    if (student) {
+      const found = await resolveUserForPerson({ student });
+      if (found) return found;
+    }
+    const teacher = await Teacher.findOne({ email: input.toLowerCase() });
+    if (teacher) {
+      const found = await resolveUserForPerson({ teacher });
+      if (found) return found;
+    }
+  } else {
+    const [teacher, student] = await Promise.all([
+      Teacher.findOne({ email: input.toLowerCase() }),
+      Student.findOne({ email: input.toLowerCase() }),
+    ]);
+    if (teacher) {
+      const found = await resolveUserForPerson({ teacher });
+      if (found) return found;
+    }
+    if (student) {
+      const found = await resolveUserForPerson({ student });
+      if (found) return found;
+    }
+  }
+
+  // 6. Search by phone number if applicable
+  const [teacherPhone, studentPhone] = await Promise.all([
+    Teacher.findOne({ phone: input }),
+    Student.findOne({ phone: input }),
+  ]);
+  if (teacherPhone) {
+    const found = await resolveUserForPerson({ teacher: teacherPhone });
+    if (found) return found;
+  }
+  if (studentPhone) {
+    const found = await resolveUserForPerson({ student: studentPhone });
+    if (found) return found;
   }
 
   return null;
@@ -405,8 +493,9 @@ export async function changeOwnPassword(userId, { oldPassword, newPassword }) {
  * 1. Forgot password: reset password to '123' and return immediate confirmation.
  * 2. Forgot username: lookup by email, reset password to '123', return confirmation, and send email via mailer.
  */
-export async function forgotPassword({ type = 'password', identifier, email }) {
+export async function forgotPassword({ type = 'password', identifier, email, role = 'all' }) {
   const isForgotUsername = type === 'username' || type === 'forgot-username';
+  const roleHint = String(role || 'all').toLowerCase();
 
   // Trường hợp 2: "Quên tên tài khoản"
   if (isForgotUsername) {
@@ -415,25 +504,11 @@ export async function forgotPassword({ type = 'password', identifier, email }) {
       throw AppError.badRequest('Vui lòng nhập Email cá nhân đã đăng ký');
     }
 
-    let user = await User.findOne({ email: targetEmail }).select('+passwordHash +password');
+    let user = null;
     let student = null;
     let teacher = null;
 
-    if (!user) {
-      student = await Student.findOne({ email: targetEmail });
-      if (student) {
-        user = await User.findOne({
-          $or: [
-            { _id: student.userId },
-            { student: student._id },
-            { studentId: student._id },
-            { email: student.email },
-          ],
-        }).select('+passwordHash +password');
-      }
-    }
-
-    if (!user) {
+    if (roleHint === 'teacher') {
       teacher = await Teacher.findOne({ email: targetEmail });
       if (teacher) {
         user = await User.findOne({
@@ -445,6 +520,62 @@ export async function forgotPassword({ type = 'password', identifier, email }) {
           ],
         }).select('+passwordHash +password');
       }
+      if (!user) {
+        user = await User.findOne({ email: targetEmail, role: ROLES.TEACHER }).select('+passwordHash +password');
+      }
+    } else if (roleHint === 'student') {
+      student = await Student.findOne({ email: targetEmail });
+      if (student) {
+        user = await User.findOne({
+          $or: [
+            { _id: student.userId },
+            { student: student._id },
+            { studentId: student._id },
+            { email: student.email },
+          ],
+        }).select('+passwordHash +password');
+      }
+      if (!user) {
+        user = await User.findOne({ email: targetEmail, role: ROLES.STUDENT }).select('+passwordHash +password');
+      }
+    }
+
+    // Quét toàn diện trên cả 2 bảng Teacher và Student nếu chưa tìm ra
+    if (!user) {
+      // 1. Quét bảng Teacher
+      if (!teacher) {
+        teacher = await Teacher.findOne({ email: targetEmail });
+        if (teacher) {
+          user = await User.findOne({
+            $or: [
+              { _id: teacher.userId },
+              { teacher: teacher._id },
+              { teacherId: teacher._id },
+              { email: teacher.email },
+            ],
+          }).select('+passwordHash +password');
+        }
+      }
+
+      // 2. Quét bảng Student
+      if (!user && !student) {
+        student = await Student.findOne({ email: targetEmail });
+        if (student) {
+          user = await User.findOne({
+            $or: [
+              { _id: student.userId },
+              { student: student._id },
+              { studentId: student._id },
+              { email: student.email },
+            ],
+          }).select('+passwordHash +password');
+        }
+      }
+
+      // 3. Quét bảng User trực tiếp
+      if (!user) {
+        user = await User.findOne({ email: targetEmail }).select('+passwordHash +password');
+      }
     }
 
     if (!user) {
@@ -455,6 +586,18 @@ export async function forgotPassword({ type = 'password', identifier, email }) {
       throw AppError.forbidden('Tài khoản đã bị khóa, vui lòng liên hệ quản trị viên');
     }
 
+    // Nạp thêm thông tin profile nếu chưa có
+    if (!teacher && (user.teacher || user.teacherId || user.role === ROLES.TEACHER)) {
+      teacher = await Teacher.findOne({
+        $or: [{ userId: user._id }, { _id: user.teacher || user.teacherId }, { email: user.email }],
+      });
+    }
+    if (!student && (user.student || user.studentId || user.role === ROLES.STUDENT)) {
+      student = await Student.findOne({
+        $or: [{ userId: user._id }, { _id: user.student || user.studentId }, { email: user.email }],
+      });
+    }
+
     const defaultPassword = '123';
     user.passwordHash = await hashPassword(defaultPassword);
     user.password = defaultPassword;
@@ -462,14 +605,16 @@ export async function forgotPassword({ type = 'password', identifier, email }) {
     await user.save();
 
     const username = user.email;
-    const hoTen = user.hoTen || student?.hoTen || teacher?.hoTen || '';
+    const hoTen = user.hoTen || teacher?.hoTen || student?.hoTen || '';
+    const resolvedRole = user.role || (teacher ? ROLES.TEACHER : (student ? ROLES.STUDENT : ''));
 
-    // Gửi email tự động qua mailer.js
+    // Gửi email tự động qua mailer.js (Gmail SMTP)
     await sendAccountRecoveryEmail({
       to: targetEmail,
       username,
       password: defaultPassword,
       hoTen,
+      role: resolvedRole,
     }).catch((err) => {
       console.error('[FORGOT_PASSWORD_EMAIL_ERROR]', err?.message || err);
     });
@@ -477,6 +622,7 @@ export async function forgotPassword({ type = 'password', identifier, email }) {
     return {
       success: true,
       type: 'username',
+      role: resolvedRole,
       username,
       message: `Tên đăng nhập của bạn là: ${username} và mật khẩu đã được khôi phục về: 123. Vui lòng kiểm tra email để xem lại thông tin này.`,
     };
@@ -485,12 +631,12 @@ export async function forgotPassword({ type = 'password', identifier, email }) {
   // Trường hợp 1: "Quên mật khẩu"
   const targetIdentifier = String(identifier || email || '').trim();
   if (!targetIdentifier) {
-    throw AppError.badRequest('Vui lòng nhập Mã sinh viên hoặc Tên đăng nhập');
+    throw AppError.badRequest('Vui lòng nhập Mã giáo viên / Mã sinh viên hoặc Tên đăng nhập');
   }
 
-  const found = await findUserByIdentifier(targetIdentifier);
+  const found = await findUserByIdentifier(targetIdentifier, roleHint);
   if (!found?.user) {
-    throw AppError.notFound('Không tìm thấy tài khoản với Mã sinh viên / Tên đăng nhập này');
+    throw AppError.notFound('Không tìm thấy tài khoản với Mã định danh / Tên đăng nhập này');
   }
 
   const { user } = found;
@@ -507,6 +653,7 @@ export async function forgotPassword({ type = 'password', identifier, email }) {
   return {
     success: true,
     type: 'password',
+    role: user.role,
     message: 'Mật khẩu của bạn đã được khôi phục về: 123. Vui lòng đăng nhập lại!',
   };
 }

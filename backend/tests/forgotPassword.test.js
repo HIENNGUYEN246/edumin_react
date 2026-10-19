@@ -5,6 +5,7 @@ import { createUser } from './helpers/factories.js';
 import { createStudent } from '../src/modules/students/student.service.js';
 import { Department } from '../src/modules/departments/department.model.js';
 import { getSentEmails, clearSentEmails } from '../src/lib/mailer.js';
+import { ROLES } from '../src/lib/roles.js';
 
 describe('POST /api/auth/forgot-password', () => {
   let department;
@@ -72,6 +73,36 @@ describe('POST /api/auth/forgot-password', () => {
       expect(loginRes.status).toBe(200);
     });
 
+    it('khôi phục mật khẩu về 123 khi nhập Mã giảng viên (dạng số hoặc mã GV-xxx)', async () => {
+      const { createTeacher } = await import('../src/modules/teachers/teacher.service.js');
+      const teacher = await createTeacher({
+        hoTen: 'Lê Hoàng Giảng Viên',
+        email: 'lehoang.gv@edu.vn',
+        departmentId: department.id,
+      });
+      clearSentEmails();
+
+      // Nhập dạng mã GV-xxx
+      const res = await request(app).post('/api/auth/forgot-password').send({
+        type: 'password',
+        role: 'teacher',
+        identifier: `GV-${String(teacher.id).padStart(3, '0')}`,
+      });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.role).toBe(ROLES.TEACHER);
+      expect(res.body.message).toBe('Mật khẩu của bạn đã được khôi phục về: 123. Vui lòng đăng nhập lại!');
+
+      // Đăng nhập lại với mật khẩu 123
+      const loginRes = await request(app).post('/api/auth/login').send({
+        email: 'lehoang.gv@edu.vn',
+        password: '123',
+      });
+      expect(loginRes.status).toBe(200);
+      expect(loginRes.body.token).toBeDefined();
+    });
+
     it('báo lỗi 404 khi không tìm thấy sinh viên / tài khoản', async () => {
       const res = await request(app).post('/api/auth/forgot-password').send({
         type: 'password',
@@ -84,6 +115,36 @@ describe('POST /api/auth/forgot-password', () => {
   });
 
   describe('Trường hợp 2: Tôi quên tên tài khoản', () => {
+    it('tìm thấy tên đăng nhập của Giảng viên khi quét email, reset mật khẩu về 123 và gửi mail tự động', async () => {
+      const { createTeacher } = await import('../src/modules/teachers/teacher.service.js');
+      const teacherEmail = 'teacher.personal@gmail.com';
+      await createTeacher({
+        hoTen: 'Phạm Văn Thầy',
+        email: teacherEmail,
+        departmentId: department.id,
+      });
+      clearSentEmails();
+
+      const res = await request(app).post('/api/auth/forgot-password').send({
+        type: 'username',
+        email: teacherEmail,
+      });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.username).toBe(teacherEmail);
+      expect(res.body.role).toBe(ROLES.TEACHER);
+      expect(res.body.message).toContain('123');
+      expect(res.body.message).toContain('kiểm tra email');
+
+      const sentEmails = getSentEmails();
+      expect(sentEmails.length).toBeGreaterThanOrEqual(1);
+      const emailSent = sentEmails.find((m) => m.to === teacherEmail);
+      expect(emailSent).toBeDefined();
+      expect(emailSent.text).toContain(teacherEmail);
+      expect(emailSent.text).toContain('123');
+    });
+
     it('tìm thấy tên đăng nhập, reset mật khẩu về 123 và gửi email tự động vào email cá nhân', async () => {
       const personalEmail = 'student.personal@gmail.com';
       await createUser({

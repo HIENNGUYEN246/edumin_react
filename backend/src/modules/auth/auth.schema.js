@@ -13,6 +13,7 @@ export const changePasswordSchema = z.object({
 export const forgotPasswordSchema = z
   .object({
     type: z.enum(['password', 'username', 'forgot-password', 'forgot-username']).default('password'),
+    role: z.enum(['all', 'teacher', 'student', 'all_roles']).optional(),
     identifier: z.string().trim().optional(),
     email: z.string().trim().optional(),
   })
