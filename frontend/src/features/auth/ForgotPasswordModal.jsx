@@ -5,6 +5,7 @@ import { useToast } from '../../app/providers/ToastProvider.jsx';
 
 export function ForgotPasswordModal({ open, onClose, onSuccess }) {
   const toast = useToast();
+  const [recoveryType, setRecoveryType] = useState('password');
   const [userRole, setUserRole] = useState('all');
   const [hoTen, setHoTen] = useState('');
   const [identifier, setIdentifier] = useState('');
@@ -14,6 +15,7 @@ export function ForgotPasswordModal({ open, onClose, onSuccess }) {
   const [successResponse, setSuccessResponse] = useState(null);
 
   const resetState = () => {
+    setRecoveryType('password');
     setUserRole('all');
     setHoTen('');
     setIdentifier('');
@@ -28,6 +30,12 @@ export function ForgotPasswordModal({ open, onClose, onSuccess }) {
     onClose?.();
   };
 
+  const handleTypeChange = (newType) => {
+    setRecoveryType(newType);
+    setErrorMessage('');
+    setSuccessResponse(null);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (isLoading) return;
@@ -40,24 +48,42 @@ export function ForgotPasswordModal({ open, onClose, onSuccess }) {
       return;
     }
 
-    if (!identifier.trim() && !email.trim()) {
-      const msg =
-        userRole === 'teacher'
-          ? 'Vui lòng nhập Mã giáo viên hoặc Tên đăng nhập'
-          : 'Vui lòng nhập Mã sinh viên hoặc Tên đăng nhập';
-      setErrorMessage(msg);
-      toast.error(msg);
-      return;
+    if (recoveryType === 'password') {
+      if (!identifier.trim()) {
+        const msg =
+          userRole === 'teacher'
+            ? 'Vui lòng nhập Mã giáo viên hoặc Tên đăng nhập'
+            : 'Vui lòng nhập Mã sinh viên hoặc Tên đăng nhập';
+        setErrorMessage(msg);
+        toast.error(msg);
+        return;
+      }
+    } else {
+      if (!email.trim()) {
+        const msg = 'Vui lòng nhập Email cá nhân đã đăng ký';
+        setErrorMessage(msg);
+        toast.error(msg);
+        return;
+      }
     }
 
     setIsLoading(true);
     try {
-      const payload = {
-        hoTen: hoTen.trim(),
-        identifier: identifier.trim(),
-        email: email.trim(),
-        ...(userRole !== 'all' ? { role: userRole } : {}),
-      };
+      const payload =
+        recoveryType === 'password'
+          ? {
+              type: 'password',
+              hoTen: hoTen.trim(),
+              identifier: identifier.trim(),
+              email: email.trim(),
+              ...(userRole !== 'all' ? { role: userRole } : {}),
+            }
+          : {
+              type: 'username',
+              hoTen: hoTen.trim(),
+              email: email.trim(),
+              ...(userRole !== 'all' ? { role: userRole } : {}),
+            };
 
       const result = await authApi.forgotPassword(payload);
       setSuccessResponse(result);
@@ -83,6 +109,54 @@ export function ForgotPasswordModal({ open, onClose, onSuccess }) {
       size="sm"
     >
       <form onSubmit={handleSubmit} className="space-y-4">
+        {/* 2 lựa chọn Radio Button ở đầu Modal */}
+        <div className="space-y-2">
+          <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
+            Bạn cần hỗ trợ gì?
+          </label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <label
+              htmlFor="radio-forgot-password"
+              className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition ${
+                recoveryType === 'password'
+                  ? 'border-indigo-500 bg-indigo-50/50 text-indigo-900 font-semibold shadow-xs'
+                  : 'border-slate-200 hover:bg-slate-50 text-slate-700'
+              }`}
+            >
+              <input
+                id="radio-forgot-password"
+                type="radio"
+                name="recoveryType"
+                value="password"
+                checked={recoveryType === 'password'}
+                onChange={() => handleTypeChange('password')}
+                className="w-4 h-4 text-indigo-600 focus:ring-indigo-500 border-slate-300"
+              />
+              <span className="text-sm">Tôi quên mật khẩu</span>
+            </label>
+
+            <label
+              htmlFor="radio-forgot-username"
+              className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition ${
+                recoveryType === 'username'
+                  ? 'border-indigo-500 bg-indigo-50/50 text-indigo-900 font-semibold shadow-xs'
+                  : 'border-slate-200 hover:bg-slate-50 text-slate-700'
+              }`}
+            >
+              <input
+                id="radio-forgot-username"
+                type="radio"
+                name="recoveryType"
+                value="username"
+                checked={recoveryType === 'username'}
+                onChange={() => handleTypeChange('username')}
+                className="w-4 h-4 text-indigo-600 focus:ring-indigo-500 border-slate-300"
+              />
+              <span className="text-sm">Tôi quên tên tài khoản</span>
+            </label>
+          </div>
+        </div>
+
         {/* Thông báo lỗi inline */}
         {errorMessage && (
           <div
@@ -161,7 +235,7 @@ export function ForgotPasswordModal({ open, onClose, onSuccess }) {
               </div>
             </div>
 
-            {/* Trường 1: Họ và tên (Bắt buộc) */}
+            {/* Trường Họ và tên (Bắt buộc cho cả 2 trường hợp) */}
             <div className="space-y-1.5">
               <label
                 htmlFor="input-hoten"
@@ -188,72 +262,103 @@ export function ForgotPasswordModal({ open, onClose, onSuccess }) {
               </p>
             </div>
 
-            {/* Trường 2: Tên đăng nhập / Mã sinh viên / Mã GV (Bắt buộc) */}
-            <div className="space-y-1.5">
-              <label
-                htmlFor="input-identifier"
-                className="block text-xs font-semibold text-slate-700"
-              >
-                {userRole === 'teacher'
-                  ? 'Mã giảng viên / Tên đăng nhập'
-                  : userRole === 'student'
-                  ? 'Mã sinh viên / Tên đăng nhập'
-                  : 'Mã SV / Mã GV / Tên đăng nhập'}{' '}
-                <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <input
-                  id="input-identifier"
-                  type="text"
-                  value={identifier}
-                  onChange={(e) => setIdentifier(e.target.value)}
-                  placeholder={
-                    userRole === 'teacher'
-                      ? 'Nhập Mã giảng viên / Tên đăng nhập'
-                      : 'Nhập Mã sinh viên / Tên đăng nhập'
-                  }
-                  className={inputClass}
-                />
-                <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
-                  <i className="fa-solid fa-id-card text-xs" />
+            {/* Trường hợp 1: "Tôi quên mật khẩu" */}
+            {recoveryType === 'password' && (
+              <>
+                <div className="space-y-1.5">
+                  <label
+                    htmlFor="input-identifier"
+                    className="block text-xs font-semibold text-slate-700"
+                  >
+                    {userRole === 'teacher'
+                      ? 'Mã giảng viên / Tên đăng nhập'
+                      : userRole === 'student'
+                      ? 'Mã sinh viên / Tên đăng nhập'
+                      : 'Tên đăng nhập / Mã SV / Mã GV'}{' '}
+                    <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      id="input-identifier"
+                      type="text"
+                      value={identifier}
+                      onChange={(e) => setIdentifier(e.target.value)}
+                      placeholder={
+                        userRole === 'teacher'
+                          ? 'Nhập Mã giảng viên / Tên đăng nhập'
+                          : 'Nhập Mã sinh viên / Tên đăng nhập'
+                      }
+                      className={inputClass}
+                    />
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
+                      <i className="fa-solid fa-id-card text-xs" />
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    {userRole === 'teacher' ? (
+                      <>Ví dụ: <code>GV-001</code>, <code>1</code> hoặc email giảng viên</>
+                    ) : userRole === 'student' ? (
+                      <>Ví dụ: <code>SV-001</code>, <code>1</code> hoặc email sinh viên</>
+                    ) : (
+                      <>Ví dụ: <code>SV-001</code>, <code>GV-001</code>, <code>1</code> hoặc email đăng nhập</>
+                    )}
+                  </p>
                 </div>
-              </div>
-              <p className="text-[11px] text-slate-500">
-                {userRole === 'teacher' ? (
-                  <>Ví dụ: <code>GV-001</code>, <code>1</code> hoặc email giảng viên</>
-                ) : userRole === 'student' ? (
-                  <>Ví dụ: <code>SV-001</code>, <code>1</code> hoặc email sinh viên</>
-                ) : (
-                  <>Ví dụ: <code>SV-001</code>, <code>GV-001</code>, <code>1</code> hoặc email đăng nhập</>
-                )}
-              </p>
-            </div>
 
-            {/* Trường 3: Email cá nhân (Tùy chọn) */}
-            <div className="space-y-1.5">
-              <label
-                htmlFor="input-personal-email"
-                className="block text-xs font-semibold text-slate-700"
-              >
-                Email cá nhân <span className="text-slate-400 font-normal">(Tùy chọn)</span>
-              </label>
-              <div className="relative">
-                <input
-                  id="input-personal-email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Nhập Email cá nhân đã đăng ký"
-                  className={inputClass}
-                />
-                <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
-                  <i className="fa-solid fa-envelope text-xs" />
+                <div className="space-y-1.5">
+                  <label
+                    htmlFor="input-personal-email-optional"
+                    className="block text-xs font-semibold text-slate-700"
+                  >
+                    Email cá nhân <span className="text-slate-400 font-normal">(Tùy chọn)</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      id="input-personal-email-optional"
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="Nhập Email cá nhân đã đăng ký"
+                      className={inputClass}
+                    />
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
+                      <i className="fa-solid fa-envelope text-xs" />
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    Nếu điền sẽ nhận thêm email sao lưu thông tin; nếu bỏ trống, mật khẩu mới chỉ hiển thị trực tiếp trên màn hình.
+                  </p>
                 </div>
+              </>
+            )}
+
+            {/* Trường hợp 2: "Tôi quên tên tài khoản" */}
+            {recoveryType === 'username' && (
+              <div className="space-y-1.5">
+                <label
+                  htmlFor="input-personal-email-required"
+                  className="block text-xs font-semibold text-slate-700"
+                >
+                  Email cá nhân đã đăng ký <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    id="input-personal-email-required"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="Nhập Email cá nhân đã đăng ký"
+                    className={inputClass}
+                  />
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
+                    <i className="fa-solid fa-envelope text-xs" />
+                  </div>
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  Hệ thống sẽ tra cứu tên tài khoản dựa trên Họ tên và Email cá nhân này, đồng thời gửi thông tin vào hòm thư của bạn.
+                </p>
               </div>
-              <p className="text-[11px] text-slate-500">
-                Nếu điền email, hệ thống sẽ gửi bản sao thông tin qua thư; nếu bỏ trống, hệ thống chỉ hiển thị mật khẩu mới trên màn hình.
-              </p>
-            </div>
+            )}
           </div>
         )}
 
@@ -297,4 +402,3 @@ export function ForgotPasswordModal({ open, onClose, onSuccess }) {
 }
 
 export default ForgotPasswordModal;
-

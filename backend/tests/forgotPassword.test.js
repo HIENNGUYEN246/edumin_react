@@ -140,6 +140,37 @@ describe('POST /api/auth/forgot-password', () => {
       expect(emailSent.text).toContain('doquoc.gv@edu.vn');
       expect(emailSent.text).toContain('123');
     });
+
+    it('Kịch bản "Tôi quên tên tài khoản": tra cứu theo Họ tên và Email cá nhân, bắt buộc gửi email', async () => {
+      const personalEmail = 'student.forgotuser@gmail.com';
+      const student = await createStudent({
+        hoTen: 'Hoàng Kim Chi',
+        email: personalEmail,
+        departmentId: department.id,
+      });
+      clearSentEmails();
+
+      const res = await request(app).post('/api/auth/forgot-password').send({
+        type: 'username',
+        hoTen: 'Hoàng Kim Chi',
+        email: personalEmail,
+      });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.type).toBe('username');
+      expect(res.body.username).toBe(personalEmail);
+      expect(res.body.message).toContain('Tên đăng nhập của bạn là:');
+      expect(res.body.message).toContain('123');
+      expect(res.body.message).toContain('kiểm tra email');
+
+      const sentEmails = getSentEmails();
+      expect(sentEmails.length).toBeGreaterThanOrEqual(1);
+      const emailSent = sentEmails.find((m) => m.to === personalEmail);
+      expect(emailSent).toBeDefined();
+      expect(emailSent.text).toContain(personalEmail);
+      expect(emailSent.text).toContain('123');
+    });
   });
 
   describe('Kiểm tra xác thực danh tính & xử lý lỗi', () => {

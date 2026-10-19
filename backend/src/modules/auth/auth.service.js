@@ -493,27 +493,37 @@ export async function changeOwnPassword(userId, { oldPassword, newPassword }) {
  * 1. Forgot password: reset password to '123' and return immediate confirmation.
  * 2. Forgot username: lookup by email, reset password to '123', return confirmation, and send email via mailer.
  */
-export async function forgotPassword({ hoTen, identifier, email, role = 'all', type }) {
+export async function forgotPassword({ type = 'password', hoTen, identifier, email, role = 'all' }) {
+  const isForgotUsername = type === 'username' || type === 'forgot-username';
   const rawHoTen = String(hoTen || '').trim();
   const rawIdentifier = String(identifier || '').trim();
   const rawEmail = String(email || '').trim().toLowerCase();
   const roleHint = String(role || 'all').toLowerCase();
 
-  let found = null;
+  const normalizeText = (str) =>
+    String(str || '')
+      .trim()
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ');
 
-  // 1. Tìm kiếm theo Mã định danh / Tên đăng nhập (nếu có)
-  if (rawIdentifier) {
-    found = await findUserByIdentifier(rawIdentifier, roleHint);
-  }
+  // =========================================================================
+  // KỊCH BẢN 2: "TÔI QUÊN TÊN TÀI KHOẢN"
+  // Dựa vào Họ tên và Email cá nhân để tra cứu trong cả Teacher và Student
+  // =========================================================================
+  if (isForgotUsername) {
+    const targetEmail = rawEmail || rawIdentifier.toLowerCase();
+    if (!targetEmail) {
+      throw AppError.badRequest('Vui lòng nhập Email cá nhân đã đăng ký');
+    }
 
-  // 2. Nếu chưa tìm thấy và có Email cá nhân -> quét trên cả 2 bảng Teacher và Student
-  if (!found?.user && rawEmail) {
     let user = null;
     let teacher = null;
     let student = null;
 
     if (roleHint === 'teacher') {
-      teacher = await Teacher.findOne({ email: rawEmail });
+      teacher = await Teacher.findOne({ email: targetEmail });
       if (teacher) {
         user = await User.findOne({
           $or: [
@@ -525,10 +535,10 @@ export async function forgotPassword({ hoTen, identifier, email, role = 'all', t
         }).select('+passwordHash +password');
       }
       if (!user) {
-        user = await User.findOne({ email: rawEmail, role: ROLES.TEACHER }).select('+passwordHash +password');
+        user = await User.findOne({ email: targetEmail, role: ROLES.TEACHER }).select('+passwordHash +password');
       }
     } else if (roleHint === 'student') {
-      student = await Student.findOne({ email: rawEmail });
+      student = await Student.findOne({ email: targetEmail });
       if (student) {
         user = await User.findOne({
           $or: [
@@ -540,13 +550,14 @@ export async function forgotPassword({ hoTen, identifier, email, role = 'all', t
         }).select('+passwordHash +password');
       }
       if (!user) {
-        user = await User.findOne({ email: rawEmail, role: ROLES.STUDENT }).select('+passwordHash +password');
+        user = await User.findOne({ email: targetEmail, role: ROLES.STUDENT }).select('+passwordHash +password');
       }
     }
 
+    // Quét trên cả Teacher và Student nếu chưa tìm ra
     if (!user) {
       if (!teacher) {
-        teacher = await Teacher.findOne({ email: rawEmail });
+        teacher = await Teacher.findOne({ email: targetEmail });
         if (teacher) {
           user = await User.findOne({
             $or: [
@@ -559,7 +570,7 @@ export async function forgotPassword({ hoTen, identifier, email, role = 'all', t
         }
       }
       if (!user && !student) {
-        student = await Student.findOne({ email: rawEmail });
+        student = await Student.findOne({ email: targetEmail });
         if (student) {
           user = await User.findOne({
             $or: [
@@ -572,62 +583,99 @@ export async function forgotPassword({ hoTen, identifier, email, role = 'all', t
         }
       }
       if (!user) {
-        user = await User.findOne({ email: rawEmail }).select('+passwordHash +password');
+        user = await User.findOne({ email: targetEmail }).select('+passwordHash +password');
       }
     }
 
-    if (user) {
-      found = { user, teacher, student, role: user.role };
+    if (!user) {
+      throw AppError.notFound('Không tìm thấy tài khoản nào khớp với Email cá nhân này');
     }
+
+    // Nạp thông tin teacher/student liên kết nếu cần
+    if (!teacher && (user.teacher || user.teacherId || user.role === ROLES.TEACHER)) {
+      teacher = await Teacher.findOne({
+        $or: [{ userId: user._id }, { _id: user.teacher || user.teacherId }, { email: user.email }],
+      });
+    }
+    if (!student && (user.student || user.studentId || user.role === ROLES.STUDENT)) {
+      student = await Student.findOne({
+        $or: [{ userId: user._id }, { _id: user.student || user.studentId }, { email: user.email }],
+      });
+    }
+
+    // Kiểm tra Họ và tên (nếu có nhập)
+    if (rawHoTen) {
+      const inputNorm = normalizeText(rawHoTen);
+      const registeredName = normalizeText(user.hoTen || teacher?.hoTen || student?.hoTen);
+      if (registeredName && !registeredName.includes(inputNorm) && !inputNorm.includes(registeredName)) {
+        throw AppError.badRequest('Họ và tên không khớp với thông tin tài khoản đã đăng ký');
+      }
+    }
+
+    if (user.status === 'Locked') {
+      throw AppError.forbidden(
+        user.lockReason
+          ? `Tài khoản đã bị khóa: ${user.lockReason}`
+          : 'Tài khoản đã bị khóa, vui lòng liên hệ quản trị viên'
+      );
+    }
+
+    // Reset mật khẩu về mặc định '123'
+    const defaultPassword = '123';
+    user.passwordHash = await hashPassword(defaultPassword);
+    user.password = defaultPassword;
+    user.tokenVersion = (user.tokenVersion ?? 0) + 1;
+    await user.save();
+
+    const username = user.email;
+    const hoTenDisplay = user.hoTen || teacher?.hoTen || student?.hoTen || rawHoTen || '';
+    const resolvedRole = user.role || (teacher ? ROLES.TEACHER : (student ? ROLES.STUDENT : ''));
+
+    // BẮT BUỘC gửi email chứa Tên đăng nhập và Mật khẩu mới về Email cá nhân
+    await sendAccountRecoveryEmail({
+      to: targetEmail,
+      username,
+      password: defaultPassword,
+      hoTen: hoTenDisplay,
+      role: resolvedRole,
+    }).catch((err) => {
+      console.error('[FORGOT_PASSWORD_EMAIL_ERROR]', err?.message || err);
+    });
+
+    return {
+      success: true,
+      type: 'username',
+      hasEmail: true,
+      role: resolvedRole,
+      username,
+      emailSentTo: targetEmail,
+      message: `Tên đăng nhập của bạn là: ${username} và mật khẩu đã được khôi phục về: 123. Vui lòng kiểm tra email để xem lại thông tin này.`,
+    };
   }
 
-  // 3. Nếu vẫn chưa tìm thấy mà có Họ và tên -> quét theo Họ và tên trên cả 2 bảng
-  if (!found?.user && rawHoTen) {
-    const escapeRegExp = (s) => s.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
-    const nameRegex = new RegExp(`^${escapeRegExp(rawHoTen)}$`, 'i');
-    if (roleHint === 'teacher') {
-      const t = await Teacher.findOne({ hoTen: nameRegex });
-      if (t) {
-        const u = await User.findOne({
-          $or: [{ _id: t.userId }, { teacher: t._id }, { teacherId: t._id }, { email: t.email }],
-        }).select('+passwordHash +password');
-        if (u) found = { user: u, teacher: t, student: null, role: ROLES.TEACHER };
-      }
-    } else if (roleHint === 'student') {
-      const s = await Student.findOne({ hoTen: nameRegex });
-      if (s) {
-        const u = await User.findOne({
-          $or: [{ _id: s.userId }, { student: s._id }, { studentId: s._id }, { email: s.email }],
-        }).select('+passwordHash +password');
-        if (u) found = { user: u, student: s, teacher: null, role: ROLES.STUDENT };
-      }
-    } else {
-      const [s, t] = await Promise.all([
-        Student.findOne({ hoTen: nameRegex }),
-        Teacher.findOne({ hoTen: nameRegex }),
-      ]);
-      if (s) {
-        const u = await User.findOne({
-          $or: [{ _id: s.userId }, { student: s._id }, { studentId: s._id }, { email: s.email }],
-        }).select('+passwordHash +password');
-        if (u) found = { user: u, student: s, teacher: null, role: ROLES.STUDENT };
-      } else if (t) {
-        const u = await User.findOne({
-          $or: [{ _id: t.userId }, { teacher: t._id }, { teacherId: t._id }, { email: t.email }],
-        }).select('+passwordHash +password');
-        if (u) found = { user: u, teacher: t, student: null, role: ROLES.TEACHER };
-      }
-    }
+  // =========================================================================
+  // KỊCH BẢN 1: "TÔI QUÊN MẬT KHẨU"
+  // Dựa vào Họ tên và Tên đăng nhập/Mã để tìm trong cả 2 bảng Teacher và Student
+  // =========================================================================
+  if (!rawIdentifier && !rawEmail) {
+    throw AppError.badRequest('Vui lòng nhập Tên đăng nhập hoặc Mã sinh viên / Mã GV');
+  }
+
+  let found = null;
+  if (rawIdentifier) {
+    found = await findUserByIdentifier(rawIdentifier, roleHint);
+  }
+  if (!found?.user && rawEmail) {
+    found = await findUserByIdentifier(rawEmail, roleHint);
   }
 
   if (!found?.user) {
-    throw AppError.notFound('Không tìm thấy tài khoản với thông tin xác thực đã cung cấp');
+    throw AppError.notFound('Không tìm thấy tài khoản với Mã định danh / Tên đăng nhập này');
   }
 
   const { user } = found;
   let { teacher, student } = found;
 
-  // Nạp thêm thông tin profile nếu chưa có
   if (!teacher && (user.teacher || user.teacherId || user.role === ROLES.TEACHER)) {
     teacher = await Teacher.findOne({
       $or: [{ userId: user._id }, { _id: user.teacher || user.teacherId }, { email: user.email }],
@@ -639,19 +687,10 @@ export async function forgotPassword({ hoTen, identifier, email, role = 'all', t
     });
   }
 
-  // Xác thực danh tính với Họ và tên (nếu người dùng có nhập Họ và tên)
+  // Đối soát Họ và tên nếu người dùng có cung cấp
   if (rawHoTen) {
-    const normalizeText = (str) =>
-      String(str || '')
-        .trim()
-        .toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .replace(/\s+/g, ' ');
-
     const inputNorm = normalizeText(rawHoTen);
     const registeredName = normalizeText(user.hoTen || teacher?.hoTen || student?.hoTen);
-
     if (registeredName && !registeredName.includes(inputNorm) && !inputNorm.includes(registeredName)) {
       throw AppError.badRequest('Họ và tên không khớp với thông tin tài khoản đã đăng ký');
     }
@@ -665,7 +704,7 @@ export async function forgotPassword({ hoTen, identifier, email, role = 'all', t
     );
   }
 
-  // Đặt lại mật khẩu về mặc định: '123'
+  // Reset mật khẩu về '123'
   const defaultPassword = '123';
   user.passwordHash = await hashPassword(defaultPassword);
   user.password = defaultPassword;
@@ -676,10 +715,8 @@ export async function forgotPassword({ hoTen, identifier, email, role = 'all', t
   const hoTenDisplay = user.hoTen || teacher?.hoTen || student?.hoTen || rawHoTen || '';
   const resolvedRole = user.role || (teacher ? ROLES.TEACHER : (student ? ROLES.STUDENT : ''));
 
-  // Phân nhánh theo việc có nhập Email hay không
+  // Phân nhánh: nếu có nhập Email -> gửi email thông báo mật khẩu mới; nếu không -> chỉ trả về JSON
   if (rawEmail) {
-    // Trường hợp CÓ nhập Email cá nhân:
-    // Gửi email chi tiết chứa Tên đăng nhập và Mật khẩu mới (123) thẳng vào Email cá nhân
     await sendAccountRecoveryEmail({
       to: rawEmail,
       username,
@@ -692,6 +729,7 @@ export async function forgotPassword({ hoTen, identifier, email, role = 'all', t
 
     return {
       success: true,
+      type: 'password',
       hasEmail: true,
       role: resolvedRole,
       username,
@@ -700,10 +738,9 @@ export async function forgotPassword({ hoTen, identifier, email, role = 'all', t
     };
   }
 
-  // Trường hợp KHÔNG nhập Email cá nhân:
-  // Chỉ trả về kết quả JSON thành công với thông điệp: "Khôi phục mật khẩu thành công! Mật khẩu mới của bạn là: 123"
   return {
     success: true,
+    type: 'password',
     hasEmail: false,
     role: resolvedRole,
     username,

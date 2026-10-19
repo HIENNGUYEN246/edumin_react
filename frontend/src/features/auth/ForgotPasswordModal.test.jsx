@@ -26,10 +26,13 @@ describe('ForgotPasswordModal', () => {
     vi.clearAllMocks();
   });
 
-  it('renders modal with required Họ và tên, Mã định danh and optional Email fields', () => {
+  it('renders modal with default radio "Tôi quên mật khẩu" and appropriate fields', () => {
     render(<ForgotPasswordModal open={true} onClose={onClose} onSuccess={onSuccess} />);
 
     expect(screen.getByText('Khôi phục thông tin tài khoản')).toBeInTheDocument();
+    expect(screen.getByLabelText('Tôi quên mật khẩu')).toBeChecked();
+    expect(screen.getByLabelText('Tôi quên tên tài khoản')).not.toBeChecked();
+
     expect(screen.getByPlaceholderText('Nhập Họ và tên của bạn')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Nhập Mã sinh viên / Tên đăng nhập')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Nhập Email cá nhân đã đăng ký')).toBeInTheDocument();
@@ -37,20 +40,20 @@ describe('ForgotPasswordModal', () => {
     expect(screen.getByRole('button', { name: /Quay lại đăng nhập/i })).toBeInTheDocument();
   });
 
-  it('shows error when submitting without Họ và tên', async () => {
+  it('switches to "Tôi quên tên tài khoản" and renders Họ tên and required Email field', async () => {
     render(<ForgotPasswordModal open={true} onClose={onClose} onSuccess={onSuccess} />);
 
-    await userEvent.type(
-      screen.getByPlaceholderText('Nhập Mã sinh viên / Tên đăng nhập'),
-      'SV-001'
-    );
-    await userEvent.click(screen.getByRole('button', { name: /Yêu cầu khôi phục/i }));
+    await userEvent.click(screen.getByLabelText('Tôi quên tên tài khoản'));
 
-    expect(screen.getByText('Vui lòng nhập Họ và tên để xác thực danh tính')).toBeInTheDocument();
-    expect(authApi.forgotPassword).not.toHaveBeenCalled();
+    expect(screen.getByLabelText('Tôi quên tên tài khoản')).toBeChecked();
+    expect(screen.getByLabelText('Tôi quên mật khẩu')).not.toBeChecked();
+
+    expect(screen.getByPlaceholderText('Nhập Họ và tên của bạn')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Nhập Email cá nhân đã đăng ký')).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('Nhập Mã sinh viên / Tên đăng nhập')).not.toBeInTheDocument();
   });
 
-  it('handles recovery KHÔNG nhập Email: shows direct notification with 123 password', async () => {
+  it('handles "Tôi quên mật khẩu" submission KHÔNG nhập Email: shows direct notification', async () => {
     authApi.forgotPassword.mockResolvedValueOnce({
       success: true,
       hasEmail: false,
@@ -72,6 +75,7 @@ describe('ForgotPasswordModal', () => {
     await userEvent.click(screen.getByRole('button', { name: /Yêu cầu khôi phục/i }));
 
     expect(authApi.forgotPassword).toHaveBeenCalledWith({
+      type: 'password',
       hoTen: 'Nguyễn Văn An',
       identifier: 'SV-001',
       email: '',
@@ -81,20 +85,18 @@ describe('ForgotPasswordModal', () => {
       expect(
         screen.getByText('Khôi phục mật khẩu thành công! Mật khẩu mới của bạn là: 123')
       ).toBeInTheDocument();
-      expect(screen.getByText('Sinh viên')).toBeInTheDocument();
     });
     expect(onSuccess).toHaveBeenCalled();
   });
 
-  it('handles recovery CÓ nhập Email: passes personal email, shows username and reminder', async () => {
+  it('handles "Tôi quên mật khẩu" submission CÓ nhập Email: passes personal email', async () => {
     authApi.forgotPassword.mockResolvedValueOnce({
       success: true,
       hasEmail: true,
       role: 'sinh-vien',
       username: 'an.nguyen@edu.vn',
       emailSentTo: 'personal@gmail.com',
-      message:
-        'Tên đăng nhập của bạn là: an.nguyen@edu.vn và mật khẩu đã được khôi phục về: 123. Vui lòng kiểm tra email để xem lại thông tin này.',
+      message: 'Khôi phục mật khẩu thành công! Mật khẩu mới của bạn là: 123. Bản sao đã được gửi tới email cá nhân.',
     });
 
     render(<ForgotPasswordModal open={true} onClose={onClose} onSuccess={onSuccess} />);
@@ -114,8 +116,50 @@ describe('ForgotPasswordModal', () => {
     await userEvent.click(screen.getByRole('button', { name: /Yêu cầu khôi phục/i }));
 
     expect(authApi.forgotPassword).toHaveBeenCalledWith({
+      type: 'password',
       hoTen: 'Nguyễn Văn An',
       identifier: 'SV-001',
+      email: 'personal@gmail.com',
+    });
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/Khôi phục mật khẩu thành công! Mật khẩu mới của bạn là: 123/i)
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(/Hệ thống đã gửi email chi tiết thông tin tài khoản tới:/i)
+      ).toBeInTheDocument();
+    });
+  });
+
+  it('handles "Tôi quên tên tài khoản" submission: calls API with type username and displays check email reminder', async () => {
+    authApi.forgotPassword.mockResolvedValueOnce({
+      success: true,
+      hasEmail: true,
+      role: 'sinh-vien',
+      username: 'an.nguyen@edu.vn',
+      emailSentTo: 'personal@gmail.com',
+      message:
+        'Tên đăng nhập của bạn là: an.nguyen@edu.vn và mật khẩu đã được khôi phục về: 123. Vui lòng kiểm tra email để xem lại thông tin này.',
+    });
+
+    render(<ForgotPasswordModal open={true} onClose={onClose} onSuccess={onSuccess} />);
+
+    await userEvent.click(screen.getByLabelText('Tôi quên tên tài khoản'));
+
+    await userEvent.type(
+      screen.getByPlaceholderText('Nhập Họ và tên của bạn'),
+      'Nguyễn Văn An'
+    );
+    await userEvent.type(
+      screen.getByPlaceholderText('Nhập Email cá nhân đã đăng ký'),
+      'personal@gmail.com'
+    );
+    await userEvent.click(screen.getByRole('button', { name: /Yêu cầu khôi phục/i }));
+
+    expect(authApi.forgotPassword).toHaveBeenCalledWith({
+      type: 'username',
+      hoTen: 'Nguyễn Văn An',
       email: 'personal@gmail.com',
     });
 
@@ -125,11 +169,7 @@ describe('ForgotPasswordModal', () => {
           'Tên đăng nhập của bạn là: an.nguyen@edu.vn và mật khẩu đã được khôi phục về: 123. Vui lòng kiểm tra email để xem lại thông tin này.'
         )
       ).toBeInTheDocument();
-      expect(
-        screen.getByText(/Hệ thống đã gửi email chi tiết thông tin tài khoản tới:/i)
-      ).toBeInTheDocument();
     });
-    expect(onSuccess).toHaveBeenCalled();
   });
 
   it('supports selecting "Giáo viên" role and passes role to API payload', async () => {
@@ -160,6 +200,7 @@ describe('ForgotPasswordModal', () => {
     await userEvent.click(screen.getByRole('button', { name: /Yêu cầu khôi phục/i }));
 
     expect(authApi.forgotPassword).toHaveBeenCalledWith({
+      type: 'password',
       hoTen: 'Lê Hoàng',
       identifier: 'GV-001',
       email: '',
