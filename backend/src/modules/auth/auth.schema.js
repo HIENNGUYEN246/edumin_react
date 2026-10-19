@@ -16,14 +16,11 @@ export const forgotPasswordSchema = z
     hoTen: z.string().trim().optional(),
     identifier: z.string().trim().optional(),
     email: z.string().trim().optional(),
-    role: z.enum(['all', 'teacher', 'student', 'all_roles']).optional(),
+    role: z.string().optional(),
   })
   .refine(
     (data) => {
-      const isUsername = data.type === 'username' || data.type === 'forgot-username';
-      if (isUsername) {
-        return Boolean(data.email);
-      }
+      // Must have either identifier, email, or hoTen
       return Boolean(data.identifier || data.email || data.hoTen);
     },
     { message: 'Vui lòng nhập đầy đủ thông tin yêu cầu' }

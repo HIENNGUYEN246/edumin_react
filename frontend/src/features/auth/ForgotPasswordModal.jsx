@@ -6,7 +6,6 @@ import { useToast } from '../../app/providers/ToastProvider.jsx';
 export function ForgotPasswordModal({ open, onClose, onSuccess }) {
   const toast = useToast();
   const [recoveryType, setRecoveryType] = useState('password');
-  const [userRole, setUserRole] = useState('all');
   const [hoTen, setHoTen] = useState('');
   const [identifier, setIdentifier] = useState('');
   const [email, setEmail] = useState('');
@@ -16,7 +15,6 @@ export function ForgotPasswordModal({ open, onClose, onSuccess }) {
 
   const resetState = () => {
     setRecoveryType('password');
-    setUserRole('all');
     setHoTen('');
     setIdentifier('');
     setEmail('');
@@ -50,17 +48,14 @@ export function ForgotPasswordModal({ open, onClose, onSuccess }) {
 
     if (recoveryType === 'password') {
       if (!identifier.trim()) {
-        const msg =
-          userRole === 'teacher'
-            ? 'Vui lòng nhập Mã giáo viên hoặc Tên đăng nhập'
-            : 'Vui lòng nhập Mã sinh viên hoặc Tên đăng nhập';
+        const msg = 'Vui lòng nhập Tên đăng nhập hoặc Mã sinh viên / Mã GV';
         setErrorMessage(msg);
         toast.error(msg);
         return;
       }
     } else {
-      if (!email.trim()) {
-        const msg = 'Vui lòng nhập Email cá nhân đã đăng ký';
+      if (!identifier.trim() && !email.trim()) {
+        const msg = 'Vui lòng nhập Mã SV / Mã GV, Số điện thoại hoặc Email cá nhân';
         setErrorMessage(msg);
         toast.error(msg);
         return;
@@ -69,21 +64,12 @@ export function ForgotPasswordModal({ open, onClose, onSuccess }) {
 
     setIsLoading(true);
     try {
-      const payload =
-        recoveryType === 'password'
-          ? {
-              type: 'password',
-              hoTen: hoTen.trim(),
-              identifier: identifier.trim(),
-              email: email.trim(),
-              ...(userRole !== 'all' ? { role: userRole } : {}),
-            }
-          : {
-              type: 'username',
-              hoTen: hoTen.trim(),
-              email: email.trim(),
-              ...(userRole !== 'all' ? { role: userRole } : {}),
-            };
+      const payload = {
+        type: recoveryType,
+        hoTen: hoTen.trim(),
+        identifier: identifier.trim(),
+        email: email.trim(),
+      };
 
       const result = await authApi.forgotPassword(payload);
       setSuccessResponse(result);
@@ -172,36 +158,46 @@ export function ForgotPasswordModal({ open, onClose, onSuccess }) {
         {successResponse && (
           <div
             role="status"
-            className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-900 text-sm space-y-2"
+            className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-900 text-sm space-y-2.5"
           >
             <div className="flex items-start gap-2.5">
               <i className="fa-solid fa-circle-check text-emerald-600 text-base mt-0.5 flex-shrink-0" />
               <div className="space-y-1 flex-1">
                 {successResponse.role && (
                   <span className="inline-block px-2 py-0.5 text-[11px] font-bold uppercase rounded-md bg-emerald-200/70 text-emerald-800">
-                    {String(successResponse.role).toLowerCase() === 'teacher' ||
+                    {String(successResponse.role).toLowerCase().includes('teach') ||
                     String(successResponse.role).toLowerCase() === 'giao-vien'
                       ? 'Giáo viên'
                       : 'Sinh viên'}
                   </span>
                 )}
-                <div className="font-semibold">{successResponse.message}</div>
+                <div className="font-semibold text-slate-800">{successResponse.message}</div>
               </div>
             </div>
+
+            {successResponse.username && (
+              <div className="p-3 bg-white/90 rounded-xl border border-emerald-200 flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs">
+                <span className="text-slate-600 font-medium">Tên đăng nhập / Email:</span>
+                <span className="font-bold text-indigo-700 font-mono text-sm select-all">
+                  {successResponse.username}
+                </span>
+              </div>
+            )}
+
             {successResponse.hasEmail && (
-              <p className="text-xs text-emerald-700 pl-6">
+              <p className="text-xs text-emerald-700 pl-1">
                 <i className="fa-regular fa-envelope mr-1.5" />
                 Hệ thống đã gửi email chi tiết thông tin tài khoản tới: <strong>{email || successResponse.emailSentTo}</strong>
               </p>
             )}
             {successResponse.emailSynced && (
-              <p className="text-xs text-emerald-700 pl-6 flex items-center gap-1.5">
+              <p className="text-xs text-emerald-700 pl-1 flex items-center gap-1.5">
                 <i className="fa-solid fa-arrows-rotate text-emerald-600" />
                 <span>Địa chỉ email này đã được tự động đồng bộ vào hệ thống quản lý để nhận thông báo.</span>
               </p>
             )}
             {!successResponse.hasEmail && (
-              <p className="text-xs text-emerald-700 pl-6">
+              <p className="text-xs text-emerald-700 pl-1">
                 <i className="fa-solid fa-key mr-1.5" />
                 Mật khẩu mặc định mới là <strong>123</strong>. Vui lòng đăng nhập và đổi mật khẩu ngay.
               </p>
@@ -212,35 +208,6 @@ export function ForgotPasswordModal({ open, onClose, onSuccess }) {
         {/* Các trường nhập liệu */}
         {!successResponse && (
           <div className="space-y-3.5">
-            {/* Dropdown chọn đối tượng: Giáo viên / Sinh viên / Tự động */}
-            <div className="space-y-1.5">
-              <label
-                htmlFor="select-user-role"
-                className="block text-xs font-semibold text-slate-700"
-              >
-                Bạn là:
-              </label>
-              <div className="relative">
-                <select
-                  id="select-user-role"
-                  aria-label="Bạn là"
-                  value={userRole}
-                  onChange={(e) => {
-                    setUserRole(e.target.value);
-                    setErrorMessage('');
-                  }}
-                  className={`${inputClass} pr-9 cursor-pointer appearance-none bg-white`}
-                >
-                  <option value="all">Tự động nhận diện (Giáo viên &amp; Sinh viên)</option>
-                  <option value="student">Sinh viên</option>
-                  <option value="teacher">Giáo viên</option>
-                </select>
-                <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
-                  <i className="fa-solid fa-chevron-down text-xs" />
-                </div>
-              </div>
-            </div>
-
             {/* Trường Họ và tên (Bắt buộc cho cả 2 trường hợp) */}
             <div className="space-y-1.5">
               <label
@@ -276,12 +243,7 @@ export function ForgotPasswordModal({ open, onClose, onSuccess }) {
                     htmlFor="input-identifier"
                     className="block text-xs font-semibold text-slate-700"
                   >
-                    {userRole === 'teacher'
-                      ? 'Mã giảng viên / Tên đăng nhập'
-                      : userRole === 'student'
-                      ? 'Mã sinh viên / Tên đăng nhập'
-                      : 'Tên đăng nhập / Mã SV / Mã GV'}{' '}
-                    <span className="text-red-500">*</span>
+                    Tên đăng nhập / Mã SV / Mã GV <span className="text-red-500">*</span>
                   </label>
                   <div className="relative">
                     <input
@@ -289,11 +251,7 @@ export function ForgotPasswordModal({ open, onClose, onSuccess }) {
                       type="text"
                       value={identifier}
                       onChange={(e) => setIdentifier(e.target.value)}
-                      placeholder={
-                        userRole === 'teacher'
-                          ? 'Nhập Mã giảng viên / Tên đăng nhập'
-                          : 'Nhập Mã sinh viên / Tên đăng nhập'
-                      }
+                      placeholder="Nhập Mã sinh viên / Tên đăng nhập"
                       className={inputClass}
                     />
                     <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
@@ -301,13 +259,7 @@ export function ForgotPasswordModal({ open, onClose, onSuccess }) {
                     </div>
                   </div>
                   <p className="text-[11px] text-slate-500">
-                    {userRole === 'teacher' ? (
-                      <>Ví dụ: <code>GV-001</code>, <code>1</code> hoặc email giảng viên</>
-                    ) : userRole === 'student' ? (
-                      <>Ví dụ: <code>SV-001</code>, <code>1</code> hoặc email sinh viên</>
-                    ) : (
-                      <>Ví dụ: <code>SV-001</code>, <code>GV-001</code>, <code>1</code> hoặc email đăng nhập</>
-                    )}
+                    Ví dụ: <code>SV-001</code>, <code>GV-001</code>, <code>1</code> hoặc email tài khoản
                   </p>
                 </div>
 
@@ -332,7 +284,7 @@ export function ForgotPasswordModal({ open, onClose, onSuccess }) {
                     </div>
                   </div>
                   <p className="text-[11px] text-slate-500">
-                    Nếu điền sẽ nhận thêm email sao lưu thông tin và tự động đồng bộ vào danh sách nhận thông báo; nếu bỏ trống, mật khẩu mới chỉ hiển thị trực tiếp trên màn hình.
+                    Nếu điền sẽ nhận thêm email sao lưu thông tin và tự động đồng bộ vào hệ thống; nếu bỏ trống, mật khẩu mới sẽ hiển thị trực tiếp trên màn hình.
                   </p>
                 </div>
               </>
@@ -340,30 +292,57 @@ export function ForgotPasswordModal({ open, onClose, onSuccess }) {
 
             {/* Trường hợp 2: "Tôi quên tên tài khoản" */}
             {recoveryType === 'username' && (
-              <div className="space-y-1.5">
-                <label
-                  htmlFor="input-personal-email-required"
-                  className="block text-xs font-semibold text-slate-700"
-                >
-                  Email cá nhân đã đăng ký <span className="text-red-500">*</span>
-                </label>
-                <div className="relative">
-                  <input
-                    id="input-personal-email-required"
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="Nhập Email cá nhân đã đăng ký"
-                    className={inputClass}
-                  />
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
-                    <i className="fa-solid fa-envelope text-xs" />
+              <>
+                <div className="space-y-1.5">
+                  <label
+                    htmlFor="input-identifier-username"
+                    className="block text-xs font-semibold text-slate-700"
+                  >
+                    Mã SV / Mã GV hoặc Số điện thoại <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      id="input-identifier-username"
+                      type="text"
+                      value={identifier}
+                      onChange={(e) => setIdentifier(e.target.value)}
+                      placeholder="Nhập Mã SV / Mã GV hoặc Số điện thoại"
+                      className={inputClass}
+                    />
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
+                      <i className="fa-solid fa-id-card text-xs" />
+                    </div>
                   </div>
+                  <p className="text-[11px] text-slate-500">
+                    Hệ thống tự động tra cứu trên cả dữ liệu Giảng viên và Sinh viên.
+                  </p>
                 </div>
-                <p className="text-[11px] text-slate-500">
-                  Hệ thống sẽ tra cứu tên tài khoản dựa trên Họ tên và Email cá nhân này, đồng thời gửi thông tin vào hòm thư của bạn.
-                </p>
-              </div>
+
+                <div className="space-y-1.5">
+                  <label
+                    htmlFor="input-personal-email-optional-username"
+                    className="block text-xs font-semibold text-slate-700"
+                  >
+                    Email cá nhân <span className="text-slate-400 font-normal">(Tùy chọn)</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      id="input-personal-email-optional-username"
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="Nhập Email cá nhân đã đăng ký"
+                      className={inputClass}
+                    />
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
+                      <i className="fa-solid fa-envelope text-xs" />
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    Nếu điền sẽ nhận thêm email sao lưu thông tin; nếu bỏ trống, tên đăng nhập sẽ hiển thị trực tiếp ngay trên màn hình.
+                  </p>
+                </div>
+              </>
             )}
           </div>
         )}

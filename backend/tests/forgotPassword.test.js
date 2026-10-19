@@ -81,6 +81,51 @@ describe('POST /api/auth/forgot-password', () => {
       });
       expect(loginRes.status).toBe(200);
     });
+
+    it('Giáo viên tự động nhận diện: khôi phục mật khẩu không cần truyền role hay email', async () => {
+      const teacher = await createTeacher({
+        hoTen: 'Vũ Đức Tự Động',
+        email: 'vuduc.tudong@edu.vn',
+        departmentId: department.id,
+      });
+      clearSentEmails();
+
+      const res = await request(app).post('/api/auth/forgot-password').send({
+        hoTen: 'Vũ Đức Tự Động',
+        identifier: `GV-${String(teacher.id).padStart(3, '0')}`,
+      });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.hasEmail).toBe(false);
+      expect(res.body.role).toBe(ROLES.TEACHER);
+      expect(res.body.message).toContain('123');
+      expect(getSentEmails()).toHaveLength(0);
+    });
+
+    it('Tôi quên tên tài khoản: KHÔNG nhập email, chỉ cần Họ tên và Mã SV, trả về tên đăng nhập trực tiếp', async () => {
+      const student = await createStudent({
+        hoTen: 'Bùi Thị Quên Tên',
+        email: 'buithi.quenten@student.edu.vn',
+        departmentId: department.id,
+      });
+      clearSentEmails();
+
+      const res = await request(app).post('/api/auth/forgot-password').send({
+        type: 'username',
+        hoTen: 'Bùi Thị Quên Tên',
+        identifier: `SV-${String(student.id).padStart(3, '0')}`,
+      });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.type).toBe('username');
+      expect(res.body.hasEmail).toBe(false);
+      expect(res.body.username).toBe('buithi.quenten@student.edu.vn');
+      expect(res.body.message).toContain('buithi.quenten@student.edu.vn');
+      expect(res.body.message).toContain('123');
+      expect(getSentEmails()).toHaveLength(0);
+    });
   });
 
   describe('Trường hợp CÓ nhập Email cá nhân', () => {
