@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: edumin-react
+    runtime: node
+    plan: free
+    region: singapore
+    branch: main
+    buildCommand: npm --prefix backend install
+    startCommand: npm --prefix backend start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 4000
+      - key: GMAIL_USER
+        value: huynguyen1001002@gmail.com
+      - key: GMAIL_APP_PASSWORD
+        value: efzp cuxx zbmq ktak

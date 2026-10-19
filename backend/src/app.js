@@ -3,6 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { config } from './config/env.js';
+import { isEmailConfigured } from './lib/mailer.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { apiRouter } from './routes.js';
 
@@ -38,7 +39,11 @@ export function createApp() {
   app.use(globalLimiter);
 
   app.get('/api/health', (_req, res) => {
-    res.json({ status: 'ok', uptime: process.uptime() });
+    res.json({
+      status: 'ok',
+      uptime: process.uptime(),
+      emailConfigured: isEmailConfigured(),
+    });
   });
 
   app.use('/api', apiRouter);
