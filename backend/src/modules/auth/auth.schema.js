@@ -12,19 +12,16 @@ export const changePasswordSchema = z.object({
 
 export const forgotPasswordSchema = z
   .object({
-    type: z.enum(['password', 'username', 'forgot-password', 'forgot-username']).default('password'),
-    role: z.enum(['all', 'teacher', 'student', 'all_roles']).optional(),
+    hoTen: z.string().trim().optional(),
     identifier: z.string().trim().optional(),
     email: z.string().trim().optional(),
+    role: z.enum(['all', 'teacher', 'student', 'all_roles']).optional(),
+    type: z.string().optional(),
   })
   .refine(
     (data) => {
-      const isUsername = data.type === 'username' || data.type === 'forgot-username';
-      if (isUsername) {
-        return Boolean(data.email || data.identifier);
-      }
-      return Boolean(data.identifier || data.email);
+      return Boolean(data.identifier || data.email || data.hoTen);
     },
-    { message: 'Vui lòng nhập đầy đủ thông tin yêu cầu' }
+    { message: 'Vui lòng nhập thông tin để khôi phục tài khoản' }
   );
 
