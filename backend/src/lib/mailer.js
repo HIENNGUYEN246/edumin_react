@@ -18,8 +18,8 @@ function getGmailTransport() {
     gmailTransport = nodemailer.createTransport({
       service: 'gmail',
       auth: {
-        user: config.GMAIL_USER,
-        pass: config.GMAIL_APP_PASSWORD,
+        user: String(config.GMAIL_USER || '').trim(),
+        pass: String(config.GMAIL_APP_PASSWORD || '').replace(/\s+/g, ''),
       },
     });
   }
