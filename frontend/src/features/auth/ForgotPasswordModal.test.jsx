@@ -93,6 +93,7 @@ describe('ForgotPasswordModal', () => {
     authApi.forgotPassword.mockResolvedValueOnce({
       success: true,
       hasEmail: true,
+      emailSynced: true,
       role: 'sinh-vien',
       username: 'an.nguyen@edu.vn',
       emailSentTo: 'personal@gmail.com',
@@ -128,6 +129,9 @@ describe('ForgotPasswordModal', () => {
       ).toBeInTheDocument();
       expect(
         screen.getByText(/Hệ thống đã gửi email chi tiết thông tin tài khoản tới:/i)
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(/Địa chỉ email này đã được tự động đồng bộ vào hệ thống quản lý/i)
       ).toBeInTheDocument();
     });
   });

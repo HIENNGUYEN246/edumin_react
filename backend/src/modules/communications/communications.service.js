@@ -11,7 +11,7 @@ const DIRECTORY_MODELS = {
   'sinh-vien': { Model: Student, role: ROLES.STUDENT },
 };
 
-const RECIPIENT_FIELDS = 'id hoTen email department className userId';
+const RECIPIENT_FIELDS = 'id hoTen email emailNhanThongBao department className userId';
 const USER_POPULATE = { path: 'userId', select: '_id email role status' };
 const USER_POPULATE_WITH_CREDENTIALS = {
   path: 'userId',
@@ -24,7 +24,13 @@ export async function listRecipients(query) {
     maxLimit: 100,
     defaultSort: 'id',
   });
-  const filter = searchFilter(search, ['hoTen', 'email', 'department', 'className']);
+  const filter = searchFilter(search, [
+    'hoTen',
+    'email',
+    'emailNhanThongBao',
+    'department',
+    'className',
+  ]);
   const result = await paginate(Model, {
     filter,
     page,
@@ -36,18 +42,21 @@ export async function listRecipients(query) {
   });
 
   return {
-    data: result.data.map(({ _id, id, hoTen, email, department, className, userId }) => ({
-      _id,
-      id,
-      hoTen,
-      email,
-      department,
-      className,
-      accountActive:
-        userId?.status === 'Active' &&
-        userId?.role === DIRECTORY_MODELS[query.role].role &&
-        userId?.email === email,
-    })),
+    data: result.data.map(
+      ({ _id, id, hoTen, email, emailNhanThongBao, department, className, userId }) => ({
+        _id,
+        id,
+        hoTen,
+        email,
+        emailNhanThongBao: emailNhanThongBao || '',
+        department,
+        className,
+        accountActive:
+          userId?.status === 'Active' &&
+          userId?.role === DIRECTORY_MODELS[query.role].role &&
+          userId?.email === email,
+      })
+    ),
     meta: result.meta,
     emailConfigured: isEmailConfigured(),
   };
@@ -85,8 +94,8 @@ export async function sendAccountCredentials(recipients) {
   const results = [];
   for (const { role, accountEmail, recipientEmail } of recipients) {
     const normalizedAccountEmail = accountEmail.trim().toLowerCase();
-    const normalizedRecipientEmail = recipientEmail.trim().toLowerCase();
     const profile = profilesByKey.get(`${role}:${normalizedAccountEmail}`);
+    const normalizedRecipientEmail = (recipientEmail || profile?.emailNhanThongBao || '').trim().toLowerCase();
     if (
       !profile ||
       !profile.userId ||
@@ -132,6 +141,19 @@ export async function sendAccountCredentials(recipients) {
         password: '123',
         id: profile.id,
       });
+
+      // Synchronize recipient email to profile if missing or changed
+      if (profile && normalizedRecipientEmail && profile.emailNhanThongBao !== normalizedRecipientEmail) {
+        const { Model } = DIRECTORY_MODELS[role];
+        await Model.updateOne(
+          { _id: profile._id },
+          {
+            $set: { emailNhanThongBao: normalizedRecipientEmail },
+            $push: { emailHistory: { email: normalizedRecipientEmail, updatedAt: new Date() } },
+          }
+        ).catch(() => {});
+      }
+
       results.push({
         id: String(profile._id),
         role,

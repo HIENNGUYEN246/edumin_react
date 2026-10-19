@@ -8,6 +8,10 @@ import { Department } from '../src/modules/departments/department.model.js';
 import { getSentEmails, clearSentEmails } from '../src/lib/mailer.js';
 import { ROLES } from '../src/lib/roles.js';
 
+import { Student } from '../src/modules/students/student.model.js';
+import { Teacher } from '../src/modules/teachers/teacher.model.js';
+import { listRecipients } from '../src/modules/communications/communications.service.js';
+
 describe('POST /api/auth/forgot-password', () => {
   let department;
 
@@ -198,6 +202,118 @@ describe('POST /api/auth/forgot-password', () => {
 
       expect(res.status).toBe(404);
       expect(res.body.error.message).toContain('Không tìm thấy tài khoản');
+    });
+  });
+
+  describe('Tự động đồng bộ Email cá nhân vào danh sách quản lý (Admin)', () => {
+    it('Sinh viên: tự động lưu email cá nhân vào emailNhanThongBao và hiển thị ở listRecipients', async () => {
+      const student = await createStudent({
+        hoTen: 'Lê Văn Đồng Bộ',
+        email: 'levan.dongbo@student.edu.vn',
+        departmentId: department.id,
+      });
+
+      const personalGmail = 'levan.personal@gmail.com';
+
+      // Sinh viên yêu cầu khôi phục mật khẩu và cung cấp personalGmail
+      const res = await request(app).post('/api/auth/forgot-password').send({
+        type: 'password',
+        hoTen: 'Lê Văn Đồng Bộ',
+        identifier: `SV-${String(student.id).padStart(3, '0')}`,
+        email: personalGmail,
+      });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.emailSynced).toBe(true);
+      expect(res.body.emailNhanThongBao).toBe(personalGmail);
+
+      // Kiểm tra trong database: Student.emailNhanThongBao đã được lưu
+      const studentDoc = await Student.findById(student._id);
+      expect(studentDoc.emailNhanThongBao).toBe(personalGmail);
+
+      // Kiểm tra API listRecipients phía Admin đã có emailNhanThongBao
+      const recipientsRes = await listRecipients({ role: 'sinh-vien', search: 'levan.dongbo' });
+      const foundItem = recipientsRes.data.find((item) => item.email === student.email);
+      expect(foundItem).toBeDefined();
+      expect(foundItem.emailNhanThongBao).toBe(personalGmail);
+    });
+
+    it('Giáo viên: tự động cập nhật email mới và lưu vết emailHistory khi đổi email khôi phục', async () => {
+      const teacher = await createTeacher({
+        hoTen: 'Trần Thị Lịch Sử',
+        email: 'tranthi.history@edu.vn',
+        departmentId: department.id,
+      });
+
+      const firstGmail = 'teacher.old@gmail.com';
+      const secondGmail = 'teacher.new@gmail.com';
+
+      // Lần 1: Yêu cầu khôi phục với email thứ nhất
+      await request(app).post('/api/auth/forgot-password').send({
+        type: 'password',
+        hoTen: 'Trần Thị Lịch Sử',
+        identifier: `GV-${String(teacher.id).padStart(3, '0')}`,
+        email: firstGmail,
+        role: 'teacher',
+      });
+
+      let teacherDoc = await Teacher.findById(teacher._id);
+      expect(teacherDoc.emailNhanThongBao).toBe(firstGmail);
+
+      // Lần 2: Yêu cầu khôi phục với email mới
+      const res2 = await request(app).post('/api/auth/forgot-password').send({
+        type: 'password',
+        hoTen: 'Trần Thị Lịch Sử',
+        identifier: `GV-${String(teacher.id).padStart(3, '0')}`,
+        email: secondGmail,
+        role: 'teacher',
+      });
+
+      expect(res2.status).toBe(200);
+      expect(res2.body.emailSynced).toBe(true);
+      expect(res2.body.emailNhanThongBao).toBe(secondGmail);
+
+      // Database phải cập nhật email mới và lưu vết email cũ vào emailHistory
+      teacherDoc = await Teacher.findById(teacher._id);
+      expect(teacherDoc.emailNhanThongBao).toBe(secondGmail);
+      expect(teacherDoc.emailHistory.length).toBeGreaterThanOrEqual(1);
+      expect(teacherDoc.emailHistory.some((h) => h.email === firstGmail)).toBe(true);
+
+      // Admin listRecipients thấy ngay email mới nhất
+      const recipientsRes = await listRecipients({ role: 'giao-vien', search: 'tranthi.history' });
+      const foundTeacher = recipientsRes.data.find((item) => item.email === teacher.email);
+      expect(foundTeacher).toBeDefined();
+      expect(foundTeacher.emailNhanThongBao).toBe(secondGmail);
+    });
+
+    it('Có thể tìm thấy tài khoản bằng chính emailNhanThongBao đã đồng bộ trong kịch bản Quên tên tài khoản', async () => {
+      const personalGmail = 'unique.synced.user@gmail.com';
+      const student = await createStudent({
+        hoTen: 'Phạm Văn Tìm Lại',
+        email: 'phamvantimlai@student.edu.vn',
+        departmentId: department.id,
+      });
+
+      // Ban đầu đồng bộ email cá nhân qua Forgot Password
+      await request(app).post('/api/auth/forgot-password').send({
+        type: 'password',
+        hoTen: 'Phạm Văn Tìm Lại',
+        identifier: `SV-${String(student.id).padStart(3, '0')}`,
+        email: personalGmail,
+      });
+
+      // Người dùng quên tên đăng nhập trường, chỉ nhớ email cá nhân
+      const res = await request(app).post('/api/auth/forgot-password').send({
+        type: 'username',
+        hoTen: 'Phạm Văn Tìm Lại',
+        email: personalGmail,
+      });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.username).toBe('phamvantimlai@student.edu.vn');
+      expect(res.body.emailSynced).toBe(true);
     });
   });
 });

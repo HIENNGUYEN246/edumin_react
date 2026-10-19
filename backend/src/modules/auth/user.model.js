@@ -11,6 +11,7 @@ const userSchema = new Schema(
     passwordHash: { type: String, select: false },
     password: { type: String, select: false },
     role: { type: String, required: true, enum: ALL_ROLES, default: ROLES.ADMIN },
+    emailNhanThongBao: { type: String, trim: true, lowercase: true, default: '' },
     hoTen: { type: String, default: '' },
     avatar: { type: fileMetaSchema, default: () => ({}) },
     department: { type: String, default: '' },

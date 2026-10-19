@@ -194,6 +194,12 @@ export function ForgotPasswordModal({ open, onClose, onSuccess }) {
                 Hệ thống đã gửi email chi tiết thông tin tài khoản tới: <strong>{email || successResponse.emailSentTo}</strong>
               </p>
             )}
+            {successResponse.emailSynced && (
+              <p className="text-xs text-emerald-700 pl-6 flex items-center gap-1.5">
+                <i className="fa-solid fa-arrows-rotate text-emerald-600" />
+                <span>Địa chỉ email này đã được tự động đồng bộ vào hệ thống quản lý để nhận thông báo.</span>
+              </p>
+            )}
             {!successResponse.hasEmail && (
               <p className="text-xs text-emerald-700 pl-6">
                 <i className="fa-solid fa-key mr-1.5" />
@@ -326,7 +332,7 @@ export function ForgotPasswordModal({ open, onClose, onSuccess }) {
                     </div>
                   </div>
                   <p className="text-[11px] text-slate-500">
-                    Nếu điền sẽ nhận thêm email sao lưu thông tin; nếu bỏ trống, mật khẩu mới chỉ hiển thị trực tiếp trên màn hình.
+                    Nếu điền sẽ nhận thêm email sao lưu thông tin và tự động đồng bộ vào danh sách nhận thông báo; nếu bỏ trống, mật khẩu mới chỉ hiển thị trực tiếp trên màn hình.
                   </p>
                 </div>
               </>

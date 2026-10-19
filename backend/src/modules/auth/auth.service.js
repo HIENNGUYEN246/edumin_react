@@ -110,8 +110,10 @@ export async function findUserByIdentifier(rawIdentifier, roleHint = 'all') {
     }
   }
 
-  // 4. Direct match on User.email
-  let user = await User.findOne({ email: input.toLowerCase() }).select('+passwordHash +password');
+  // 4. Direct match on User.email or User.emailNhanThongBao
+  let user = await User.findOne({
+    $or: [{ email: input.toLowerCase() }, { emailNhanThongBao: input.toLowerCase() }],
+  }).select('+passwordHash +password');
   if (user) {
     const [student, teacher] = await Promise.all([
       user.student || user.studentId ? Student.findById(user.student || user.studentId) : Student.findOne({ userId: user._id }),
@@ -120,33 +122,36 @@ export async function findUserByIdentifier(rawIdentifier, roleHint = 'all') {
     return { user, student, teacher, role: user.role };
   }
 
-  // 5. Search in Teacher and Student by email
+  // 5. Search in Teacher and Student by email or emailNhanThongBao
+  const emailQuery = {
+    $or: [{ email: input.toLowerCase() }, { emailNhanThongBao: input.toLowerCase() }],
+  };
   if (hint === 'teacher') {
-    const teacher = await Teacher.findOne({ email: input.toLowerCase() });
+    const teacher = await Teacher.findOne(emailQuery);
     if (teacher) {
       const found = await resolveUserForPerson({ teacher });
       if (found) return found;
     }
-    const student = await Student.findOne({ email: input.toLowerCase() });
+    const student = await Student.findOne(emailQuery);
     if (student) {
       const found = await resolveUserForPerson({ student });
       if (found) return found;
     }
   } else if (hint === 'student') {
-    const student = await Student.findOne({ email: input.toLowerCase() });
+    const student = await Student.findOne(emailQuery);
     if (student) {
       const found = await resolveUserForPerson({ student });
       if (found) return found;
     }
-    const teacher = await Teacher.findOne({ email: input.toLowerCase() });
+    const teacher = await Teacher.findOne(emailQuery);
     if (teacher) {
       const found = await resolveUserForPerson({ teacher });
       if (found) return found;
     }
   } else {
     const [teacher, student] = await Promise.all([
-      Teacher.findOne({ email: input.toLowerCase() }),
-      Student.findOne({ email: input.toLowerCase() }),
+      Teacher.findOne(emailQuery),
+      Student.findOne(emailQuery),
     ]);
     if (teacher) {
       const found = await resolveUserForPerson({ teacher });
@@ -489,9 +494,71 @@ export async function changeOwnPassword(userId, { oldPassword, newPassword }) {
 }
 
 /**
+ * Synchronize personal recovery email to Teacher/Student profile and User document.
+ * Records previous email in emailHistory if it changes, ensuring audit trails.
+ */
+export async function syncPersonalEmail({ user, teacher, student, email }) {
+  const normEmail = String(email || '').trim().toLowerCase();
+  if (!normEmail) return false;
+
+  const now = new Date();
+
+  // If teacher/student profile instances were not passed, attempt resolution via user
+  let teacherDoc = teacher;
+  let studentDoc = student;
+  if (!teacherDoc && user && (user.teacher || user.teacherId || user.role === ROLES.TEACHER)) {
+    teacherDoc = await Teacher.findOne({
+      $or: [{ userId: user._id }, { _id: user.teacher || user.teacherId }, { email: user.email }],
+    });
+  }
+  if (!studentDoc && user && (user.student || user.studentId || user.role === ROLES.STUDENT)) {
+    studentDoc = await Student.findOne({
+      $or: [{ userId: user._id }, { _id: user.student || user.studentId }, { email: user.email }],
+    });
+  }
+
+  if (teacherDoc) {
+    if (!Array.isArray(teacherDoc.emailHistory)) {
+      teacherDoc.emailHistory = [];
+    }
+    if (teacherDoc.emailNhanThongBao && teacherDoc.emailNhanThongBao.toLowerCase() !== normEmail) {
+      teacherDoc.emailHistory.push({
+        email: teacherDoc.emailNhanThongBao,
+        updatedAt: now,
+      });
+    }
+    teacherDoc.emailNhanThongBao = normEmail;
+    await teacherDoc.save().catch((err) => console.error('[SYNC_TEACHER_EMAIL_FAIL]', err));
+  }
+
+  if (studentDoc) {
+    if (!Array.isArray(studentDoc.emailHistory)) {
+      studentDoc.emailHistory = [];
+    }
+    if (studentDoc.emailNhanThongBao && studentDoc.emailNhanThongBao.toLowerCase() !== normEmail) {
+      studentDoc.emailHistory.push({
+        email: studentDoc.emailNhanThongBao,
+        updatedAt: now,
+      });
+    }
+    studentDoc.emailNhanThongBao = normEmail;
+    await studentDoc.save().catch((err) => console.error('[SYNC_STUDENT_EMAIL_FAIL]', err));
+  }
+
+  if (user) {
+    user.emailNhanThongBao = normEmail;
+    await user.save().catch((err) => console.error('[SYNC_USER_EMAIL_FAIL]', err));
+  }
+
+  return true;
+}
+
+/**
  * Handle account recovery:
  * 1. Forgot password: reset password to '123' and return immediate confirmation.
- * 2. Forgot username: lookup by email, reset password to '123', return confirmation, and send email via mailer.
+ *    If personal email is provided, auto-sync to emailNhanThongBao and send confirmation email.
+ * 2. Forgot username: lookup by email, reset password to '123', auto-sync to emailNhanThongBao,
+ *    and send confirmation email with school username & new password.
  */
 export async function forgotPassword({ type = 'password', hoTen, identifier, email, role = 'all' }) {
   const isForgotUsername = type === 'username' || type === 'forgot-username';
@@ -518,12 +585,16 @@ export async function forgotPassword({ type = 'password', hoTen, identifier, ema
       throw AppError.badRequest('Vui lòng nhập Email cá nhân đã đăng ký');
     }
 
+    const targetEmailQuery = {
+      $or: [{ email: targetEmail }, { emailNhanThongBao: targetEmail }],
+    };
+
     let user = null;
     let teacher = null;
     let student = null;
 
     if (roleHint === 'teacher') {
-      teacher = await Teacher.findOne({ email: targetEmail });
+      teacher = await Teacher.findOne(targetEmailQuery);
       if (teacher) {
         user = await User.findOne({
           $or: [
@@ -535,10 +606,10 @@ export async function forgotPassword({ type = 'password', hoTen, identifier, ema
         }).select('+passwordHash +password');
       }
       if (!user) {
-        user = await User.findOne({ email: targetEmail, role: ROLES.TEACHER }).select('+passwordHash +password');
+        user = await User.findOne({ ...targetEmailQuery, role: ROLES.TEACHER }).select('+passwordHash +password');
       }
     } else if (roleHint === 'student') {
-      student = await Student.findOne({ email: targetEmail });
+      student = await Student.findOne(targetEmailQuery);
       if (student) {
         user = await User.findOne({
           $or: [
@@ -550,14 +621,14 @@ export async function forgotPassword({ type = 'password', hoTen, identifier, ema
         }).select('+passwordHash +password');
       }
       if (!user) {
-        user = await User.findOne({ email: targetEmail, role: ROLES.STUDENT }).select('+passwordHash +password');
+        user = await User.findOne({ ...targetEmailQuery, role: ROLES.STUDENT }).select('+passwordHash +password');
       }
     }
 
     // Quét trên cả Teacher và Student nếu chưa tìm ra
     if (!user) {
       if (!teacher) {
-        teacher = await Teacher.findOne({ email: targetEmail });
+        teacher = await Teacher.findOne(targetEmailQuery);
         if (teacher) {
           user = await User.findOne({
             $or: [
@@ -570,7 +641,7 @@ export async function forgotPassword({ type = 'password', hoTen, identifier, ema
         }
       }
       if (!user && !student) {
-        student = await Student.findOne({ email: targetEmail });
+        student = await Student.findOne(targetEmailQuery);
         if (student) {
           user = await User.findOne({
             $or: [
@@ -583,7 +654,7 @@ export async function forgotPassword({ type = 'password', hoTen, identifier, ema
         }
       }
       if (!user) {
-        user = await User.findOne({ email: targetEmail }).select('+passwordHash +password');
+        user = await User.findOne(targetEmailQuery).select('+passwordHash +password');
       }
     }
 
@@ -627,6 +698,9 @@ export async function forgotPassword({ type = 'password', hoTen, identifier, ema
     user.tokenVersion = (user.tokenVersion ?? 0) + 1;
     await user.save();
 
+    // Tự động đồng bộ Email cá nhân vào trường emailNhanThongBao và lưu vết emailHistory
+    await syncPersonalEmail({ user, teacher, student, email: targetEmail });
+
     const username = user.email;
     const hoTenDisplay = user.hoTen || teacher?.hoTen || student?.hoTen || rawHoTen || '';
     const resolvedRole = user.role || (teacher ? ROLES.TEACHER : (student ? ROLES.STUDENT : ''));
@@ -649,6 +723,8 @@ export async function forgotPassword({ type = 'password', hoTen, identifier, ema
       role: resolvedRole,
       username,
       emailSentTo: targetEmail,
+      emailSynced: true,
+      emailNhanThongBao: targetEmail,
       message: `Tên đăng nhập của bạn là: ${username} và mật khẩu đã được khôi phục về: 123. Vui lòng kiểm tra email để xem lại thông tin này.`,
     };
   }
@@ -715,8 +791,11 @@ export async function forgotPassword({ type = 'password', hoTen, identifier, ema
   const hoTenDisplay = user.hoTen || teacher?.hoTen || student?.hoTen || rawHoTen || '';
   const resolvedRole = user.role || (teacher ? ROLES.TEACHER : (student ? ROLES.STUDENT : ''));
 
-  // Phân nhánh: nếu có nhập Email -> gửi email thông báo mật khẩu mới; nếu không -> chỉ trả về JSON
+  // Phân nhánh: nếu có nhập Email -> gửi email thông báo mật khẩu mới & tự động đồng bộ email; nếu không -> chỉ trả về JSON
   if (rawEmail) {
+    // Tự động đồng bộ Email cá nhân vào trường emailNhanThongBao và lưu vết emailHistory
+    await syncPersonalEmail({ user, teacher, student, email: rawEmail });
+
     await sendAccountRecoveryEmail({
       to: rawEmail,
       username,
@@ -734,6 +813,8 @@ export async function forgotPassword({ type = 'password', hoTen, identifier, ema
       role: resolvedRole,
       username,
       emailSentTo: rawEmail,
+      emailSynced: true,
+      emailNhanThongBao: rawEmail,
       message: `Tên đăng nhập của bạn là: ${username} và mật khẩu đã được khôi phục về: 123. Vui lòng kiểm tra email để xem lại thông tin này.`,
     };
   }
@@ -744,6 +825,7 @@ export async function forgotPassword({ type = 'password', hoTen, identifier, ema
     hasEmail: false,
     role: resolvedRole,
     username,
+    emailSynced: false,
     message: 'Khôi phục mật khẩu thành công! Mật khẩu mới của bạn là: 123',
   };
 }

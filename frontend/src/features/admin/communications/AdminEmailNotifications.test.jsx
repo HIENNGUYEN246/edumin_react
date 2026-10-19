@@ -175,4 +175,32 @@ describe('AdminEmailNotifications', () => {
     expect(await screen.findByText('Chưa cấu hình Gmail trên máy chủ')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Gửi 0 email' })).toBeDisabled();
   });
+
+  it('pre-fills auto-synced emailNhanThongBao and enables immediate selection', async () => {
+    mocks.recipients.mockResolvedValueOnce({
+      data: [
+        {
+          _id: 'student-synced',
+          id: 10,
+          role: 'sinh-vien',
+          hoTen: 'Sinh viên Đồng Bộ',
+          email: 'student.synced@edu.vn',
+          emailNhanThongBao: 'student.synced.personal@gmail.com',
+          department: 'CNTT',
+          className: 'CNTT-K18',
+          accountActive: true,
+        },
+      ],
+      meta: { page: 1, pages: 1, total: 1 },
+      emailConfigured: true,
+    });
+
+    renderPage();
+
+    expect(await screen.findByDisplayValue('student.synced.personal@gmail.com')).toBeInTheDocument();
+    const checkbox = screen.getByRole('checkbox', { name: 'Chọn Sinh viên Đồng Bộ' });
+    expect(checkbox).not.toBeDisabled();
+    fireEvent.click(checkbox);
+    expect(checkbox).toBeChecked();
+  });
 });

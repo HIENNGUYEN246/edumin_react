@@ -74,12 +74,13 @@ export function AdminEmailNotifications() {
   const meta = recipientsQuery.data?.meta || { page: 1, pages: 0, total: 0 };
   const selectablePageRecipients = useMemo(
     () =>
-      recipients.filter(
-        (recipient) =>
-          recipient.accountActive &&
-          recipient.email &&
-          isValidEmail(recipientEmails.get(recipientKey({ email: recipient.email, role })))
-      ),
+      recipients.filter((recipient) => {
+        const key = recipientKey({ email: recipient.email, role });
+        const toEmail = recipientEmails.has(key)
+          ? recipientEmails.get(key)
+          : (recipient.emailNhanThongBao || '');
+        return recipient.accountActive && recipient.email && isValidEmail(toEmail);
+      }),
     [recipients, recipientEmails, role]
   );
   const allPageSelected =
@@ -101,10 +102,13 @@ export function AdminEmailNotifications() {
       const next = new Map(current);
       if (next.has(key)) next.delete(key);
       else {
+        const toEmail = recipientEmails.has(key)
+          ? recipientEmails.get(key)
+          : (recipient.emailNhanThongBao || '');
         next.set(key, {
           role,
           accountEmail: recipient.email,
-          recipientEmail: recipientEmails.get(key) || '',
+          recipientEmail: toEmail,
           hoTen: recipient.hoTen,
         });
       }
@@ -130,7 +134,9 @@ export function AdminEmailNotifications() {
       const shouldSelect = !allPageSelected;
       selectablePageRecipients.forEach((recipient) => {
         const key = recipientKey({ email: recipient.email, role });
-        const toEmail = recipientEmails.get(key) || '';
+        const toEmail = recipientEmails.has(key)
+          ? recipientEmails.get(key)
+          : (recipient.emailNhanThongBao || '');
         if (shouldSelect && isValidEmail(toEmail)) {
           next.set(key, {
             role,
@@ -466,8 +472,11 @@ export function AdminEmailNotifications() {
                   const key = recipientKey({ email: recipient.email, role });
                   const checked = selectedRecipients.has(key);
                   const unavailable = !recipient.accountActive || !recipient.email;
-                  const recipientEmail = recipientEmails.get(key) || '';
+                  const recipientEmail = recipientEmails.has(key)
+                    ? recipientEmails.get(key)
+                    : (recipient.emailNhanThongBao || '');
                   const canSelect = !unavailable && isValidEmail(recipientEmail);
+                  const isAutoSynced = Boolean(!recipientEmails.has(key) && recipient.emailNhanThongBao);
                   return (
                     <tr key={key} className={checked ? 'bg-indigo-50/50' : 'hover:bg-slate-50/70'}>
                       <td className="px-4 py-3 text-center">
@@ -490,18 +499,30 @@ export function AdminEmailNotifications() {
                         {recipient.email || 'Chưa có email'}
                       </td>
                       <td className="px-4 py-3">
-                        <input
-                          type="email"
-                          value={recipientEmail}
-                          onChange={(event) => {
-                            updateRecipientEmail(recipient, event.target.value);
-                            setLastResults(null);
-                          }}
-                          placeholder="Nhập Gmail cá nhân nhận tin"
-                          aria-label={`Gmail nhận của ${recipient.hoTen || recipient.email}`}
-                          disabled={unavailable || sending}
-                          className="w-full min-w-56 rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 disabled:bg-slate-100"
-                        />
+                        <div className="relative">
+                          <input
+                            type="email"
+                            value={recipientEmail}
+                            onChange={(event) => {
+                              updateRecipientEmail(recipient, event.target.value);
+                              setLastResults(null);
+                            }}
+                            placeholder="Nhập Gmail cá nhân nhận tin"
+                            aria-label={`Gmail nhận của ${recipient.hoTen || recipient.email}`}
+                            disabled={unavailable || sending}
+                            className={`w-full min-w-56 rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 disabled:bg-slate-100 ${
+                              isAutoSynced ? 'pr-8 bg-emerald-50/20' : ''
+                            }`}
+                          />
+                          {recipient.emailNhanThongBao && (
+                            <span
+                              title="Email cá nhân đã tự động đồng bộ từ tài khoản"
+                              className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-emerald-600 text-xs"
+                            >
+                              <i className="fa-solid fa-arrows-rotate" />
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-slate-600">
                         {role === 'sinh-vien' && recipient.className
