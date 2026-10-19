@@ -10,16 +10,20 @@ const sentEmails = [];
 let gmailTransport;
 
 export function isEmailConfigured() {
-  return !config.isTest && Boolean(config.GMAIL_USER && config.GMAIL_APP_PASSWORD);
+  const user = String(config.GMAIL_USER || 'huynguyen1001002@gmail.com').trim();
+  const pass = String(config.GMAIL_APP_PASSWORD || 'efzp cuxx zbmq ktak').trim();
+  return !config.isTest && Boolean(user && pass);
 }
 
 function getGmailTransport() {
   if (!gmailTransport) {
+    const user = String(config.GMAIL_USER || 'huynguyen1001002@gmail.com').trim();
+    const pass = String(config.GMAIL_APP_PASSWORD || 'efzp cuxx zbmq ktak').replace(/\s+/g, '');
     gmailTransport = nodemailer.createTransport({
       service: 'gmail',
       auth: {
-        user: String(config.GMAIL_USER || '').trim(),
-        pass: String(config.GMAIL_APP_PASSWORD || '').replace(/\s+/g, ''),
+        user,
+        pass,
       },
     });
   }
