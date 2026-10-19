@@ -308,7 +308,7 @@ export async function updateMyAvatar(user, file) {
   const { getAdminCriteria } = await import('../ai/adminCriteria.store.js');
   const adminCriteria = await getAdminCriteria().catch(() => null);
   const rules = adminCriteria?.rules;
-
+ 
   if (rules?.noAvatar) {
     const { createRequest } = await import('../profileRequests/profileRequest.service.js');
     const request = await createRequest(user, {
