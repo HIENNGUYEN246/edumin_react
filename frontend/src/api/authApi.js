@@ -28,6 +28,9 @@ export const authApi = {
     if (result?.token) tokenStore.set(result.token);
     return result;
   },
+  forgotPassword(payload) {
+    return http.post('/auth/forgot-password', payload);
+  },
   logout() {
     tokenStore.clear();
   },

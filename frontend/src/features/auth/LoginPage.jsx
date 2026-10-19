@@ -3,23 +3,24 @@ import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../app/providers/AuthProvider.jsx';
 import { useToast } from '../../app/providers/ToastProvider.jsx';
 import { roleHome } from '../../app/navConfig.js';
-import { RegisterForm } from './RegisterForm.jsx';
+import { ForgotPasswordModal } from './ForgotPasswordModal.jsx';
 
 export function LoginPage() {
   const navigate = useNavigate();
   const toast = useToast();
-  const { login, register, isAuthenticated, user } = useAuth();
-  const [mode, setMode] = useState('login');
+  const { login, isAuthenticated, user } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [successNotice, setSuccessNotice] = useState('');
+  const [isForgotModalOpen, setIsForgotModalOpen] = useState(false);
 
   useEffect(() => {
     setShowPassword(false);
     setErrorMessage('');
-  }, [mode]);
+  }, []);
 
   if (isAuthenticated && user) {
     return <Navigate to={roleHome(user.role)} replace />;
@@ -82,75 +83,89 @@ export function LoginPage() {
         <div className="w-full max-w-sm mx-auto">
           <div className="mb-5">
             <p className="text-xs font-bold uppercase tracking-[0.2em] text-indigo-600">Edumin</p>
-            <h1 className="text-4xl font-bold text-slate-800 mt-1">
-              {mode === 'login' ? 'Đăng nhập' : 'Đăng ký sinh viên'}
-            </h1>
-            <p className="text-sm text-slate-600 mt-2">
-              {mode === 'login' ? 'Truy cập hệ thống quản lý đào tạo' : 'Tạo tài khoản để bắt đầu học tập'}
-            </p>
+            <h1 className="text-4xl font-bold text-slate-800 mt-1">Đăng nhập</h1>
+            <p className="text-sm text-slate-600 mt-2">Truy cập hệ thống quản lý đào tạo</p>
           </div>
 
-          {mode === 'login' ? (
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {errorMessage && (
-                <div
-                  role="alert"
-                  className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-700 text-sm flex items-center gap-2"
-                >
-                  <i className="fa-solid fa-circle-exclamation text-red-500 flex-shrink-0" />
-                  <span>{errorMessage}</span>
-                </div>
-              )}
-              <input
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                type="email"
-                autoComplete="email"
-                placeholder="Email của bạn"
-                className={inputClass}
-              />
-              <div className="relative">
-                <input
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  type={showPassword ? 'text' : 'password'}
-                  autoComplete="current-password"
-                  placeholder="Mật khẩu"
-                  className={`${inputClass} pr-12`}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((v) => !v)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 text-slate-500 hover:text-indigo-600"
-                  aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
-                >
-                  <i className={`fa-solid ${showPassword ? 'fa-eye-slash' : 'fa-eye'}`} />
-                </button>
-              </div>
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="bg-gradient-to-r from-indigo-600 to-blue-500 hover:from-indigo-700 hover:to-blue-600 disabled:opacity-60 w-full font-bold text-white rounded-xl py-3.5 shadow-xl transition-all"
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {successNotice && (
+              <div
+                role="status"
+                className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-800 text-sm flex items-start gap-2"
               >
-                {isLoading ? 'Đang đăng nhập...' : 'Đăng nhập'}
-              </button>
-              <p className="text-center text-sm text-slate-700">
-                Bạn là sinh viên chưa có tài khoản?{' '}
-                <button type="button" onClick={() => setMode('register')} className="font-bold text-indigo-700 hover:underline">
-                  Đăng ký ngay
-                </button>
-              </p>
-            </form>
-          ) : (
-            <RegisterForm
-              register={register}
-              inputClass={inputClass}
-              onSuccess={(result) => navigate(roleHome(result.user.role), { replace: true })}
-              onBackToLogin={() => setMode('login')}
+                <i className="fa-solid fa-circle-check text-emerald-600 mt-0.5 flex-shrink-0" />
+                <span>{successNotice}</span>
+              </div>
+            )}
+            {errorMessage && (
+              <div
+                role="alert"
+                className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-700 text-sm flex items-center gap-2"
+              >
+                <i className="fa-solid fa-circle-exclamation text-red-500 flex-shrink-0" />
+                <span>{errorMessage}</span>
+              </div>
+            )}
+            <input
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              type="text"
+              autoComplete="username"
+              placeholder="Email của bạn"
+              className={inputClass}
             />
-          )}
+            <div className="relative">
+              <input
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                type={showPassword ? 'text' : 'password'}
+                autoComplete="current-password"
+                placeholder="Mật khẩu"
+                className={`${inputClass} pr-12`}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 text-slate-500 hover:text-indigo-600"
+                aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+              >
+                <i className={`fa-solid ${showPassword ? 'fa-eye-slash' : 'fa-eye'}`} />
+              </button>
+            </div>
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="bg-gradient-to-r from-indigo-600 to-blue-500 hover:from-indigo-700 hover:to-blue-600 disabled:opacity-60 w-full font-bold text-white rounded-xl py-3.5 shadow-xl transition-all cursor-pointer"
+            >
+              {isLoading ? 'Đang đăng nhập...' : 'Đăng nhập'}
+            </button>
+            <div className="text-center pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setErrorMessage('');
+                  setIsForgotModalOpen(true);
+                }}
+                className="text-sm font-semibold text-indigo-700 hover:text-indigo-900 hover:underline transition cursor-pointer"
+              >
+                Quên tài khoản hoặc mật khẩu?
+              </button>
+            </div>
+          </form>
         </div>
       </div>
+
+      <ForgotPasswordModal
+        open={isForgotModalOpen}
+        onClose={() => setIsForgotModalOpen(false)}
+        onSuccess={(result) => {
+          setSuccessNotice(result.message);
+          if (result.username) {
+            setEmail(result.username);
+            setPassword('123');
+          }
+        }}
+      />
     </div>
   );
 }

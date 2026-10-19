@@ -215,3 +215,55 @@ export async function sendClassAssignedEmail({
     metadata: { type: 'CLASS_ASSIGNED', role, classId, courseId },
   });
 }
+
+/**
+ * Trigger (3): Gửi email thông báo khôi phục tài khoản / mật khẩu tự động.
+ */
+export async function sendAccountRecoveryEmail({
+  to,
+  username,
+  password = '123',
+  hoTen = '',
+}) {
+  if (!to) return null;
+
+  const subject = `[EduMin] Khôi phục thông tin tài khoản - ${hoTen || username}`;
+  const text = `Xin chào ${hoTen || 'bạn'},\n\nThông tin tài khoản EduMin của bạn đã được khôi phục thành công:\n- Tên đăng nhập: ${username}\n- Mật khẩu mặc định: ${password}\n\nVui lòng đăng nhập hệ thống và đổi mật khẩu để bảo mật tài khoản.\n\nTrân trọng,\nBan Quản Trị Hệ Thống EduMin`;
+
+  const escapeHtml = (value) =>
+    String(value ?? '').replace(
+      /[&<>"']/g,
+      (char) =>
+        ({
+          '&': '&amp;',
+          '<': '&lt;',
+          '>': '&gt;',
+          '"': '&quot;',
+          "'": '&#39;',
+        })[char]
+    );
+
+  const html = `
+    <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px;">
+      <h2 style="color: #4f46e5; margin-top: 0;">Khôi phục thông tin tài khoản EduMin</h2>
+      <p>Xin chào <strong>${escapeHtml(hoTen || 'bạn')}</strong>,</p>
+      <p>Bạn (hoặc ai đó) vừa yêu cầu lấy lại thông tin đăng nhập trên hệ thống quản lý đào tạo EduMin. Dưới đây là thông tin tài khoản của bạn:</p>
+      <div style="background-color: #f3f4f6; padding: 14px 18px; border-radius: 6px; margin: 16px 0;">
+        <p style="margin: 4px 0;"><strong>Tên đăng nhập:</strong> ${escapeHtml(username)}</p>
+        <p style="margin: 4px 0;"><strong>Mật khẩu đã khôi phục:</strong> ${escapeHtml(password)}</p>
+      </div>
+      <p style="color: #4b5563; font-size: 13px;">Vì lý do an toàn bảo mật, vui lòng đăng nhập ngay và đổi mật khẩu mới trong phần cài đặt tài khoản cá nhân.</p>
+      <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;" />
+      <p style="color: #6b7280; font-size: 12px; margin-bottom: 0;">Trân trọng,<br/><strong>Ban Quản Trị Hệ Thống EduMin</strong></p>
+    </div>
+  `;
+
+  return sendEmail({
+    to,
+    subject,
+    text,
+    html,
+    metadata: { type: 'ACCOUNT_RECOVERY', username },
+  });
+}
+

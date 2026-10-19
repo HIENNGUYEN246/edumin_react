@@ -8,6 +8,11 @@ export const login = asyncHandler(async (req, res) => {
   res.json(result);
 });
 
+export const forgotPassword = asyncHandler(async (req, res) => {
+  const result = await authService.forgotPassword(req.body);
+  res.json(result);
+});
+
 export const registrationOptions = asyncHandler(async (_req, res) => {
   const departments = await Department.find({}).select('id name').sort({ name: 1 }).lean();
   res.json({ departments });
