@@ -102,14 +102,14 @@ export function ChangePasswordModal({ open, onClose }) {
       size="sm"
       zIndex="z-50"
     >
-      <form onSubmit={submit} className="space-y-4">
-        <div className="flex items-center gap-3 p-3.5 rounded-2xl bg-indigo-50/70 border border-indigo-100/80 text-xs text-indigo-900 mb-2">
+      <form onSubmit={submit} className="space-y-4 pt-1 sm:pt-2">
+        <div className="flex items-center gap-3.5 p-3.5 rounded-2xl bg-indigo-50/70 border border-indigo-100/80 text-xs text-indigo-900 mb-4 shadow-2xs">
           <div className="w-8 h-8 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
             <i className="fas fa-lock text-sm" />
           </div>
           <div className="leading-snug">
             <p className="font-semibold text-slate-800">Cập nhật mật khẩu tài khoản</p>
-            <p className="text-slate-500 text-[11px]">Mật khẩu mới tối thiểu 6 ký tự và khác mật khẩu cũ.</p>
+            <p className="text-slate-500 text-[11px] mt-0.5">Mật khẩu mới tối thiểu 6 ký tự và khác mật khẩu cũ.</p>
           </div>
         </div>
 

@@ -49,10 +49,10 @@ export function ConfirmProvider({ children }) {
         size="sm"
       >
         {state && (
-          <div>
-            <div className="text-center pt-1 pb-2">
+          <div className="pt-2 sm:pt-4 pb-1">
+            <div className="text-center">
               <div
-                className={`mx-auto w-16 h-16 rounded-2xl flex items-center justify-center mb-4 transition-transform hover:scale-105 ${
+                className={`mx-auto w-16 h-16 rounded-2xl flex items-center justify-center mb-5 transition-transform hover:scale-105 ${
                   isDanger
                     ? 'bg-rose-50 text-rose-600 border border-rose-200/70 ring-8 ring-rose-50/60 shadow-sm shadow-rose-100'
                     : 'bg-indigo-50 text-indigo-600 border border-indigo-200/70 ring-8 ring-indigo-50/60 shadow-sm shadow-indigo-100'
@@ -60,18 +60,18 @@ export function ConfirmProvider({ children }) {
               >
                 <i className={`fas ${isDanger ? 'fa-trash-can' : 'fa-circle-question'} text-2xl`} />
               </div>
-              <p className="text-slate-700 text-sm sm:text-base font-medium leading-relaxed px-1">
+              <p className="text-slate-800 text-sm sm:text-base font-semibold leading-relaxed px-1">
                 {state.message}
               </p>
               {isDanger && (
-                <div className="mt-3.5 mx-auto inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-50 border border-amber-200/70 text-amber-800 text-xs font-semibold">
+                <div className="mt-4 mx-auto inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-50 border border-amber-200/70 text-amber-800 text-xs font-semibold">
                   <i className="fas fa-triangle-exclamation text-amber-500 text-xs shrink-0" />
                   <span>Hành động này không thể hoàn tác</span>
                 </div>
               )}
             </div>
 
-            <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
+            <div className="mt-7 pt-5 border-t border-slate-100 flex items-center justify-end gap-3">
               <button
                 type="button"
                 onClick={() => close(false)}

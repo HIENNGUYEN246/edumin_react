@@ -43,7 +43,7 @@ export function Modal({
   if (!isVisible) return null;
 
   const content = (
-    <div className={`fixed inset-0 ${zIndex} flex items-center justify-center p-4 sm:p-6 md:p-8 py-10 sm:py-14 md:py-16 overflow-y-auto`}>
+    <div className={`fixed inset-0 ${zIndex} flex items-center justify-center px-4 sm:px-6 md:px-8 py-16 sm:py-24 md:py-28 overflow-y-auto`}>
       <div
         className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm transition-opacity"
         onClick={() => closable && onClose?.()}
@@ -52,10 +52,10 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-label={typeof title === 'string' ? title : undefined}
-        className={`relative w-full ${SIZES[size]} bg-white rounded-3xl shadow-2xl border border-slate-100/80 max-h-[88vh] overflow-y-auto custom-scrollbar transition-all transform duration-200 my-auto ${className}`}
+        className={`relative w-full ${SIZES[size]} bg-white rounded-3xl shadow-2xl border border-slate-100/80 max-h-[85vh] overflow-y-auto custom-scrollbar transition-all transform duration-200 my-auto sm:my-8 md:my-12 ${className}`}
       >
         {title && (
-          <div className="flex items-center justify-between px-6 py-4.5 border-b border-slate-100 bg-white/95 backdrop-blur-sm sticky top-0 z-20">
+          <div className="flex items-center justify-between px-6 sm:px-8 py-5 border-b border-slate-100 bg-white/95 backdrop-blur-sm sticky top-0 z-20">
             <div className="flex items-center gap-3">
               {icon && (
                 <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0 border border-indigo-100/60 shadow-xs">
@@ -76,7 +76,7 @@ export function Modal({
             )}
           </div>
         )}
-        <div className="p-6">{children}</div>
+        <div className="p-6 sm:p-8 pt-5 sm:pt-6">{children}</div>
       </div>
     </div>
   );

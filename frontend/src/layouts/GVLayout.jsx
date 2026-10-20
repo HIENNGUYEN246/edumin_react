@@ -332,7 +332,7 @@ function GVShell({
       )}
 
       {showLockModal && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 md:p-8 py-10 sm:py-16 overflow-y-auto">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center px-4 sm:px-6 md:px-8 py-16 sm:py-24 md:py-28 overflow-y-auto">
           <div className="fixed inset-0 bg-gray-950/60 backdrop-blur-md" />
           <div className="relative bg-white p-8 rounded-3xl shadow-2xl max-w-sm w-full my-auto text-center border-4 border-red-100">
             <h2 className="text-2xl font-bold text-gray-800 mb-2">Tài khoản bị khóa!</h2>
@@ -358,7 +358,7 @@ function Toast({ toast }) {
 
 function PasswordModal({ passwordForm, setPasswordForm, passwordVisibility, setPasswordVisibility, passwordErrors, savingPassword, onClose, onSubmit }) {
   return (
-    <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm z-[200] flex items-center justify-center p-4 sm:p-6 md:p-8 py-10 sm:py-16 overflow-y-auto">
+    <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm z-[200] flex items-center justify-center px-4 sm:px-6 md:px-8 py-16 sm:py-24 md:py-28 overflow-y-auto">
       <div className="bg-white rounded-3xl shadow-2xl border border-slate-100/80 w-full max-w-md my-auto overflow-hidden">
         <PasswordModalInner
           passwordForm={passwordForm}

@@ -459,7 +459,7 @@ function ManageDepartments() {
       </div>
 
       {showTeacherDetail && detailTeacher && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 md:p-8 py-10 sm:py-16 bg-slate-950/50 backdrop-blur-sm overflow-y-auto">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 sm:px-6 md:px-8 py-16 sm:py-24 md:py-28 bg-slate-950/50 backdrop-blur-sm overflow-y-auto">
           <div className="bg-white rounded-3xl shadow-2xl border border-slate-100/80 w-full max-w-5xl my-auto overflow-hidden flex flex-col md:flex-row max-h-[85vh]">
             <div className="md:w-1/3 bg-indigo-600 p-8 text-white flex flex-col items-center justify-center text-center">
               <div className="mb-6">
@@ -512,7 +512,7 @@ function ManageDepartments() {
       )}
 
       {showClassDetail && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 md:p-8 py-10 sm:py-16 bg-slate-950/50 backdrop-blur-sm overflow-y-auto">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 sm:px-6 md:px-8 py-16 sm:py-24 md:py-28 bg-slate-950/50 backdrop-blur-sm overflow-y-auto">
           <div className="bg-white p-8 rounded-3xl shadow-2xl border border-slate-100/80 w-full max-w-2xl my-auto">
             <div className="flex justify-between items-center mb-6 border-b pb-4">
               <h3 className="text-xl font-bold text-indigo-900">{classDetail.title}</h3>
@@ -551,7 +551,7 @@ function ManageDepartments() {
       )}
 
       {showDeptModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 md:p-8 py-10 sm:py-16 bg-slate-950/50 backdrop-blur-sm overflow-y-auto">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 sm:px-6 md:px-8 py-16 sm:py-24 md:py-28 bg-slate-950/50 backdrop-blur-sm overflow-y-auto">
           <div className="bg-white p-8 rounded-3xl shadow-2xl border border-slate-100/80 w-full max-w-md my-auto">
             <h3 className="text-xl font-bold mb-6 text-gray-800 border-b pb-4">{editDeptId ? 'Chỉnh sửa Khoa' : 'Thêm Khoa'}</h3>
             <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off" noValidate>
@@ -636,7 +636,7 @@ function ManageDepartments() {
       )}
 
       {showConfirm && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 md:p-8 py-10 sm:py-16 bg-slate-950/50 backdrop-blur-sm overflow-y-auto">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 sm:px-6 md:px-8 py-16 sm:py-24 md:py-28 bg-slate-950/50 backdrop-blur-sm overflow-y-auto">
           <div className={`bg-white rounded-3xl p-8 max-w-sm w-full my-auto shadow-2xl border border-slate-100/80 transform transition-all duration-300 ${confirmVisible ? 'scale-100 opacity-100' : 'scale-95 opacity-0'}`}>
             <div className="text-center">
               <div className="mx-auto flex items-center justify-center w-16 h-16 rounded-2xl bg-rose-50 text-rose-600 border border-rose-200/70 ring-8 ring-rose-50/60 mb-5 shadow-sm shadow-rose-100">

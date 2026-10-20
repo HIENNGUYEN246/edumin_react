@@ -161,7 +161,7 @@ export function CourseRegModals(props) {
       )}
 
       {showConfirmModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/50 backdrop-blur-sm p-4 sm:p-6 md:p-8 py-10 sm:py-16 overflow-y-auto">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/50 backdrop-blur-sm px-4 sm:px-6 md:px-8 py-16 sm:py-24 md:py-28 overflow-y-auto">
           <div
             className={`bg-white p-8 rounded-3xl shadow-2xl border border-slate-100/80 max-w-sm w-full my-auto transform transition-all ${
               confirmAnimating ? 'scale-100 opacity-100' : 'scale-95 opacity-0'
@@ -223,7 +223,7 @@ function RegModal({
   saving,
 }) {
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/50 backdrop-blur-sm p-4 sm:p-6 md:p-8 py-10 sm:py-16 overflow-y-auto">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/50 backdrop-blur-sm px-4 sm:px-6 md:px-8 py-16 sm:py-24 md:py-28 overflow-y-auto">
       <div className="bg-white p-8 rounded-3xl shadow-2xl border border-slate-100/80 w-full max-w-6xl my-auto overflow-y-auto max-h-[85vh]">
         <div className="flex justify-between items-center mb-6 border-b pb-4">
           <h3 className="text-xl font-bold text-gray-800">Thiết lập Lớp Học Phần Mới</h3>

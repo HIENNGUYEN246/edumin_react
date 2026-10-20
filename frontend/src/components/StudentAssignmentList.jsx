@@ -845,7 +845,7 @@ const StudentAssignmentList = () => {
       </div>
 
       {false && selectedQuiz && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-[300] flex items-center justify-center p-4 sm:p-6 md:p-8 py-10 sm:py-16 overflow-y-auto">
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-[300] flex items-center justify-center px-4 sm:px-6 md:px-8 py-16 sm:py-24 md:py-28 overflow-y-auto">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[85vh] my-auto overflow-y-auto">
             <div className="px-7 pt-6 pb-5 border-b border-gray-100 sticky top-0 bg-white/95 backdrop-blur z-10">
               <div className="flex justify-between items-start gap-4">
@@ -949,7 +949,7 @@ const StudentAssignmentList = () => {
       )}
 
       {showPasswordModal && (
-        <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm z-[400] flex items-center justify-center p-4 sm:p-6 md:p-8 py-10 sm:py-16 overflow-y-auto">
+        <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm z-[400] flex items-center justify-center px-4 sm:px-6 md:px-8 py-16 sm:py-24 md:py-28 overflow-y-auto">
           <div className="bg-white rounded-3xl shadow-2xl border border-slate-100/80 w-full max-w-md my-auto overflow-hidden">
             <div className="bg-emerald-600 p-4 text-white flex justify-between items-center">
               <h3 className="font-bold">Đổi mật khẩu</h3>
@@ -1008,7 +1008,7 @@ const StudentAssignmentList = () => {
       )}
 
       {showLockModal && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-md z-[999] flex items-center justify-center p-4 sm:p-6 md:p-8 py-10 sm:py-16 overflow-y-auto">
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-md z-[999] flex items-center justify-center px-4 sm:px-6 md:px-8 py-16 sm:py-24 md:py-28 overflow-y-auto">
           <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full my-auto p-8 text-center border-4 border-red-100">
             <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6">
               <i className="fas fa-user-lock text-red-500 text-3xl animate-bounce" />

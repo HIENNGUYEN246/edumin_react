@@ -1036,7 +1036,7 @@ const TeacherAssignmentList = () => {
       </div>
 
       {selectedResultAssignment && (
-        <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm z-[300] flex items-center justify-center p-4 sm:p-6 md:p-8 py-10 sm:py-16 overflow-y-auto">
+        <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm z-[300] flex items-center justify-center px-4 sm:px-6 md:px-8 py-16 sm:py-24 md:py-28 overflow-y-auto">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-6xl max-h-[85vh] my-auto overflow-y-auto p-6 md:p-8 flex flex-col border border-slate-100">
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-5 border-b border-gray-100 gap-4">
@@ -1299,7 +1299,7 @@ const TeacherAssignmentList = () => {
       )}
 
       {showRenameModal && (
-        <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm z-[300] flex items-center justify-center p-4 sm:p-6 md:p-8 py-10 sm:py-16 overflow-y-auto">
+        <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm z-[300] flex items-center justify-center px-4 sm:px-6 md:px-8 py-16 sm:py-24 md:py-28 overflow-y-auto">
           <div className="bg-white rounded-3xl shadow-2xl border border-slate-100/80 w-full max-w-md my-auto overflow-hidden">
             <div className="bg-indigo-600 p-4 text-white flex justify-between items-center">
               <h3 className="font-bold flex items-center gap-2"><i className="fas fa-edit" /> Đổi tên bài tập</h3>
@@ -1332,7 +1332,7 @@ const TeacherAssignmentList = () => {
       )}
 
       {showDeleteModal && (
-        <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm z-[300] flex items-center justify-center p-4 sm:p-6 md:p-8 py-10 sm:py-16 overflow-y-auto">
+        <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm z-[300] flex items-center justify-center px-4 sm:px-6 md:px-8 py-16 sm:py-24 md:py-28 overflow-y-auto">
           <div className="bg-white rounded-3xl shadow-2xl border border-slate-100/80 w-full max-w-sm my-auto overflow-hidden p-8 text-center">
             <div className="w-16 h-16 bg-rose-50 text-rose-600 border border-rose-200/70 ring-8 ring-rose-50/60 rounded-2xl flex items-center justify-center mx-auto mb-5 shadow-sm shadow-rose-100">
               <i className="fas fa-trash-can text-2xl" />
@@ -1360,7 +1360,7 @@ const TeacherAssignmentList = () => {
       )}
 
       {showPasswordModal && (
-        <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm z-[400] flex items-center justify-center p-4 sm:p-6 md:p-8 py-10 sm:py-16 overflow-y-auto">
+        <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm z-[400] flex items-center justify-center px-4 sm:px-6 md:px-8 py-16 sm:py-24 md:py-28 overflow-y-auto">
           <div className="bg-white rounded-3xl shadow-2xl border border-slate-100/80 w-full max-w-md my-auto overflow-hidden">
             <div className="flex items-center justify-between px-6 py-4.5 border-b border-slate-100 bg-white/95 sticky top-0 z-20">
               <div className="flex items-center gap-3">
@@ -1437,7 +1437,7 @@ const TeacherAssignmentList = () => {
       )}
 
       {showLockModal && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-md z-[999] flex items-center justify-center p-4 sm:p-6 md:p-8 py-10 sm:py-16 overflow-y-auto">
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-md z-[999] flex items-center justify-center px-4 sm:px-6 md:px-8 py-16 sm:py-24 md:py-28 overflow-y-auto">
           <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full my-auto p-8 text-center border-4 border-red-100">
             <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6">
               <i className="fas fa-user-lock text-red-500 text-3xl animate-pulse" />
