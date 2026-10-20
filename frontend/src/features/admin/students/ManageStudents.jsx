@@ -32,6 +32,7 @@ const studentConfig = {
   formatCode: formatStudentCode,
   enableClassFilter: true,
   emptyForm: {
+    id: '',
     hoTen: '',
     email: '',
     phone: '',
@@ -44,6 +45,7 @@ const studentConfig = {
     password: '',
   },
   fields: [
+    { name: 'id', label: 'Mã SV', required: true, validation: 'studentCode', createOnly: true, section: 'work' },
     { name: 'hoTen', label: 'Họ và tên', required: true, validation: 'name', maxLength: 100, section: 'personal' },
     {
       name: 'dob',

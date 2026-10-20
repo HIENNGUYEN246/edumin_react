@@ -20,6 +20,11 @@ export function LoginPage() {
   useEffect(() => {
     setShowPassword(false);
     setErrorMessage('');
+    const passwordChangeNotice = sessionStorage.getItem('passwordChangeSuccessNotice');
+    if (passwordChangeNotice) {
+      setSuccessNotice(passwordChangeNotice);
+      sessionStorage.removeItem('passwordChangeSuccessNotice');
+    }
   }, []);
 
   if (isAuthenticated && user) {

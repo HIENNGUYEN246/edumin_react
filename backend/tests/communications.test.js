@@ -14,6 +14,7 @@ import { ROLES } from '../src/lib/roles.js';
 import { Department } from '../src/modules/departments/department.model.js';
 import { createTeacher } from '../src/modules/teachers/teacher.service.js';
 import { createStudent } from '../src/modules/students/student.service.js';
+import { Teacher } from '../src/modules/teachers/teacher.model.js';
 
 let adminToken;
 let teacher;
@@ -237,5 +238,50 @@ describe('Admin account email communications', () => {
       });
     expect(tooMany.status).toBe(400);
     expect(mailerMocks.sendAccountCreatedEmail).not.toHaveBeenCalled();
+  });
+
+  it('rejects non-Gmail recipients and addresses matching the account email', async () => {
+    const nonGmail = await request(app)
+      .post('/api/communications/account-credentials')
+      .set(authHeader(adminToken))
+      .send({
+        recipients: [
+          {
+            role: ROLES.TEACHER,
+            accountEmail: 'teacher@edu.vn',
+            recipientEmail: 'teacher.personal@university.edu.vn',
+          },
+        ],
+      });
+    expect(nonGmail.status).toBe(400);
+
+    const sameAddress = await request(app)
+      .post('/api/communications/account-credentials')
+      .set(authHeader(adminToken))
+      .send({
+        recipients: [
+          {
+            role: ROLES.TEACHER,
+            accountEmail: 'teacher.personal@gmail.com',
+            recipientEmail: 'teacher.personal@gmail.com',
+          },
+        ],
+      });
+    expect(sameAddress.status).toBe(400);
+    expect(mailerMocks.sendAccountCreatedEmail).not.toHaveBeenCalled();
+  });
+
+  it('does not prefill a stored account email as the personal Gmail recipient', async () => {
+    await Teacher.updateOne(
+      { _id: teacher._id },
+      { $set: { emailNhanThongBao: teacher.email } }
+    );
+
+    const response = await request(app)
+      .get('/api/communications/recipients?role=giao-vien')
+      .set(authHeader(adminToken));
+
+    expect(response.status).toBe(200);
+    expect(response.body.data[0].emailNhanThongBao).toBe('');
   });
 });

@@ -15,6 +15,7 @@ router.use(authenticate);
 // (forms elsewhere need it, e.g. picking a department head or class teacher).
 router.get('/', controller.list);
 router.get('/me', authorize(ROLES.TEACHER), controller.getMe);
+router.get('/next-id', authorize(ROLES.ADMIN), controller.nextId);
 router.get('/:id', controller.getOne);
 
 router.post('/', authorize(ROLES.ADMIN), validate(createTeacherSchema), controller.create);

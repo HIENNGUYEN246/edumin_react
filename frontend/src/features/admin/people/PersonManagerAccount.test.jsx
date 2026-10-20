@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { setupServer } from 'msw/node';
 import { http, HttpResponse } from 'msw';
@@ -65,12 +65,15 @@ const server = setupServer(
       meta: { page: 1, pages: 1, total: 2 },
     });
   }),
+  http.get(`${API}/students/next-id`, () => HttpResponse.json({ nextId: 1 })),
+  http.get(`${API}/students/classes`, () => HttpResponse.json({ data: [] })),
   http.get(`${API}/teachers`, () => {
     return HttpResponse.json({
       data: mockTeachers,
       meta: { page: 1, pages: 1, total: 1 },
     });
   }),
+  http.get(`${API}/teachers/next-id`, () => HttpResponse.json({ nextId: 1 })),
   http.get(`${API}/departments`, () => {
     return HttpResponse.json({
       data: [{ _id: 'd1', id: 1, name: 'Công nghệ thông tin' }],
@@ -99,6 +102,26 @@ function renderWithProviders(ui) {
 }
 
 describe('PersonManager account actions', () => {
+  it('prefills an editable teacher code from the next available code endpoint', async () => {
+    renderWithProviders(<ManageTeachers />);
+
+    fireEvent.click(await screen.findByRole('button', { name: /thêm giáo viên/i }));
+    const codeInput = await screen.findByDisplayValue('GV-001');
+    fireEvent.change(codeInput, { target: { value: 'GV-025' } });
+
+    expect(codeInput).toHaveValue('GV-025');
+  });
+
+  it('prefills an editable student code from the next available code endpoint', async () => {
+    renderWithProviders(<ManageStudents />);
+
+    fireEvent.click(await screen.findByRole('button', { name: /thêm sinh viên/i }));
+    const codeInput = await screen.findByDisplayValue('SV-001');
+    fireEvent.change(codeInput, { target: { value: 'SV-025' } });
+
+    expect(codeInput).toHaveValue('SV-025');
+  });
+
   it.each([
     ['teacher', ManageTeachers, 'Lê Thị Giáo Viên'],
     ['student', ManageStudents, 'Nguyễn Văn Active'],

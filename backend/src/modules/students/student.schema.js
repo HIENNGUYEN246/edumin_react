@@ -48,6 +48,15 @@ const base = {
 
 export const createStudentSchema = z.object({
   ...base,
+  id: z
+    .string()
+    .regex(/^SV-\d+$/i, 'Mã sinh viên phải theo định dạng SV-001')
+    .transform((value) => Number(value.slice(3)))
+    .refine(
+      (value) => Number.isSafeInteger(value) && value > 0,
+      'Số sau SV- phải là số nguyên dương hợp lệ'
+    )
+    .optional(),
   password: z.string().optional().default('123'),
 });
 

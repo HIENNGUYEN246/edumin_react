@@ -198,7 +198,19 @@ export function PersonManager({ config }) {
     }
   };
 
-  const openCreate = () => setModal({ mode: 'create', initial: { ...config.emptyForm } });
+  const openCreate = async () => {
+    const initial = { ...config.emptyForm };
+    if (config.api.nextId) {
+      try {
+        const { nextId } = await config.api.nextId();
+        initial.id = config.formatCode ? config.formatCode(nextId) : String(nextId);
+      } catch (error) {
+        toast.error(error.message || `Không lấy được mã ${config.entityLabel} tiếp theo`);
+        return;
+      }
+    }
+    setModal({ mode: 'create', initial });
+  };
   const openEdit = (person) => {
     const currentDeptId =
       person.departmentRef?.id ||
@@ -280,15 +292,18 @@ export function PersonManager({ config }) {
       toast.success(modal.mode === 'create' ? 'Đã thêm thành công' : 'Đã cập nhật');
       setModal(null);
     } catch (error) {
-      if (error.code === 'CONFLICT' || error.code === 'DUPLICATE_KEY') {
-        setErrors({ email: error.message });
-      } else if (error.details && Array.isArray(error.details)) {
+      if (error.details && Array.isArray(error.details)) {
         const fieldErrors = {};
-        error.details.forEach((d) => {
-          if (d.path) fieldErrors[d.path] = d.message;
+        error.details.forEach((detail) => {
+          if (detail.path) fieldErrors[detail.path] = detail.message;
         });
-        setErrors(fieldErrors);
+        if (Object.keys(fieldErrors).length) {
+          setErrors(fieldErrors);
+          return;
+        }
         toast.error(error.message || 'Dữ liệu không hợp lệ');
+      } else if (error.code === 'CONFLICT' || error.code === 'DUPLICATE_KEY') {
+        setErrors({ email: error.message });
       } else {
         toast.error(error.message || 'Lỗi khi lưu dữ liệu');
       }

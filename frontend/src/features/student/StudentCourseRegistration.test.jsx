@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { StudentCourseRegistration, MAX_CREDITS } from './StudentCourseRegistration.jsx';
@@ -380,6 +380,36 @@ describe('StudentCourseRegistration Exclusive Class Selection & Credit Limit Val
     );
     // Mutate should NOT be executed
     expect(mockEnrollMutateAsync).not.toHaveBeenCalled();
+  });
+
+  it('shows the conflicting enrolled class name returned by the enrollment API', async () => {
+    const conflictMessage =
+      'Học phần bị trùng lịch (Thứ 2, Tiết 1 - 3 ( 7:00 - 9:15 )) với lớp học phần đã đăng ký: IT101-01 (Lập trình căn bản - Lớp 01).';
+    mockMyEnrollmentsList = [
+      {
+        _id: 'enr-existing',
+        classId: 'IT101-01',
+        class: {
+          _id: 'class-it101-1',
+          id: 'IT101-01',
+          courseId: 'IT101',
+          courseName: 'Lập trình',
+          className: 'Lập trình căn bản - Lớp 01',
+          department: 'Khoa Hóa Học',
+          credits: 3,
+          status: 'Đang mở',
+        },
+      },
+    ];
+    mockEnrollMutateAsync.mockRejectedValueOnce(new Error(conflictMessage));
+
+    renderWithClient();
+    fireEvent.click(screen.getByText('Hóa Học Cơ Bản'));
+    fireEvent.click(screen.getByRole('button', { name: /^Đăng ký$/i }));
+
+    await waitFor(() => {
+      expect(mockToast.error).toHaveBeenCalledWith(conflictMessage, 5000);
+    });
   });
 
   it('allows any credit count (no minimum credit restriction) when verifying registration plan', async () => {
@@ -971,4 +1001,3 @@ describe('StudentCourseRegistration Course Details Modal & General Education Fil
     expect(mockEnrollMutateAsync).toHaveBeenCalledWith('class-hoa-advanced');
   });
 });
-

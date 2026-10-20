@@ -147,6 +147,142 @@ describe('PersonFormModal education validation', () => {
     );
   });
 
+  describe('PersonFormModal teacher code validation', () => {
+    const fields = [
+      {
+        name: 'id',
+        label: 'Mã GV',
+        required: true,
+        validation: 'teacherCode',
+        createOnly: true,
+        section: 'work',
+      },
+    ];
+
+    it('accepts a suggested GV code and submits it', () => {
+      const onSubmit = vi.fn();
+      render(
+        <PersonFormModal
+          open
+          mode="create"
+          title="Thêm giáo viên"
+          initial={{ id: 'GV-001' }}
+          fields={fields}
+          departments={[]}
+          onClose={vi.fn()}
+          onSubmit={onSubmit}
+          profilePanel
+        />
+      );
+
+      expect(screen.getByDisplayValue('GV-001')).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Lưu dữ liệu' }));
+      expect(onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'GV-001' }),
+        expect.any(Function)
+      );
+    });
+
+    it.each(['001', 'GV-', 'GV-0', 'GV-1A'])('rejects invalid teacher code %s', (id) => {
+      const onSubmit = vi.fn();
+      render(
+        <PersonFormModal
+          open
+          mode="create"
+          title="Thêm giáo viên"
+          initial={{ id }}
+          fields={fields}
+          departments={[]}
+          onClose={vi.fn()}
+          onSubmit={onSubmit}
+          profilePanel
+        />
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: 'Lưu dữ liệu' }));
+      expect(onSubmit).not.toHaveBeenCalled();
+      expect(screen.getByText(/Mã giáo viên phải theo định dạng GV-001/)).toBeInTheDocument();
+    });
+
+    it('does not show a create-only teacher code when editing', () => {
+      render(
+        <PersonFormModal
+          open
+          mode="edit"
+          title="Sửa giáo viên"
+          initial={{ id: 1 }}
+          fields={fields}
+          departments={[]}
+          onClose={vi.fn()}
+          onSubmit={vi.fn()}
+          profilePanel
+        />
+      );
+
+      expect(screen.queryByDisplayValue('GV-001')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('PersonFormModal student code validation', () => {
+    const fields = [
+      {
+        name: 'id',
+        label: 'Mã SV',
+        required: true,
+        validation: 'studentCode',
+        createOnly: true,
+        section: 'work',
+      },
+    ];
+
+    it('accepts and submits an editable suggested student code', () => {
+      const onSubmit = vi.fn();
+      render(
+        <PersonFormModal
+          open
+          mode="create"
+          title="Thêm sinh viên"
+          initial={{ id: 'SV-001' }}
+          fields={fields}
+          departments={[]}
+          onClose={vi.fn()}
+          onSubmit={onSubmit}
+          profilePanel
+        />
+      );
+
+      const codeInput = screen.getByDisplayValue('SV-001');
+      fireEvent.change(codeInput, { target: { value: 'SV-025' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Lưu dữ liệu' }));
+
+      expect(onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'SV-025' }),
+        expect.any(Function)
+      );
+    });
+
+    it.each(['001', 'SV-', 'SV-0', 'SV-1A'])('rejects invalid student code %s', (id) => {
+      const onSubmit = vi.fn();
+      render(
+        <PersonFormModal
+          open
+          mode="create"
+          title="Thêm sinh viên"
+          initial={{ id }}
+          fields={fields}
+          departments={[]}
+          onClose={vi.fn()}
+          onSubmit={onSubmit}
+          profilePanel
+        />
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: 'Lưu dữ liệu' }));
+      expect(onSubmit).not.toHaveBeenCalled();
+      expect(screen.getByText(/Mã sinh viên phải theo định dạng SV-001/)).toBeInTheDocument();
+    });
+  });
+
   it('rejects education containing forbidden symbols like exclamation mark', () => {
     const fields = [
       {
@@ -187,5 +323,3 @@ describe('PersonFormModal education validation', () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 });
-
-

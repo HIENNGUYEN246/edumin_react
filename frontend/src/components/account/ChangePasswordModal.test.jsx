@@ -115,10 +115,12 @@ describe('ChangePasswordModal layout and positioning', () => {
 
     expect(sessionStorage.getItem('authToken')).toBeNull();
     expect(localStorage.getItem('authToken')).toBeNull();
+    expect(sessionStorage.getItem('passwordChangeSuccessNotice')).toContain(
+      'Đổi mật khẩu thành công'
+    );
     expect(mockLogout).toHaveBeenCalled();
     expect(mockToast.success).toHaveBeenCalledWith(
       expect.stringContaining('Đổi mật khẩu thành công')
     );
   });
 });
-

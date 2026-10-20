@@ -101,12 +101,17 @@ describe('Enrollments', () => {
 
   it('rejects a schedule clash with an existing enrollment (different courses, same slot)', async () => {
     const { token } = await makeStudent();
-    const a = await makeClass('IT101-01', [{ dayId: '2', shiftId: 'S1' }]);
+    const a = await makeClass('IT101-01', [{ dayId: '2', shiftId: 'S1' }], {
+      className: 'Lập trình căn bản - Lớp 01',
+    });
     const b = await makeClass('IT202-01', [{ dayId: '2', shiftId: 'S1' }], { courseId: 'IT202' });
     await request(app).post('/api/enrollments').set(authHeader(token)).send({ classId: a._id });
     const res = await request(app).post('/api/enrollments').set(authHeader(token)).send({ classId: b._id });
     expect(res.status).toBe(409);
-    expect(res.body.error.message).toMatch(/trùng lịch/);
+    expect(res.body.error.message).toContain('Thứ 2');
+    expect(res.body.error.message).toMatch(/Tiết 1 - 3/);
+    expect(res.body.error.message).toContain('IT101-01');
+    expect(res.body.error.message).toContain('Lập trình căn bản - Lớp 01');
   });
 
   it('rejects a second class of the same course (one class per course)', async () => {

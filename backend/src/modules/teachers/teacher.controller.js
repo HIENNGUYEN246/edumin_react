@@ -17,6 +17,10 @@ export const list = asyncHandler(async (req, res) => {
   res.json(await service.listTeachers(req.query));
 });
 
+export const nextId = asyncHandler(async (_req, res) => {
+  res.json(await service.getNextTeacherId());
+});
+
 export const getMe = asyncHandler(async (req, res) => {
   res.json(await service.getMyTeacher(req.user));
 });

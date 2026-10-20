@@ -8,6 +8,15 @@ import { User } from '../src/modules/auth/user.model.js';
 import { Teacher } from '../src/modules/teachers/teacher.model.js';
 import { comparePassword } from '../src/lib/password.js';
 
+const mailerMocks = vi.hoisted(() => ({
+  sendAccountCreatedEmail: vi.fn(),
+}));
+
+vi.mock('../src/lib/mailer.js', async (importOriginal) => ({
+  ...(await importOriginal()),
+  sendAccountCreatedEmail: mailerMocks.sendAccountCreatedEmail,
+}));
+
 // Mock Cloudinary so avatar tests never hit the network.
 vi.mock('../src/lib/files.service.js', () => ({
   uploadBuffer: vi.fn(async () => ({
@@ -24,6 +33,8 @@ vi.mock('../src/lib/files.service.js', () => ({
 
 let adminToken;
 beforeEach(async () => {
+  mailerMocks.sendAccountCreatedEmail.mockClear();
+  mailerMocks.sendAccountCreatedEmail.mockResolvedValue({ success: true });
   const { token } = await createUser({ role: ROLES.ADMIN });
   adminToken = token;
   await Department.create({ id: 'CNTT', name: 'CNTT' });
@@ -55,6 +66,7 @@ describe('Teachers', () => {
     const user = await User.findOne({ email: 'gv1@university.edu.vn' });
     expect(user.role).toBe(ROLES.TEACHER);
     expect(String(user.teacher)).toBe(String(res.body._id));
+    expect(mailerMocks.sendAccountCreatedEmail).not.toHaveBeenCalled();
   });
 
   it('uses 123 as the default password when creating a teacher without one', async () => {
@@ -85,6 +97,77 @@ describe('Teachers', () => {
       .set(authHeader(adminToken))
       .send(validTeacherPayload({ hoTen: 'GV Hai', email: 'b@university.edu.vn' }));
     expect(second.body.id).toBe(2);
+  });
+
+  it('uses the first missing teacher code after importing a later range', async () => {
+    const imported = await request(app)
+      .post('/api/teachers/import')
+      .set(authHeader(adminToken))
+      .send({
+        rows: Array.from({ length: 16 }, (_, index) => {
+          const id = index + 2;
+          return {
+            MaGV: `GV-${String(id).padStart(3, '0')}`,
+            HoTen: 'Giáo viên thử nghiệm',
+            TrinhDo: 'Thac si',
+            NgaySinh: '1980-01-01',
+            GioiTinh: 'Nam',
+            Khoa: 'CNTT',
+            SDT: `09${String(id).padStart(8, '0')}`,
+            Email: `import${id}@university.edu.vn`,
+            DiaChi: 'TP HCM',
+          };
+        }),
+      });
+    expect(imported.status).toBe(200);
+    expect(imported.body).toMatchObject({ created: 16, failed: [] });
+
+    const suggestion = await request(app)
+      .get('/api/teachers/next-id')
+      .set(authHeader(adminToken));
+    expect(suggestion.status).toBe(200);
+    expect(suggestion.body.nextId).toBe(1);
+
+    const created = await request(app)
+      .post('/api/teachers')
+      .set(authHeader(adminToken))
+      .send(validTeacherPayload({ email: 'new-after-import@university.edu.vn' }));
+    expect(created.status).toBe(201);
+    expect(created.body.id).toBe(1);
+  });
+
+  it('accepts a custom GV code and rejects invalid code formats', async () => {
+    const created = await request(app)
+      .post('/api/teachers')
+      .set(authHeader(adminToken))
+      .send(validTeacherPayload({ id: 'GV-034', email: 'custom-code@university.edu.vn' }));
+    expect(created.status).toBe(201);
+    expect(created.body.id).toBe(34);
+
+    const invalid = await request(app)
+      .post('/api/teachers')
+      .set(authHeader(adminToken))
+      .send(validTeacherPayload({ id: '34', email: 'invalid-code@university.edu.vn' }));
+    expect(invalid.status).toBe(400);
+    expect(await Teacher.countDocuments()).toBe(1);
+  });
+
+  it('rejects a custom teacher code that is already assigned', async () => {
+    await request(app)
+      .post('/api/teachers')
+      .set(authHeader(adminToken))
+      .send(validTeacherPayload({ id: 'GV-002', email: 'first-code@university.edu.vn' }));
+
+    const duplicate = await request(app)
+      .post('/api/teachers')
+      .set(authHeader(adminToken))
+      .send(validTeacherPayload({ id: 'GV-002', email: 'second-code@university.edu.vn' }));
+
+    expect(duplicate.status).toBe(409);
+    expect(duplicate.body.error.details).toContainEqual(
+      expect.objectContaining({ path: 'id' })
+    );
+    expect(await Teacher.countDocuments()).toBe(1);
   });
 
   it('rejects invalid teacher fields', async () => {

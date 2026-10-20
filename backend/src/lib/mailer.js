@@ -119,8 +119,14 @@ export async function sendAccountCreatedEmail({
           ? 'Kế toán'
           : 'Người dùng';
 
+  const identifier =
+    id === undefined || id === null
+      ? ''
+      : ['giao-vien', 'sinh-vien'].includes(role)
+        ? `${role === 'giao-vien' ? 'GV' : 'SV'}-${String(id).replace(/^(?:GV|SV)-/i, '').padStart(3, '0')}`
+        : String(id);
   const subject = `[EduMin] Thông tin tài khoản mới - ${hoTen || email}`;
-  const codeInfo = id ? `\n- Mã định danh: ${id}` : '';
+  const codeInfo = identifier ? `\n- Mã định danh: ${identifier}` : '';
   const text = `Xin chào ${hoTen || 'bạn'},\n\nTài khoản EduMin của bạn đã được khởi tạo thành công với vai trò ${roleLabel}.${codeInfo}\n- Email / Tên đăng nhập: ${email}\n- Mật khẩu khởi tạo: ${password || '123'}\n\nVui lòng đăng nhập hệ thống và đổi mật khẩu để bảo mật tài khoản.\n\nTrân trọng,\nBan Quản Trị EduMin`;
   const escapeHtml = (value) =>
     String(value ?? '').replace(
@@ -141,7 +147,7 @@ export async function sendAccountCreatedEmail({
           <p>Xin chào <strong>${escapeHtml(hoTen || 'bạn')}</strong>,</p>
           <p>Tài khoản EduMin của bạn đã được khởi tạo thành công với vai trò <strong>${roleLabel}</strong>.</p>
           <div style="background-color: #f3f4f6; padding: 14px 18px; border-radius: 6px; margin: 16px 0;">
-            ${id ? `<p style="margin: 4px 0;"><strong>Mã định danh:</strong> ${escapeHtml(id)}</p>` : ''}
+            ${identifier ? `<p style="margin: 4px 0;"><strong>Mã định danh:</strong> ${escapeHtml(identifier)}</p>` : ''}
             <p style="margin: 4px 0;"><strong>Tên đăng nhập:</strong> ${escapeHtml(email)}</p>
             <p style="margin: 4px 0;"><strong>Mật khẩu mặc định:</strong> ${escapeHtml(password || '123')}</p>
           </div>
@@ -277,4 +283,3 @@ export async function sendAccountRecoveryEmail({
     metadata: { type: 'ACCOUNT_RECOVERY', username, role },
   });
 }
-

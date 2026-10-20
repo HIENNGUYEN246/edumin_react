@@ -39,6 +39,60 @@ describe('Students CRUD', () => {
     expect(res.body.className).toBe('CNTT-K18');
   });
 
+  it('suggests and assigns the lowest unused student code after importing SV-002 through SV-017', async () => {
+    await Department.create({ id: 'CNTT', name: 'CNTT' });
+    const rows = Array.from({ length: 16 }, (_, index) => ({
+      MaSV: `SV-${String(index + 2).padStart(3, '0')}`,
+      HoTen: `Sinh Vien ${index + 2}`,
+      Email: `sv${index + 2}@edu.vn`,
+      Khoa: 'CNTT',
+    }));
+    const imported = await request(app)
+      .post('/api/students/import')
+      .set(authHeader(adminToken))
+      .send({ rows });
+
+    expect(imported.status).toBe(200);
+    expect(imported.body.created).toBe(16);
+    expect(imported.body.failed).toHaveLength(0);
+
+    const suggestion = await request(app)
+      .get('/api/students/next-id')
+      .set(authHeader(adminToken));
+    expect(suggestion.status).toBe(200);
+    expect(suggestion.body.nextId).toBe(1);
+
+    const created = await request(app)
+      .post('/api/students')
+      .set(authHeader(adminToken))
+      .send({ hoTen: 'Sinh Viên Mới', email: 'newsv@edu.vn', departmentId: 'CNTT' });
+    expect(created.status).toBe(201);
+    expect(created.body.id).toBe(1);
+  });
+
+  it('accepts custom SV codes and rejects malformed or duplicate codes', async () => {
+    await Department.create({ id: 'CNTT', name: 'CNTT' });
+    const created = await request(app)
+      .post('/api/students')
+      .set(authHeader(adminToken))
+      .send({ id: 'SV-025', hoTen: 'Sinh Viên Một', email: 'customsv@edu.vn', departmentId: 'CNTT' });
+    expect(created.status).toBe(201);
+    expect(created.body.id).toBe(25);
+
+    const invalid = await request(app)
+      .post('/api/students')
+      .set(authHeader(adminToken))
+      .send({ id: 'SV-abc', hoTen: 'Sinh Viên Hai', email: 'invalidsv@edu.vn', departmentId: 'CNTT' });
+    expect(invalid.status).toBe(400);
+
+    const duplicate = await request(app)
+      .post('/api/students')
+      .set(authHeader(adminToken))
+      .send({ id: 'SV-025', hoTen: 'Sinh Viên Ba', email: 'duplicatesv@edu.vn', departmentId: 'CNTT' });
+    expect(duplicate.status).toBe(409);
+    expect(await Student.countDocuments()).toBe(1);
+  });
+
   it('rejects invalid student fields', async () => {
     await Department.create({ id: 'CNTT', name: 'CNTT' });
     const res = await request(app)

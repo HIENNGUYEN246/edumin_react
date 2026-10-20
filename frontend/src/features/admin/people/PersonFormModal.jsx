@@ -73,6 +73,13 @@ function getFieldError(field, rawValue, departments) {
   if (raw !== value) return 'Không nhập khoảng trắng ở đầu hoặc cuối';
   if (!value) return '';
 
+  if (field.validation === 'teacherCode' || field.validation === 'studentCode') {
+    const prefix = field.validation === 'teacherCode' ? 'GV' : 'SV';
+    const match = new RegExp(`^${prefix}-(\\d+)$`, 'i').exec(value);
+    if (!match || !Number.isSafeInteger(Number(match[1])) || Number(match[1]) < 1) {
+      return `Mã ${prefix === 'GV' ? 'giáo viên' : 'sinh viên'} phải theo định dạng ${prefix}-001 (${prefix}- và số nguyên dương)`;
+    }
+  }
   if (field.validation === 'name') {
     if (value.length < 2 || value.length > field.maxLength) return `Họ tên phải từ 2 đến ${field.maxLength} ký tự`;
     if (!PERSON_NAME_PATTERN.test(value)) return 'Chỉ nhập chữ và một khoảng trắng giữa các từ';
@@ -145,6 +152,7 @@ export function PersonFormModal({
 }) {
   const [form, setForm] = useState(initial);
   const [errors, setErrors] = useState({});
+  const visibleFields = fields.filter((field) => !field.createOnly || mode === 'create');
 
   useEffect(() => {
     setForm(initial);
@@ -223,7 +231,7 @@ export function PersonFormModal({
     const nextForm = { ...form };
 
     // Tự động gắn ngầm chuẩn đuôi email trước khi validate & submit
-    fields.forEach((field) => {
+    visibleFields.forEach((field) => {
       if (field.type === 'email' && nextForm[field.name]) {
         const domain = getFieldDomainSuffix(field, entityLabel);
         if (domain) {
@@ -233,7 +241,7 @@ export function PersonFormModal({
     });
 
     const next = {};
-    fields.forEach((field) => {
+    visibleFields.forEach((field) => {
       if (mode === 'edit' && field.type === 'email') return;
       const message = getFieldError(field, nextForm[field.name], departments);
       if (message) next[field.name] = message;
@@ -338,7 +346,11 @@ export function PersonFormModal({
             <div className="mt-7 w-full space-y-4 border-t border-white/20 pt-5 text-left text-sm">
               <p className="flex items-start gap-3 break-all text-indigo-50">
                 <i className="fas fa-id-card mt-0.5 w-4 shrink-0" />
-                {form.id ? formatCode(form.id) : `${profileCodeLabel}: Sẽ tạo mới`}
+                {form.id
+                  ? typeof form.id === 'string' && /^(?:GV|SV)-\d+$/i.test(form.id)
+                    ? form.id.toUpperCase()
+                    : formatCode(form.id)
+                  : `${profileCodeLabel}: Sẽ tạo mới`}
               </p>
               <p className="flex items-start gap-3 break-all text-indigo-50">
                 <i className="fas fa-envelope mt-0.5 w-4 shrink-0" />
@@ -377,7 +389,7 @@ export function PersonFormModal({
                     <i className={`fas ${section.icon}`} />{section.title}
                   </h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {fields.filter((field) => field.section === section.key).map(renderField)}
+                    {visibleFields.filter((field) => field.section === section.key).map(renderField)}
                     {section.key === 'work' && mode === 'create' && (
                       <FormField label="Mật khẩu" error={errors.password} hint="Để trống sẽ sử dụng mật khẩu mặc định 123" className="sm:col-span-2">
                         <input
@@ -394,7 +406,7 @@ export function PersonFormModal({
               ))}
             </div>
           ) : (
-            fields.map(renderField)
+            visibleFields.map(renderField)
           )}
 
           {!profilePanel && mode === 'create' && (

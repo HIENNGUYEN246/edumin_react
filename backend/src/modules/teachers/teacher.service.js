@@ -19,6 +19,20 @@ export async function listTeachers(query) {
   return paginate(Teacher, { filter, page, limit, skip, sort, populate: POPULATE });
 }
 
+async function findNextTeacherId() {
+  const teachers = await Teacher.find({}, { id: 1, _id: 0 }).sort({ id: 1 }).lean();
+  let nextId = 1;
+  for (const teacher of teachers) {
+    if (teacher.id === nextId) nextId += 1;
+    else if (teacher.id > nextId) break;
+  }
+  return nextId;
+}
+
+export async function getNextTeacherId() {
+  return { nextId: await findNextTeacherId() };
+}
+
 /**
  * Resolves a given raw ID (ObjectId string or numeric teacher code)
  * to a verified ObjectId string of an existing Teacher document.
@@ -66,21 +80,39 @@ export async function getMyTeacher(user) {
 
 export async function createTeacher(payload) {
   const { password, passwordHash, id, ...profileData } = payload;
+  const profileId = id ?? (await findNextTeacherId());
+  if (await Teacher.exists({ id: profileId })) {
+    throw AppError.conflict('Mã giáo viên đã được sử dụng', [
+      { path: 'id', message: 'Mã giáo viên đã được sử dụng' },
+    ]);
+  }
+
   if (profileData.departmentId || profileData.department) {
     const department = await resolveDepartment({ departmentId: profileData.departmentId, department: profileData.department });
     if (!department) throw AppError.badRequest('Khoa không hợp lệ');
     profileData.departmentId = department.id;
   }
-  const { profile } = await createPersonWithAccount({
-    role: ROLES.TEACHER,
-    ProfileModel: Teacher,
-    counterKey: 'teacherId',
-    userLink: 'teacher',
-    profileData,
-    password: password || '123',
-    precomputedPasswordHash: passwordHash,
-    profileId: id,
-  });
+  let profile;
+  try {
+    ({ profile } = await createPersonWithAccount({
+      role: ROLES.TEACHER,
+      ProfileModel: Teacher,
+      counterKey: 'teacherId',
+      userLink: 'teacher',
+      profileData,
+      password: password || '123',
+      precomputedPasswordHash: passwordHash,
+      profileId,
+      sendAccountEmail: false,
+    }));
+  } catch (error) {
+    if (error.code === 11000 && error.keyValue?.id !== undefined) {
+      throw AppError.conflict('Mã giáo viên đã được sử dụng', [
+        { path: 'id', message: 'Mã giáo viên đã được sử dụng' },
+      ]);
+    }
+    throw error;
+  }
   return Teacher.findById(profile._id).populate(POPULATE).lean();
 }
 
@@ -269,14 +301,17 @@ export async function importTeachers(rows) {
     try {
       let importedId;
       if (imported.id !== '') {
-        importedId = Number(imported.id);
+        const importedCode = String(imported.id);
+        const codeMatch = /^(?:GV-)?(\d+)$/i.exec(importedCode);
+        importedId = codeMatch ? Number(codeMatch[1]) : NaN;
         if (!Number.isSafeInteger(importedId) || importedId < 1) {
-          throw AppError.badRequest('MaGV phải là số nguyên dương');
+          throw AppError.badRequest('Mã GV phải là số nguyên dương hoặc theo định dạng GV-001');
         }
       }
       const department = await resolveDepartment({ departmentId: imported.department, department: imported.department });
       if (!department) throw AppError.badRequest('Khoa không tồn tại');
-      const parsed = createTeacherSchema.safeParse({ ...imported, departmentId: department.id });
+      const { id: _importedId, ...importData } = imported;
+      const parsed = createTeacherSchema.safeParse({ ...importData, departmentId: department.id });
       if (!parsed.success) throw AppError.badRequest(parsed.error.issues[0].message);
       return { row: index + 1, email, payload: { ...parsed.data, id: importedId } };
     } catch (error) {

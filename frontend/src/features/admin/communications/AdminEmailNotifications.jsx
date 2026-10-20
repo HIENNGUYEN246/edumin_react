@@ -50,6 +50,11 @@ function isValidEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
 }
 
+function isPersonalGmail(value, accountEmail) {
+  const email = String(value || '').trim().toLowerCase();
+  return /^[^\s@]+@gmail\.com$/.test(email) && email !== String(accountEmail || '').trim().toLowerCase();
+}
+
 export function AdminEmailNotifications() {
   const toast = useToast();
   const confirm = useConfirm();
@@ -79,7 +84,11 @@ export function AdminEmailNotifications() {
         const toEmail = recipientEmails.has(key)
           ? recipientEmails.get(key)
           : (recipient.emailNhanThongBao || '');
-        return recipient.accountActive && recipient.email && isValidEmail(toEmail);
+        return (
+          recipient.accountActive &&
+          recipient.email &&
+          isPersonalGmail(toEmail, recipient.email)
+        );
       }),
     [recipients, recipientEmails, role]
   );
@@ -179,7 +188,11 @@ export function AdminEmailNotifications() {
           role
         );
         if (!accountEmail && !toEmail) return;
-        if (!isValidEmail(accountEmail) || !isValidEmail(toEmail) || !rowRole) {
+        if (
+          !isValidEmail(accountEmail) ||
+          !isPersonalGmail(toEmail, accountEmail) ||
+          !rowRole
+        ) {
           invalidRows += 1;
           return;
         }
@@ -271,10 +284,12 @@ export function AdminEmailNotifications() {
     });
     if (!accepted) return;
     const invalidRecipients = recipientsToSend.filter(
-      ({ recipientEmail }) => !isValidEmail(recipientEmail)
+      ({ accountEmail, recipientEmail }) => !isPersonalGmail(recipientEmail, accountEmail)
     );
     if (invalidRecipients.length) {
-      toast.error(`Vui lòng nhập đúng Gmail nhận cho ${invalidRecipients.length} người đã chọn.`);
+      toast.error(
+        `Vui lòng nhập Gmail cá nhân khác email tài khoản cho ${invalidRecipients.length} người đã chọn.`
+      );
       return;
     }
 
@@ -475,7 +490,8 @@ export function AdminEmailNotifications() {
                   const recipientEmail = recipientEmails.has(key)
                     ? recipientEmails.get(key)
                     : (recipient.emailNhanThongBao || '');
-                  const canSelect = !unavailable && isValidEmail(recipientEmail);
+                  const canSelect =
+                    !unavailable && isPersonalGmail(recipientEmail, recipient.email);
                   const isAutoSynced = Boolean(!recipientEmails.has(key) && recipient.emailNhanThongBao);
                   return (
                     <tr key={key} className={checked ? 'bg-indigo-50/50' : 'hover:bg-slate-50/70'}>
@@ -507,7 +523,7 @@ export function AdminEmailNotifications() {
                               updateRecipientEmail(recipient, event.target.value);
                               setLastResults(null);
                             }}
-                            placeholder="Nhập Gmail cá nhân nhận tin"
+                            placeholder="Nhập Gmail cá nhân @gmail.com nhận tin"
                             aria-label={`Gmail nhận của ${recipient.hoTen || recipient.email}`}
                             disabled={unavailable || sending}
                             className={`w-full min-w-56 rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 disabled:bg-slate-100 ${

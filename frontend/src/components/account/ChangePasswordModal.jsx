@@ -9,6 +9,8 @@ import { useToast } from '../../app/providers/ToastProvider.jsx';
 import { useAuth } from '../../app/providers/AuthProvider.jsx';
 
 const EMPTY = { oldPassword: '', newPassword: '', confirmPassword: '' };
+const PASSWORD_CHANGE_NOTICE_KEY = 'passwordChangeSuccessNotice';
+const PASSWORD_CHANGE_NOTICE = 'Đổi mật khẩu thành công. Vui lòng đăng nhập lại bằng mật khẩu mới.';
 
 export function ChangePasswordModal({ open, onClose }) {
   const toast = useToast();
@@ -30,7 +32,7 @@ export function ChangePasswordModal({ open, onClose }) {
   const mutation = useMutation({
     mutationFn: (vars) => authApi.changePassword(vars),
     onSuccess: () => {
-      toast.success('Đổi mật khẩu thành công. Vui lòng đăng nhập lại bằng mật khẩu mới.');
+      toast.success(PASSWORD_CHANGE_NOTICE);
       setForm(EMPTY);
       setErrors({});
       onClose?.();
@@ -46,6 +48,7 @@ export function ChangePasswordModal({ open, onClose }) {
           localStorage.removeItem('authLockInfo');
         } catch {}
       }
+      sessionStorage.setItem(PASSWORD_CHANGE_NOTICE_KEY, PASSWORD_CHANGE_NOTICE);
 
       // 2. Clear queryClient cache & logout
       try {

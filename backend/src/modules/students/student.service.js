@@ -24,6 +24,20 @@ export async function listStudents(query) {
   return paginate(Student, { filter, page, limit, skip, sort, populate: POPULATE });
 }
 
+async function findNextStudentId() {
+  const students = await Student.find({}, { id: 1, _id: 0 }).sort({ id: 1 }).lean();
+  let nextId = 1;
+  for (const student of students) {
+    if (student.id === nextId) nextId += 1;
+    else if (student.id > nextId) break;
+  }
+  return nextId;
+}
+
+export async function getNextStudentId() {
+  return { nextId: await findNextStudentId() };
+}
+
 export async function listStudentClasses() {
   const classes = await Student.distinct('className');
   return { data: classes.filter((c) => c && String(c).trim() !== '').sort() };
@@ -69,19 +83,36 @@ export async function getStudent(rawId) {
 
 export async function createStudent(payload) {
   const { password, passwordHash, id, ...profileData } = payload;
+  const profileId = id ?? (await findNextStudentId());
+  if (await Student.exists({ id: profileId })) {
+    throw AppError.conflict('Mã sinh viên đã được sử dụng', [
+      { path: 'id', message: 'Mã sinh viên đã được sử dụng' },
+    ]);
+  }
+
   const department = await resolveDepartment({ departmentId: profileData.departmentId, department: profileData.department });
   if (!department) throw AppError.badRequest('Khoa không hợp lệ');
   profileData.departmentId = department.id;
-  const { profile } = await createPersonWithAccount({
-    role: ROLES.STUDENT,
-    ProfileModel: Student,
-    counterKey: 'studentId',
-    userLink: 'student',
-    profileData,
-    password: password || '123',
-    precomputedPasswordHash: passwordHash,
-    profileId: id,
-  });
+  let profile;
+  try {
+    ({ profile } = await createPersonWithAccount({
+      role: ROLES.STUDENT,
+      ProfileModel: Student,
+      counterKey: 'studentId',
+      userLink: 'student',
+      profileData,
+      password: password || '123',
+      precomputedPasswordHash: passwordHash,
+      profileId,
+    }));
+  } catch (error) {
+    if (error.code === 11000 && error.keyValue?.id !== undefined) {
+      throw AppError.conflict('Mã sinh viên đã được sử dụng', [
+        { path: 'id', message: 'Mã sinh viên đã được sử dụng' },
+      ]);
+    }
+    throw error;
+  }
   return Student.findById(profile._id).populate(POPULATE).lean();
 }
 
@@ -261,12 +292,17 @@ export async function importStudents(rows) {
     try {
       let importedId;
       if (imported.id !== '') {
-        importedId = Number(imported.id);
-        if (!Number.isSafeInteger(importedId) || importedId < 1) throw AppError.badRequest('MaSV phải là số nguyên dương');
+        const importedCode = String(imported.id);
+        const codeMatch = /^(?:SV-)?(\d+)$/i.exec(importedCode);
+        importedId = codeMatch ? Number(codeMatch[1]) : NaN;
+        if (!Number.isSafeInteger(importedId) || importedId < 1) {
+          throw AppError.badRequest('Mã SV phải là số nguyên dương hoặc theo định dạng SV-001');
+        }
       }
       const department = await resolveDepartment({ departmentId: imported.department, department: imported.department });
       if (!department) throw AppError.badRequest('Khoa không tồn tại');
-      const parsed = createStudentSchema.safeParse({ ...imported, departmentId: department.id });
+      const { id: _importedId, ...importData } = imported;
+      const parsed = createStudentSchema.safeParse({ ...importData, departmentId: department.id });
       if (!parsed.success) throw AppError.badRequest(parsed.error.issues[0].message);
       return { row: index + 1, email, payload: { ...parsed.data, id: importedId } };
     } catch (error) {

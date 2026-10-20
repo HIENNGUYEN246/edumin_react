@@ -64,6 +64,7 @@ describe('ManageGradebook (Admin Gradebook Management)', () => {
         _id: 'c-1',
         id: 'CNTT01-01',
         courseName: 'Lập trình Web',
+        className: 'Lập trình Web - Lớp 01',
         courseId: 'IT101',
         department: 'Công Nghệ Thông Tin',
         teacher: 'Trần Văn Giáo Viên',
@@ -79,6 +80,7 @@ describe('ManageGradebook (Admin Gradebook Management)', () => {
         _id: 'c-2',
         id: 'CNTT02-01',
         courseName: 'Cơ sở dữ liệu',
+        className: 'Cơ sở dữ liệu - Lớp 01',
         courseId: 'IT102',
         department: 'Công Nghệ Thông Tin',
         teacher: 'Lê Văn Cơ Sở',
@@ -94,6 +96,7 @@ describe('ManageGradebook (Admin Gradebook Management)', () => {
         _id: 'c-3',
         id: 'CNTT01-02',
         courseName: 'Lập trình Web',
+        className: 'Lập trình Web - Lớp 02',
         courseId: 'IT101',
         department: 'Công Nghệ Thông Tin',
         teacher: 'Nguyễn Minh Anh',
@@ -172,6 +175,10 @@ describe('ManageGradebook (Admin Gradebook Management)', () => {
     expect(screen.getByText('CNTT01-01')).toBeInTheDocument();
     expect(screen.getByText('CNTT01-02')).toBeInTheDocument();
     expect(screen.queryByText('CNTT02-01')).not.toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Tên lớp học phần' })).toBeInTheDocument();
+    expect(screen.getByText('Lập trình Web - Lớp 01')).toBeInTheDocument();
+    expect(screen.getByText('Lập trình Web - Lớp 02')).toBeInTheDocument();
+    expect(screen.queryByText('3 tín chỉ')).not.toBeInTheDocument();
   });
 
   it('filters course list by search term', async () => {

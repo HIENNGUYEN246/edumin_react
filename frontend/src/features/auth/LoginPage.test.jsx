@@ -36,6 +36,23 @@ afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
 
 describe('LoginPage', () => {
+  it('shows the password-change success notice after redirecting back to login', async () => {
+    sessionStorage.setItem(
+      'passwordChangeSuccessNotice',
+      'Đổi mật khẩu thành công. Vui lòng đăng nhập lại bằng mật khẩu mới.'
+    );
+    window.history.pushState({}, '', '/login');
+
+    render(<App client={createQueryClient()} />);
+
+    expect(
+      await screen.findByText(
+        'Đổi mật khẩu thành công. Vui lòng đăng nhập lại bằng mật khẩu mới.'
+      )
+    ).toBeInTheDocument();
+    expect(sessionStorage.getItem('passwordChangeSuccessNotice')).toBeNull();
+  });
+
   it('logs in an admin and lands on the admin dashboard', async () => {
     window.history.pushState({}, '', '/login');
     render(<App client={createQueryClient()} />);

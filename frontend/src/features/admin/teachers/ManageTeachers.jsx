@@ -28,6 +28,7 @@ const teacherConfig = {
   })),
   formatCode: formatTeacherCode,
   emptyForm: {
+    id: '',
     hoTen: '',
     email: '',
     phone: '',
@@ -39,6 +40,16 @@ const teacherConfig = {
     password: '',
   },
   fields: [
+    {
+      name: 'id',
+      label: 'Mã GV',
+      required: true,
+      validation: 'teacherCode',
+      placeholder: 'VD: GV-001',
+      hint: 'Mã được gợi ý tự động; có thể sửa nếu chưa được sử dụng.',
+      createOnly: true,
+      section: 'work',
+    },
     { name: 'hoTen', label: 'Họ và tên', required: true, validation: 'name', maxLength: 100, section: 'personal' },
     {
       name: 'dob',

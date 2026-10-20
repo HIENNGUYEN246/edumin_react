@@ -21,6 +21,7 @@ function extractId(idOrEntity) {
 
 export const studentsApi = {
   list: (params) => http.get(`/students${qs(params)}`),
+  nextId: () => http.get('/students/next-id'),
   get: (id) => http.get(`/students/${encodeURIComponent(extractId(id))}`),
   create: (payload) => http.post('/students', payload),
   update: (id, payload) => http.patch(`/students/${encodeURIComponent(extractId(id))}`, payload),

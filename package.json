@@ -8,6 +8,7 @@
     "build": "node scripts/build-frontend.cjs",
     "build:frontend": "node scripts/build-frontend.cjs",
     "build:backend": "npm --prefix backend install",
+    "dev:frontend": "npm --prefix frontend run dev",
     "preview:frontend": "npm --prefix frontend run preview",
     "test:frontend": "npm --prefix frontend run test",
     "lint:frontend": "npm --prefix frontend run lint",

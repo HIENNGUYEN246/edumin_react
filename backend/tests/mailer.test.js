@@ -53,8 +53,32 @@ describe('Automatic Email Dispatcher (mailer.js)', () => {
     expect(sent[0].text).toContain('Giảng viên');
     expect(sent[0].text).toContain('gv.nguyen@university.edu.vn');
     expect(sent[0].text).toContain('123');
-    expect(sent[0].text).toContain('101');
+    expect(sent[0].text).toContain('Mã định danh: GV-101');
+    expect(sent[0].html).toContain('Mã định danh:</strong> GV-101');
     expect(sent[0].html).toContain('Giảng viên');
+  });
+
+  it('formats manual account emails with teacher and student code prefixes', async () => {
+    await sendAccountCreatedEmail({
+      email: 'teacher@university.edu.vn',
+      toEmail: 'teacher.personal@gmail.com',
+      hoTen: 'Giáo viên',
+      role: 'giao-vien',
+      id: 1,
+    });
+    await sendAccountCreatedEmail({
+      email: 'student@student.edu.vn',
+      toEmail: 'student.personal@gmail.com',
+      hoTen: 'Sinh viên',
+      role: 'sinh-vien',
+      id: 12,
+    });
+
+    const sent = getSentEmails();
+    expect(sent[0].text).toContain('Mã định danh: GV-001');
+    expect(sent[0].html).toContain('Mã định danh:</strong> GV-001');
+    expect(sent[1].text).toContain('Mã định danh: SV-012');
+    expect(sent[1].html).toContain('Mã định danh:</strong> SV-012');
   });
 
   it('delivers account credentials to a personal email while keeping the school email as login', async () => {
@@ -96,7 +120,7 @@ describe('Automatic Email Dispatcher (mailer.js)', () => {
     expect(sent[0].html).toContain('IT101-01');
   });
 
-  it('triggers account creation email when creating teacher and student profiles', async () => {
+  it('does not auto-send teacher account email but preserves student account email', async () => {
     const dept = await Department.create({ id: 1, name: 'Công nghệ thông tin' });
 
     await createTeacher({
@@ -124,12 +148,10 @@ describe('Automatic Email Dispatcher (mailer.js)', () => {
     });
 
     const sent = getSentEmails();
-    expect(sent.length).toBeGreaterThanOrEqual(2);
+    expect(sent.length).toBeGreaterThanOrEqual(1);
 
     const teacherMail = sent.find((m) => m.to === 'gv.vo@university.edu.vn');
-    expect(teacherMail).toBeDefined();
-    expect(teacherMail.text).toContain('Võ Minh Thầy');
-    expect(teacherMail.text).toContain('MyPassword!123');
+    expect(teacherMail).toBeUndefined();
 
     const studentMail = sent.find((m) => m.to === 'sv.le@student.edu.vn');
     expect(studentMail).toBeDefined();

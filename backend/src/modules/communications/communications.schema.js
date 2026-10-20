@@ -15,8 +15,19 @@ export const sendAccountCredentialsSchema = z.object({
       z.object({
         role: recipientRole,
         accountEmail: z.string().trim().email('Email tài khoản không hợp lệ'),
-        recipientEmail: z.string().trim().email('Email Gmail nhận không hợp lệ'),
-      })
+        recipientEmail: z
+          .string()
+          .trim()
+          .email('Email Gmail nhận không hợp lệ')
+          .regex(/@gmail\.com$/i, 'Chỉ chấp nhận Gmail cá nhân có đuôi @gmail.com'),
+      }).refine(
+        ({ accountEmail, recipientEmail }) =>
+          accountEmail.trim().toLowerCase() !== recipientEmail.trim().toLowerCase(),
+        {
+          path: ['recipientEmail'],
+          message: 'Gmail nhận phải khác email tài khoản',
+        }
+      )
     )
     .min(1, 'Vui lòng chọn ít nhất một người nhận')
     .max(100, 'Mỗi lần gửi tối đa 100 email')

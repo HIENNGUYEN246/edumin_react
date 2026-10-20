@@ -1,5 +1,5 @@
 import { AppError } from '../../lib/AppError.js';
-import { rangesOverlap, slotsClash } from '../../lib/schedule.js';
+import { dayLabel, rangesOverlap, shiftLabel, slotsClash } from '../../lib/schedule.js';
 import { isRegistrationWindowActive, isRegistrationWindowExpired } from '../../lib/dateOnly.js';
 import { closeExpiredClasses } from '../classes/courseClass.service.js';
 import { ROLES } from '../../lib/roles.js';
@@ -177,14 +177,30 @@ export async function enroll(user, classId) {
   }
 
   // Reject if the new class clashes with any already-enrolled class slot.
-  const clash = current.some((e) =>
-    e.classRef &&
-    rangesOverlap(target.studyStart, target.studyEnd, e.classRef.studyStart, e.classRef.studyEnd) &&
-    (e.classRef.schedules || []).some((existingSlot) =>
-      (target.schedules || []).some((newSlot) => slotsClash(newSlot, existingSlot))
+  const scheduleClash = current
+    .filter((enrollment) =>
+      enrollment.classRef &&
+      rangesOverlap(target.studyStart, target.studyEnd, enrollment.classRef.studyStart, enrollment.classRef.studyEnd)
     )
-  );
-  if (clash) throw AppError.conflict('Học phần bị trùng lịch với lớp đã đăng ký');
+    .flatMap((enrollment) =>
+      (target.schedules || [])
+        .map((targetSlot) => ({
+          enrollment,
+          targetSlot,
+          existingSlot: (enrollment.classRef.schedules || []).find((slot) => slotsClash(targetSlot, slot)),
+        }))
+        .filter((clash) => clash.existingSlot)
+    )[0];
+  if (scheduleClash) {
+    const conflictingClass = scheduleClash.enrollment.classRef;
+    const classLabel = conflictingClass.className
+      ? `${conflictingClass.id} (${conflictingClass.className})`
+      : conflictingClass.id;
+    const timeLabel = `${dayLabel(scheduleClash.targetSlot.dayId)}, ${shiftLabel(scheduleClash.targetSlot.shiftId)}`;
+    throw AppError.conflict(
+      `Học phần bị trùng lịch (${timeLabel}) với lớp học phần đã đăng ký: ${classLabel}.`
+    );
+  }
 
   try {
     const created = await Enrollment.create({ student: student._id, classRef: target._id, classId: target.id });

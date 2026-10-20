@@ -55,8 +55,16 @@ const base = {
   departmentId: z.string().min(1, 'Khoa là bắt buộc').refine((value) => value === value.trim(), 'Khoa không hợp lệ').optional(),
 };
 
+const teacherId = z
+  .string()
+  .regex(/^GV-\d+$/i, 'Mã giáo viên phải theo định dạng GV-001')
+  .transform((value) => Number(value.slice(3)))
+  .refine((value) => Number.isSafeInteger(value) && value > 0, 'Số sau GV- phải là số nguyên dương hợp lệ')
+  .optional();
+
 export const createTeacherSchema = z.object({
   ...base,
+  id: teacherId,
   password: z.string().optional().default('123'),
 });
 

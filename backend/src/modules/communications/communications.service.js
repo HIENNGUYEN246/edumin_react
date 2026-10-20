@@ -18,6 +18,12 @@ const USER_POPULATE_WITH_CREDENTIALS = {
   select: '_id email role status +passwordHash +password',
 };
 
+function isPersonalGmail(email, accountEmail) {
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  return /^[^\s@]+@gmail\.com$/.test(normalizedEmail) &&
+    normalizedEmail !== String(accountEmail || '').trim().toLowerCase();
+}
+
 export async function listRecipients(query) {
   const { Model } = DIRECTORY_MODELS[query.role];
   const { page, limit, skip, sort, search } = parseListQuery(query, {
@@ -48,7 +54,9 @@ export async function listRecipients(query) {
         id,
         hoTen,
         email,
-        emailNhanThongBao: emailNhanThongBao || '',
+        emailNhanThongBao: isPersonalGmail(emailNhanThongBao, email)
+          ? emailNhanThongBao.trim().toLowerCase()
+          : '',
         department,
         className,
         accountActive:
@@ -96,6 +104,19 @@ export async function sendAccountCredentials(recipients) {
     const normalizedAccountEmail = accountEmail.trim().toLowerCase();
     const profile = profilesByKey.get(`${role}:${normalizedAccountEmail}`);
     const normalizedRecipientEmail = (recipientEmail || profile?.emailNhanThongBao || '').trim().toLowerCase();
+    if (!isPersonalGmail(normalizedRecipientEmail, normalizedAccountEmail)) {
+      results.push({
+        id: profile ? String(profile._id) : null,
+        role,
+        accountEmail: normalizedAccountEmail,
+        recipientEmail: normalizedRecipientEmail,
+        hoTen: profile?.hoTen,
+        status: 'failed',
+        message: 'Chỉ gửi đến Gmail cá nhân khác email tài khoản.',
+      });
+      continue;
+    }
+
     if (
       !profile ||
       !profile.userId ||

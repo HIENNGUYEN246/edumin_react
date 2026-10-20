@@ -46,6 +46,7 @@ export async function createPersonWithAccount({
   password,
   precomputedPasswordHash,
   profileId,
+  sendAccountEmail = true,
 }) {
   const email = String(profileData.email || '').trim().toLowerCase();
   if (!email) throw AppError.badRequest('Email là bắt buộc');
@@ -64,13 +65,14 @@ export async function createPersonWithAccount({
       status: 'Active',
     });
 
-    const nextId = await nextSequence(counterKey, { model: ProfileModel, field: 'id' });
+    const nextId =
+      profileId ?? (await nextSequence(counterKey, { model: ProfileModel, field: 'id' }));
     const dept = await resolveDepartment(profileData);
 
     const profile = await ProfileModel.create({
       ...profileData,
       email,
-      id: profileId ?? nextId,
+      id: nextId,
       userId: user._id,
       department: dept?.name || profileData.department || '',
       departmentRef: dept?._id || null,
@@ -81,14 +83,15 @@ export async function createPersonWithAccount({
     user.khoa = user.department;
     await user.save();
 
-    // Trigger auto email notification
-    sendAccountCreatedEmail({
-      email,
-      hoTen: profileData.hoTen || user.hoTen,
-      role,
-      password: password || '123',
-      id: profile.id,
-    }).catch((err) => console.error('[MAILER ERROR]', err));
+    if (sendAccountEmail) {
+      sendAccountCreatedEmail({
+        email,
+        hoTen: profileData.hoTen || user.hoTen,
+        role,
+        password: password || '123',
+        id: profile.id,
+      }).catch((err) => console.error('[MAILER ERROR]', err));
+    }
 
     return { user, profile };
   } catch (err) {

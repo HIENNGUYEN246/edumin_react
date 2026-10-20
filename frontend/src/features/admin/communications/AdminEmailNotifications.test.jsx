@@ -203,4 +203,41 @@ describe('AdminEmailNotifications', () => {
     fireEvent.click(checkbox);
     expect(checkbox).toBeChecked();
   });
+
+  it('does not allow sending to the account email when it is saved as notification email', async () => {
+    mocks.recipients.mockResolvedValueOnce({
+      data: [
+        {
+          _id: 'teacher-account-email',
+          id: 11,
+          role: 'giao-vien',
+          hoTen: 'Giáo viên dùng email trường',
+          email: 'teacher@university.edu.vn',
+          emailNhanThongBao: 'teacher@university.edu.vn',
+          accountActive: true,
+        },
+      ],
+      meta: { page: 1, pages: 1, total: 1 },
+      emailConfigured: true,
+    });
+
+    renderPage();
+
+    const checkbox = await screen.findByRole('checkbox', {
+      name: 'Chọn Giáo viên dùng email trường',
+    });
+    expect(checkbox).toBeDisabled();
+    expect(mocks.sendAccountCredentials).not.toHaveBeenCalled();
+  });
+
+  it('does not allow a non-Gmail address as the receiving address', async () => {
+    renderPage();
+
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Gmail nhận của Giáo viên A' }), {
+      target: { value: 'teacher.personal@outlook.com' },
+    });
+
+    expect(screen.getByRole('checkbox', { name: 'Chọn Giáo viên A' })).toBeDisabled();
+    expect(mocks.sendAccountCredentials).not.toHaveBeenCalled();
+  });
 });

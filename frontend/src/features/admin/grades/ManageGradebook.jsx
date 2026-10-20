@@ -568,7 +568,7 @@ export function ManageGradebook() {
                 <thead>
                   <tr className="border-b border-slate-200/80 bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500">
                     <th className="px-4 py-3">Mã lớp</th>
-                    <th className="px-4 py-3">Môn học</th>
+                    <th className="px-4 py-3">Tên lớp học phần</th>
                     <th className="px-4 py-3">Khoa</th>
                     <th className="px-4 py-3">Giảng viên</th>
                     <th className="px-4 py-3 text-center">Sĩ số & Tiến độ</th>
@@ -585,8 +585,7 @@ export function ManageGradebook() {
                           {cls.id}
                         </td>
                         <td className="px-4 py-3.5 font-semibold text-slate-800">
-                          <div>{cls.courseName || cls.courseId}</div>
-                          <div className="text-[11px] font-normal text-slate-400">{cls.credits} tín chỉ</div>
+                          {cls.className || 'Chưa cập nhật'}
                         </td>
                         <td className="px-4 py-3.5 text-slate-600 whitespace-nowrap">
                           {typeof cls.department === 'object' ? cls.department?.name || cls.department?.tenKhoa : cls.department || '—'}
