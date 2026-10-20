@@ -21,8 +21,8 @@ beforeEach(async () => {
   await Department.create({ id: 'CNTT', name: 'CNTT' });
 });
 
-describe('counter self-heal', () => {
-  it('assigns a non-colliding id when the counter is behind existing data', async () => {
+describe('lowest unused teacher ID', () => {
+  it('assigns the first unused ID when the counter is behind existing data', async () => {
     // Simulate drift: a teacher with id=5 exists but the counter is empty.
     const u = await User.create({ email: 'seed@edu.vn', passwordHash: await hashPassword('x'), role: ROLES.TEACHER, hoTen: 'Seed' });
     await Teacher.create({ userId: u._id, id: 5, email: 'seed@edu.vn', hoTen: 'Seed' });
@@ -41,6 +41,6 @@ describe('counter self-heal', () => {
       });
 
     expect(res.status).toBe(201);
-    expect(res.body.id).toBe(6); // reconciled to max(5)+1, not a duplicate
+    expect(res.body.id).toBe(1);
   });
 });
