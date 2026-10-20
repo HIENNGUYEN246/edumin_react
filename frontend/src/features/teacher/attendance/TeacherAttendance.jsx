@@ -176,10 +176,8 @@ function TeacherClassAccordionCard({
     status: 'Có mặt',
   });
 
-  // Custom session modal (Thêm buổi học bù)
-  const [addSessionModal, setAddSessionModal] = useState(false);
-  const [customDate, setCustomDate] = useState(getTodayDateString());
-  const [customShift, setCustomShift] = useState('1');
+  // Modal xác nhận hủy thay đổi điểm danh
+  const [confirmRevertOpen, setConfirmRevertOpen] = useState(false);
 
   // History modal
   const [historyModal, setHistoryModal] = useState({
@@ -390,33 +388,6 @@ function TeacherClassAccordionCard({
     toast.success(`Đã lưu nhận xét cho ${student.hoTen}`);
   };
 
-  // Add custom session
-  const handleAddCustomSession = () => {
-    if (!customDate) return toast.error('Vui lòng chọn ngày học');
-    const existing = sessions.some((s) => s.date === customDate);
-    if (existing) {
-      toast.info('Buổi học vào ngày này đã có trong danh sách');
-      setAddSessionModal(false);
-      setActiveSessionDate(customDate);
-      return;
-    }
-
-    setClassAttendanceRecords((prev) => [
-      ...prev,
-      {
-        regId: classId,
-        date: customDate,
-        shiftId: customShift,
-        shiftLabel: getShiftLabel(customShift),
-        studentId: -1,
-      },
-    ]);
-
-    setActiveSessionDate(customDate);
-    setAddSessionModal(false);
-    toast.success(`Đã thêm buổi học mới ngày ${formatAttendanceDate(customDate)}`);
-  };
-
   // Save all modified changes for this class
   const dirtyCount = Object.keys(cellChanges).length;
 
@@ -453,6 +424,7 @@ function TeacherClassAccordionCard({
         const shiftId = ses?.shiftId || '1';
         return attendanceApi.saveBulk({
           regId: classId,
+          classId: classId,
           courseId: classItem.courseId || '',
           courseName: classItem.courseName || '',
           date,
@@ -482,13 +454,16 @@ function TeacherClassAccordionCard({
     }
   };
 
-  // Revert changes
+  // Revert changes with modal
   const handleRevertChanges = () => {
     if (dirtyCount === 0) return;
-    if (window.confirm(`Hủy bỏ toàn bộ ${dirtyCount} thay đổi chưa lưu của lớp này?`)) {
-      setCellChanges({});
-      toast.info('Đã hủy bỏ các thay đổi');
-    }
+    setConfirmRevertOpen(true);
+  };
+
+  const handleConfirmRevert = () => {
+    setCellChanges({});
+    setConfirmRevertOpen(false);
+    toast.info('Đã hủy bỏ toàn bộ các thay đổi chưa lưu');
   };
 
   // Enriched students with calculated attendance rates
@@ -762,16 +737,6 @@ function TeacherClassAccordionCard({
                 </button>
               )}
 
-              {/* Add custom session button */}
-              <button
-                type="button"
-                onClick={() => setAddSessionModal(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold border border-indigo-200 transition active:scale-95 cursor-pointer"
-                title="Bổ sung thêm 1 buổi học bù hoặc kiểm tra vào ma trận"
-              >
-                <i className="fas fa-calendar-plus text-xs" />
-                <span>Thêm buổi học</span>
-              </button>
 
               {/* Export Excel Button */}
               <button
@@ -1280,48 +1245,41 @@ function TeacherClassAccordionCard({
             </div>
           </Modal>
 
-          {/* Add Custom Session Modal */}
-          <Modal open={addSessionModal} onClose={() => setAddSessionModal(false)} title="Thêm buổi học vào ma trận" size="sm">
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Ngày học</label>
-                <input
-                  type="date"
-                  value={customDate}
-                  onChange={(e) => setCustomDate(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl text-xs bg-slate-50 border border-slate-200 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
+          {/* Confirm Discard/Revert Changes Modal */}
+          <Modal
+            open={confirmRevertOpen}
+            onClose={() => setConfirmRevertOpen(false)}
+            title="Xác nhận hủy thay đổi điểm danh"
+            size="sm"
+          >
+            <div className="space-y-4 pt-1">
+              <div className="flex items-start gap-3 p-3.5 rounded-xl bg-amber-50 border border-amber-200">
+                <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+                  <i className="fas fa-triangle-exclamation text-sm" />
+                </div>
+                <div className="text-xs text-amber-900 leading-relaxed">
+                  <p className="font-bold mb-0.5">Hủy bỏ các thay đổi chưa lưu?</p>
+                  <p className="text-amber-800">
+                    Bạn đang có <strong className="font-bold text-amber-950">{dirtyCount}</strong> thay đổi điểm danh chưa được lưu. Thao tác này sẽ hoàn tác toàn bộ dữ liệu về trạng thái gần nhất đã lưu trong hệ thống.
+                  </p>
+                </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Ca học</label>
-                <select
-                  value={customShift}
-                  onChange={(e) => setCustomShift(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl text-xs bg-slate-50 border border-slate-200 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-semibold"
-                >
-                  {SHIFT_OPTIONS.map((sh) => (
-                    <option key={sh.id} value={sh.id}>
-                      {sh.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
                 <button
                   type="button"
-                  onClick={() => setAddSessionModal(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 transition cursor-pointer"
+                  onClick={() => setConfirmRevertOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 transition cursor-pointer"
                 >
-                  Hủy
+                  Giữ lại thay đổi
                 </button>
                 <button
                   type="button"
-                  onClick={handleAddCustomSession}
-                  className="px-5 py-2 rounded-xl text-xs font-bold bg-indigo-600 text-white hover:bg-indigo-700 transition shadow-2xs cursor-pointer"
+                  onClick={handleConfirmRevert}
+                  className="px-4 py-2 rounded-xl text-xs font-bold bg-rose-600 text-white hover:bg-rose-700 shadow-sm transition cursor-pointer flex items-center gap-1.5"
                 >
-                  Thêm vào ma trận
+                  <i className="fas fa-rotate-left text-[11px]" />
+                  <span>Xác nhận hủy bỏ</span>
                 </button>
               </div>
             </div>

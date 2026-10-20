@@ -41,11 +41,16 @@ const StudentAttendance = lazy(() => import('../features/student/attendance/Stud
 const StudentDocumentList = lazy(() => import('../features/student/StudentDocumentList.jsx'));
 const StudentAssignmentList = lazy(() => import('../features/student/assignments/StudentAssignmentList.jsx'));
 const StudentQuizPage = lazy(() => import('../features/student/assignments/StudentQuizPage.jsx'));
+const DocumentViewerPage = lazy(() => import('../features/documents/DocumentViewerPage.jsx'));
 
 export function AppRouter() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+
+      {/* Standalone Document Viewer in a separate tab/window */}
+      <Route path="/documents/:id/view" element={<DocumentViewerPage />} />
+      <Route path="/documents/:id" element={<DocumentViewerPage />} />
 
       <Route
         element={
@@ -83,6 +88,7 @@ export function AppRouter() {
         <Route path="/teacher/classes" element={<TeacherClassList />} />
         <Route path="/teacher/classes/:id/students" element={<TeacherClassStudents />} />
         <Route path="/teacher/classes/:id/grades" element={<TeacherClassGradebook />} />
+        <Route path="/teacher/classes/:id/gradebook" element={<TeacherClassGradebook />} />
         <Route path="/teacher/classes/:id/attendance" element={<TeacherAttendance />} />
         <Route path="/teacher/attendance" element={<TeacherAttendance />} />
         <Route path="/teacher/attendance/:classId" element={<TeacherAttendance />} />

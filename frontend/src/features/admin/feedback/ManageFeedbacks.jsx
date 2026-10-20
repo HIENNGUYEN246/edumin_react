@@ -387,11 +387,15 @@ export function ManageFeedbacks() {
                             className="w-4 h-4 rounded-full object-cover"
                           />
                         )}
-                        <span>GV: <strong>{item.teacherName || 'Chưa phân công'}</strong></span>
+                        <span>GV đứng lớp: <strong>{item.teacherName || 'Chưa phân công'}</strong></span>
                         {item.teacherId != null && (
                           <span className="text-[10px] text-gray-400">({formatTeacherCode(item.teacherId)})</span>
                         )}
                       </div>
+                      <span className="text-gray-300">•</span>
+                      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-indigo-700 bg-indigo-50/80 px-2 py-0.5 rounded-md border border-indigo-100">
+                        <i className="fas fa-shield-halved text-[10px]" /> Nơi nhận: Phòng Đào tạo
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -469,7 +473,10 @@ export function ManageFeedbacks() {
               {item.response && (
                 <div className="ml-6 pl-4 border-l-2 border-indigo-500 py-1 space-y-1">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-indigo-700">Phản hồi từ Nhà trường / Giảng viên:</span>
+                    <span className="text-xs font-bold text-indigo-700">Phản hồi từ {item.respondedByRole === 'teacher' ? (item.respondedByName || item.teacherName || 'Giảng viên') : (item.respondedByName || 'Phòng Đào tạo')}:</span>
+                    <span className="bg-indigo-100 text-indigo-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-indigo-200">
+                      {item.respondedByRole === 'teacher' ? 'Giảng viên phụ trách' : 'Phòng Đào tạo (Admin)'}
+                    </span>
                     <span className="text-[10px] text-gray-400">{item.respondedAt}</span>
                   </div>
                   <p className="text-xs text-gray-600 italic leading-relaxed">{item.response}</p>
@@ -486,7 +493,7 @@ export function ManageFeedbacks() {
         <Modal
           open
           onClose={() => setReplyModal({ isOpen: false, feedback: null, response: '' })}
-          title="Giải đáp ý kiến sinh viên"
+          title="Giải đáp ý kiến sinh viên (Phòng Đào tạo)"
         >
           <div className="space-y-4">
             <div className="bg-gray-50 p-3 rounded-xl border border-gray-100 text-xs text-gray-600 italic">
@@ -495,13 +502,13 @@ export function ManageFeedbacks() {
 
             <div>
               <label className="block text-xs font-bold text-gray-600 uppercase mb-1">
-                Nội dung trả lời giải đáp
+                Nội dung trả lời giải đáp từ Phòng Đào tạo
               </label>
               <textarea
                 rows={4}
                 value={replyModal.response}
                 onChange={(e) => setReplyModal((p) => ({ ...p, response: e.target.value }))}
-                placeholder="Nhập nội dung giải đáp cho sinh viên..."
+                placeholder="Nhập nội dung giải đáp từ Phòng Đào tạo gửi đến sinh viên..."
                 className="w-full border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
               />
             </div>

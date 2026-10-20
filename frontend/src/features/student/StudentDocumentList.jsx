@@ -15,71 +15,124 @@ function formatFileSize(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function getFileMeta(format, link, hasFile) {
+function getFileMeta(format, link, hasFile, fileName = '') {
   if (link && !hasFile) {
     return {
       icon: 'fa-link',
       color: 'text-purple-600 bg-purple-50 border-purple-200',
+      badgeColor: 'text-purple-700 bg-purple-50 border-purple-200',
       label: 'Liên kết',
       type: 'link',
     };
   }
-  const ext = (format || '').toLowerCase().replace(/^\./, '');
+
+  let ext = (format || '').toLowerCase().replace(/^\./, '');
+  if (!ext || ext === 'raw' || ext === 'image' || ext === 'file') {
+    const match = /\.([a-zA-Z0-9]+)$/i.exec(fileName || '');
+    if (match) ext = match[1].toLowerCase();
+  }
+
   if (ext === 'pdf') {
     return {
       icon: 'fa-file-pdf',
       color: 'text-rose-600 bg-rose-50 border-rose-200',
+      badgeColor: 'text-rose-700 bg-rose-50 border-rose-200',
       label: 'PDF',
       type: 'pdf',
+      canPreview: true,
     };
   }
+
   if (['doc', 'docx'].includes(ext)) {
     return {
       icon: 'fa-file-word',
       color: 'text-blue-600 bg-blue-50 border-blue-200',
+      badgeColor: 'text-blue-700 bg-blue-50 border-blue-200',
       label: 'Word',
       type: 'word',
+      canPreview: true,
     };
   }
+
   if (['xls', 'xlsx', 'csv'].includes(ext)) {
     return {
       icon: 'fa-file-excel',
       color: 'text-emerald-600 bg-emerald-50 border-emerald-200',
-      label: 'Excel',
+      badgeColor: 'text-emerald-700 bg-emerald-50 border-emerald-200',
+      label: ext === 'csv' ? 'CSV' : 'Excel',
       type: 'excel',
+      canPreview: true,
     };
   }
+
   if (['ppt', 'pptx'].includes(ext)) {
     return {
       icon: 'fa-file-powerpoint',
       color: 'text-amber-600 bg-amber-50 border-amber-200',
+      badgeColor: 'text-amber-700 bg-amber-50 border-amber-200',
       label: 'PowerPoint',
       type: 'powerpoint',
+      canPreview: true,
     };
   }
-  if (['mp4', 'mkv', 'avi', 'mov'].includes(ext)) {
+
+  if (['txt', 'md', 'markdown', 'log', 'json'].includes(ext)) {
+    return {
+      icon: 'fa-file-lines',
+      color: 'text-slate-600 bg-slate-100 border-slate-200',
+      badgeColor: 'text-slate-700 bg-slate-100 border-slate-200',
+      label: ext === 'md' ? 'Markdown' : 'Văn bản TXT',
+      type: 'text',
+      canPreview: true,
+    };
+  }
+
+  if (['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg'].includes(ext)) {
+    return {
+      icon: 'fa-file-image',
+      color: 'text-violet-600 bg-violet-50 border-violet-200',
+      badgeColor: 'text-violet-700 bg-violet-50 border-violet-200',
+      label: 'Hình ảnh',
+      type: 'image',
+      canPreview: true,
+    };
+  }
+
+  if (['mp4', 'mkv', 'avi', 'mov', 'webm'].includes(ext)) {
     return {
       icon: 'fa-file-video',
       color: 'text-cyan-600 bg-cyan-50 border-cyan-200',
+      badgeColor: 'text-cyan-700 bg-cyan-50 border-cyan-200',
       label: 'Video',
       type: 'video',
+      canPreview: true,
     };
   }
+
   if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) {
     return {
       icon: 'fa-file-zipper',
       color: 'text-orange-600 bg-orange-50 border-orange-200',
+      badgeColor: 'text-orange-700 bg-orange-50 border-orange-200',
       label: 'Tệp nén',
       type: 'archive',
+      canPreview: false,
     };
   }
+
   return {
     icon: 'fa-file-lines',
     color: 'text-indigo-600 bg-indigo-50 border-indigo-200',
+    badgeColor: 'text-indigo-700 bg-indigo-50 border-indigo-200',
     label: ext ? ext.toUpperCase() : 'Tài liệu',
     type: 'document',
+    canPreview: true,
   };
 }
+
+
+
+
 
 export function StudentDocumentList() {
   const toast = useToast();
@@ -279,7 +332,7 @@ export function StudentDocumentList() {
 
         if (filterType !== 'all') {
           docs = docs.filter((d) => {
-            const meta = getFileMeta(d.format, d.link, d.hasFile || d.size > 0);
+            const meta = getFileMeta(d.format, d.link, d.hasFile || d.size > 0, d.fileName || d.name);
             return meta.type === filterType;
           });
         }
@@ -384,9 +437,12 @@ export function StudentDocumentList() {
             >
               <option value="all">Tất cả định dạng</option>
               <option value="pdf">Tệp PDF</option>
-              <option value="word">Văn bản Word</option>
-              <option value="excel">Bảng tính Excel</option>
-              <option value="powerpoint">Slide PowerPoint</option>
+              <option value="word">Văn bản Word (.docx, .doc)</option>
+              <option value="excel">Bảng tính Excel (.xlsx, .xls)</option>
+              <option value="powerpoint">Slide PowerPoint (.pptx, .ppt)</option>
+              <option value="text">Văn bản TXT / Markdown</option>
+              <option value="image">Hình ảnh</option>
+              <option value="archive">Tệp nén (ZIP, RAR...)</option>
               <option value="video">Video bài giảng</option>
               <option value="link">Liên kết ngoài</option>
             </select>
@@ -592,7 +648,7 @@ export function StudentDocumentList() {
                           </thead>
                           <tbody className="divide-y divide-slate-100">
                             {group.docs.map((doc, idx) => {
-                              const meta = getFileMeta(doc.format, doc.link, doc.hasFile || doc.size > 0);
+                              const meta = getFileMeta(doc.format, doc.link, doc.hasFile || doc.size > 0, doc.fileName || doc.name);
                               const sizeText = formatFileSize(doc.size);
                               const isDownloading = downloadingId === doc._id;
 
@@ -607,9 +663,15 @@ export function StudentDocumentList() {
                                         <i className={`fas ${meta.icon}`} />
                                       </div>
                                       <div className="min-w-0">
-                                        <h5 className="font-bold text-slate-800 text-xs hover:text-indigo-600 transition truncate max-w-sm">
+                                        <a
+                                          href={`/documents/${doc._id}/view`}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="font-bold text-slate-800 text-xs hover:text-indigo-600 transition truncate max-w-sm inline-block"
+                                          title="Nhấn để mở tài liệu trong trang riêng"
+                                        >
                                           {doc.name}
-                                        </h5>
+                                        </a>
                                         {doc.link && (
                                           <p className="text-[10px] text-purple-600 font-mono truncate max-w-xs mt-0.5">
                                             {doc.link}
@@ -662,6 +724,17 @@ export function StudentDocumentList() {
                                         <i className="fas fa-wand-magic-sparkles text-[10px] text-purple-600" />
                                         <span>AI Tóm tắt</span>
                                       </button>
+
+                                      <a
+                                        href={`/documents/${doc._id}/view`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold transition shadow-2xs hover:shadow active:scale-95 cursor-pointer"
+                                        title="Mở tài liệu trong trang riêng để xem trước"
+                                      >
+                                        <i className="fas fa-arrow-up-right-from-square text-[10px]" />
+                                        <span>Xem trước</span>
+                                      </a>
 
                                       {(doc.hasFile || doc.size > 0 || (doc.format && doc.format !== 'Liên kết')) && (
                                         <button

@@ -83,10 +83,22 @@ export function InteractiveQuizCard({ card, onSendMessage, onNavigate, userRole,
   }, [isTeacher, userRole, classes]);
 
   const defaultClassCode = useMemo(() => {
+    if (card.classId && availableClasses.some((c) => String(c.id || c._id).toLowerCase() === String(card.classId).toLowerCase())) {
+      return card.classId;
+    }
+    const targetCourse = card.courseId || card.code;
+    if (targetCourse && targetCourse !== 'QUIZ') {
+      const matchByCourse = availableClasses.find(
+        (c) => String(c.courseId || '').toLowerCase() === String(targetCourse).toLowerCase()
+      );
+      if (matchByCourse) {
+        return matchByCourse.id || matchByCourse._id;
+      }
+    }
     if (card.classId) return card.classId;
     if (card.code && card.code !== 'QUIZ') return card.code;
     return availableClasses[0]?.id || 'CNTT101-01';
-  }, [card.classId, card.code, availableClasses]);
+  }, [card.classId, card.code, card.courseId, availableClasses]);
 
   const [selectedClassId, setSelectedClassId] = useState(defaultClassCode);
 
@@ -195,8 +207,8 @@ export function InteractiveQuizCard({ card, onSendMessage, onNavigate, userRole,
       const targetClass = availableClasses.find(
         (c) => String(c.id || c._id).toLowerCase() === String(selectedClassId || '').toLowerCase()
       );
-      const finalCourseId = card.courseId || targetClass?.courseId || card.code || '';
-      const finalClassId = selectedClassId || card.classId || card.code || '';
+      const finalCourseId = targetClass?.courseId || card.courseId || card.code || '';
+      const finalClassId = targetClass?.id || selectedClassId || card.classId || card.code || '';
 
       const formattedQuestions = questions.map((q, idx) => ({
         id: q.id || `q_${Date.now()}_${idx + 1}`,

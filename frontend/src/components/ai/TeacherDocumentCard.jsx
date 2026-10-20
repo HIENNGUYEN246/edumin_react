@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { downloadDocument } from '../../features/shared/useDocuments.js';
 
-function getFileMeta(format = '', link = '', hasFile = true) {
+function getFileMeta(format = '', link = '', hasFile = true, fileName = '') {
   if (link && !hasFile) {
     return {
       icon: 'fa-link',
@@ -9,7 +9,11 @@ function getFileMeta(format = '', link = '', hasFile = true) {
       label: 'Liên kết',
     };
   }
-  const ext = String(format).toLowerCase().replace(/^\./, '');
+  let ext = String(format).toLowerCase().replace(/^\./, '');
+  if (!ext || ext === 'raw') {
+    const match = /\.([a-zA-Z0-9]+)$/i.exec(fileName || '');
+    if (match) ext = match[1].toLowerCase();
+  }
   if (ext === 'pdf') {
     return {
       icon: 'fa-file-pdf',
@@ -133,7 +137,7 @@ export function TeacherDocumentCard({
       <div className="space-y-2.5">
         {documents.map((doc, idx) => {
           const docId = doc.docId || doc.id || doc._id || idx;
-          const meta = getFileMeta(doc.format || doc.ext, doc.link, doc.hasFile || doc.size > 0);
+          const meta = getFileMeta(doc.format || doc.ext, doc.link, doc.hasFile || doc.size > 0, doc.fileName || doc.name);
           const isDownloading = downloadingId === docId;
           const fileName = doc.name || doc.title || 'Tài liệu học tập';
           const sizeText = doc.sizeText || doc.size || (doc.format ? '2.4 MB' : '');

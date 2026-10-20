@@ -454,7 +454,7 @@ export function ManageTuition() {
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="px-3.5 py-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 transition"
+              className="inline-flex items-center justify-center gap-1.5 h-9 px-3.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-xl text-xs font-semibold shadow-xs hover:shadow transition active:scale-[0.98] cursor-pointer whitespace-nowrap"
               title="Nhập dữ liệu thu học phí hoặc sao kê ngân hàng từ file Excel"
             >
               <i className="fas fa-file-import text-emerald-600" />
@@ -464,7 +464,7 @@ export function ManageTuition() {
             <button
               type="button"
               onClick={handleExport}
-              className="px-3.5 py-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 transition"
+              className="inline-flex items-center justify-center gap-1.5 h-9 px-3.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-xl text-xs font-semibold shadow-xs hover:shadow transition active:scale-[0.98] cursor-pointer whitespace-nowrap"
               title="Xuất danh sách học phí ra file Excel"
             >
               <i className="fas fa-file-excel text-emerald-600" />
@@ -474,7 +474,7 @@ export function ManageTuition() {
             <button
               type="button"
               onClick={() => setGenerateModalOpen(true)}
-              className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 transition"
+              className="inline-flex items-center justify-center gap-1.5 h-9 px-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold shadow-xs hover:shadow transition active:scale-[0.98] cursor-pointer whitespace-nowrap"
               title="Khởi tạo danh sách học phí cho toàn bộ sinh viên trong kỳ mới"
             >
               <i className="fas fa-plus-circle" />

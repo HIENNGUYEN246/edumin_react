@@ -10,7 +10,10 @@ import { User } from '../modules/auth/user.model.js';
  */
 export const authenticate = asyncHandler(async (req, _res, next) => {
   const header = String(req.headers.authorization || '');
-  const token = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
+  let token = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
+  if (!token && req.query?.token) {
+    token = String(req.query.token).trim();
+  }
   if (!token) throw AppError.unauthorized('Thiếu token xác thực');
 
   let payload;

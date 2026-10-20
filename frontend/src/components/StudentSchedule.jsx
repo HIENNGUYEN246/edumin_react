@@ -397,7 +397,7 @@ export default function StudentSchedule() {
       </div>
 
       {showLockModal && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center px-4 sm:px-6 md:px-8 py-16 sm:py-24 md:py-28 overflow-y-auto">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
           <div className="fixed inset-0 bg-gray-950/60 backdrop-blur-md" />
           <div className="relative bg-white p-8 rounded-3xl shadow-2xl max-w-sm w-full my-auto text-center border-4 border-red-100">
             <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6">

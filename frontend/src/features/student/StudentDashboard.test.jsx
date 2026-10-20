@@ -178,7 +178,7 @@ describe('StudentDashboard - Crash Resilience and Null-Safety', () => {
 
     renderComponent();
 
-    expect(await screen.findByText('Ý kiến đóng góp & Phản hồi Giảng viên')).toBeInTheDocument();
+    expect(await screen.findByText(/Ý kiến đóng góp & Phản hồi/i)).toBeInTheDocument();
     // History button appears when feedbacks exist
     const historyBtn = await screen.findByText(/Lịch sử góp ý/i);
     expect(historyBtn).toBeInTheDocument();

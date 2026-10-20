@@ -41,11 +41,71 @@ export function CourseDetail() {
   const courseQuery = useQuery({ queryKey: ['courses', id, 'detail'], queryFn: () => coursesApi.get(id) });
   const course = courseQuery.data;
   const { data: classData, isLoading: classesLoading } = useCourseClasses(course?.id);
-  const { create, update, changeStatus, remove } = useClassMutations();
+  const { create, update, changeStatus, remove, bulkRemove } = useClassMutations();
 
   const [formModal, setFormModal] = useState(null); // {mode, initial?}
+  const [selectedClassIds, setSelectedClassIds] = useState([]);
 
-  const classes = classData?.data || [];
+  const classes = Array.isArray(classData?.data) ? classData.data : [];
+  const allClassIds = classes.filter(Boolean).map((c) => String(c._id || c.id || ''));
+  const isAllSelected = classes.length > 0 && allClassIds.every((cId) => selectedClassIds.includes(cId));
+  const isSomeSelected = classes.length > 0 && allClassIds.some((cId) => selectedClassIds.includes(cId)) && !isAllSelected;
+
+  const handleSelectAll = () => {
+    if (isAllSelected) {
+      setSelectedClassIds([]);
+    } else {
+      setSelectedClassIds(allClassIds);
+    }
+  };
+
+  const handleToggleSelectClass = (cId) => {
+    setSelectedClassIds((prev) =>
+      prev.includes(cId) ? prev.filter((item) => item !== cId) : [...prev, cId]
+    );
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedClassIds.length === 0) return;
+    const ok = await confirm({
+      title: 'Xóa hàng loạt lớp học phần',
+      message: `Bạn có chắc chắn muốn xóa ${selectedClassIds.length} lớp học phần đã chọn? Toàn bộ đăng ký của sinh viên trong các lớp này sẽ bị xóa.`,
+      confirmText: `Xóa ${selectedClassIds.length} lớp`,
+      tone: 'danger',
+    });
+    if (!ok) return;
+
+    try {
+      await bulkRemove.mutateAsync(selectedClassIds);
+      toast.success(`Đã xóa thành công ${selectedClassIds.length} lớp học phần`);
+      setSelectedClassIds([]);
+    } catch (error) {
+      toast.error(error.message || 'Không thể xóa các lớp học phần đã chọn');
+    }
+  };
+
+  const onDownloadTemplate = async () => {
+    const templateRows = [
+      {
+        'Mã lớp': `${course?.id || 'CS101'}-01`,
+        'Tên lớp': `Lớp học phần ${course?.name || ''} 01`,
+        'Mã GV': 'GV001',
+        'Phòng học': 'P.A102',
+        'Sĩ số tối đa': 40,
+        'Học phí': course?.fee || 1500000,
+        'Thứ (2,3,4,5,6,7,CN)': '2,4',
+        'Ca học (1-5)': '1',
+        'Ngày bắt đầu (YYYY-MM-DD)': '2026-09-01',
+        'Ngày kết thúc (YYYY-MM-DD)': '2026-12-15',
+        'Hạn đăng ký (YYYY-MM-DDTHH:mm)': '2026-08-30T23:59',
+      },
+    ];
+    await exportSheet(templateRows, {
+      fileName: `file-mau-lop-hoc-phan-${course?.id || 'sample'}.xlsx`,
+      sheetName: 'MauLopHocPhan',
+    });
+    toast.success('Đã tải xuống file mẫu Excel cho Lớp học phần');
+  };
 
   const openCreate = () =>
     setFormModal({
@@ -212,10 +272,10 @@ export function CourseDetail() {
   };
 
   if (courseQuery.isLoading) return <Spinner />;
-  if (courseQuery.isError) {
+  if (courseQuery.isError || !course) {
     return (
       <div className="max-w-xl mx-auto rounded-2xl bg-white border border-gray-100 shadow-sm p-10 text-center">
-        <p className="text-gray-600">{courseQuery.error.message || 'Không tìm thấy học phần.'}</p>
+        <p className="text-gray-600">{courseQuery.error?.message || 'Không tìm thấy học phần.'}</p>
         <button type="button" onClick={() => navigate('/admin/classes')} className="mt-5 px-4 py-2 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700">
           Quay lại
         </button>
@@ -224,6 +284,34 @@ export function CourseDetail() {
   }
 
   const columns = [
+    {
+      key: 'selection',
+      header: (
+        <div className="flex items-center justify-center">
+          <input
+            type="checkbox"
+            checked={isAllSelected}
+            ref={(el) => {
+              if (el) el.indeterminate = isSomeSelected;
+            }}
+            onChange={handleSelectAll}
+            className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+            title="Chọn tất cả lớp"
+          />
+        </div>
+      ),
+      className: 'w-10 text-center',
+      render: (cls) => (
+        <div className="flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
+          <input
+            type="checkbox"
+            checked={selectedClassIds.includes(String(cls._id))}
+            onChange={() => handleToggleSelectClass(String(cls._id))}
+            className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+          />
+        </div>
+      ),
+    },
     { key: 'id', header: 'Mã lớp', className: 'font-semibold text-gray-800' },
     { key: 'className', header: 'Tên lớp học phần', render: (c) => c.className || '—' },
     {
@@ -376,23 +464,70 @@ export function CourseDetail() {
             type="button"
             onClick={onExportClasses}
             disabled={exporting || classesLoading}
-            className="px-3 py-2 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 text-sm font-semibold hover:bg-emerald-100 disabled:opacity-60"
+            className="inline-flex items-center justify-center gap-1.5 h-9 px-3.5 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 text-xs font-semibold hover:bg-emerald-100 disabled:opacity-60 shadow-xs transition active:scale-[0.98] cursor-pointer whitespace-nowrap"
           >
-            <i className="fas fa-file-export mr-1.5" /> {exporting ? 'Đang xuất...' : 'Xuất Excel'}
+            <i className="fas fa-file-export text-xs" />
+            <span>{exporting ? 'Đang xuất...' : 'Xuất Excel'}</span>
+          </button>
+          <button
+            type="button"
+            onClick={onDownloadTemplate}
+            className="inline-flex items-center justify-center gap-1.5 h-9 px-3.5 rounded-xl border border-slate-200 bg-white text-slate-700 text-xs font-semibold hover:bg-slate-50 shadow-2xs transition active:scale-[0.98] cursor-pointer whitespace-nowrap"
+            title="Tải file mẫu Excel chuẩn để nhập dữ liệu lớp học phần"
+          >
+            <i className="fas fa-file-excel text-emerald-600 text-xs" />
+            <span>File mẫu</span>
           </button>
           <button
             type="button"
             onClick={() => importFileRef.current?.click()}
             disabled={importing}
-            className="px-3 py-2 rounded-xl border border-indigo-200 bg-indigo-50 text-indigo-700 text-sm font-semibold hover:bg-indigo-100 disabled:opacity-60"
+            className="inline-flex items-center justify-center gap-1.5 h-9 px-3.5 rounded-xl border border-indigo-200 bg-indigo-50 text-indigo-700 text-xs font-semibold hover:bg-indigo-100 disabled:opacity-60 shadow-xs transition active:scale-[0.98] cursor-pointer whitespace-nowrap"
           >
-            <i className="fas fa-file-import mr-1.5" /> {importing ? 'Đang nhập...' : 'Nhập Excel'}
+            <i className="fas fa-file-import text-xs" />
+            <span>{importing ? 'Đang nhập...' : 'Nhập Excel'}</span>
           </button>
-          <button type="button" onClick={openCreate} className="px-4 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700">
-            <i className="fas fa-plus mr-1.5" /> Thêm lớp
+          <button
+            type="button"
+            onClick={openCreate}
+            className="inline-flex items-center justify-center gap-1.5 h-9 px-4 rounded-xl bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 shadow-xs hover:shadow transition active:scale-[0.98] cursor-pointer whitespace-nowrap"
+          >
+            <i className="fas fa-plus text-xs" />
+            <span>Thêm lớp</span>
           </button>
         </div>
       </div>
+      {selectedClassIds.length > 0 && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-indigo-200 bg-indigo-50/90 px-4 py-3 shadow-xs">
+          <div className="flex items-center gap-3">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-600 text-xs font-bold text-white shadow-xs">
+              {selectedClassIds.length}
+            </span>
+            <span className="text-sm font-medium text-indigo-950">
+              Đang chọn <strong className="text-indigo-700">{selectedClassIds.length}</strong> lớp học phần
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setSelectedClassIds([])}
+              className="rounded-xl border border-gray-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 shadow-2xs transition cursor-pointer"
+            >
+              Bỏ chọn
+            </button>
+            <button
+              type="button"
+              onClick={handleBulkDelete}
+              disabled={bulkRemove.isPending}
+              className="flex items-center gap-1.5 rounded-xl bg-red-600 px-4 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-red-700 disabled:opacity-50 transition cursor-pointer"
+            >
+              <i className="fas fa-trash-alt text-[11px]" />
+              <span>{bulkRemove.isPending ? 'Đang xóa...' : `Xóa ${selectedClassIds.length} lớp đã chọn`}</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden">
         <DataTable
           columns={columns}

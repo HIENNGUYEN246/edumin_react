@@ -91,7 +91,7 @@ function renderGradebook() {
 }
 
 describe('TeacherClassGradebook - Smart Grades & Syncing', () => {
-  it('renders auto-filled attendance score from Attendance records and allows manual override', async () => {
+  it('renders auto-filled attendance score from Attendance records and allows direct editing without override label', async () => {
     renderGradebook();
 
     // Student should be visible
@@ -99,24 +99,19 @@ describe('TeacherClassGradebook - Smart Grades & Syncing', () => {
     expect(studentName).toBeInTheDocument();
 
     // Attendance input should be auto-filled with 9.5
-    const attInput = screen.getByLabelText(/Chuyên cần - Nguyễn Văn Sinh Viên/i);
+    const attInput = screen.getByLabelText(/(Chuyên cần|Điểm danh) - Nguyễn Văn Sinh Viên/i);
     expect(attInput).toHaveValue(9.5);
 
     // Shows auto attendance indicator
-    expect(screen.getByText(/Tự động \(9\/10 buổi\)/i)).toBeInTheDocument();
+    expect(screen.getByText(/9\/10 buổi/i)).toBeInTheDocument();
 
-    // Manually type 10 to override
+    // Manually type 10 to edit ("sửa là sửa luôn")
     fireEvent.change(attInput, { target: { value: '10' } });
     expect(attInput).toHaveValue(10);
 
-    // Override indicator should appear with button to restore original score
-    expect(screen.getByText('Ghi đè')).toBeInTheDocument();
-    const restoreBtn = screen.getByRole('button', { name: /Gốc: 9.5/i });
-    expect(restoreBtn).toBeInTheDocument();
-
-    // Clicking restore resets input value back to 9.5
-    fireEvent.click(restoreBtn);
-    expect(attInput).toHaveValue(9.5);
+    // No override indicator or original score clutter
+    expect(screen.queryByText('Ghi đè')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Gốc:/)).not.toBeInTheDocument();
   });
 
   it('renders auto-synced midterm grade from linked Quiz and shows override indicator when edited', async () => {

@@ -1,8 +1,16 @@
-import { http } from './http.js';
+import { http, API_URL, tokenStore } from './http.js';
 import { qs } from './departmentsApi.js';
 
 export const documentsApi = {
   list: (params) => http.get(`/documents${qs(params)}`),
+  getById: (id) => http.get(`/documents/${id}`),
+  getFileUrl: (id, { download = false } = {}) => {
+    const token = tokenStore.get();
+    const tokenParam = token ? `token=${encodeURIComponent(token)}` : '';
+    const dlParam = download ? 'download=1' : '';
+    const query = [tokenParam, dlParam].filter(Boolean).join('&');
+    return `${API_URL}/documents/${id}/file${query ? `?${query}` : ''}`;
+  },
   create: ({ courseId, classId, name, status, file, files, link }) => {
     const form = new FormData();
     form.append('courseId', courseId);

@@ -37,12 +37,15 @@ export async function canAccessCourse(user, courseId) {
     });
     if (count > 0) return true;
 
-    // Check department match
-    if (teacher?.department && course.department && teacher.department === course.department) {
-      return true;
-    }
-    if (teacher?.departmentRef && course.departmentRef && String(teacher.departmentRef) === String(course.departmentRef)) {
-      return true;
+    // Fallback to department only if teacher has no classes assigned yet
+    const totalTaught = await CourseClass.countDocuments({ $or: teacherFilter });
+    if (totalTaught === 0) {
+      if (teacher?.department && course.department && teacher.department === course.department) {
+        return true;
+      }
+      if (teacher?.departmentRef && course.departmentRef && String(teacher.departmentRef) === String(course.departmentRef)) {
+        return true;
+      }
     }
 
     const allowed = await teacherAccessibleCourseIds(user);
@@ -94,7 +97,12 @@ export async function teacherAccessibleCourseIds(user) {
     deptCourseIds = await Course.find({ $or: deptFilter }).distinct('id');
   }
 
-  return Array.from(new Set([...taughtCourseIds, ...deptCourseIds].filter(Boolean)));
+  // If teacher has assigned classes, strictly return only the courses they teach
+  if (taughtCourseIds.length > 0) {
+    return Array.from(new Set(taughtCourseIds.filter(Boolean)));
+  }
+
+  return Array.from(new Set(deptCourseIds.filter(Boolean)));
 }
 
 /**

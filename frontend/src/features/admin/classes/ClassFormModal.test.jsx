@@ -154,7 +154,7 @@ describe('ClassFormModal registration date-time picker & validation', () => {
     const onSubmit = vi.fn();
     renderModal({ onSubmit });
 
-    const attendanceWeight = screen.getByLabelText(/Trọng số Điểm chuyên cần/i);
+    const attendanceWeight = screen.getByLabelText(/Trọng số Điểm (chuyên cần|danh)/i);
     fireEvent.change(attendanceWeight, { target: { value: '30' } }); // Sum now 120%
 
     expect(screen.getByText(/Tổng: 120%/i)).toBeInTheDocument();
@@ -227,7 +227,7 @@ describe('ClassFormModal registration date-time picker & validation', () => {
     expect(suggestBtn).toHaveTextContent(/Chuẩn 3 TC/i);
 
     // Initial default weights for 3 TC
-    const attendanceWeight = screen.getByLabelText(/Trọng số Điểm chuyên cần/i);
+    const attendanceWeight = screen.getByLabelText(/Trọng số Điểm (chuyên cần|danh)/i);
     const midtermWeight = screen.getByLabelText(/Trọng số Điểm thi giữa kỳ/i);
     const finalWeight = screen.getByLabelText(/Trọng số Điểm thi cuối kỳ/i);
 

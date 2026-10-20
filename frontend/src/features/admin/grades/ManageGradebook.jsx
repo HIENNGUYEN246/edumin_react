@@ -218,6 +218,7 @@ export function ManageGradebook() {
       if (selectedClassId) {
         queryClient.invalidateQueries({ queryKey: ['classes', selectedClassId, 'students'] });
       }
+      window.dispatchEvent(new CustomEvent('edumin_grade_lock_changed', { detail: data }));
     },
     onError: (err) => toast.error(err.message || 'Không thể đổi trạng thái khóa bảng điểm'),
   });
@@ -233,6 +234,7 @@ export function ManageGradebook() {
       if (selectedClassId) {
         queryClient.invalidateQueries({ queryKey: ['classes', selectedClassId, 'students'] });
       }
+      window.dispatchEvent(new CustomEvent('edumin_grade_lock_changed', { detail: data }));
     },
     onError: (err) => toast.error(err.message || 'Không thể thực hiện thao tác chốt sổ hàng loạt'),
   });
@@ -873,7 +875,7 @@ export function ManageGradebook() {
                     <tr className="border-b border-slate-200/80 bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500">
                       <th className="px-4 py-3">Mã SV</th>
                       <th className="px-4 py-3">Họ và tên</th>
-                      <th className="px-3 py-3 text-center">Chuyên cần (10%)</th>
+                      <th className="px-3 py-3 text-center">Điểm danh (10%)</th>
                       <th className="px-3 py-3 text-center">Bài tập / Quiz (10%)</th>
                       <th className="px-3 py-3 text-center">Giữa kỳ (30%)</th>
                       <th className="px-3 py-3 text-center">Cuối kỳ (50%)</th>
@@ -986,7 +988,7 @@ export function ManageGradebook() {
                 onChange={(e) => handleComponentChange(e.target.value)}
                 className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold outline-none focus:border-indigo-500"
               >
-                <option value="attendance">Chuyên cần (10%)</option>
+                <option value="attendance">Điểm danh (10%)</option>
                 <option value="assignment">Bài tập / Quiz (10%)</option>
                 <option value="midterm">Giữa kỳ (30%)</option>
                 <option value="final">Cuối kỳ (50%)</option>

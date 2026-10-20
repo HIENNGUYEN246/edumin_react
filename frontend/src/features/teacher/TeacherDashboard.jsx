@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { PageHeader } from '../../components/ui/PageHeader.jsx';
 import { ProfileCard } from '../../components/account/ProfileCard.jsx';
 import { Modal } from '../../components/ui/Modal.jsx';
@@ -394,13 +395,13 @@ export function TeacherDashboard() {
                             <i className={`fas ${isPreviewing ? 'fa-chevron-up' : 'fa-eye'} text-[10px]`} />
                             <span>{isPreviewing ? 'Đóng xem nhanh' : 'Xem nhanh điểm'}</span>
                           </button>
-                          <a
-                            href={`/teacher/classes/${classId}/gradebook`}
+                          <Link
+                            to={`/teacher/classes/${classId}/grades`}
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition shadow-2xs"
                           >
                             <i className="fas fa-table-cells text-[10px]" />
                             <span>Vào sổ điểm</span>
-                          </a>
+                          </Link>
                         </div>
                       </td>
                     </tr>
@@ -421,13 +422,13 @@ export function TeacherDashboard() {
                   Xem nhanh điểm sinh viên · Lớp {previewClassId}
                 </h5>
               </div>
-              <a
-                href={`/teacher/classes/${previewClassId}/gradebook`}
+              <Link
+                to={`/teacher/classes/${previewClassId}/grades`}
                 className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1"
               >
                 <span>Mở trang Sổ điểm đầy đủ</span>
                 <i className="fas fa-arrow-right text-[10px]" />
-              </a>
+              </Link>
             </div>
 
             {loadingPreview ? (
@@ -824,16 +825,29 @@ export function TeacherDashboard() {
                             <span className="text-[10px] text-slate-400">
                               {fb.respondedAt ? `• ${fb.respondedAt}` : ''}
                             </span>
-                            <span className="bg-indigo-100 text-indigo-700 text-[10px] font-bold px-2 py-0.2 rounded-full">
-                              Giảng viên phụ trách
-                            </span>
-                            <span className="font-bold text-indigo-900 text-xs">
-                              Phản hồi từ {teacherDisplayName}
-                            </span>
-                            {(fb.teacherId != null || profile?.id != null) && (
-                              <span className="bg-white text-indigo-600 text-[10px] font-bold px-1.5 py-0.2 rounded border border-indigo-200">
-                                {formatTeacherCode(fb.teacherId ?? profile?.id)}
-                              </span>
+                            {fb.respondedByRole === 'admin' || fb.respondedByRole === 'dao-tao' ? (
+                              <>
+                                <span className="bg-indigo-100 text-indigo-700 text-[10px] font-bold px-2 py-0.2 rounded-full">
+                                  Phòng Đào tạo (Admin)
+                                </span>
+                                <span className="font-bold text-indigo-900 text-xs">
+                                  Phản hồi từ {fb.respondedByName || 'Phòng Đào tạo'}
+                                </span>
+                              </>
+                            ) : (
+                              <>
+                                <span className="bg-indigo-100 text-indigo-700 text-[10px] font-bold px-2 py-0.2 rounded-full">
+                                  Giảng viên phụ trách
+                                </span>
+                                <span className="font-bold text-indigo-900 text-xs">
+                                  Phản hồi từ {teacherDisplayName}
+                                </span>
+                                {(fb.teacherId != null || profile?.id != null) && (
+                                  <span className="bg-white text-indigo-600 text-[10px] font-bold px-1.5 py-0.2 rounded border border-indigo-200">
+                                    {formatTeacherCode(fb.teacherId ?? profile?.id)}
+                                  </span>
+                                )}
+                              </>
                             )}
                           </div>
 

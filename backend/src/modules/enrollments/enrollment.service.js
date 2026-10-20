@@ -103,16 +103,71 @@ export async function listMyEnrollments(user) {
     .sort({ createdAt: -1 })
     .lean();
   // Drop enrollments whose class was deleted; expose the class object as `class`.
-  return enrollments
-    .filter((e) => e.classRef)
-    .map((e) => ({
+  const validEnrollments = enrollments.filter((e) => e.classRef);
+  if (validEnrollments.length === 0) return [];
+
+  // Query submissions and assignments for this student to sync quiz/assignment scores
+  const { Submission, Assignment } = await import('../assignments/assignment.model.js');
+  const courseIds = [...new Set(validEnrollments.map((e) => e.classRef?.courseId || e.classRef?.courseRef?.id).filter(Boolean))];
+  const classCodes = [...new Set(validEnrollments.map((e) => e.classId).filter(Boolean))];
+
+  const studentSubmissions = await Submission.find({ student: student._id }).select('assignmentRef score student answers').lean();
+  const subMap = new Map();
+  for (const sub of studentSubmissions) {
+    subMap.set(String(sub.assignmentRef), sub);
+  }
+
+  const assignments = await Assignment.find({
+    $or: [
+      { courseId: { $in: courseIds } },
+      { classId: { $in: classCodes } },
+    ],
+  }).select('_id courseId classId type dueDate').lean();
+
+  return validEnrollments.map((e) => {
+    const cls = e.classRef;
+    const courseId = cls.courseId || cls.courseRef?.id;
+    const classCode = e.classId;
+
+    // Filter assignments matching this course or class
+    const courseAssignments = assignments.filter((a) =>
+      (a.courseId && a.courseId === courseId) || (a.classId && a.classId === classCode)
+    );
+
+    const quizSubmissions = courseAssignments
+      .map((a) => subMap.get(String(a._id)))
+      .filter((sub) => sub && sub.score != null);
+
+    const autoQuizScore = quizSubmissions.length > 0
+      ? Number((quizSubmissions.reduce((sum, s) => sum + s.score, 0) / quizSubmissions.length).toFixed(1))
+      : null;
+
+    const manual = e.manualGrades || {};
+    const effectiveQuizScore = manual.assignment ?? manual.homework ?? autoQuizScore ?? null;
+
+    const manualGrades = {
+      ...manual,
+      assignment: effectiveQuizScore,
+      homework: effectiveQuizScore,
+      quizScore: effectiveQuizScore,
+    };
+
+    return {
       _id: e._id,
       classId: e.classId,
       enrolledAt: e.createdAt,
-      class: e.classRef,
-      manualGrades: e.manualGrades,
+      class: {
+        ...cls,
+        isGradeLocked: Boolean(cls.isGradeLocked),
+      },
+      manualGrades,
+      quizScore: effectiveQuizScore,
+      assignmentScore: effectiveQuizScore,
+      homeworkGrade: effectiveQuizScore,
+      isGradeLocked: Boolean(cls.isGradeLocked),
       finalScore: e.finalScore,
-    }));
+    };
+  });
 }
 
 export async function enroll(user, classId) {

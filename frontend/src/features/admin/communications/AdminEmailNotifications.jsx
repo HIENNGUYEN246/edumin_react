@@ -396,7 +396,7 @@ export function AdminEmailNotifications() {
               type="button"
               onClick={() => fileRef.current?.click()}
               disabled={sending}
-              className="inline-flex items-center gap-2 rounded-xl border border-indigo-200 bg-white px-3 py-2.5 text-xs font-bold text-indigo-700 hover:bg-indigo-50 disabled:opacity-50"
+              className="inline-flex items-center justify-center gap-1.5 h-9 px-3.5 rounded-xl border border-indigo-200 bg-white text-xs font-bold text-indigo-700 hover:bg-indigo-50 disabled:opacity-50 shadow-2xs transition active:scale-[0.98] cursor-pointer whitespace-nowrap"
             >
               <i className="fas fa-file-import" />
               Nhập Excel
@@ -404,7 +404,7 @@ export function AdminEmailNotifications() {
             <button
               type="button"
               onClick={downloadTemplate}
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+              className="inline-flex items-center justify-center gap-1.5 h-9 px-3.5 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-600 hover:bg-slate-50 shadow-2xs transition active:scale-[0.98] cursor-pointer whitespace-nowrap"
             >
               <i className="fas fa-download" />
               File mẫu

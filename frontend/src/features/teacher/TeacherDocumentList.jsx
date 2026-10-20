@@ -17,71 +17,124 @@ function formatFileSize(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function getFileMeta(format, link, hasFile) {
+function getFileMeta(format, link, hasFile, fileName = '') {
   if (link && !hasFile) {
     return {
       icon: 'fa-link',
       color: 'text-purple-600 bg-purple-50 border-purple-200',
+      badgeColor: 'text-purple-700 bg-purple-50 border-purple-200',
       label: 'Liên kết',
       type: 'link',
     };
   }
-  const ext = (format || '').toLowerCase().replace(/^\./, '');
+
+  let ext = (format || '').toLowerCase().replace(/^\./, '');
+  if (!ext || ext === 'raw' || ext === 'image' || ext === 'file') {
+    const match = /\.([a-zA-Z0-9]+)$/i.exec(fileName || '');
+    if (match) ext = match[1].toLowerCase();
+  }
+
   if (ext === 'pdf') {
     return {
       icon: 'fa-file-pdf',
       color: 'text-rose-600 bg-rose-50 border-rose-200',
+      badgeColor: 'text-rose-700 bg-rose-50 border-rose-200',
       label: 'PDF',
       type: 'pdf',
+      canPreview: true,
     };
   }
+
   if (['doc', 'docx'].includes(ext)) {
     return {
       icon: 'fa-file-word',
       color: 'text-blue-600 bg-blue-50 border-blue-200',
+      badgeColor: 'text-blue-700 bg-blue-50 border-blue-200',
       label: 'Word',
       type: 'word',
+      canPreview: true,
     };
   }
+
   if (['xls', 'xlsx', 'csv'].includes(ext)) {
     return {
       icon: 'fa-file-excel',
       color: 'text-emerald-600 bg-emerald-50 border-emerald-200',
-      label: 'Excel',
+      badgeColor: 'text-emerald-700 bg-emerald-50 border-emerald-200',
+      label: ext === 'csv' ? 'CSV' : 'Excel',
       type: 'excel',
+      canPreview: true,
     };
   }
+
   if (['ppt', 'pptx'].includes(ext)) {
     return {
       icon: 'fa-file-powerpoint',
       color: 'text-amber-600 bg-amber-50 border-amber-200',
+      badgeColor: 'text-amber-700 bg-amber-50 border-amber-200',
       label: 'PowerPoint',
       type: 'powerpoint',
+      canPreview: true,
     };
   }
-  if (['mp4', 'mkv', 'avi', 'mov'].includes(ext)) {
+
+  if (['txt', 'md', 'markdown', 'log', 'json'].includes(ext)) {
+    return {
+      icon: 'fa-file-lines',
+      color: 'text-slate-600 bg-slate-100 border-slate-200',
+      badgeColor: 'text-slate-700 bg-slate-100 border-slate-200',
+      label: ext === 'md' ? 'Markdown' : 'Văn bản TXT',
+      type: 'text',
+      canPreview: true,
+    };
+  }
+
+  if (['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg'].includes(ext)) {
+    return {
+      icon: 'fa-file-image',
+      color: 'text-violet-600 bg-violet-50 border-violet-200',
+      badgeColor: 'text-violet-700 bg-violet-50 border-violet-200',
+      label: 'Hình ảnh',
+      type: 'image',
+      canPreview: true,
+    };
+  }
+
+  if (['mp4', 'mkv', 'avi', 'mov', 'webm'].includes(ext)) {
     return {
       icon: 'fa-file-video',
       color: 'text-cyan-600 bg-cyan-50 border-cyan-200',
+      badgeColor: 'text-cyan-700 bg-cyan-50 border-cyan-200',
       label: 'Video',
       type: 'video',
+      canPreview: true,
     };
   }
+
   if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) {
     return {
       icon: 'fa-file-zipper',
       color: 'text-orange-600 bg-orange-50 border-orange-200',
+      badgeColor: 'text-orange-700 bg-orange-50 border-orange-200',
       label: 'Tệp nén',
       type: 'archive',
+      canPreview: false,
     };
   }
+
   return {
     icon: 'fa-file-lines',
     color: 'text-indigo-600 bg-indigo-50 border-indigo-200',
+    badgeColor: 'text-indigo-700 bg-indigo-50 border-indigo-200',
     label: ext ? ext.toUpperCase() : 'Tài liệu',
     type: 'document',
+    canPreview: true,
   };
 }
+
+
+
+
 
 export function TeacherDocumentList() {
   const toast = useToast();
@@ -92,6 +145,18 @@ export function TeacherDocumentList() {
   const myClasses = classesData?.data || [];
 
   const { courses, isLoading: loadingCourses } = useCourseOptions();
+
+  // Filter courses to only those the teacher actually teaches
+  const teacherCourses = useMemo(() => {
+    const map = new Map();
+    myClasses.forEach((c) => {
+      const cid = c.courseId;
+      if (cid && !map.has(cid)) {
+        map.set(cid, { id: cid, name: c.courseName || c.name || cid });
+      }
+    });
+    return map.size > 0 ? Array.from(map.values()) : courses;
+  }, [myClasses, courses]);
 
   // Load all documents
   const { data: docsData, isLoading: loadingDocs } = useDocuments('');
@@ -145,23 +210,6 @@ export function TeacherDocumentList() {
       }
     });
 
-    // Fallback: If teacher has accessible courses without separate class sections
-    courses.forEach((crs) => {
-      const existing = Array.from(map.values()).some((item) => item.courseId === crs.id);
-      if (!existing && crs.id) {
-        map.set(crs.id, {
-          key: crs.id,
-          classId: crs.id,
-          className: 'Học phần',
-          courseId: crs.id,
-          courseName: crs.name || crs.id,
-          room: '',
-          schedules: [],
-          docs: [],
-        });
-      }
-    });
-
     const list = Array.from(map.values());
     const assignedIds = new Set();
 
@@ -205,7 +253,7 @@ export function TeacherDocumentList() {
     }
 
     return list;
-  }, [myClasses, courses, allDocs]);
+  }, [myClasses, allDocs]);
 
   const isLoading = loadingClasses || loadingCourses || loadingDocs;
 
@@ -291,7 +339,7 @@ export function TeacherDocumentList() {
         // Filter by Type
         if (filterType !== 'all') {
           docs = docs.filter((d) => {
-            const meta = getFileMeta(d.format, d.link, d.hasFile || d.size > 0);
+            const meta = getFileMeta(d.format, d.link, d.hasFile || d.size > 0, d.fileName || d.name);
             return meta.type === filterType;
           });
         }
@@ -485,7 +533,7 @@ export function TeacherDocumentList() {
   const onDownload = async (doc) => {
     try {
       setDownloadingId(doc._id);
-      await downloadDocument(doc._id);
+      await downloadDocument(doc._id, doc.name);
     } catch (error) {
       toast.error(error.message || 'Không tải được tài liệu');
     } finally {
@@ -583,9 +631,12 @@ export function TeacherDocumentList() {
             >
               <option value="all">Tất cả định dạng</option>
               <option value="pdf">Tệp PDF</option>
-              <option value="word">Văn bản Word</option>
-              <option value="excel">Bảng tính Excel</option>
-              <option value="powerpoint">Slide PowerPoint</option>
+              <option value="word">Văn bản Word (.docx, .doc)</option>
+              <option value="excel">Bảng tính Excel (.xlsx, .xls)</option>
+              <option value="powerpoint">Slide PowerPoint (.pptx, .ppt)</option>
+              <option value="text">Văn bản TXT / Markdown</option>
+              <option value="image">Hình ảnh (JPG, PNG...)</option>
+              <option value="archive">Tệp nén (ZIP, RAR...)</option>
               <option value="video">Video</option>
               <option value="link">Liên kết ngoài</option>
             </select>
@@ -805,7 +856,7 @@ export function TeacherDocumentList() {
                           </thead>
                           <tbody className="divide-y divide-slate-100">
                             {group.docs.map((d, idx) => {
-                              const meta = getFileMeta(d.format, d.link, d.hasFile || d.size > 0);
+                              const meta = getFileMeta(d.format, d.link, d.hasFile || d.size > 0, d.fileName || d.name);
                               const sizeText = formatFileSize(d.size);
                               const isDownloading = downloadingId === d._id;
 
@@ -820,9 +871,15 @@ export function TeacherDocumentList() {
                                         <i className={`fas ${meta.icon}`} />
                                       </div>
                                       <div className="min-w-0">
-                                        <h5 className="font-bold text-slate-800 text-xs hover:text-indigo-600 transition truncate max-w-sm">
+                                        <a
+                                          href={`/documents/${d._id}/view`}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="font-bold text-slate-800 text-xs hover:text-indigo-600 transition truncate max-w-sm inline-block"
+                                          title="Nhấn để mở tài liệu trong trang riêng"
+                                        >
                                           {d.name}
-                                        </h5>
+                                        </a>
                                         {sizeText && (
                                           <p className="text-[10px] text-slate-400 font-mono mt-0.5">
                                             {sizeText}
@@ -913,6 +970,16 @@ export function TeacherDocumentList() {
                                         <span>Tạo Quiz nhanh</span>
                                       </button>
 
+                                      <a
+                                        href={`/documents/${d._id}/view`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="w-8 h-8 rounded-lg text-indigo-600 hover:bg-indigo-50 flex items-center justify-center transition cursor-pointer"
+                                        title="Mở tài liệu trong trang riêng (xem trước)"
+                                      >
+                                        <i className="fas fa-arrow-up-right-from-square text-xs" />
+                                      </a>
+
                                       {(d.hasFile || d.size > 0) && (
                                         <button
                                           type="button"
@@ -998,7 +1065,7 @@ export function TeacherDocumentList() {
                 className={inputClass}
                 value={uploadForm.courseId}
                 onChange={(e) => {
-                  const found = courses.find((c) => c.id === e.target.value);
+                  const found = teacherCourses.find((c) => c.id === e.target.value);
                   setUploadForm((f) => ({
                     ...f,
                     courseId: e.target.value,
@@ -1007,7 +1074,7 @@ export function TeacherDocumentList() {
                 }}
               >
                 <option value="">Chọn học phần</option>
-                {courses.map((c) => (
+                {teacherCourses.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.id} — {c.name}
                   </option>
@@ -1024,6 +1091,7 @@ export function TeacherDocumentList() {
               ref={fileRef}
               type="file"
               multiple
+              accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.ppt,.pptx,.txt,.md,.zip,.rar,.7z,image/*"
               className="block w-full text-sm text-gray-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 transition cursor-pointer"
               onChange={handleFilesChange}
             />

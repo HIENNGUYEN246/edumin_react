@@ -38,14 +38,81 @@ export async function listDocuments(query, user) {
   return { data: docs.map(stripFile) };
 }
 
+export function getMimeType(filename = '', format = '') {
+  let ext = (filename.split('.').pop() || format || '').toLowerCase().replace(/^\./, '');
+  if (!ext || ext === 'raw') {
+    const match = /\.([a-zA-Z0-9]+)$/.exec(filename);
+    if (match) ext = match[1].toLowerCase();
+  }
+  switch (ext) {
+    case 'pdf':
+      return 'application/pdf';
+    case 'docx':
+      return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    case 'doc':
+      return 'application/msword';
+    case 'xlsx':
+      return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    case 'xls':
+      return 'application/vnd.ms-excel';
+    case 'csv':
+      return 'text/csv; charset=utf-8';
+    case 'pptx':
+      return 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+    case 'ppt':
+      return 'application/vnd.ms-powerpoint';
+    case 'txt':
+    case 'log':
+      return 'text/plain; charset=utf-8';
+    case 'md':
+      return 'text/markdown; charset=utf-8';
+    case 'png':
+      return 'image/png';
+    case 'jpg':
+    case 'jpeg':
+      return 'image/jpeg';
+    case 'webp':
+      return 'image/webp';
+    case 'gif':
+      return 'image/gif';
+    case 'zip':
+      return 'application/zip';
+    case 'rar':
+      return 'application/vnd.rar';
+    case '7z':
+      return 'application/x-7z-compressed';
+    default:
+      return 'application/octet-stream';
+  }
+}
+
 function stripFile(doc) {
   const { file, ...rest } = doc;
+  let resolvedFormat = (file?.format || '').toLowerCase();
+  const rawName = file?.originalName || doc.name || '';
+  if (!resolvedFormat || resolvedFormat === 'raw' || resolvedFormat === 'image') {
+    const match = /\.([a-zA-Z0-9]+)$/.exec(rawName);
+    if (match) {
+      resolvedFormat = match[1].toLowerCase();
+    }
+  }
+  if (!resolvedFormat && doc.link) {
+    resolvedFormat = 'Liên kết';
+  }
+
+  const hasFile = Boolean(file?.publicId || file?.url);
+  const fileUrl = file?.url || '';
+  const directUrl = fileUrl || doc.link || '';
+
   return {
     ...rest,
     classId: doc.classId || '',
-    hasFile: Boolean(file?.publicId),
+    fileName: file?.originalName || doc.name || '',
+    hasFile,
     size: file?.bytes || 0,
-    format: file?.format || (doc.link ? 'Liên kết' : ''),
+    format: resolvedFormat,
+    fileUrl,
+    directUrl,
     link: doc.link || '',
     extractedText: doc.extractedText || '',
     summary: doc.summary || '',
@@ -121,9 +188,10 @@ export async function createDocument({ courseId, classId, name, status, link }, 
       const uploaded = await filesService.uploadBuffer(file.buffer, {
         folder: 'documents',
         resourceType: 'auto',
-        access: 'authenticated',
+        access: 'public',
       });
 
+      uploaded.originalName = file.originalname;
       const docName = fileList.length === 1 && name ? name : file.originalname;
       const extraction = await extractTextFromFile({
         buffer: file.buffer,
@@ -225,13 +293,14 @@ export async function updateDocument(id, body, fileOrUser, maybeUser) {
     const uploaded = await filesService.uploadBuffer(file.buffer, {
       folder: 'documents',
       resourceType: 'auto',
-      access: 'authenticated',
+      access: 'public',
     });
+    uploaded.originalName = file.originalname;
     doc.file = uploaded;
 
     if (oldPublicId) {
       filesService
-        .destroy(oldPublicId, { resourceType: oldResourceType || 'raw', access: 'authenticated' })
+        .destroy(oldPublicId, { resourceType: oldResourceType || 'raw', access: 'public' })
         .catch(() => {});
     }
 
@@ -267,13 +336,86 @@ export async function deleteDocument(id, user) {
   await Document.deleteOne({ _id: doc._id });
   if (doc.file?.publicId) {
     await filesService
-      .destroy(doc.file.publicId, { resourceType: doc.file.resourceType || 'raw', access: 'authenticated' })
+      .destroy(doc.file.publicId, { resourceType: doc.file.resourceType || 'raw', access: 'public' })
       .catch(() => {});
   }
   return { success: true };
 }
 
 /** Issue a short-lived signed URL after checking the caller may access it. */
+export async function getDocumentById(id, user) {
+  const doc = await Document.findById(id).populate('courseRef').populate('classRef').lean();
+  if (!doc) throw AppError.notFound('Không tìm thấy tài liệu');
+
+  if (user.role === ROLES.STUDENT && doc.status !== 'Công khai') {
+    throw AppError.forbidden('Tài liệu không khả dụng');
+  }
+  const allowed = await canAccessCourse(user, doc.courseId);
+  if (!allowed) throw AppError.forbidden('Bạn không có quyền truy cập tài liệu này');
+
+  const stripped = stripFile(doc);
+  return {
+    ...stripped,
+    courseName: doc.courseRef?.name || doc.courseId || '',
+    className: doc.classRef?.name || doc.classId || '',
+  };
+}
+
+export async function streamDocumentFile(id, user, { download = false } = {}) {
+  const doc = await Document.findById(id).lean();
+  if (!doc) throw AppError.notFound('Không tìm thấy tài liệu');
+
+  if (user.role === ROLES.STUDENT && doc.status !== 'Công khai') {
+    throw AppError.forbidden('Tài liệu không khả dụng');
+  }
+  const allowed = await canAccessCourse(user, doc.courseId);
+  if (!allowed) throw AppError.forbidden('Bạn không có quyền truy cập tài liệu này');
+
+  if (!doc.file?.publicId && !doc.file?.url) {
+    if (doc.link) {
+      return { redirect: doc.link };
+    }
+    throw AppError.badRequest('Tài liệu không có tệp đính kèm');
+  }
+
+  let sourceUrl = doc.file?.url || '';
+  if (!sourceUrl || doc.file?.access === 'authenticated') {
+    try {
+      sourceUrl = filesService.signedUrl(doc.file.publicId, {
+        resourceType: doc.file.resourceType || 'raw',
+        expiresInSeconds: 300,
+      });
+    } catch {
+      sourceUrl = doc.file?.url || '';
+    }
+  }
+
+  if (!sourceUrl) {
+    throw AppError.badRequest('Không tìm thấy đường dẫn tệp');
+  }
+
+  let response = await fetch(sourceUrl);
+  if (!response.ok && doc.file?.url && doc.file.url !== sourceUrl) {
+    response = await fetch(doc.file.url);
+  }
+  if (!response.ok) {
+    throw AppError.badRequest(`Không thể tải tệp từ lưu trữ đám mây (Mã lỗi: ${response.status})`);
+  }
+
+  const arrayBuffer = await response.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
+  const filename = doc.name || doc.file?.originalName || 'tai-lieu';
+  const mimeType = getMimeType(filename, doc.file?.format);
+
+  return {
+    buffer,
+    mimeType,
+    filename,
+    download,
+  };
+}
+
+/** Issue a direct download URL or stream route. */
 export async function getDownloadUrl(id, user) {
   const doc = await Document.findById(id).lean();
   if (!doc) throw AppError.notFound('Không tìm thấy tài liệu');
@@ -284,18 +426,26 @@ export async function getDownloadUrl(id, user) {
   const allowed = await canAccessCourse(user, doc.courseId);
   if (!allowed) throw AppError.forbidden('Bạn không có quyền tải tài liệu này');
 
-  if (!doc.file?.publicId) {
+  if (!doc.file?.publicId && !doc.file?.url) {
     if (doc.link) {
       return { url: doc.link, name: doc.name, isExternal: true };
     }
     throw AppError.badRequest('Tài liệu không có tệp đính kèm');
   }
 
-  const url = filesService.signedUrl(doc.file.publicId, {
-    resourceType: doc.file.resourceType || 'raw',
-    expiresInSeconds: 300,
-  });
-  return { url, name: doc.name };
+  if (doc.file?.url && doc.file.access === 'public') {
+    return { url: doc.file.url, name: doc.name, hasDirectFile: true };
+  }
+
+  try {
+    const url = filesService.signedUrl(doc.file.publicId, {
+      resourceType: doc.file.resourceType || 'raw',
+      expiresInSeconds: 300,
+    });
+    return { url, name: doc.name };
+  } catch {
+    return { url: doc.file?.url || `/api/documents/${doc._id}/file?download=1`, name: doc.name };
+  }
 }
 
 /** Summarize an academic document by ID with security checks. */

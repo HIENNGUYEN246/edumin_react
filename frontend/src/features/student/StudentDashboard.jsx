@@ -10,6 +10,7 @@ import {
   calculateGpa,
   getGpaClassification,
   DEFAULT_GRADE_WEIGHTS,
+  formatDate,
 } from '../../lib/format.js';
 import { useMyEnrollments } from './useEnrollments.js';
 import { feedbackApi } from '../../api/feedbackApi.js';
@@ -62,7 +63,14 @@ export function StudentDashboardInner() {
           const manual = enr?.manualGrades || {};
           const compGrades = {
             attendance: manual?.attendance ?? null,
-            homework: manual?.assignment ?? manual?.homework ?? null,
+            homework:
+              manual?.assignment ??
+              manual?.homework ??
+              manual?.quizScore ??
+              enr?.quizScore ??
+              enr?.assignmentScore ??
+              enr?.homeworkGrade ??
+              null,
             midterm: manual?.midterm ?? null,
             presentation: manual?.presentation ?? null,
             final: manual?.final ?? null,
@@ -111,6 +119,7 @@ export function StudentDashboardInner() {
             letterGrade,
             classification,
             isPassed,
+            isGradeLocked: Boolean(enr?.isGradeLocked || cls?.isGradeLocked),
           };
         })
         .filter(Boolean);
@@ -368,7 +377,7 @@ export function StudentDashboardInner() {
                 <tr>
                   <th className="px-4 py-3">Môn học & Lớp</th>
                   <th className="px-4 py-3">Giảng viên</th>
-                  <th className="px-3 py-3 text-center">Chuyên cần</th>
+                  <th className="px-3 py-3 text-center">Điểm danh</th>
                   <th className="px-3 py-3 text-center">Bài tập / Quiz</th>
                   <th className="px-3 py-3 text-center">Giữa kỳ</th>
                   <th className="px-3 py-3 text-center">Cuối kỳ</th>
@@ -449,25 +458,33 @@ export function StudentDashboardInner() {
                         )}
                       </td>
                       <td className="px-3 py-3.5 text-center whitespace-nowrap">
-                        {row?.gpa == null ? (
-                          <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
-                            Đang học
-                          </span>
-                        ) : (
-                          <span
-                            className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
-                              row?.classification?.tone === 'success'
-                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                : row?.classification?.tone === 'primary'
-                                ? 'bg-blue-50 text-blue-700 border-blue-200'
-                                : row?.classification?.tone === 'warning'
-                                ? 'bg-amber-50 text-amber-700 border-amber-200'
-                                : 'bg-rose-50 text-rose-700 border-rose-200'
-                            }`}
-                          >
-                            {row?.isPassed ? `Đạt · ${row?.classification?.text || ''}` : 'Học lại'}
-                          </span>
-                        )}
+                        <div className="flex flex-col items-center gap-1">
+                          {row?.isGradeLocked && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                              <i className="fas fa-lock text-[8px]" />
+                              <span>Đã chốt sổ</span>
+                            </span>
+                          )}
+                          {row?.gpa == null ? (
+                            <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                              Đang học
+                            </span>
+                          ) : (
+                            <span
+                              className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                                row?.classification?.tone === 'success'
+                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                  : row?.classification?.tone === 'primary'
+                                  ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                  : row?.classification?.tone === 'warning'
+                                  ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                  : 'bg-rose-50 text-rose-700 border-rose-200'
+                              }`}
+                            >
+                              {row?.isPassed ? `Đạt · ${row?.classification?.text || ''}` : 'Học lại'}
+                            </span>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -486,9 +503,9 @@ export function StudentDashboardInner() {
               <i className="fas fa-comment-dots text-lg" />
             </div>
             <div>
-              <h4 className="text-base font-bold text-gray-800">Ý kiến đóng góp & Phản hồi Giảng viên</h4>
+              <h4 className="text-base font-bold text-gray-800">Ý kiến đóng góp & Phản hồi</h4>
               <p className="text-xs text-gray-400">
-                Gửi góp ý về phương pháp giảng dạy, học liệu và đánh giá chất lượng học phần
+                Gửi ý kiến, phản hồi và thắc mắc học vụ trực tiếp tới Phòng Đào tạo (Admin)
               </p>
             </div>
           </div>
@@ -542,13 +559,16 @@ export function StudentDashboardInner() {
                       )}
                       <span className="text-gray-300">•</span>
                       <span className="text-gray-500 font-medium">
-                        GV: {fb?.teacherName || 'Chưa phân công'}
+                        GV đứng lớp: {fb?.teacherName || 'Chưa phân công'}
+                      </span>
+                      <span className="text-gray-300">•</span>
+                      <span className="text-[10px] text-indigo-700 font-semibold bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">
+                        Nơi nhận: Phòng Đào tạo
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="text-[10px] text-gray-400">
-                        {fb?.createdAtFormatted ||
-                          (fb?.createdAt ? new Date(fb.createdAt).toLocaleDateString('vi-VN') : '')}
+                        {fb?.createdAtFormatted || formatDate(fb?.createdAt) || ''}
                       </span>
                       <div className="flex items-center text-amber-400 text-xs">
                         {[1, 2, 3, 4, 5].map((s) => (
@@ -572,13 +592,9 @@ export function StudentDashboardInner() {
                           <img
                             src={
                               fb?.respondedByAvatar ||
-                              fb?.teacherAvatar ||
+                              (fb?.respondedByRole === 'teacher' ? fb?.teacherAvatar : '') ||
                               `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                                typeof fb?.respondedByName === 'string'
-                                  ? fb.respondedByName
-                                  : typeof fb?.teacherName === 'string'
-                                  ? fb.teacherName
-                                  : 'GV'
+                                fb?.respondedByName || 'Phòng Đào tạo'
                               )}&background=4f46e5&color=fff`
                             }
                             alt=""
@@ -586,11 +602,10 @@ export function StudentDashboardInner() {
                           />
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <span className="font-bold text-indigo-900 text-xs">
-                              Phản hồi từ{' '}
-                              {getTeacherTitle(fb?.respondedByName || fb?.teacherName, fb?.teacherGender)}
+                              Phản hồi từ {fb?.respondedByName || 'Phòng Đào tạo'}
                             </span>
-                            <span className="bg-indigo-100 text-indigo-700 text-[10px] font-bold px-2 py-0.2 rounded-full">
-                              Giảng viên phụ trách
+                            <span className="bg-indigo-100 text-indigo-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                              {fb?.respondedByRole === 'teacher' ? 'Giảng viên phụ trách' : 'Phòng Đào tạo (Admin)'}
                             </span>
                           </div>
                         </div>
@@ -603,7 +618,7 @@ export function StudentDashboardInner() {
                       </p>
                     </div>
                   ) : (
-                    <p className="text-[11px] text-amber-600 italic">⏳ Đang chờ Giảng viên xem và phản hồi...</p>
+                    <p className="text-[11px] text-amber-600 italic">⏳ Đang chờ Phòng Đào tạo tiếp nhận và phản hồi...</p>
                   )}
                 </div>
               ))
@@ -704,7 +719,7 @@ export function StudentDashboardInner() {
                 rows={3}
                 value={feedbackText}
                 onChange={(e) => setFeedbackText(e.target.value)}
-                placeholder="Viết cảm nghĩ hoặc góp ý của bạn về phương pháp giảng dạy, bài tập, slide bài giảng..."
+                placeholder="Nhập nội dung ý kiến, thắc mắc học vụ hoặc phản ánh gửi tới Phòng Đào tạo..."
                 className="w-full border border-gray-200 rounded-xl p-3 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-none"
               />
             </div>
@@ -725,7 +740,7 @@ export function StudentDashboardInner() {
                 disabled={submitting}
                 className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition shadow-xs disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
               >
-                {submitting ? 'Đang gửi...' : 'Gửi góp ý'}
+                {submitting ? 'Đang gửi...' : 'Gửi ý kiến'}
               </button>
             </div>
           </form>

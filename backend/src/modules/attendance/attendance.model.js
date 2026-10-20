@@ -12,7 +12,7 @@ const attendanceSchema = new Schema(
     classRef: { type: Schema.Types.ObjectId, ref: 'CourseClass', default: null },
     courseId: { type: String, default: '' },
     courseName: { type: String, default: '' },
-    studentId: { type: Number, required: true },
+    studentId: { type: Schema.Types.Mixed, required: true },
     studentRef: { type: Schema.Types.ObjectId, ref: 'Student', default: null },
     studentName: { type: String, default: '' },
     studentEmail: { type: String, default: '' },

@@ -118,6 +118,34 @@ export async function createAssignment(payload, user) {
     }
   }
 
+  // Fallback: If teacher creates assignment for course, resolve classRef to teacher's class
+  if (!classRef && user.role === ROLES.TEACHER && courseId) {
+    const teacherFilter = [{ teacherRef: user.teacher }];
+    if (user.teacher && mongoose.Types.ObjectId.isValid(user.teacher)) {
+      teacherFilter.push({ teacherRef: new mongoose.Types.ObjectId(user.teacher) });
+    }
+    const Teacher = mongoose.model('Teacher');
+    const teacherDoc = await Teacher.findById(user.teacher).lean();
+    if (teacherDoc?.hoTen) teacherFilter.push({ teacher: teacherDoc.hoTen });
+    if (teacherDoc?.id) teacherFilter.push({ teacherId: teacherDoc.id });
+
+    const cls = await CourseClass.findOne({
+      courseId,
+      $or: teacherFilter,
+    });
+    if (cls) {
+      classRef = cls._id;
+      if (!classId) {
+        classId = cls.id;
+      } else {
+        const matchCount = await CourseClass.countDocuments({ id: classId });
+        if (matchCount === 0) {
+          classId = cls.id;
+        }
+      }
+    }
+  }
+
   const course = await Course.findOne({ id: courseId });
   if (!course) throw AppError.badRequest('Học phần không tồn tại');
   await requireCourseTeacher(user, courseId);

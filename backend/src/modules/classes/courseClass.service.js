@@ -269,7 +269,9 @@ export async function listOpenClasses(requester) {
 
 export async function getClass(id) {
   await closeExpiredClasses();
-  const doc = await CourseClass.findById(id).populate(POPULATE).lean();
+  const doc = mongoose.isValidObjectId(id)
+    ? await CourseClass.findById(id).populate(POPULATE).lean()
+    : await CourseClass.findOne({ id }).populate(POPULATE).lean();
   if (!doc) throw AppError.notFound('Không tìm thấy lớp học phần');
   return withEnrolledCount(doc);
 }
@@ -277,7 +279,9 @@ export async function getClass(id) {
 /** Change only the lifecycle status of a class. */
 export async function changeStatus(id, status) {
   await closeExpiredClasses();
-  const cls = await CourseClass.findById(id);
+  const cls = mongoose.isValidObjectId(id)
+    ? await CourseClass.findById(id)
+    : await CourseClass.findOne({ id });
   if (!cls) throw AppError.notFound('Không tìm thấy lớp học phần');
   if (status === 'Đang mở' && isRegistrationWindowExpired(cls)) {
     throw AppError.conflict('Không thể mở lại lớp vì thời gian đăng ký đã kết thúc');
@@ -396,7 +400,9 @@ export async function createClass(payload) {
 }
 
 export async function updateClass(id, payload) {
-  const cls = await CourseClass.findById(id);
+  const cls = mongoose.isValidObjectId(id)
+    ? await CourseClass.findById(id)
+    : await CourseClass.findOne({ id });
   if (!cls) throw AppError.notFound('Không tìm thấy lớp học phần');
   const prevTeacherId = cls.teacherId;
 
@@ -928,7 +934,9 @@ export async function updateGradeConfig(classId, config, requester) {
 }
 
 export async function deleteClass(id) {
-  const cls = await CourseClass.findById(id);
+  const cls = mongoose.isValidObjectId(id)
+    ? await CourseClass.findById(id)
+    : await CourseClass.findOne({ id });
   if (!cls) throw AppError.notFound('Không tìm thấy lớp học phần');
 
   if (mongoose.modelNames().includes('Enrollment')) {
@@ -936,6 +944,26 @@ export async function deleteClass(id) {
   }
   await CourseClass.deleteOne({ _id: cls._id });
   return { success: true };
+}
+
+export async function bulkDeleteClasses(ids = []) {
+  if (!Array.isArray(ids) || ids.length === 0) return { success: true, count: 0 };
+  const objectIds = ids.filter((id) => mongoose.isValidObjectId(id));
+  const stringCodes = ids.filter((id) => !mongoose.isValidObjectId(id));
+  const conditions = [];
+  if (objectIds.length > 0) conditions.push({ _id: { $in: objectIds } });
+  if (stringCodes.length > 0) conditions.push({ id: { $in: stringCodes } });
+  if (conditions.length === 0) return { success: true, count: 0 };
+
+  const classes = await CourseClass.find({ $or: conditions });
+  const foundIds = classes.map((c) => c._id);
+  if (foundIds.length > 0) {
+    if (mongoose.modelNames().includes('Enrollment')) {
+      await mongoose.model('Enrollment').deleteMany({ classRef: { $in: foundIds } });
+    }
+    await CourseClass.deleteMany({ _id: { $in: foundIds } });
+  }
+  return { success: true, count: foundIds.length };
 }
 
 export async function toggleGradeLock(classId, { lock } = {}, requester) {

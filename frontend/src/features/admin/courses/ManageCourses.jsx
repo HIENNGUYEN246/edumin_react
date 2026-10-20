@@ -282,6 +282,37 @@ export function ManageCourses() {
     }
   };
 
+  const onDownloadTemplate = async () => {
+    try {
+      const templateRows = [
+        {
+          Ma: 'CS101',
+          Ten: 'Nhập môn Lập trình',
+          SoTinChi: 3,
+          HocPhi: 1500000,
+          Khoa: departments[0]?.id || 'CNTT',
+          LoaiHocPhan: 'LT_TH',
+          TietLyThuyet: 30,
+          TietThucHanh: 30,
+        },
+        {
+          Ma: 'CS102',
+          Ten: 'Cấu trúc dữ liệu và giải thuật',
+          SoTinChi: 4,
+          HocPhi: 2000000,
+          Khoa: departments[0]?.id || 'CNTT',
+          LoaiHocPhan: 'LT_TH',
+          TietLyThuyet: 45,
+          TietThucHanh: 30,
+        },
+      ];
+      await exportSheet(templateRows, { fileName: 'file-mau-hoc-phan.xlsx', sheetName: 'HocPhan' });
+      toast.success('Đã tải xuống file mẫu học phần!');
+    } catch (err) {
+      toast.error('Lỗi khi tải file mẫu');
+    }
+  };
+
   const onExport = async () => {
     try {
       const all = await coursesApi.list({ page: 1, limit: 1000 });
@@ -381,14 +412,38 @@ export function ManageCourses() {
                 setPage(1);
               }}
             />
-            <button type="button" onClick={() => fileRef.current?.click()} className="px-3.5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 shadow-xs hover:shadow transition active:scale-[0.98]">
-              <i className="fas fa-file-import mr-1.5" /> Nhập Excel
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              className="inline-flex items-center justify-center gap-1.5 h-9 px-3.5 rounded-xl bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 shadow-xs hover:shadow transition active:scale-[0.98] cursor-pointer whitespace-nowrap"
+            >
+              <i className="fas fa-file-import text-xs" />
+              <span>Nhập Excel</span>
             </button>
-            <button type="button" onClick={onExport} className="px-3.5 py-2 rounded-xl bg-teal-600 text-white text-xs font-semibold hover:bg-teal-700 shadow-xs hover:shadow transition active:scale-[0.98]">
-              <i className="fas fa-file-export mr-1.5" /> Xuất Excel
+            <button
+              type="button"
+              onClick={onDownloadTemplate}
+              className="inline-flex items-center justify-center gap-1.5 h-9 px-3.5 rounded-xl bg-white text-slate-700 hover:bg-slate-50 border border-slate-200 shadow-xs hover:shadow transition active:scale-[0.98] text-xs font-semibold cursor-pointer whitespace-nowrap"
+              title="Tải xuống tệp Excel mẫu chuẩn cột"
+            >
+              <i className="fas fa-file-excel text-emerald-600 text-xs" />
+              <span>File mẫu</span>
             </button>
-            <button type="button" onClick={openCreate} className="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 shadow-xs hover:shadow transition active:scale-[0.98] whitespace-nowrap">
-              <i className="fas fa-plus mr-1.5" /> Thêm môn học
+            <button
+              type="button"
+              onClick={onExport}
+              className="inline-flex items-center justify-center gap-1.5 h-9 px-3.5 rounded-xl bg-teal-600 text-white text-xs font-semibold hover:bg-teal-700 shadow-xs hover:shadow transition active:scale-[0.98] cursor-pointer whitespace-nowrap"
+            >
+              <i className="fas fa-file-export text-xs" />
+              <span>Xuất Excel</span>
+            </button>
+            <button
+              type="button"
+              onClick={openCreate}
+              className="inline-flex items-center justify-center gap-1.5 h-9 px-4 rounded-xl bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 shadow-xs hover:shadow transition active:scale-[0.98] cursor-pointer whitespace-nowrap"
+            >
+              <i className="fas fa-plus text-xs" />
+              <span>Thêm môn học</span>
             </button>
             <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={onImport} />
           </>

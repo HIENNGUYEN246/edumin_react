@@ -160,6 +160,7 @@ router.post('/check-in', async (req, res, next) => {
     }
 
     const numericStudentId = Number(studentId);
+    const resolvedStudentId = !Number.isNaN(numericStudentId) ? numericStudentId : String(studentId);
     const regIdStr = String(classCode);
     const dateStr = String(date);
     const shiftIdStr = String(shiftId);
@@ -168,8 +169,13 @@ router.post('/check-in', async (req, res, next) => {
     if (dateStr > todayStr) {
       return res.status(400).json({ error: 'Không thể điểm danh cho ngày trong tương lai' });
     }
+
     const student = await Student.findOne({
-      $or: [{ id: numericStudentId }, { email: studentEmail }],
+      $or: [
+        ...(!Number.isNaN(numericStudentId) ? [{ id: numericStudentId }] : []),
+        ...(mongoose.isValidObjectId(String(studentId)) ? [{ _id: studentId }] : []),
+        ...(studentEmail ? [{ email: studentEmail }] : []),
+      ],
     });
     const classObj = await CourseClass.findOne({
       $or: [
@@ -188,9 +194,16 @@ router.post('/check-in', async (req, res, next) => {
 
     let record = await Attendance.findOne({
       $or: [
-        { regId: regIdStr, studentId: numericStudentId, date: dateStr, shiftId: shiftIdStr },
-        ...(canonicalRegId !== regIdStr ? [{ regId: canonicalRegId, studentId: numericStudentId, date: dateStr, shiftId: shiftIdStr }] : []),
-        ...(classObj ? [{ classRef: classObj._id, studentId: numericStudentId, date: dateStr, shiftId: shiftIdStr }] : []),
+        { regId: regIdStr, studentId: resolvedStudentId, date: dateStr, shiftId: shiftIdStr },
+        { regId: regIdStr, studentId: String(studentId), date: dateStr, shiftId: shiftIdStr },
+        ...(canonicalRegId !== regIdStr ? [
+          { regId: canonicalRegId, studentId: resolvedStudentId, date: dateStr, shiftId: shiftIdStr },
+          { regId: canonicalRegId, studentId: String(studentId), date: dateStr, shiftId: shiftIdStr }
+        ] : []),
+        ...(classObj ? [
+          { classRef: classObj._id, studentId: resolvedStudentId, date: dateStr, shiftId: shiftIdStr },
+          { classRef: classObj._id, studentId: String(studentId), date: dateStr, shiftId: shiftIdStr }
+        ] : []),
       ],
     });
 
@@ -215,14 +228,14 @@ router.post('/check-in', async (req, res, next) => {
       return res.json({ success: true, message: 'Điểm danh thành công!', record });
     }
 
-    const id = `ATT_${Date.now()}_${numericStudentId}`;
+    const id = `ATT_${Date.now()}_${resolvedStudentId}`;
     record = await Attendance.create({
       id,
       regId: canonicalRegId,
       classRef: classObj?._id || null,
       courseId: courseId || classObj?.courseId || '',
       courseName: courseName || classObj?.courseName || '',
-      studentId: numericStudentId,
+      studentId: resolvedStudentId,
       studentRef: student ? student._id : null,
       studentName: studentName || student?.hoTen || 'Sinh viên',
       studentEmail: studentEmail || student?.email || '',
@@ -274,6 +287,7 @@ router.post('/record', async (req, res, next) => {
     }
 
     const numericStudentId = Number(studentId);
+    const resolvedStudentId = !Number.isNaN(numericStudentId) ? numericStudentId : String(studentId);
     const regIdStr = String(classCode);
     const dateStr = String(date);
     const shiftIdStr = String(shiftId);
@@ -282,8 +296,13 @@ router.post('/record', async (req, res, next) => {
     if (dateStr > todayStr) {
       return res.status(400).json({ error: 'Không thể điểm danh cho ngày trong tương lai' });
     }
+
     const student = await Student.findOne({
-      $or: [{ id: numericStudentId }, { email: studentEmail }],
+      $or: [
+        ...(!Number.isNaN(numericStudentId) ? [{ id: numericStudentId }] : []),
+        ...(mongoose.isValidObjectId(String(studentId)) ? [{ _id: studentId }] : []),
+        ...(studentEmail ? [{ email: studentEmail }] : []),
+      ],
     });
     const classObj = await CourseClass.findOne({
       $or: [
@@ -306,9 +325,16 @@ router.post('/record', async (req, res, next) => {
 
     let record = await Attendance.findOne({
       $or: [
-        { regId: regIdStr, studentId: numericStudentId, date: dateStr, shiftId: shiftIdStr },
-        ...(canonicalRegId !== regIdStr ? [{ regId: canonicalRegId, studentId: numericStudentId, date: dateStr, shiftId: shiftIdStr }] : []),
-        ...(classObj ? [{ classRef: classObj._id, studentId: numericStudentId, date: dateStr, shiftId: shiftIdStr }] : []),
+        { regId: regIdStr, studentId: resolvedStudentId, date: dateStr, shiftId: shiftIdStr },
+        { regId: regIdStr, studentId: String(studentId), date: dateStr, shiftId: shiftIdStr },
+        ...(canonicalRegId !== regIdStr ? [
+          { regId: canonicalRegId, studentId: resolvedStudentId, date: dateStr, shiftId: shiftIdStr },
+          { regId: canonicalRegId, studentId: String(studentId), date: dateStr, shiftId: shiftIdStr }
+        ] : []),
+        ...(classObj ? [
+          { classRef: classObj._id, studentId: resolvedStudentId, date: dateStr, shiftId: shiftIdStr },
+          { classRef: classObj._id, studentId: String(studentId), date: dateStr, shiftId: shiftIdStr }
+        ] : []),
       ],
     });
 
@@ -344,14 +370,14 @@ router.post('/record', async (req, res, next) => {
       return res.json({ success: true, message: 'Đã lưu đánh giá và điểm danh!', record });
     }
 
-    const id = `ATT_${Date.now()}_${numericStudentId}`;
+    const id = `ATT_${Date.now()}_${resolvedStudentId}`;
     record = await Attendance.create({
       id,
       regId: canonicalRegId,
       classRef: classObj?._id || null,
       courseId: courseId || classObj?.courseId || '',
       courseName: courseName || classObj?.courseName || '',
-      studentId: numericStudentId,
+      studentId: resolvedStudentId,
       studentRef: student ? student._id : null,
       studentName: studentName || student?.hoTen || 'Sinh viên',
       studentEmail: studentEmail || student?.email || '',
@@ -403,10 +429,6 @@ router.post('/bulk', async (req, res, next) => {
     const dateStr = String(date);
     const shiftIdStr = String(shiftId);
 
-    const todayStr = getTodayStr();
-    if (dateStr > todayStr) {
-      return res.status(400).json({ error: 'Không thể điểm danh cho ngày trong tương lai' });
-    }
     const now = new Date();
     const pad = (n) => String(n).padStart(2, '0');
     const evaluatedAt = `${pad(now.getHours())}:${pad(now.getMinutes())} ${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()}`;
@@ -425,17 +447,29 @@ router.post('/bulk', async (req, res, next) => {
     for (const item of records) {
       if (!item.studentId) continue;
       const numericStudentId = Number(item.studentId);
+      const resolvedStudentId = !Number.isNaN(numericStudentId) ? numericStudentId : String(item.studentId);
 
       let record = await Attendance.findOne({
         $or: [
-          { regId: regIdStr, studentId: numericStudentId, date: dateStr, shiftId: shiftIdStr },
-          ...(canonicalRegId !== regIdStr ? [{ regId: canonicalRegId, studentId: numericStudentId, date: dateStr, shiftId: shiftIdStr }] : []),
-          ...(classObj ? [{ classRef: classObj._id, studentId: numericStudentId, date: dateStr, shiftId: shiftIdStr }] : []),
+          { regId: regIdStr, studentId: resolvedStudentId, date: dateStr, shiftId: shiftIdStr },
+          { regId: regIdStr, studentId: String(item.studentId), date: dateStr, shiftId: shiftIdStr },
+          ...(canonicalRegId !== regIdStr ? [
+            { regId: canonicalRegId, studentId: resolvedStudentId, date: dateStr, shiftId: shiftIdStr },
+            { regId: canonicalRegId, studentId: String(item.studentId), date: dateStr, shiftId: shiftIdStr }
+          ] : []),
+          ...(classObj ? [
+            { classRef: classObj._id, studentId: resolvedStudentId, date: dateStr, shiftId: shiftIdStr },
+            { classRef: classObj._id, studentId: String(item.studentId), date: dateStr, shiftId: shiftIdStr }
+          ] : []),
         ],
       });
 
       const student = await Student.findOne({
-        $or: [{ id: numericStudentId }, { email: item.studentEmail }],
+        $or: [
+          ...(!Number.isNaN(numericStudentId) ? [{ id: numericStudentId }] : []),
+          ...(mongoose.isValidObjectId(String(item.studentId)) ? [{ _id: item.studentId }] : []),
+          ...(item.studentEmail ? [{ email: item.studentEmail }] : []),
+        ],
       });
       const resolvedAvatar =
         item.studentAvatar ||
@@ -474,14 +508,14 @@ router.post('/bulk', async (req, res, next) => {
         await record.save();
         savedRecords.push(record);
       } else {
-        const id = `ATT_${Date.now()}_${numericStudentId}_${Math.floor(Math.random() * 1000)}`;
+        const id = `ATT_${Date.now()}_${resolvedStudentId}_${Math.floor(Math.random() * 1000)}`;
         const created = await Attendance.create({
           id,
           regId: canonicalRegId,
           classRef: classObj?._id || null,
           courseId: courseId || item.courseId || classObj?.courseId || '',
           courseName: courseName || item.courseName || classObj?.courseName || '',
-          studentId: numericStudentId,
+          studentId: resolvedStudentId,
           studentRef: student ? student._id : null,
           studentName: item.studentName || student?.hoTen || 'Sinh viên',
           studentEmail: item.studentEmail || student?.email || '',
@@ -517,8 +551,12 @@ router.post('/bulk', async (req, res, next) => {
 // GET /api/attendance/student/:studentId
 router.get('/student/:studentId', async (req, res, next) => {
   try {
-    const studentId = Number(req.params.studentId);
-    const records = await Attendance.find({ studentId })
+    const rawId = req.params.studentId;
+    const numId = Number(rawId);
+    const filter = !Number.isNaN(numId)
+      ? { $or: [{ studentId: numId }, { studentId: String(rawId) }] }
+      : { studentId: String(rawId) };
+    const records = await Attendance.find(filter)
       .populate('studentRef', 'id hoTen name email avatar')
       .populate('classRef', 'id className courseId courseName schedules room department')
       .sort({ date: -1, shiftId: 1 })

@@ -43,7 +43,7 @@ export function Modal({
   if (!isVisible) return null;
 
   const content = (
-    <div className={`fixed inset-0 ${zIndex} flex items-center justify-center px-4 sm:px-6 md:px-8 py-16 sm:py-24 md:py-28 overflow-y-auto`}>
+    <div className={`fixed inset-0 ${zIndex} flex items-center justify-center p-4 sm:p-6 overflow-y-auto`}>
       <div
         className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm transition-opacity"
         onClick={() => closable && onClose?.()}
@@ -52,7 +52,7 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-label={typeof title === 'string' ? title : undefined}
-        className={`relative w-full ${SIZES[size]} bg-white rounded-3xl shadow-2xl border border-slate-100/80 max-h-[85vh] overflow-y-auto custom-scrollbar transition-all transform duration-200 my-auto sm:my-8 md:my-12 ${className}`}
+        className={`relative w-full ${SIZES[size]} bg-white rounded-3xl shadow-2xl border border-slate-100/80 max-h-[90vh] overflow-y-auto custom-scrollbar transition-all transform duration-200 my-auto ${className}`}
       >
         {title && (
           <div className="flex items-center justify-between px-6 sm:px-8 py-5 border-b border-slate-100 bg-white/95 backdrop-blur-sm sticky top-0 z-20">

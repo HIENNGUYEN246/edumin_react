@@ -44,14 +44,14 @@ export function ProfileCard({ profile, user, code, fields = [] }) {
       queryClient.invalidateQueries({ queryKey: ['profile-requests'] });
       window.dispatchEvent(new CustomEvent('edumin_profile_request_updated'));
 
-      if (data?.autoApproved || (data?.approved === true && !data?.pending)) {
-        toast.success(data.message || 'EduMin AI đã tự động phê duyệt ảnh đại diện theo tiêu chí của Quản trị viên!');
-      } else if (data?.pending) {
-        toast.info(data.message || 'Yêu cầu thay đổi ảnh đại diện đã được gửi đến Quản trị viên để phê duyệt');
+      if (data?.approved && !data?.pending) {
+        toast.success(data.message || 'Cập nhật ảnh đại diện thành công');
+      } else if (data?.pending || data?.status === 'pending' || data?.success) {
+        toast.success(data.message || 'Tải lên ảnh đại diện thành công! Yêu cầu đang chờ Phòng Đào tạo duyệt.');
       } else if (data?.status === 'rejected' || data?.success === false) {
         toast.error(data.message || 'Không thể cập nhật ảnh đại diện');
       } else {
-        toast.success(data.message || 'Đã cập nhật ảnh đại diện');
+        toast.success(data.message || 'Đã gửi yêu cầu đổi ảnh đại diện');
       }
     },
     onError: (error) => toast.error(error.message || 'Lỗi khi cập nhật ảnh đại diện'),

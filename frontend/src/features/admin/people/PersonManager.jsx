@@ -370,6 +370,69 @@ export function PersonManager({ config }) {
     }
   };
 
+  const onDownloadTemplate = async () => {
+    try {
+      const isStudent = config.queryKey === 'students' || (config.entityLabel && config.entityLabel.toLowerCase().includes('sinh viên'));
+      const templateRows = isStudent
+        ? [
+            {
+              Ma: 'SV-1001',
+              HoTen: 'Nguyễn Văn An',
+              Email: 'an.nguyen@student.edu.vn',
+              Khoa: departments[0]?.id || 'CNTT',
+              Lop: 'CNTT-K18A',
+              GioiTinh: 'Nam',
+              NgaySinh: '2004-05-15',
+              SoDienThoai: '0912345678',
+              DiaChi: 'Hà Nội',
+              HeDaoTao: 'Chính quy',
+            },
+            {
+              Ma: 'SV-1002',
+              HoTen: 'Trần Thị Mai',
+              Email: 'mai.tran@student.edu.vn',
+              Khoa: departments[0]?.id || 'CNTT',
+              Lop: 'CNTT-K18A',
+              GioiTinh: 'Nữ',
+              NgaySinh: '2004-08-20',
+              SoDienThoai: '0987654321',
+              DiaChi: 'Đà Nẵng',
+              HeDaoTao: 'Chính quy',
+            },
+          ]
+        : [
+            {
+              Ma: 'GV-101',
+              HoTen: 'TS. Trần Văn Bình',
+              Email: 'binh.tran@edu.vn',
+              Khoa: departments[0]?.id || 'CNTT',
+              GioiTinh: 'Nam',
+              NgaySinh: '1985-03-12',
+              SoDienThoai: '0903123456',
+              DiaChi: 'Hà Nội',
+              TrinhDo: 'Tiến sĩ',
+            },
+            {
+              Ma: 'GV-102',
+              HoTen: 'ThS. Lê Thị Hoa',
+              Email: 'hoa.le@edu.vn',
+              Khoa: departments[0]?.id || 'CNTT',
+              GioiTinh: 'Nữ',
+              NgaySinh: '1990-11-25',
+              SoDienThoai: '0914567890',
+              DiaChi: 'Hải Phòng',
+              TrinhDo: 'Thạc sĩ',
+            },
+          ];
+
+      const fileName = isStudent ? 'file-mau-sinh-vien.xlsx' : 'file-mau-giang-vien.xlsx';
+      await exportSheet(templateRows, { fileName, sheetName: isStudent ? 'SinhVien' : 'GiangVien' });
+      toast.success('Đã tải xuống file mẫu Excel!');
+    } catch (err) {
+      toast.error('Lỗi khi tải file mẫu');
+    }
+  };
+
   const onExport = async () => {
     try {
       const all = await config.api.list({ page: 1, limit: 1000 });
@@ -561,14 +624,38 @@ export function PersonManager({ config }) {
                 ))}
               </select>
             )}
-            <button type="button" onClick={() => fileRef.current?.click()} className="px-3.5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 shadow-xs hover:shadow transition active:scale-[0.98]">
-              <i className="fas fa-file-import mr-1.5" /> Nhập
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              className="inline-flex items-center justify-center gap-1.5 h-9 px-3.5 rounded-xl bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 shadow-xs hover:shadow transition active:scale-[0.98] cursor-pointer whitespace-nowrap"
+            >
+              <i className="fas fa-file-import text-xs" />
+              <span>Nhập</span>
             </button>
-            <button type="button" onClick={onExport} className="px-3.5 py-2 rounded-xl bg-teal-600 text-white text-xs font-semibold hover:bg-teal-700 shadow-xs hover:shadow transition active:scale-[0.98]">
-              <i className="fas fa-file-export mr-1.5" /> Xuất
+            <button
+              type="button"
+              onClick={onDownloadTemplate}
+              className="inline-flex items-center justify-center gap-1.5 h-9 px-3.5 rounded-xl bg-white text-slate-700 text-xs font-semibold hover:bg-slate-50 border border-slate-200 shadow-xs hover:shadow transition active:scale-[0.98] cursor-pointer whitespace-nowrap"
+              title="Tải xuống tệp Excel mẫu chuẩn cột"
+            >
+              <i className="fas fa-file-excel text-emerald-600 text-xs" />
+              <span>File mẫu</span>
             </button>
-            <button type="button" onClick={openCreate} className="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 shadow-xs hover:shadow transition active:scale-[0.98] whitespace-nowrap">
-              <i className="fas fa-plus mr-1.5" /> Thêm {config.entityLabel || ''}
+            <button
+              type="button"
+              onClick={onExport}
+              className="inline-flex items-center justify-center gap-1.5 h-9 px-3.5 rounded-xl bg-teal-600 text-white text-xs font-semibold hover:bg-teal-700 shadow-xs hover:shadow transition active:scale-[0.98] cursor-pointer whitespace-nowrap"
+            >
+              <i className="fas fa-file-export text-xs" />
+              <span>Xuất</span>
+            </button>
+            <button
+              type="button"
+              onClick={openCreate}
+              className="inline-flex items-center justify-center gap-1.5 h-9 px-4 rounded-xl bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 shadow-xs hover:shadow transition active:scale-[0.98] cursor-pointer whitespace-nowrap"
+            >
+              <i className="fas fa-plus text-xs" />
+              <span>Thêm {config.entityLabel || ''}</span>
             </button>
             <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={onImport} />
           </>

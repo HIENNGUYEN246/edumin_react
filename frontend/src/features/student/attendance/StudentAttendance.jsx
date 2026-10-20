@@ -413,7 +413,7 @@ export function StudentAttendance() {
 
   // Personal Gradebook: calculate component scores, GPA, and classifications for enrolled classes
   const personalGradebook = useMemo(() => {
-    return enrollments.map((e) => {
+    return (Array.isArray(enrollments) ? enrollments : []).filter(Boolean).map((e) => {
       const cls = e.class || {};
       const weights = cls.gradeWeights || DEFAULT_GRADE_WEIGHTS;
       const classId = cls.id || e.classId;
@@ -444,11 +444,17 @@ export function StudentAttendance() {
       const autoHwScore = quizSubmissions.length > 0
         ? Number((quizSubmissions.reduce((a, b) => a + b, 0) / quizSubmissions.length).toFixed(1))
         : null;
-      const hwScore = e.manualGrades?.assignment ?? (e.manualGrades?.homework ?? autoHwScore);
+      const hwScore =
+        e.manualGrades?.assignment ??
+        e.manualGrades?.homework ??
+        e.manualGrades?.quizScore ??
+        e.quizScore ??
+        e.assignmentScore ??
+        autoHwScore;
 
       // 3. Midterm score
       const midtermAssignment = cls.midtermQuizId
-        ? courseAssignments.find((a) => String(a._id) === String(cls.midtermQuizId?._id || cls.midtermQuizId))
+        ? courseAssignments.find((a) => a && String(a._id) === String(cls.midtermQuizId?._id || cls.midtermQuizId))
         : null;
       const autoMidtermScore = midtermAssignment?.mySubmission?.score != null
         ? Number(midtermAssignment.mySubmission.score)
@@ -457,7 +463,7 @@ export function StudentAttendance() {
 
       // 4. Final score
       const finalAssignment = cls.finalQuizId
-        ? courseAssignments.find((a) => String(a._id) === String(cls.finalQuizId?._id || cls.finalQuizId))
+        ? courseAssignments.find((a) => a && String(a._id) === String(cls.finalQuizId?._id || cls.finalQuizId))
         : null;
       const autoFinalScore = finalAssignment?.mySubmission?.score != null
         ? Number(finalAssignment.mySubmission.score)
@@ -926,7 +932,7 @@ export function StudentAttendance() {
                               {/* Progress bar & Read-only indicator */}
                               <div className="flex flex-wrap items-center gap-3">
                                 <div className="flex items-center gap-2 text-xs min-w-[160px]">
-                                  <span className="text-slate-500 text-[11px] font-medium whitespace-nowrap">Chuyên cần:</span>
+                                  <span className="text-slate-500 text-[11px] font-medium whitespace-nowrap">Điểm danh:</span>
                                   <div className="flex-1 h-2 rounded-full bg-slate-100 overflow-hidden border border-slate-200">
                                     <div
                                       className={`h-full transition-all duration-300 rounded-full ${
@@ -1245,7 +1251,7 @@ export function StudentAttendance() {
                       <th className="px-4 py-3.5">Mã HP & Môn học</th>
                       <th className="px-3 py-3.5">Lớp HP</th>
                       <th className="px-2 py-3.5 text-center">Tín chỉ</th>
-                      <th className="px-3 py-3.5 text-center">Chuyên cần</th>
+                      <th className="px-3 py-3.5 text-center">Điểm danh</th>
                       <th className="px-3 py-3.5 text-center">Bài tập / Quiz</th>
                       <th className="px-3 py-3.5 text-center">Giữa kỳ</th>
                       <th className="px-3 py-3.5 text-center">Cuối kỳ</th>

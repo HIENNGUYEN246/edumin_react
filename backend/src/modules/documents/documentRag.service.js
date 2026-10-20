@@ -195,11 +195,25 @@ export async function findRelevantDocument({ user, queryText = '', classId = '',
     }
 
     if (course) {
+      let resolvedClassId = targetClassId;
+      if (!resolvedClassId && user.role === ROLES.TEACHER) {
+        const teacherClass = await CourseClass.findOne({
+          courseId: course.id,
+          $or: [
+            { teacherRef: user.teacher },
+            { teacher: user.hoTen },
+            { teacherId: user.teacherId },
+          ].filter(Boolean),
+        }).lean();
+        if (teacherClass) {
+          resolvedClassId = teacherClass.id;
+        }
+      }
       return {
         _id: `synth_${course.id}`,
         name: `Giáo trình & Đề cương lý thuyết: ${course.name}`,
         courseId: course.id,
-        classId: targetClassId || `${course.id}-01`,
+        classId: resolvedClassId || `${course.id}-01`,
         courseRef: course,
         isSynthetic: true,
       };

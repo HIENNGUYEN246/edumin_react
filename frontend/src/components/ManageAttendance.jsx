@@ -495,7 +495,7 @@ export default function ManageAttendance() {
 
         {/* Admin Detail & Adjustment Modal */}
         {detailModal.isOpen && detailModal.record && (
-          <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm z-[200] flex items-center justify-center px-4 sm:px-6 md:px-8 py-16 sm:py-24 md:py-28 overflow-y-auto">
+          <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm z-[200] flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
             <div className="bg-white rounded-3xl shadow-2xl border border-slate-100/80 w-full max-w-md my-auto overflow-hidden animate-fadeIn">
               <div className="bg-indigo-600 p-5 text-white flex items-center justify-between">
                 <div>

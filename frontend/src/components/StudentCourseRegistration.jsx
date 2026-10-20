@@ -469,7 +469,7 @@ function Dropdown({ handleLogout }) {
 
 function DetailModal({ reg, onClose }) {
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/50 backdrop-blur-sm px-4 sm:px-6 md:px-8 py-16 sm:py-24 md:py-28 overflow-y-auto">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/50 backdrop-blur-sm p-4 sm:p-6 overflow-y-auto">
       <div className="bg-white rounded-3xl shadow-2xl border border-slate-100/80 w-full max-w-2xl my-auto overflow-hidden">
         <div className="bg-indigo-900 p-6 text-white flex justify-between items-center">
           <div>
@@ -533,7 +533,7 @@ function DetailModal({ reg, onClose }) {
 
 function LockOverlay({ onLogout }) {
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center px-4 sm:px-6 md:px-8 py-16 sm:py-24 md:py-28 overflow-y-auto">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
       <div className="fixed inset-0 bg-gray-950/60 backdrop-blur-md" />
       <div className="relative bg-white p-8 rounded-3xl shadow-2xl max-w-sm w-full my-auto text-center border-4 border-red-100">
         <h2 className="text-2xl font-bold text-gray-800 mb-2">Tài khoản bị khóa!</h2>

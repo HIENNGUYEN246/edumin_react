@@ -79,11 +79,7 @@ describe('Admin Avatar Criteria Approval Flow & Chatbox Protection', () => {
     expect(activeCriteria.rules.customSummary).toContain('Avatar phải là hình người và chỉ 1 người');
   });
 
-  it('rejects auto-approval when student uploads non-human avatar (e.g. cat/animal/anime) and keeps it in pending', async () => {
-    // 1. Admin sets active criteria
-    await setAdminCriteria('Tiêu chuẩn duyệt: Avatar phải là hình người và chỉ 1 người', admin.user);
-
-    // 2. Student uploads a cat picture as avatar
+  it('allows student avatar upload immediately and queues into pending for manual PDT review', async () => {
     const fakeCatFile = Buffer.from('fake cat image bytes');
     const uploadRes = await request(app)
       .patch('/api/auth/me/avatar')
@@ -91,26 +87,19 @@ describe('Admin Avatar Criteria Approval Flow & Chatbox Protection', () => {
       .attach('file', fakeCatFile, { filename: 'my_cute_cat.jpg', contentType: 'image/jpeg' });
 
     expect(uploadRes.status).toBe(200);
-    // MUST NOT be auto-approved!
+    expect(uploadRes.body.success).toBe(true);
     expect(uploadRes.body.approved).toBe(false);
-    expect(uploadRes.body.isValid).toBe(false);
     expect(uploadRes.body.pending).toBe(true);
-    expect(uploadRes.body.autoApproved).toBeFalsy();
-    expect(uploadRes.body.message).toContain('Ảnh không hợp lệ: Yêu cầu bắt buộc phải có đúng 1 người trong khung hình!');
+    expect(uploadRes.body.message).toContain('Tải lên ảnh đại diện mới thành công! Yêu cầu đổi ảnh đã được chuyển vào hàng đợi');
 
-    // Verify request in DB is kept pending with clear rejection note
+    // Verify request in DB is created in pending state
     const pendingReq = await ProfileRequest.findOne({ userId: student.user._id, status: 'pending' });
     expect(pendingReq).toBeTruthy();
     expect(pendingReq.type).toBe('avatar');
     expect(pendingReq.status).toBe('pending');
-    expect(pendingReq.adminNote).toContain('Chưa đạt tiêu chí: Avatar không phải hình người');
   });
 
-  it('rejects auto-approval when student uploads multi-person group photo and keeps it in pending', async () => {
-    // 1. Admin sets active criteria
-    await setAdminCriteria('Tiêu chuẩn duyệt: Avatar phải là hình người và chỉ 1 người', admin.user);
-
-    // 2. Student uploads a group photo
+  it('allows teacher avatar upload immediately and queues into pending for PDT review', async () => {
     const fakeGroupFile = Buffer.from('fake group photo bytes');
     const uploadRes = await request(app)
       .patch('/api/auth/me/avatar')
@@ -118,38 +107,13 @@ describe('Admin Avatar Criteria Approval Flow & Chatbox Protection', () => {
       .attach('file', fakeGroupFile, { filename: 'group_friends_trip.png', contentType: 'image/png' });
 
     expect(uploadRes.status).toBe(200);
-    expect(uploadRes.body.approved).toBe(false);
-    expect(uploadRes.body.isValid).toBe(false);
+    expect(uploadRes.body.success).toBe(true);
     expect(uploadRes.body.pending).toBe(true);
-    expect(uploadRes.body.autoApproved).toBeFalsy();
-    expect(uploadRes.body.message).toContain('Ảnh không hợp lệ: Yêu cầu bắt buộc phải có đúng 1 người trong khung hình!');
+    expect(uploadRes.body.approved).toBe(false);
 
     const pendingReq = await ProfileRequest.findOne({ userId: student.user._id, status: 'pending' });
     expect(pendingReq).toBeTruthy();
-    expect(pendingReq.adminNote).toContain('tiêu chuẩn chỉ cho phép đúng 1 người');
-  });
-
-  it('automatically approves when student uploads valid single-person portrait matching the criteria', async () => {
-    // 1. Admin sets active criteria
-    await setAdminCriteria('Tiêu chuẩn duyệt: Avatar phải là hình người và chỉ 1 người', admin.user);
-
-    // 2. Student uploads a single-person portrait
-    const fakePortraitFile = Buffer.from('fake portrait image bytes');
-    const uploadRes = await request(app)
-      .patch('/api/auth/me/avatar')
-      .set(authHeader(student.token))
-      .attach('file', fakePortraitFile, { filename: 'avatar_portrait_le_thi_thu_thao.jpg', contentType: 'image/jpeg' });
-
-    expect(uploadRes.status).toBe(200);
-    // Meets criteria: auto-approved!
-    expect(uploadRes.body.approved).toBe(true);
-    expect(uploadRes.body.isValid).toBe(true);
-    expect(uploadRes.body.pending).toBe(false);
-    expect(uploadRes.body.autoApproved).toBe(true);
-
-    const approvedReq = await ProfileRequest.findOne({ userId: student.user._id });
-    expect(approvedReq.status).toBe('approved');
-    expect(approvedReq.adminNote).toContain('Đạt tiêu chí của Admin');
+    expect(pendingReq.status).toBe('pending');
   });
 
   it('Admin Chatbox query: "Duyệt ảnh đại diện nhanh" detects non-human avatar and keeps it pending without auto-approving', async () => {
@@ -195,9 +159,7 @@ describe('Admin Avatar Criteria Approval Flow & Chatbox Protection', () => {
     expect(reloaded.status).toBe('pending');
   });
 
-  it('strictly rejects arbitrary/generic images without portrait proof when criteria is active', async () => {
-    await setAdminCriteria('Tiêu chuẩn duyệt: Avatar phải là hình người và chỉ 1 người', admin.user);
-
+  it('submits arbitrary/generic images successfully into pending queue for manual PDT review', async () => {
     const fakeFile = Buffer.from('fake image without clear portrait');
     const uploadRes = await request(app)
       .patch('/api/auth/me/avatar')
@@ -205,10 +167,9 @@ describe('Admin Avatar Criteria Approval Flow & Chatbox Protection', () => {
       .attach('file', fakeFile, { filename: 'screenshot_unspecified.png', contentType: 'image/png' });
 
     expect(uploadRes.status).toBe(200);
+    expect(uploadRes.body.success).toBe(true);
     expect(uploadRes.body.approved).toBe(false);
-    expect(uploadRes.body.isValid).toBe(false);
     expect(uploadRes.body.pending).toBe(true);
-    expect(uploadRes.body.message).toContain('Ảnh không hợp lệ: Yêu cầu bắt buộc phải có đúng 1 người trong khung hình!');
   });
 
   it('inspectImageHeuristics strictly identifies non-human, multi-person, ambiguous, and valid portraits', () => {
@@ -282,7 +243,7 @@ describe('Admin Avatar Criteria Approval Flow & Chatbox Protection', () => {
     expect(evalD.fails.length).toBe(0);
   });
 
-  it('permits and auto-approves upload when AI Vision returns isValid: true (1 person) without false rejection', async () => {
+  it('permits and queues avatar upload directly into pending without false rejection', async () => {
     const fakePortrait = Buffer.from('portrait 1 person binary');
     const uploadRes = await request(app)
       .patch('/api/auth/me/avatar')
@@ -290,15 +251,10 @@ describe('Admin Avatar Criteria Approval Flow & Chatbox Protection', () => {
       .attach('file', fakePortrait, { filename: 'my_avatar.jpg', contentType: 'image/jpeg' });
 
     expect(uploadRes.status).toBe(200);
-    expect(uploadRes.body.approved).toBe(true);
-    expect(uploadRes.body.isValid).toBe(true);
-    expect(uploadRes.body.pending).toBe(false);
-    expect(uploadRes.body.autoApproved).toBe(true);
-    expect(uploadRes.body.message).toContain('EduMin AI đã tự động phê duyệt');
-
-    // User record is immediately updated with the avatar
-    const updatedUser = await User.findById(student.user._id);
-    expect(updatedUser.avatar?.url).toBeTruthy();
+    expect(uploadRes.body.success).toBe(true);
+    expect(uploadRes.body.pending).toBe(true);
+    expect(uploadRes.body.approved).toBe(false);
+    expect(uploadRes.body.message).toContain('Tải lên ảnh đại diện');
   });
 
   it('Admin Chatbox: "Admin yêu cầu avatar phải là hình người và chỉ 1 người, hãy duyệt giùm tôi" sets criteria and auto-approves qualifying pending requests immediately', async () => {
@@ -464,10 +420,10 @@ describe('Admin Avatar Criteria Approval Flow & Chatbox Protection', () => {
       expect(typeof res.body.success).toBe('boolean');
       expect(typeof res.body.approved).toBe('boolean');
       expect(typeof res.body.message).toBe('string');
-      expect(res.body.success).toBe(false);
+      expect(res.body.success).toBe(true);
       expect(res.body.approved).toBe(false);
-      expect(res.body.status).toBe('rejected');
-      expect(res.body.message).toContain('Ảnh không hợp lệ: Yêu cầu bắt buộc phải có đúng 1 người trong khung hình!');
+      expect(res.body.status).toBe('pending');
+      expect(res.body.pending).toBe(true);
     });
   });
 });

@@ -34,13 +34,13 @@ export const changePassword = asyncHandler(async (req, res) => {
 export const updateAvatar = asyncHandler(async (req, res) => {
   const result = await authService.updateMyAvatar(req.user, req.file);
   const approved = Boolean(result?.approved);
-  const status = result?.status || (approved ? 'approved' : 'rejected');
-  const success = typeof result?.success === 'boolean' ? result.success : (approved || (result?.isValid && !result?.pending));
+  const status = result?.status || (approved ? 'approved' : 'pending');
+  const success = result?.success !== undefined ? result.success : true;
   const message =
     result?.message ||
     (approved
       ? 'Cập nhật ảnh đại diện thành công'
-      : 'Ảnh không hợp lệ: Yêu cầu bắt buộc phải có đúng 1 người trong khung hình!');
+      : 'Tải lên ảnh đại diện thành công! Yêu cầu đổi ảnh đã được chuyển vào hàng đợi chờ duyệt.');
 
   res.json({
     ...result,

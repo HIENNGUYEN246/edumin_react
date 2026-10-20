@@ -34,6 +34,7 @@ router.get('/:id/students', authorize(ROLES.ADMIN, ROLES.TEACHER), controller.st
 router.post('/', authorize(ROLES.ADMIN), validate(createClassSchema), controller.create);
 router.patch('/:id/status', authorize(ROLES.ADMIN), validate(changeStatusSchema), controller.changeStatus);
 router.patch('/:id', authorize(ROLES.ADMIN), validate(updateClassSchema), controller.update);
+router.post('/bulk-delete', authorize(ROLES.ADMIN), controller.bulkDelete);
 router.delete('/:id', authorize(ROLES.ADMIN), controller.remove);
 
 export default router;

@@ -88,9 +88,14 @@ router.get('/', async (req, res, next) => {
         }
       }
 
-      const respName = item.respondedByName || tName;
-      const respAvatar = item.respondedByAvatar || tAvatar;
-      const respRole = item.respondedByRole || (item.response ? 'teacher' : '');
+      const respRole = item.respondedByRole || (item.response ? 'admin' : '');
+      const isTeacherResp = respRole === 'teacher';
+      const respName = isTeacherResp
+        ? (item.respondedByName || tName)
+        : (item.respondedByName && item.respondedByName !== tName ? item.respondedByName : 'Phòng Đào tạo');
+      const respAvatar = isTeacherResp
+        ? (item.respondedByAvatar || tAvatar || '')
+        : (item.respondedByAvatar || '');
 
       return {
         ...item,
@@ -289,9 +294,10 @@ router.post('/:id/reply', async (req, res, next) => {
           (userTeacherRef && fbTeacherId != null && String(userTeacherRef) === String(fbTeacherId));
 
         let isClassTeacher = false;
-        if (!isMatch && (fb.regId || fb.courseId)) {
+        // Only fall back to class lookup if feedback has no explicit teacher assigned
+        if (!isMatch && !fbTeacherRef && fbTeacherId == null && fb.regId) {
           const cls = await CourseClass.findOne({
-            $or: [{ id: fb.regId }, { courseId: fb.courseId }],
+            $or: [{ id: fb.regId }, ...(String(fb.regId).match(/^[0-9a-fA-F]{24}$/) ? [{ _id: fb.regId }] : [])],
           });
           if (cls) {
             if (
@@ -332,12 +338,14 @@ router.post('/:id/reply', async (req, res, next) => {
     const pad = (n) => String(n).padStart(2, '0');
     const respondedAt = `${pad(now.getHours())}:${pad(now.getMinutes())} ${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()}`;
 
-    const respondedByName =
-      (isTeacherRole(authenticatedUser?.role) ? (authenticatedUser.hoTen || authenticatedUser.name) : '') ||
-      tName;
-    const respondedByAvatar =
-      (isTeacherRole(authenticatedUser?.role) ? (authenticatedUser.avatar?.url || authenticatedUser.avatar) : '') ||
-      tAvatar;
+    const isTeacher = isTeacherRole(authenticatedUser?.role);
+    const respondedByRole = isTeacher ? 'teacher' : 'admin';
+    const respondedByName = isTeacher
+      ? (authenticatedUser?.hoTen || authenticatedUser?.name || tName)
+      : 'Phòng Đào tạo';
+    const respondedByAvatar = isTeacher
+      ? (authenticatedUser?.avatar?.url || authenticatedUser?.avatar || tAvatar || '')
+      : (authenticatedUser?.avatar?.url || authenticatedUser?.avatar || '');
 
     const tGender = teacherObj?.gender || '';
     if (!fb.teacherGender && tGender) {
@@ -348,7 +356,7 @@ router.post('/:id/reply', async (req, res, next) => {
     fb.respondedAt = respondedAt;
     fb.respondedByName = respondedByName;
     fb.respondedByAvatar = respondedByAvatar;
-    fb.respondedByRole = authenticatedUser?.role || 'teacher';
+    fb.respondedByRole = respondedByRole;
     fb.respondedByRef = authenticatedUser?._id || (teacherObj ? teacherObj._id : null);
     if (!fb.teacherAvatar && tAvatar) {
       fb.teacherAvatar = tAvatar;

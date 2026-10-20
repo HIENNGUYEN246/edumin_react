@@ -217,7 +217,7 @@ export default function ManageFeedbacks() {
       'Đánh giá sao': `${f.rating || 5}/5`,
       'Chất lượng học phần': f.courseQuality || 'Tốt',
       'Nội dung góp ý': f.feedbackText || '',
-      'Phản hồi từ Nhà trường/GV': f.response || 'Chưa phản hồi',
+      'Phản hồi từ Phòng Đào tạo': f.response || 'Chưa phản hồi',
       'Thời gian gửi': f.createdAtFormatted || (f.timestamp ? new Date(f.timestamp).toLocaleDateString('vi-VN') : ''),
     }));
 
@@ -483,7 +483,7 @@ export default function ManageFeedbacks() {
 
                             <span className="text-[11px] text-gray-400">•</span>
                             <span className="text-[11px] text-gray-500 font-medium">
-                              Giảng viên: <strong className="text-gray-700">{item.teacherName || 'Chưa rõ'}</strong>
+                              GV đứng lớp: <strong className="text-gray-700">{item.teacherName || 'Chưa rõ'}</strong></span><span className="text-[11px] text-gray-400"> • </span><span className="text-[11px] text-indigo-700 font-medium bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100">Nơi nhận: Phòng Đào tạo
                             </span>
                             {item.courseName && (
                               <>
@@ -527,7 +527,10 @@ export default function ManageFeedbacks() {
                             <div className="p-3 bg-indigo-50/70 border border-indigo-100 rounded-xl text-xs space-y-1">
                               <div className="flex items-center justify-between text-indigo-700 font-bold text-[11px]">
                                 <span className="flex items-center gap-1.5">
-                                  <i className="fas fa-reply"></i> Phản hồi từ Nhà trường / Giảng viên:
+                                  <i className="fas fa-reply"></i> Phản hồi từ {item.respondedByRole === 'teacher' ? (item.respondedByName || item.teacherName || 'Giảng viên') : (item.respondedByName || 'Phòng Đào tạo')}:
+                                </span>
+                                <span className="bg-indigo-100 text-indigo-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-indigo-200">
+                                  {item.respondedByRole === 'teacher' ? 'Giảng viên phụ trách' : 'Phòng Đào tạo (Admin)'}
                                 </span>
                                 {item.respondedAt && (
                                   <span className="text-[10px] text-indigo-400 font-normal">

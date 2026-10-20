@@ -358,7 +358,7 @@ function PDLayout({ children }) {
       </div>
 
       {showPasswordModal && (
-        <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm z-[200] flex items-center justify-center px-4 sm:px-6 md:px-8 py-16 sm:py-24 md:py-28 overflow-y-auto">
+        <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm z-[200] flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
           <div className="bg-white rounded-3xl shadow-2xl border border-slate-100/80 w-full max-w-md my-auto overflow-hidden">
             <div className="flex items-center justify-between px-6 py-4.5 border-b border-slate-100 bg-white/95 sticky top-0 z-20">
               <div className="flex items-center gap-3">

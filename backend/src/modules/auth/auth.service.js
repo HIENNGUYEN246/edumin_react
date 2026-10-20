@@ -292,44 +292,8 @@ export async function updateMyAvatar(user, file) {
     };
   }
 
-  // Teacher or Student: route through admin approval process with deterministic moderation
-  const { analyzeAvatarImage } = await import('../ai/avatarVision.service.js');
-  const analysis = await analyzeAvatarImage({
-    buffer: file.buffer,
-    mimetype: file.mimetype,
-    originalname: file.originalname,
-    publicId: uploaded.publicId,
-    url: uploaded.url,
-  });
-
+  // Teacher or Student: Upload succeeded immediately, create request for Admin/PDT manual review
   uploaded.originalName = file.originalname;
-  uploaded.analysis = analysis;
-
-  const { getAdminCriteria } = await import('../ai/adminCriteria.store.js');
-  const adminCriteria = await getAdminCriteria().catch(() => null);
-  const rules = adminCriteria?.rules;
- 
-  if (rules?.noAvatar) {
-    const { createRequest } = await import('../profileRequests/profileRequest.service.js');
-    const request = await createRequest(user, {
-      type: 'avatar',
-      requestedData: { avatar: uploaded },
-    });
-    return {
-      success: false,
-      status: 'rejected',
-      approved: false,
-      isValid: false,
-      count: analysis?.count ?? 0,
-      personCount: analysis?.personCount ?? 0,
-      pending: true,
-      autoApproved: false,
-      message: 'Chính sách tạm dừng đổi avatar: Quản trị viên đang tạm khóa tính năng đổi ảnh đại diện.',
-      reason: 'Chính sách tạm dừng đổi avatar',
-      avatar: uploaded,
-      request,
-    };
-  }
 
   const { createRequest } = await import('../profileRequests/profileRequest.service.js');
   const request = await createRequest(user, {
@@ -337,88 +301,15 @@ export async function updateMyAvatar(user, file) {
     requestedData: { avatar: uploaded },
   });
 
-  // DETERMINISTIC ZERO-TOLERANCE MODERATION:
-  const isCountOne = (analysis?.count === 1 || analysis?.personCount === 1);
-  const isApprovedByVision = isCountOne && analysis?.approved === true && analysis?.isValid === true;
-
-  if (isApprovedByVision) {
-    const isAutoApproved = request.status === 'approved';
-
-    if (isAutoApproved) {
-      const userDoc = await User.findById(user._id);
-      if (userDoc) {
-        userDoc.avatar = uploaded;
-        await userDoc.save();
-      }
-      const ProfileModel =
-        user.role === ROLES.TEACHER
-          ? (await import('../teachers/teacher.model.js')).Teacher
-          : (await import('../students/student.model.js')).Student;
-      if (ProfileModel) {
-        await ProfileModel.updateOne({ userId: user._id }, { $set: { avatar: uploaded } });
-      }
-
-      return {
-        success: true,
-        status: 'approved',
-        approved: true,
-        isValid: true,
-        count: 1,
-        personCount: 1,
-        pending: false,
-        autoApproved: true,
-        message: 'EduMin AI đã tự động phê duyệt ảnh đại diện theo tiêu chí của Quản trị viên!',
-        avatar: uploaded,
-        request,
-        user: userDoc?.toPublic(),
-      };
-    }
-
-    return {
-      success: true,
-      status: 'approved',
-      approved: true,
-      isValid: true,
-      count: 1,
-      personCount: 1,
-      pending: true,
-      autoApproved: false,
-      message: 'Ảnh hợp lệ (có đúng 1 người). Yêu cầu thay đổi ảnh đại diện đã được gửi đến Quản trị viên để phê duyệt.',
-      avatar: uploaded,
-      request,
-    };
-  } else {
-    const rawFailReason =
-      analysis?.rejectReason ||
-      analysis?.reason ||
-      analysis?.message ||
-      'Ảnh không hợp lệ: Yêu cầu bắt buộc phải có đúng 1 người trong khung hình!';
-
-    const formattedFail = rawFailReason.includes('Ảnh không hợp lệ')
-      ? rawFailReason
-      : `Ảnh không hợp lệ: Yêu cầu bắt buộc phải có đúng 1 người trong khung hình! (${rawFailReason})`;
-
-    request.status = 'pending';
-    if (!request.adminNote) {
-      request.adminNote = `[EduMin AI Giữ lại bên phần Duyệt] Chưa đạt tiêu chí: ${formattedFail}`;
-      await request.save().catch(() => {});
-    }
-
-    return {
-      success: false,
-      status: 'rejected',
-      approved: false,
-      isValid: false,
-      count: analysis?.count ?? 0,
-      personCount: analysis?.personCount ?? 0,
-      pending: true,
-      autoApproved: false,
-      message: formattedFail,
-      reason: formattedFail,
-      avatar: uploaded,
-      request,
-    };
-  }
+  return {
+    success: true,
+    status: 'pending',
+    approved: false,
+    pending: true,
+    message: 'Tải lên ảnh đại diện mới thành công! Yêu cầu đổi ảnh đã được chuyển vào hàng đợi chờ duyệt của Phòng Đào tạo.',
+    avatar: uploaded,
+    request,
+  };
 }
 
 /** Submit a profile information update request (self-service for teacher/student). */

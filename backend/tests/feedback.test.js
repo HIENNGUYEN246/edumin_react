@@ -99,6 +99,18 @@ describe('Feedback API', () => {
     expect(assignedReply.status).toBe(200);
     expect(assignedReply.body.feedback.response).toBe('Cảm ơn em nhiều nhé!');
     expect(assignedReply.body.feedback.respondedByName).toBe(teacherUser.hoTen);
+
+    // Admin replies -> 200 OK with Phòng Đào tạo metadata
+    const adminUser = (await User.findOne({ role: 'dao-tao' })) || (await User.findOne({ role: 'admin' }));
+    const adminToken = signToken(adminUser);
+    const adminReply = await request(app)
+      .post(`/api/feedbacks/${fbId}/reply`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ response: 'Phòng Đào tạo đã ghi nhận ý kiến' });
+    expect(adminReply.status).toBe(200);
+    expect(adminReply.body.feedback.response).toBe('Phòng Đào tạo đã ghi nhận ý kiến');
+    expect(adminReply.body.feedback.respondedByName).toBe('Phòng Đào tạo');
+    expect(adminReply.body.feedback.respondedByRole).toBe('admin');
   });
 });
 

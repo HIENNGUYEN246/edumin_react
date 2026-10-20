@@ -24,6 +24,7 @@ export default function NotificationBell({ currentUser, customRole }) {
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('all'); // 'all' | 'unread'
+  const [detailModalNotif, setDetailModalNotif] = useState(null);
   const dropdownRef = useRef(null);
 
   const user = useMemo(() => {
@@ -209,7 +210,7 @@ export default function NotificationBell({ currentUser, customRole }) {
     saveStoredNotifications(role, user, updated);
   };
 
-  const handleNotificationClick = async (item) => {
+  const markItemRead = (item) => {
     if (item.fromBackend && item._id) {
       notificationsApi.markRead(item._id).catch(() => {});
       setBackendItems((prev) =>
@@ -222,11 +223,45 @@ export default function NotificationBell({ currentUser, customRole }) {
       setLocalItems(updated);
       saveStoredNotifications(role, user, updated);
     }
+  };
 
+  const resolveNotificationLink = (item) => {
+    if (item.link && item.link !== '#' && item.link !== '/') return item.link;
+    const type = item.type || 'system';
+    const isTeacher = role === 'giao-vien' || role === 'teacher';
+    const isAdmin = role === 'dao-tao' || role === 'admin';
+
+    switch (type) {
+      case 'approval':
+        return isAdmin ? '/admin/profile-requests' : (isTeacher ? '/teacher' : '/student');
+      case 'feedback':
+        return isAdmin ? '/admin/feedbacks' : (isTeacher ? '/teacher' : '/student');
+      case 'attendance':
+        if (isTeacher) return item.targetClassId ? `/teacher/classes/${item.targetClassId}/attendance` : '/teacher/attendance';
+        if (isAdmin) return '/admin/attendance';
+        return '/student/attendance';
+      case 'assignment':
+      case 'quiz':
+        return isTeacher ? '/teacher/assignments' : '/student/assignments';
+      case 'grades':
+      case 'grade':
+        if (isTeacher) return item.targetClassId ? `/teacher/classes/${item.targetClassId}/grades` : '/teacher/classes';
+        if (isAdmin) return '/admin/gradebook';
+        return '/student/attendance';
+      case 'schedule_change':
+        return isTeacher ? '/teacher/schedule' : '/student/schedule';
+      default:
+        return isAdmin ? '/admin' : (isTeacher ? '/teacher' : '/student');
+    }
+  };
+
+  const handleNotificationClick = async (item) => {
+    markItemRead(item);
     setIsOpen(false);
 
-    if (item.link) {
-      navigate(item.link);
+    const targetUrl = resolveNotificationLink(item);
+    if (targetUrl) {
+      navigate(targetUrl);
     }
   };
 
@@ -396,7 +431,7 @@ export default function NotificationBell({ currentUser, customRole }) {
                         </div>
                         <span className="text-[10px] text-gray-400 shrink-0">{item.time}</span>
                       </div>
-                      <p className="text-[11px] text-gray-500 mt-0.5 line-clamp-2 leading-relaxed">
+                      <p className="text-[11px] text-gray-600 mt-0.5 line-clamp-3 leading-relaxed break-words">
                         {item.message}
                       </p>
                       {item.metadata?.changeType && (
@@ -422,14 +457,28 @@ export default function NotificationBell({ currentUser, customRole }) {
                       )}
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={(e) => handleDeleteItem(e, item)}
-                      className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-rose-500 p-1 rounded-lg transition"
-                      title="Xóa thông báo này"
-                    >
-                      <i className="fas fa-times text-xs" />
-                    </button>
+                    <div className="flex items-center gap-0.5">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDetailModalNotif(item);
+                          markItemRead(item);
+                        }}
+                        className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-indigo-600 p-1 rounded-lg transition"
+                        title="Xem chi tiết nội dung"
+                      >
+                        <i className="far fa-eye text-xs" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => handleDeleteItem(e, item)}
+                        className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-rose-500 p-1 rounded-lg transition"
+                        title="Xóa thông báo này"
+                      >
+                        <i className="fas fa-times text-xs" />
+                      </button>
+                    </div>
                   </div>
                 );
               })
@@ -454,6 +503,89 @@ export default function NotificationBell({ currentUser, customRole }) {
               </button>
             </div>
           )}
+        </div>
+      )}
+
+      {detailModalNotif && (
+        <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="p-4 bg-gradient-to-r from-indigo-600 to-indigo-700 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <i className={`fas ${getTypeIcon(detailModalNotif.type)?.icon || 'fa-bell'}`} />
+                <h4 className="font-bold text-sm">Chi tiết thông báo</h4>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDetailModalNotif(null)}
+                className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition cursor-pointer"
+              >
+                <i className="fas fa-times text-xs" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 text-xs">
+              <div>
+                <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                  {detailModalNotif.targetClassId && (
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-700">
+                      Lớp: {detailModalNotif.targetClassId}
+                    </span>
+                  )}
+                  <span className="text-slate-400 text-[10px]">{detailModalNotif.time}</span>
+                </div>
+                <h3 className="text-sm font-bold text-slate-900 leading-snug">{detailModalNotif.title}</h3>
+              </div>
+
+              <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80 text-slate-700 leading-relaxed break-words whitespace-pre-wrap">
+                {detailModalNotif.message}
+              </div>
+
+              {detailModalNotif.metadata && typeof detailModalNotif.metadata === 'object' && !Array.isArray(detailModalNotif.metadata) && Object.keys(detailModalNotif.metadata).length > 0 && (
+                <div className="p-3 bg-indigo-50/60 rounded-xl border border-indigo-100 space-y-1.5">
+                  <p className="font-bold text-indigo-900 text-[11px] uppercase tracking-wider">Thông tin chi tiết:</p>
+                  {detailModalNotif.metadata.newRoom && (
+                    <p className="text-indigo-800">
+                      Phòng học: {detailModalNotif.metadata.oldRoom ? `${detailModalNotif.metadata.oldRoom} ➔ ` : ''}
+                      <strong className="text-indigo-950 font-bold">{detailModalNotif.metadata.newRoom}</strong>
+                    </p>
+                  )}
+                  {detailModalNotif.metadata.newShift && (
+                    <p className="text-indigo-800">
+                      Ca học: <strong className="text-indigo-950 font-bold">{detailModalNotif.metadata.newShift}</strong>
+                    </p>
+                  )}
+                  {detailModalNotif.metadata.date && (
+                    <p className="text-indigo-800">
+                      Ngày áp dụng: <strong className="text-indigo-950 font-bold">{detailModalNotif.metadata.date}</strong>
+                    </p>
+                  )}
+                </div>
+              )}
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setDetailModalNotif(null)}
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition cursor-pointer"
+                >
+                  Đóng
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const target = resolveNotificationLink(detailModalNotif);
+                    setDetailModalNotif(null);
+                    setIsOpen(false);
+                    if (target) navigate(target);
+                  }}
+                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs transition flex items-center gap-1.5 shadow-xs cursor-pointer"
+                >
+                  <span>Đi tới trang liên quan</span>
+                  <i className="fas fa-arrow-right text-[10px]" />
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -6,6 +6,27 @@ export const list = asyncHandler(async (req, res) => {
   res.json(await service.listDocuments(req.query, req.user));
 });
 
+export const getById = asyncHandler(async (req, res) => {
+  res.json(await service.getDocumentById(req.params.id, req.user));
+});
+
+export const streamFile = asyncHandler(async (req, res) => {
+  const download = req.query.download === '1' || req.query.mode === 'download';
+  const result = await service.streamDocumentFile(req.params.id, req.user, { download });
+  if (result.redirect) {
+    return res.redirect(result.redirect);
+  }
+  const disposition = result.download ? 'attachment' : 'inline';
+  const encodedName = encodeURIComponent(result.filename);
+  res.setHeader('Content-Type', result.mimeType);
+  res.setHeader(
+    'Content-Disposition',
+    `${disposition}; filename="${encodedName}"; filename*=UTF-8''${encodedName}`
+  );
+  res.setHeader('Content-Length', result.buffer.length);
+  res.send(result.buffer);
+});
+
 export const create = asyncHandler(async (req, res) => {
   const files = req.files?.files?.length
     ? req.files.files
@@ -54,4 +75,3 @@ export const studyQuery = asyncHandler(async (req, res) => {
   const result = await service.summarizeDocumentById(doc._id, { chapter, focus }, req.user);
   res.json({ success: true, ...result });
 });
-

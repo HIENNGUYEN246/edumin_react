@@ -16,7 +16,12 @@ import { aiApi } from '../../../api/aiApi.js';
 
 function isPastDue(dueDate) {
   if (!dueDate) return false;
-  const deadline = new Date(`${dueDate}T23:59:59`);
+  let deadline;
+  if (typeof dueDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dueDate)) {
+    deadline = new Date(`${dueDate}T23:59:59`);
+  } else {
+    deadline = new Date(dueDate);
+  }
   return !Number.isNaN(deadline.valueOf()) && new Date() > deadline;
 }
 
@@ -39,6 +44,18 @@ export function TeacherAssignmentList() {
   const myClasses = classesData?.data || [];
 
   const { courses, isLoading: loadingCourses } = useCourseOptions();
+
+  // Filter courses to only those the teacher actually teaches
+  const teacherCourses = useMemo(() => {
+    const map = new Map();
+    myClasses.forEach((c) => {
+      const cid = c.courseId;
+      if (cid && !map.has(cid)) {
+        map.set(cid, { id: cid, name: c.courseName || c.name || cid });
+      }
+    });
+    return map.size > 0 ? Array.from(map.values()) : courses;
+  }, [myClasses, courses]);
 
   // Load all assignments
   const { data: assignmentsData, isLoading: loadingAssignments } = useAssignments('');
@@ -144,23 +161,6 @@ export function TeacherAssignmentList() {
       }
     });
 
-    // Fallback: Courses accessible to teacher
-    courses.forEach((crs) => {
-      const existing = Array.from(map.values()).some((item) => item.courseId === crs.id);
-      if (!existing && crs.id) {
-        map.set(crs.id, {
-          key: crs.id,
-          classId: crs.id,
-          className: 'Học phần',
-          courseId: crs.id,
-          courseName: crs.name || crs.id,
-          room: '',
-          schedules: [],
-          assignments: [],
-        });
-      }
-    });
-
     const list = Array.from(map.values());
     const assignedIds = new Set();
 
@@ -178,7 +178,6 @@ export function TeacherAssignmentList() {
             assignedIds.add(a._id);
             return true;
           }
-          return false;
         }
         if (a.courseId && cls.courseId && a.courseId.trim().toUpperCase() === cls.courseId.trim().toUpperCase()) {
           assignedIds.add(a._id);
@@ -204,7 +203,7 @@ export function TeacherAssignmentList() {
     }
 
     return list;
-  }, [myClasses, courses, allAssignments]);
+  }, [myClasses, allAssignments]);
 
   const isLoading = loadingClasses || loadingCourses || loadingAssignments;
 
@@ -495,6 +494,18 @@ export function TeacherAssignmentList() {
   const totalAssignmentsCount = allAssignments.length;
   const totalQuizzesCount = allAssignments.filter((a) => a.type === 'quiz').length;
   const totalFilesCount = allAssignments.filter((a) => a.type !== 'quiz').length;
+
+  if (viewing) {
+    return (
+      <div className="space-y-6 pb-12">
+        <SubmissionTable
+          assignmentId={viewing._id}
+          assignment={viewing}
+          onBack={() => setViewing(null)}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 pb-12">
@@ -967,7 +978,7 @@ export function TeacherAssignmentList() {
                   onChange={(e) => setForm((f) => ({ ...f, courseId: e.target.value }))}
                 >
                   <option value="">Chọn học phần</option>
-                  {courses.map((c) => (
+                  {teacherCourses.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.id} — {c.name}
                     </option>
@@ -1072,16 +1083,6 @@ export function TeacherAssignmentList() {
             </div>
           </form>
         )}
-      </Modal>
-
-      {/* Submissions Modal */}
-      <Modal
-        open={Boolean(viewing)}
-        onClose={() => setViewing(null)}
-        title={`Bài nộp — ${viewing?.title || ''}`}
-        size="lg"
-      >
-        {viewing && <SubmissionTable assignmentId={viewing._id} />}
       </Modal>
     </div>
   );

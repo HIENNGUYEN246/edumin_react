@@ -42,5 +42,6 @@ export function useClassMutations() {
       onSuccess: invalidate,
     }),
     remove: useMutation({ mutationFn: classesApi.remove, onSuccess: invalidate }),
+    bulkRemove: useMutation({ mutationFn: classesApi.bulkDelete, onSuccess: invalidate }),
   };
 }

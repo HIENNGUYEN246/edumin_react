@@ -19,7 +19,7 @@ export function AppLayout() {
       <div className="flex flex-1 overflow-hidden relative">
         <Sidebar role={user?.role} />
         <main className="flex-1 overflow-y-auto custom-scrollbar p-5 md:p-7 pb-28">
-          <ErrorBoundary>
+          <ErrorBoundary key={location.pathname}>
             <Suspense fallback={<Spinner />}>
               <Outlet />
             </Suspense>

@@ -10,6 +10,7 @@ export const classesApi = {
   update: (id, payload) => http.patch(`/classes/${id}`, payload),
   changeStatus: (id, status) => http.patch(`/classes/${id}/status`, { status }),
   remove: (id) => http.delete(`/classes/${id}`),
+  bulkDelete: (ids) => http.post('/classes/bulk-delete', { ids }),
   students: (id) => http.get(`/classes/${id}/students`),
   updateStudentGrades: (classId, studentId, grades, reason) =>
     http.patch(`/classes/${classId}/students/${studentId}/grades`, { grades, reason }),

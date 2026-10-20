@@ -73,3 +73,7 @@ export const update = asyncHandler(async (req, res) => {
 export const remove = asyncHandler(async (req, res) => {
   res.json(await service.deleteClass(req.params.id));
 });
+
+export const bulkDelete = asyncHandler(async (req, res) => {
+  res.json(await service.bulkDeleteClasses(req.body.ids));
+});

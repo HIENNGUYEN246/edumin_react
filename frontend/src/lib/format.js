@@ -19,6 +19,25 @@ export function formatDate(value) {
   return date.toLocaleDateString('vi-VN');
 }
 
+export function formatDateTime(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.valueOf())) return String(value);
+  return date.toLocaleString('vi-VN');
+}
+
+export function formatDueDate(value) {
+  if (!value) return '';
+  let date;
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    date = new Date(value + 'T23:59:59');
+  } else {
+    date = new Date(value);
+  }
+  if (Number.isNaN(date.valueOf())) return String(value);
+  return date.toLocaleDateString('vi-VN');
+}
+
 /**
  * Return current local date string (YYYY-MM-DD).
  * Uses local calendar date components to prevent UTC timezone shifting.
@@ -122,7 +141,7 @@ export const DEFAULT_GRADE_WEIGHTS = {
 };
 
 export const GRADE_COMPONENTS = [
-  { key: 'attendance', label: 'Điểm chuyên cần', shortLabel: 'Chuyên cần' },
+  { key: 'attendance', label: 'Điểm danh', shortLabel: 'Điểm danh' },
   { key: 'homework', label: 'Điểm bài tập / Quiz', shortLabel: 'Bài tập' },
   { key: 'midterm', label: 'Điểm thi giữa kỳ', shortLabel: 'Giữa kỳ' },
   { key: 'presentation', label: 'Điểm thuyết trình', shortLabel: 'Thuyết trình' },

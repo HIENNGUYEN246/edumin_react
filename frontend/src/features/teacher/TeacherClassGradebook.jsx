@@ -16,7 +16,7 @@ import { useToast } from '../../app/providers/ToastProvider.jsx';
 import { useClassStudents } from './useTeacherClasses.js';
 import { setAiPageContext } from '../../components/ai/EduMinAiAssistant.jsx';
 
-function StudentGradeRow({ classId, student, weights, activeComponents, quizConfig }) {
+function StudentGradeRow({ classId, student, weights, activeComponents, quizConfig, isLocked }) {
   const toast = useToast();
   const queryClient = useQueryClient();
 
@@ -93,35 +93,14 @@ function StudentGradeRow({ classId, student, weights, activeComponents, quizConf
         let helperNode = null;
         if (comp.key === 'attendance') {
           const hasAtt = (student.attendanceStats?.total || 0) > 0;
-          const autoScore = student.attendanceStats?.autoScore;
-          const currentVal = grades.attendance === '' ? null : Number(grades.attendance);
-          const isOverridden = hasAtt && currentVal !== null && autoScore !== null && currentVal !== autoScore;
-
           if (hasAtt) {
-            if (isOverridden) {
-              helperNode = (
-                <div className="mt-1 flex items-center justify-center gap-1 text-[10px] text-amber-600 font-semibold">
-                  <span>Ghi đè</span>
-                  <button
-                    type="button"
-                    title={`Khôi phục điểm tự động từ điểm danh (${autoScore})`}
-                    onClick={() => setGrades((current) => ({ ...current, attendance: String(autoScore) }))}
-                    className="underline text-indigo-600 hover:text-indigo-800 cursor-pointer"
-                  >
-                    Gốc: {autoScore}
-                  </button>
-                </div>
-              );
-            } else {
-              helperNode = (
-                <div className="mt-1 text-[10px] text-emerald-600 font-medium">
-                  <i className="fas fa-check-circle mr-1 text-[9px]" />
-                  Tự động ({student.attendanceStats?.present}/{student.attendanceStats?.total} buổi)
-                </div>
-              );
-            }
+            helperNode = (
+              <div className="mt-1 text-[10px] text-slate-500 font-medium">
+                {student.attendanceStats?.present}/{student.attendanceStats?.total} buổi
+              </div>
+            );
           } else {
-            helperNode = <div className="mt-1 text-[10px] text-slate-400 italic">Chưa điểm danh</div>;
+            helperNode = <div className="mt-1 text-[10px] text-slate-400 italic">Nhập tay</div>;
           }
         } else if (comp.key === 'midterm') {
           const hasLinkedQuiz = Boolean(quizConfig?.midtermQuiz);
@@ -208,10 +187,15 @@ function StudentGradeRow({ classId, student, weights, activeComponents, quizConf
               max="10"
               step="0.1"
               value={grades[comp.key] ?? ''}
+              disabled={isLocked}
               onChange={(event) =>
                 setGrades((current) => ({ ...current, [comp.key]: event.target.value }))
               }
-              className="w-20 text-center font-semibold rounded-lg border border-gray-200 px-2 py-1.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition"
+              className={`w-20 text-center font-semibold rounded-lg border px-2 py-1.5 text-sm outline-none transition ${
+                isLocked
+                  ? 'bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed'
+                  : 'border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100'
+              }`}
             />
             {helperNode}
           </td>
@@ -248,10 +232,14 @@ function StudentGradeRow({ classId, student, weights, activeComponents, quizConf
         <button
           type="button"
           onClick={() => saveGrades.mutate()}
-          disabled={saveGrades.isPending}
-          className="whitespace-nowrap rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 shadow-2xs hover:shadow disabled:opacity-60 transition cursor-pointer"
+          disabled={isLocked || saveGrades.isPending}
+          className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-semibold shadow-2xs transition ${
+            isLocked
+              ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
+              : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-2xs hover:shadow disabled:opacity-60 cursor-pointer'
+          }`}
         >
-          {saveGrades.isPending ? 'Đang lưu...' : 'Lưu điểm'}
+          {isLocked ? 'Đã khóa' : saveGrades.isPending ? 'Đang lưu...' : 'Lưu điểm'}
         </button>
       </td>
     </tr>
@@ -288,6 +276,20 @@ export function TeacherClassGradebook() {
   const students = useMemo(() => studentsQuery.data?.students || [], [studentsQuery.data?.students]);
   const availableQuizzes = useMemo(() => studentsQuery.data?.availableQuizzes || [], [studentsQuery.data?.availableQuizzes]);
   const classFromStudents = useMemo(() => studentsQuery.data?.class || null, [studentsQuery.data?.class]);
+  const isGradeLocked = Boolean(classInfo?.isGradeLocked || classFromStudents?.isGradeLocked);
+
+  // Real-time synchronization when PDT locks or unlocks gradebook
+  useEffect(() => {
+    const handleGradeLockChange = () => {
+      queryClient.invalidateQueries({ queryKey: ['classes', id] });
+      queryClient.invalidateQueries({ queryKey: ['classes', id, 'detail'] });
+      queryClient.invalidateQueries({ queryKey: ['classes', id, 'students'] });
+    };
+    window.addEventListener('edumin_grade_lock_changed', handleGradeLockChange);
+    return () => {
+      window.removeEventListener('edumin_grade_lock_changed', handleGradeLockChange);
+    };
+  }, [id, queryClient]);
 
   // Sync real-time page context with EduMin AI Assistant
   useEffect(() => {
@@ -448,15 +450,38 @@ export function TeacherClassGradebook() {
       </div>
     );
   }
-  if (classQuery.isError || studentsQuery.isError) {
-    return <div className="rounded-xl border border-red-100 bg-white p-6 text-sm text-red-600">Không tải được sổ điểm lớp học phần.</div>;
+  if (classQuery.isError || studentsQuery.isError || (!classInfo && !classFromStudents)) {
+    return (
+      <div className="max-w-xl mx-auto rounded-2xl border border-red-100 bg-white p-8 text-center space-y-3 shadow-xs">
+        <div className="w-12 h-12 mx-auto rounded-full bg-rose-50 flex items-center justify-center text-rose-500">
+          <i className="fas fa-triangle-exclamation text-lg" />
+        </div>
+        <h4 className="font-bold text-slate-800 text-sm">Không tải được sổ điểm lớp học phần</h4>
+        <p className="text-xs text-slate-500">
+          {classQuery.error?.message || studentsQuery.error?.message || 'Không tìm thấy thông tin lớp học phần hoặc bạn không có quyền truy cập.'}
+        </p>
+        <button
+          type="button"
+          onClick={() => navigate('/teacher/classes')}
+          className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700 transition cursor-pointer"
+        >
+          Quay lại danh sách lớp
+        </button>
+      </div>
+    );
   }
+
+  const effectiveClass = classInfo || classFromStudents || {};
+  const effectiveClassId = effectiveClass.id || id || '';
+  const effectiveClassName = effectiveClass.className ? ` (${effectiveClass.className})` : '';
+  const effectiveCourseId = effectiveClass.courseId || '';
+  const effectiveCourseName = effectiveClass.courseName || '';
 
   return (
     <div>
       <PageHeader
-        title={`Sổ điểm lớp ${classInfo.id}${classInfo.className ? ` (${classInfo.className})` : ''}`}
-        subtitle={`Mã HP: ${classInfo.courseId} · Tên HP: ${classInfo.courseName || ''} · ${students.length} sinh viên`}
+        title={`Sổ điểm lớp ${effectiveClassId}${effectiveClassName}`}
+        subtitle={`Mã HP: ${effectiveCourseId} · Tên HP: ${effectiveCourseName} · ${students.length} sinh viên`}
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <button
@@ -526,6 +551,23 @@ export function TeacherClassGradebook() {
         </div>
       </div>
 
+      {isGradeLocked && (
+        <div className="mb-4 rounded-2xl border border-amber-300 bg-amber-50/90 p-4 text-amber-900 shadow-xs flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-amber-200/80 text-amber-800 flex items-center justify-center shrink-0">
+              <i className="fas fa-lock text-sm" />
+            </div>
+            <div>
+              <h5 className="font-bold text-xs">Sổ điểm đã được Phòng Đào tạo chốt sổ (Đang khóa)</h5>
+              <p className="text-[11px] text-amber-700">Bảng điểm hiện tại đang ở chế độ Chỉ xem (Read-only). Giảng viên tạm thời không thể chỉnh sửa điểm trực tiếp.</p>
+            </div>
+          </div>
+          <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-200/80 text-amber-900 border border-amber-300 shrink-0">
+            Đã chốt sổ
+          </span>
+        </div>
+      )}
+
       <div className="mb-4 p-3.5 rounded-2xl bg-indigo-50/60 border border-indigo-100/80 flex flex-wrap items-center justify-between gap-3 text-xs">
         <div className="flex flex-wrap items-center gap-2 text-indigo-900 font-semibold">
           <i className="fas fa-scale-balanced text-indigo-600" />
@@ -546,7 +588,7 @@ export function TeacherClassGradebook() {
       <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-slate-600">
         <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 border border-emerald-200/80 px-2.5 py-1 text-emerald-800 font-medium">
           <i className="fas fa-clipboard-check text-emerald-600" />
-          <span>Điểm Chuyên cần: Tự động liên kết từ module Điểm danh (hỗ trợ ghi đè khi cần)</span>
+          <span>Điểm danh: Tự động liên kết từ module Điểm danh (có thể chỉnh sửa trực tiếp)</span>
         </span>
 
         {quizConfig.midtermQuiz ? (
@@ -733,6 +775,7 @@ export function TeacherClassGradebook() {
                   weights={weights}
                   activeComponents={activeComponents}
                   quizConfig={quizConfig}
+                  isLocked={isGradeLocked}
                 />
               ))
             )}
@@ -813,7 +856,7 @@ export function TeacherClassGradebook() {
               <p className="font-semibold text-slate-700">Lưu ý nghiệp vụ:</p>
               <ul className="list-disc list-inside mt-1 space-y-0.5 text-slate-500">
                 <li>Bài Quiz được chọn sẽ không còn tính vào điểm trung bình bài tập thường xuyên (Homework).</li>
-                <li>Cột Chuyên cần luôn được hệ thống tự động tính từ module Điểm danh (buổi có mặt / tổng số buổi quy về thang 10).</li>
+                <li>Cột Điểm danh được hệ thống tự động tính từ module Điểm danh (buổi có mặt / tổng số buổi quy về thang 10) hoặc giảng viên có thể sửa trực tiếp.</li>
                 <li>Giảng viên có thể ghi đè thủ công bất kỳ ô điểm nào trong sổ điểm khi cần điều chỉnh.</li>
               </ul>
             </div>

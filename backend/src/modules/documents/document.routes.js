@@ -11,7 +11,9 @@ router.use(authenticate);
 
 router.get('/', controller.list);
 router.post('/study/query', controller.studyQuery);
+router.get('/:id/file', controller.streamFile);
 router.get('/:id/download', controller.download);
+router.get('/:id', controller.getById);
 router.post('/:id/summarize', controller.summarize);
 router.post('/:id/generate-quiz', controller.generateQuiz);
 
