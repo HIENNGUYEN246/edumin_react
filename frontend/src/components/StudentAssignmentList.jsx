@@ -949,8 +949,8 @@ const StudentAssignmentList = () => {
       )}
 
       {showPasswordModal && (
-        <div className="fixed inset-0 bg-black/50 z-[400] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+        <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm z-[400] flex items-center justify-center p-4 sm:p-6 md:p-8 py-10 sm:py-16 overflow-y-auto">
+          <div className="bg-white rounded-3xl shadow-2xl border border-slate-100/80 w-full max-w-md my-auto overflow-hidden">
             <div className="bg-emerald-600 p-4 text-white flex justify-between items-center">
               <h3 className="font-bold">Đổi mật khẩu</h3>
               <button onClick={closeChangePasswordModal} className="text-white hover:text-gray-200">

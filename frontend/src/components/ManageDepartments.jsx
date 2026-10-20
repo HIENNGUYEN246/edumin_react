@@ -636,16 +636,31 @@ function ManageDepartments() {
       )}
 
       {showConfirm && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50">
-          <div className={`bg-white rounded-2xl p-8 max-w-sm w-full mx-4 shadow-2xl transform transition-all duration-300 ${confirmVisible ? 'scale-100 opacity-100' : 'scale-95 opacity-0'}`}>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 md:p-8 py-10 sm:py-16 bg-slate-950/50 backdrop-blur-sm overflow-y-auto">
+          <div className={`bg-white rounded-3xl p-8 max-w-sm w-full my-auto shadow-2xl border border-slate-100/80 transform transition-all duration-300 ${confirmVisible ? 'scale-100 opacity-100' : 'scale-95 opacity-0'}`}>
             <div className="text-center">
-              <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-red-100 mb-4"><i className="fas fa-exclamation-triangle text-red-600 text-2xl" /></div>
-              <h3 className="text-xl font-bold text-gray-900 mb-2">Xác nhận xóa?</h3>
-              <p className="text-sm text-gray-500 mb-6">Xóa khoa này sẽ ảnh hưởng đến dữ liệu sinh viên trong hệ thống. Bạn có chắc chắn không?</p>
+              <div className="mx-auto flex items-center justify-center w-16 h-16 rounded-2xl bg-rose-50 text-rose-600 border border-rose-200/70 ring-8 ring-rose-50/60 mb-5 shadow-sm shadow-rose-100">
+                <i className="fas fa-trash-can text-2xl" />
+              </div>
+              <h3 className="text-lg font-bold text-slate-800 mb-2">Xác nhận xóa?</h3>
+              <p className="text-sm text-slate-600 leading-relaxed mb-6">Xóa khoa này sẽ ảnh hưởng đến dữ liệu sinh viên trong hệ thống. Bạn có chắc chắn không?</p>
             </div>
             <div className="flex gap-3">
-              <button type="button" onClick={closeConfirmModal} className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-semibold hover:bg-gray-200 transition">Hủy</button>
-              <button type="button" onClick={confirmDelete} disabled={saving} className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-xl font-semibold hover:bg-red-700 transition disabled:opacity-60">{saving ? 'Đang xử lý...' : 'Xóa ngay'}</button>
+              <button
+                type="button"
+                onClick={closeConfirmModal}
+                className="flex-1 px-4 py-2.5 bg-slate-100 text-slate-700 rounded-xl font-semibold text-sm hover:bg-slate-200 active:scale-[0.98] transition cursor-pointer"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={confirmDelete}
+                disabled={saving}
+                className="flex-1 px-4 py-2.5 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white rounded-xl font-bold text-sm shadow-md shadow-rose-200 active:scale-[0.98] transition disabled:opacity-60 cursor-pointer"
+              >
+                {saving ? 'Đang xử lý...' : 'Xóa ngay'}
+              </button>
             </div>
           </div>
         </div>

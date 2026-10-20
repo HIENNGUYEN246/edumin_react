@@ -26,6 +26,9 @@ export function ChangePasswordModal({ open, onClose }) {
   const queryClient = useQueryClient();
   const [form, setForm] = useState(EMPTY);
   const [errors, setErrors] = useState({});
+  const [showOldPassword, setShowOldPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const mutation = useMutation({
     mutationFn: (vars) => authApi.changePassword(vars),
@@ -91,32 +94,115 @@ export function ChangePasswordModal({ open, onClose }) {
   };
 
   return (
-    <Modal open={open} onClose={onClose} title="Đổi mật khẩu" size="sm" zIndex="z-50">
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Đổi mật khẩu"
+      icon="fas fa-shield-halved text-indigo-600"
+      size="sm"
+      zIndex="z-50"
+    >
       <form onSubmit={submit} className="space-y-4">
+        <div className="flex items-center gap-3 p-3.5 rounded-2xl bg-indigo-50/70 border border-indigo-100/80 text-xs text-indigo-900 mb-2">
+          <div className="w-8 h-8 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
+            <i className="fas fa-lock text-sm" />
+          </div>
+          <div className="leading-snug">
+            <p className="font-semibold text-slate-800">Cập nhật mật khẩu tài khoản</p>
+            <p className="text-slate-500 text-[11px]">Mật khẩu mới tối thiểu 6 ký tự và khác mật khẩu cũ.</p>
+          </div>
+        </div>
+
         <FormField label="Mật khẩu cũ" error={errors.oldPassword} required>
-          <input type="password" className={inputClass} value={form.oldPassword} onChange={update('oldPassword')} />
+          <div className="relative">
+            <input
+              type={showOldPassword ? 'text' : 'password'}
+              className={`${inputClass} pr-10`}
+              value={form.oldPassword}
+              onChange={update('oldPassword')}
+              placeholder="Nhập mật khẩu hiện tại"
+              autoComplete="current-password"
+            />
+            <button
+              type="button"
+              tabIndex="-1"
+              onClick={() => setShowOldPassword((v) => !v)}
+              className="absolute right-0 top-0 bottom-0 px-3 flex items-center justify-center text-slate-400 hover:text-slate-600 transition cursor-pointer"
+              aria-label={showOldPassword ? 'Ẩn mật khẩu' : 'Hiển thị mật khẩu'}
+            >
+              <i className={`fas ${showOldPassword ? 'fa-eye-slash' : 'fa-eye'} text-sm`} />
+            </button>
+          </div>
         </FormField>
+
         <FormField label="Mật khẩu mới" error={errors.newPassword} required>
-          <input type="password" className={inputClass} value={form.newPassword} onChange={update('newPassword')} />
+          <div className="relative">
+            <input
+              type={showNewPassword ? 'text' : 'password'}
+              className={`${inputClass} pr-10`}
+              value={form.newPassword}
+              onChange={update('newPassword')}
+              placeholder="Tối thiểu 6 ký tự"
+              autoComplete="new-password"
+            />
+            <button
+              type="button"
+              tabIndex="-1"
+              onClick={() => setShowNewPassword((v) => !v)}
+              className="absolute right-0 top-0 bottom-0 px-3 flex items-center justify-center text-slate-400 hover:text-slate-600 transition cursor-pointer"
+              aria-label={showNewPassword ? 'Ẩn mật khẩu' : 'Hiển thị mật khẩu'}
+            >
+              <i className={`fas ${showNewPassword ? 'fa-eye-slash' : 'fa-eye'} text-sm`} />
+            </button>
+          </div>
         </FormField>
+
         <FormField label="Xác nhận mật khẩu mới" error={errors.confirmPassword} required>
-          <input
-            type="password"
-            className={inputClass}
-            value={form.confirmPassword}
-            onChange={update('confirmPassword')}
-          />
+          <div className="relative">
+            <input
+              type={showConfirmPassword ? 'text' : 'password'}
+              className={`${inputClass} pr-10`}
+              value={form.confirmPassword}
+              onChange={update('confirmPassword')}
+              placeholder="Nhập lại mật khẩu mới"
+              autoComplete="new-password"
+            />
+            <button
+              type="button"
+              tabIndex="-1"
+              onClick={() => setShowConfirmPassword((v) => !v)}
+              className="absolute right-0 top-0 bottom-0 px-3 flex items-center justify-center text-slate-400 hover:text-slate-600 transition cursor-pointer"
+              aria-label={showConfirmPassword ? 'Ẩn mật khẩu' : 'Hiển thị mật khẩu'}
+            >
+              <i className={`fas ${showConfirmPassword ? 'fa-eye-slash' : 'fa-eye'} text-sm`} />
+            </button>
+          </div>
         </FormField>
-        <div className="flex justify-end gap-3 pt-2">
-          <button type="button" onClick={onClose} className="px-4 py-2 rounded-xl text-sm font-semibold bg-gray-100 text-gray-600 hover:bg-gray-200">
+
+        <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 active:scale-[0.98] transition-all cursor-pointer"
+          >
             Hủy
           </button>
           <button
             type="submit"
             disabled={mutation.isPending}
-            className="px-4 py-2 rounded-xl text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60"
+            className="px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 shadow-md shadow-indigo-200 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-60 flex items-center gap-2"
           >
-            {mutation.isPending ? 'Đang lưu...' : 'Cập nhật'}
+            {mutation.isPending ? (
+              <>
+                <i className="fas fa-spinner fa-spin text-xs" />
+                <span>Đang lưu...</span>
+              </>
+            ) : (
+              <>
+                <i className="fas fa-check text-xs" />
+                <span>Cập nhật</span>
+              </>
+            )}
           </button>
         </div>
       </form>

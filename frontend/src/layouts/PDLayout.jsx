@@ -358,12 +358,21 @@ function PDLayout({ children }) {
       </div>
 
       {showPasswordModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-[200] flex items-center justify-center">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
-            <div className="bg-indigo-600 p-4 text-white flex justify-between items-center">
-              <h3 className="font-bold">Đổi mật khẩu</h3>
-              <button type="button" onClick={closeChangePasswordModal} className="text-white hover:text-gray-200">
-                <i className="fas fa-times" />
+        <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm z-[200] flex items-center justify-center p-4 sm:p-6 md:p-8 py-10 sm:py-16 overflow-y-auto">
+          <div className="bg-white rounded-3xl shadow-2xl border border-slate-100/80 w-full max-w-md my-auto overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4.5 border-b border-slate-100 bg-white/95 sticky top-0 z-20">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0 border border-indigo-100/60 shadow-xs">
+                  <i className="fas fa-shield-halved text-sm" />
+                </div>
+                <h3 className="text-base sm:text-lg font-bold text-slate-800 tracking-tight">Đổi mật khẩu</h3>
+              </div>
+              <button
+                type="button"
+                onClick={closeChangePasswordModal}
+                className="w-8 h-8 rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-600 flex items-center justify-center transition cursor-pointer"
+              >
+                <i className="fas fa-times text-sm" />
               </button>
             </div>
             <div className="p-6 space-y-4">
@@ -373,7 +382,7 @@ function PDLayout({ children }) {
                 ['confirmPassword', 'Xác nhận mật khẩu'],
               ].map(([field, label]) => (
                 <div key={field}>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">{label}</label>
                   <input
                     type="password"
                     value={passwordForm[field]}
@@ -381,18 +390,26 @@ function PDLayout({ children }) {
                       setPasswordForm((prev) => ({ ...prev, [field]: e.target.value }));
                       setPasswordErrors((prev) => ({ ...prev, [field]: '' }));
                     }}
-                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none ${
-                      passwordErrors[field] ? 'border-red-500' : ''
+                    className={`w-full px-3.5 py-2.5 bg-white border rounded-xl text-sm text-slate-800 outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 ${
+                      passwordErrors[field] ? 'border-red-500' : 'border-slate-200'
                     }`}
                   />
-                  {passwordErrors[field] && <p className="text-red-500 text-xs mt-1">{passwordErrors[field]}</p>}
+                  {passwordErrors[field] && <p className="text-red-500 text-xs mt-1.5 font-medium"><i className="fas fa-circle-exclamation mr-1" />{passwordErrors[field]}</p>}
                 </div>
               ))}
-              <div className="flex gap-3 pt-2">
-                <button type="button" onClick={closeChangePasswordModal} className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium">
+              <div className="flex gap-3 pt-4 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={closeChangePasswordModal}
+                  className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 active:scale-[0.98] transition cursor-pointer"
+                >
                   Hủy
                 </button>
-                <button type="button" onClick={submitChangePassword} className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">
+                <button
+                  type="button"
+                  onClick={submitChangePassword}
+                  className="flex-1 px-4 py-2.5 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 shadow-md shadow-indigo-200 active:scale-[0.98] transition cursor-pointer"
+                >
                   Cập nhật
                 </button>
               </div>
@@ -405,3 +422,4 @@ function PDLayout({ children }) {
 }
 
 export default PDLayout;
+
