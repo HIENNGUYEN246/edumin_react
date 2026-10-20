@@ -1036,8 +1036,8 @@ const TeacherAssignmentList = () => {
       </div>
 
       {selectedResultAssignment && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[300] flex items-center justify-center p-3 md:p-6 overflow-y-auto">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-6xl max-h-[92vh] overflow-y-auto p-6 md:p-8 flex flex-col border border-gray-100">
+        <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm z-[300] flex items-center justify-center px-4 sm:px-6 md:px-8 py-16 sm:py-24 md:py-28 overflow-y-auto">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-6xl max-h-[85vh] my-auto overflow-y-auto p-6 md:p-8 flex flex-col border border-slate-100">
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-5 border-b border-gray-100 gap-4">
               <div>
@@ -1299,8 +1299,8 @@ const TeacherAssignmentList = () => {
       )}
 
       {showRenameModal && (
-        <div className="fixed inset-0 bg-black/50 z-[300] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+        <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm z-[300] flex items-center justify-center px-4 sm:px-6 md:px-8 py-16 sm:py-24 md:py-28 overflow-y-auto">
+          <div className="bg-white rounded-3xl shadow-2xl border border-slate-100/80 w-full max-w-md my-auto overflow-hidden">
             <div className="bg-indigo-600 p-4 text-white flex justify-between items-center">
               <h3 className="font-bold flex items-center gap-2"><i className="fas fa-edit" /> Đổi tên bài tập</h3>
               <button onClick={() => setShowRenameModal(false)} className="text-white hover:text-gray-200">
@@ -1332,19 +1332,27 @@ const TeacherAssignmentList = () => {
       )}
 
       {showDeleteModal && (
-        <div className="fixed inset-0 bg-black/50 z-[300] flex items-center justify-center p-4">
-          <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-sm mx-4 overflow-hidden p-8 text-center">
-            <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6">
-              <i className="fas fa-trash-alt text-red-500 text-3xl" />
+        <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm z-[300] flex items-center justify-center px-4 sm:px-6 md:px-8 py-16 sm:py-24 md:py-28 overflow-y-auto">
+          <div className="bg-white rounded-3xl shadow-2xl border border-slate-100/80 w-full max-w-sm my-auto overflow-hidden p-8 text-center">
+            <div className="w-16 h-16 bg-rose-50 text-rose-600 border border-rose-200/70 ring-8 ring-rose-50/60 rounded-2xl flex items-center justify-center mx-auto mb-5 shadow-sm shadow-rose-100">
+              <i className="fas fa-trash-can text-2xl" />
             </div>
-            <h3 className="text-xl font-bold text-gray-800 mb-2">Xác nhận xóa?</h3>
-            <p className="text-sm text-gray-500 mb-8">Hành động này không thể hoàn tác. Bạn có chắc muốn xóa bài tập này?</p>
+            <h3 className="text-lg font-bold text-slate-800 mb-2">Xác nhận xóa?</h3>
+            <p className="text-sm text-slate-600 leading-relaxed mb-6">Hành động này không thể hoàn tác. Bạn có chắc muốn xóa bài tập này?</p>
             <div className="flex gap-3">
-              <button onClick={() => setShowDeleteModal(false)} className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-2xl hover:bg-gray-200 transition font-bold">
-                HỦY
+              <button
+                type="button"
+                onClick={() => setShowDeleteModal(false)}
+                className="flex-1 px-4 py-2.5 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 active:scale-[0.98] transition font-semibold text-sm cursor-pointer"
+              >
+                Hủy
               </button>
-              <button onClick={confirmDelete} className="flex-1 px-4 py-3 bg-red-500 text-white rounded-2xl hover:bg-red-600 transition font-bold shadow-lg shadow-red-100">
-                XÓA NGAY
+              <button
+                type="button"
+                onClick={confirmDelete}
+                className="flex-1 px-4 py-2.5 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white rounded-xl active:scale-[0.98] transition font-bold text-sm shadow-md shadow-rose-200 cursor-pointer"
+              >
+                Xóa ngay
               </button>
             </div>
           </div>
@@ -1352,56 +1360,74 @@ const TeacherAssignmentList = () => {
       )}
 
       {showPasswordModal && (
-        <div className="fixed inset-0 bg-black/50 z-[400] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-            <div className="bg-indigo-600 p-4 text-white flex justify-between items-center">
-              <h3 className="font-bold">Đổi mật khẩu</h3>
-              <button onClick={closeChangePasswordModal} className="text-white hover:text-gray-200">
-                <i className="fas fa-times" />
+        <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm z-[400] flex items-center justify-center px-4 sm:px-6 md:px-8 py-16 sm:py-24 md:py-28 overflow-y-auto">
+          <div className="bg-white rounded-3xl shadow-2xl border border-slate-100/80 w-full max-w-md my-auto overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4.5 border-b border-slate-100 bg-white/95 sticky top-0 z-20">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0 border border-indigo-100/60 shadow-xs">
+                  <i className="fas fa-shield-halved text-sm" />
+                </div>
+                <h3 className="text-base sm:text-lg font-bold text-slate-800 tracking-tight">Đổi mật khẩu</h3>
+              </div>
+              <button
+                type="button"
+                onClick={closeChangePasswordModal}
+                className="w-8 h-8 rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-600 flex items-center justify-center transition cursor-pointer"
+              >
+                <i className="fas fa-times text-sm" />
               </button>
             </div>
             <div className="p-6 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Mật khẩu cũ</label>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">Mật khẩu cũ</label>
                 <input
                   name="oldPassword"
                   type="password"
                   value={passwordForm.oldPassword}
                   onChange={handlePasswordFieldChange}
-                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition ${passwordErrors.oldPassword ? 'border-red-500' : 'border-gray-200'}`}
+                  className={`w-full px-3.5 py-2.5 border rounded-xl text-sm text-slate-800 outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 ${passwordErrors.oldPassword ? 'border-red-500' : 'border-slate-200'}`}
                   placeholder="Nhập mật khẩu cũ"
                 />
-                {passwordErrors.oldPassword && <p className="text-red-500 text-xs mt-1">{passwordErrors.oldPassword}</p>}
+                {passwordErrors.oldPassword && <p className="text-red-500 text-xs mt-1.5 font-medium"><i className="fas fa-circle-exclamation mr-1" />{passwordErrors.oldPassword}</p>}
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Mật khẩu mới</label>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">Mật khẩu mới</label>
                 <input
                   name="newPassword"
                   type="password"
                   value={passwordForm.newPassword}
                   onChange={handlePasswordFieldChange}
-                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition ${passwordErrors.newPassword ? 'border-red-500' : 'border-gray-200'}`}
+                  className={`w-full px-3.5 py-2.5 border rounded-xl text-sm text-slate-800 outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 ${passwordErrors.newPassword ? 'border-red-500' : 'border-slate-200'}`}
                   placeholder="Tối thiểu 6 ký tự"
                 />
-                {passwordErrors.newPassword && <p className="text-red-500 text-xs mt-1">{passwordErrors.newPassword}</p>}
+                {passwordErrors.newPassword && <p className="text-red-500 text-xs mt-1.5 font-medium"><i className="fas fa-circle-exclamation mr-1" />{passwordErrors.newPassword}</p>}
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Xác nhận mật khẩu</label>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">Xác nhận mật khẩu</label>
                 <input
                   name="confirmPassword"
                   type="password"
                   value={passwordForm.confirmPassword}
                   onChange={handlePasswordFieldChange}
-                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition ${passwordErrors.confirmPassword ? 'border-red-500' : 'border-gray-200'}`}
+                  className={`w-full px-3.5 py-2.5 border rounded-xl text-sm text-slate-800 outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 ${passwordErrors.confirmPassword ? 'border-red-500' : 'border-slate-200'}`}
                   placeholder="Nhập lại mật khẩu mới"
                 />
-                {passwordErrors.confirmPassword && <p className="text-red-500 text-xs mt-1">{passwordErrors.confirmPassword}</p>}
+                {passwordErrors.confirmPassword && <p className="text-red-500 text-xs mt-1.5 font-medium"><i className="fas fa-circle-exclamation mr-1" />{passwordErrors.confirmPassword}</p>}
               </div>
-              <div className="flex gap-3 pt-2">
-                <button onClick={closeChangePasswordModal} className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition font-medium">
+              <div className="flex gap-3 pt-4 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={closeChangePasswordModal}
+                  className="flex-1 px-4 py-2.5 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 active:scale-[0.98] transition font-semibold text-sm cursor-pointer"
+                >
                   Hủy
                 </button>
-                <button onClick={submitChangePassword} disabled={savingPassword} className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-medium">
+                <button
+                  type="button"
+                  onClick={submitChangePassword}
+                  disabled={savingPassword}
+                  className="flex-1 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white rounded-xl active:scale-[0.98] transition font-bold text-sm shadow-md shadow-indigo-200 disabled:opacity-60 cursor-pointer"
+                >
                   {savingPassword ? 'Đang lưu...' : 'Cập nhật'}
                 </button>
               </div>
@@ -1411,8 +1437,8 @@ const TeacherAssignmentList = () => {
       )}
 
       {showLockModal && (
-        <div className="fixed inset-0 bg-black/50 z-[999] flex items-center justify-center p-4">
-          <div className="bg-white rounded-[2.5rem] shadow-2xl max-w-sm w-full mx-4 p-8 text-center border-4 border-red-100">
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-md z-[999] flex items-center justify-center px-4 sm:px-6 md:px-8 py-16 sm:py-24 md:py-28 overflow-y-auto">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full my-auto p-8 text-center border-4 border-red-100">
             <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6">
               <i className="fas fa-user-lock text-red-500 text-3xl animate-pulse" />
             </div>

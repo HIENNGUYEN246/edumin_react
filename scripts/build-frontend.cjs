@@ -19,3 +19,4 @@ if (fs.existsSync(src)) {
   console.error('[BUILD] Error: frontend/dist was not found!');
   process.exit(1);
 }
+

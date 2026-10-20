@@ -469,8 +469,8 @@ function Dropdown({ handleLogout }) {
 
 function DetailModal({ reg, onClose }) {
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/50 backdrop-blur-sm px-4 sm:px-6 md:px-8 py-16 sm:py-24 md:py-28 overflow-y-auto">
+      <div className="bg-white rounded-3xl shadow-2xl border border-slate-100/80 w-full max-w-2xl my-auto overflow-hidden">
         <div className="bg-indigo-900 p-6 text-white flex justify-between items-center">
           <div>
             <h3 className="text-xl font-bold uppercase tracking-wider">Chi tiết học phần</h3>
@@ -533,9 +533,9 @@ function DetailModal({ reg, onClose }) {
 
 function LockOverlay({ onLogout }) {
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center">
-      <div className="absolute inset-0 bg-gray-900/60 backdrop-blur-md" />
-      <div className="relative bg-white p-8 rounded-[2.5rem] shadow-2xl max-w-sm w-full mx-4 text-center">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center px-4 sm:px-6 md:px-8 py-16 sm:py-24 md:py-28 overflow-y-auto">
+      <div className="fixed inset-0 bg-gray-950/60 backdrop-blur-md" />
+      <div className="relative bg-white p-8 rounded-3xl shadow-2xl max-w-sm w-full my-auto text-center border-4 border-red-100">
         <h2 className="text-2xl font-bold text-gray-800 mb-2">Tài khoản bị khóa!</h2>
         <p className="text-gray-500 text-sm mb-8">Vui lòng liên hệ Phòng đào tạo.</p>
         <button type="button" onClick={onLogout} className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold">

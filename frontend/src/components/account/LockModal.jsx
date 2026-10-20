@@ -8,7 +8,7 @@ import { Modal } from '../ui/Modal.jsx';
 export function LockModal() {
   const { lockInfo, logout } = useAuth();
   return (
-    <Modal open={Boolean(lockInfo)} onClose={() => {}} closable={false} title="Tài khoản bị khóa" size="sm">
+    <Modal open={Boolean(lockInfo)} onClose={() => {}} closable={false} title="Tài khoản bị khóa" icon="fas fa-user-lock text-rose-600" size="sm">
       <div className="text-center py-2">
         <div className="mx-auto w-16 h-16 rounded-full bg-red-100 text-red-600 flex items-center justify-center text-2xl mb-4 shadow-xs">
           <i className="fas fa-lock" />

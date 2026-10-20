@@ -161,22 +161,31 @@ export function CourseRegModals(props) {
       )}
 
       {showConfirmModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/50 backdrop-blur-sm px-4 sm:px-6 md:px-8 py-16 sm:py-24 md:py-28 overflow-y-auto">
           <div
-            className={`bg-white p-8 rounded-2xl shadow-2xl max-w-md w-full mx-4 transform transition-all ${
+            className={`bg-white p-8 rounded-3xl shadow-2xl border border-slate-100/80 max-w-sm w-full my-auto transform transition-all ${
               confirmAnimating ? 'scale-100 opacity-100' : 'scale-95 opacity-0'
             }`}
           >
             <div className="text-center">
               <ConfirmIcon />
-              <h3 className="text-2xl font-bold text-gray-800 mb-2">Xác nhận xóa?</h3>
-              <p className="text-gray-500 mb-8">Dữ liệu này sẽ bị xóa vĩnh viễn khỏi hệ thống!</p>
-              <div className="flex gap-4">
-                <button type="button" onClick={closeConfirmModal} className="flex-1 py-3 bg-gray-100 text-gray-600 rounded-xl font-semibold hover:bg-gray-200 transition-all">
+              <h3 className="text-lg font-bold text-slate-800 mb-2">Xác nhận xóa?</h3>
+              <p className="text-sm text-slate-600 leading-relaxed mb-6">Dữ liệu này sẽ bị xóa vĩnh viễn khỏi hệ thống!</p>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={closeConfirmModal}
+                  className="flex-1 px-4 py-2.5 bg-slate-100 text-slate-700 rounded-xl font-semibold text-sm hover:bg-slate-200 active:scale-[0.98] transition cursor-pointer"
+                >
                   Hủy
                 </button>
-                <button type="button" disabled={saving} onClick={executeDelete} className="flex-1 py-3 bg-red-500 text-white rounded-xl font-semibold hover:bg-red-600 shadow-lg transition-all disabled:opacity-60">
-                  Xóa ngay
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={executeDelete}
+                  className="flex-1 px-4 py-2.5 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white rounded-xl font-bold text-sm shadow-md shadow-rose-200 active:scale-[0.98] transition disabled:opacity-60 cursor-pointer"
+                >
+                  {saving ? 'Đang xử lý...' : 'Xóa ngay'}
                 </button>
               </div>
             </div>
@@ -214,8 +223,8 @@ function RegModal({
   saving,
 }) {
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4">
-      <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-6xl mx-4 overflow-y-auto max-h-[95vh]">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/50 backdrop-blur-sm px-4 sm:px-6 md:px-8 py-16 sm:py-24 md:py-28 overflow-y-auto">
+      <div className="bg-white p-8 rounded-3xl shadow-2xl border border-slate-100/80 w-full max-w-6xl my-auto overflow-y-auto max-h-[85vh]">
         <div className="flex justify-between items-center mb-6 border-b pb-4">
           <h3 className="text-xl font-bold text-gray-800">Thiết lập Lớp Học Phần Mới</h3>
           <button type="button" onClick={closeRegModal} className="text-gray-400 hover:text-red-500">
@@ -523,8 +532,8 @@ function StudentFooter({ count, onClose }) {
 
 function ConfirmIcon() {
   return (
-    <div className="bg-red-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
-      <i className="fas fa-exclamation-triangle text-3xl text-red-500" />
+    <div className="w-16 h-16 rounded-2xl bg-rose-50 text-rose-600 border border-rose-200/70 ring-8 ring-rose-50/60 flex items-center justify-center mx-auto mb-5 shadow-sm shadow-rose-100">
+      <i className="fas fa-trash-can text-2xl" />
     </div>
   );
 }

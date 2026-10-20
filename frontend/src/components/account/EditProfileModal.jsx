@@ -141,6 +141,7 @@ export function EditProfileModal({ open, onClose, user, profile }) {
       open={open}
       onClose={onClose}
       title={isSelfService ? 'Gửi yêu cầu cập nhật thông tin' : 'Chỉnh sửa thông tin'}
+      icon="fas fa-user-pen text-indigo-600"
       size="md"
     >
       <form onSubmit={submit} className="space-y-4">

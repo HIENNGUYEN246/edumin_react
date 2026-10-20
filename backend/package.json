@@ -8,6 +8,7 @@
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
     "seed": "node src/scripts/seed.js",
+    "clean": "node src/scripts/cleanTestData.js",
     "test": "vitest run --fileParallelism=false",
     "test:watch": "vitest",
     "lint": "eslint .",

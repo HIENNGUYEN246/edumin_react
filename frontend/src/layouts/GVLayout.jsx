@@ -332,9 +332,9 @@ function GVShell({
       )}
 
       {showLockModal && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center">
-          <div className="absolute inset-0 bg-gray-900/60 backdrop-blur-md" />
-          <div className="relative bg-white p-8 rounded-[2.5rem] shadow-2xl max-w-sm w-full mx-4 text-center border-4 border-red-100">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center px-4 sm:px-6 md:px-8 py-16 sm:py-24 md:py-28 overflow-y-auto">
+          <div className="fixed inset-0 bg-gray-950/60 backdrop-blur-md" />
+          <div className="relative bg-white p-8 rounded-3xl shadow-2xl max-w-sm w-full my-auto text-center border-4 border-red-100">
             <h2 className="text-2xl font-bold text-gray-800 mb-2">Tài khoản bị khóa!</h2>
             <p className="text-red-600 text-sm mb-8">{lockReason}</p>
             <button type="button" onClick={handleLogoutToLogin} className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold">
@@ -358,8 +358,8 @@ function Toast({ toast }) {
 
 function PasswordModal({ passwordForm, setPasswordForm, passwordVisibility, setPasswordVisibility, passwordErrors, savingPassword, onClose, onSubmit }) {
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-[200] flex items-center justify-center">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
+    <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm z-[200] flex items-center justify-center px-4 sm:px-6 md:px-8 py-16 sm:py-24 md:py-28 overflow-y-auto">
+      <div className="bg-white rounded-3xl shadow-2xl border border-slate-100/80 w-full max-w-md my-auto overflow-hidden">
         <PasswordModalInner
           passwordForm={passwordForm}
           setPasswordForm={setPasswordForm}
@@ -380,27 +380,42 @@ function PasswordModalInner({ passwordForm, setPasswordForm, passwordVisibility,
   const labels = ['Mật khẩu cũ', 'Mật khẩu mới', 'Xác nhận mật khẩu'];
   return (
     <>
-      <div className="bg-indigo-600 p-4 text-white flex justify-between items-center">
-        <h3 className="font-bold">Đổi mật khẩu</h3>
-        <button type="button" onClick={onClose} className="text-white"><i className="fas fa-times" /></button>
+      <div className="flex items-center justify-between px-6 py-4.5 border-b border-slate-100 bg-white/95 sticky top-0 z-20">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0 border border-indigo-100/60 shadow-xs">
+            <i className="fas fa-shield-halved text-sm" />
+          </div>
+          <h3 className="text-base sm:text-lg font-bold text-slate-800 tracking-tight">Đổi mật khẩu</h3>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="w-8 h-8 rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-600 flex items-center justify-center transition cursor-pointer"
+        >
+          <i className="fas fa-times text-sm" />
+        </button>
       </div>
       <div className="p-6 space-y-4">
         {fields.map((field, i) => (
           <div key={field}>
-            <label className="block text-sm font-medium text-gray-700 mb-1">{labels[i]}</label>
+            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">{labels[i]}</label>
             <div className="relative">
               <input
                 type={passwordVisibility[field] ? 'text' : 'password'}
                 value={passwordForm[field]}
                 onChange={(e) => setPasswordForm((p) => ({ ...p, [field]: e.target.value }))}
-                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none pr-10"
+                className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-800 outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 pr-10"
               />
-              <i
-                className={`fas ${passwordVisibility[field] ? 'fa-eye-slash' : 'fa-eye'} password-toggle`}
+              <button
+                type="button"
+                tabIndex="-1"
                 onClick={() => setPasswordVisibility((p) => ({ ...p, [field]: !p[field] }))}
-              />
+                className="absolute right-0 top-0 bottom-0 px-3 flex items-center justify-center text-slate-400 hover:text-slate-600 transition cursor-pointer"
+              >
+                <i className={`fas ${passwordVisibility[field] ? 'fa-eye-slash' : 'fa-eye'} text-sm`} />
+              </button>
             </div>
-            {passwordErrors[field] && <p className="text-red-500 text-xs mt-1">{passwordErrors[field]}</p>}
+            {passwordErrors[field] && <p className="text-red-500 text-xs mt-1.5 font-medium"><i className="fas fa-circle-exclamation mr-1" />{passwordErrors[field]}</p>}
           </div>
         ))}
         <PasswordActions onClose={onClose} onSubmit={onSubmit} savingPassword={savingPassword} />
@@ -411,9 +426,22 @@ function PasswordModalInner({ passwordForm, setPasswordForm, passwordVisibility,
 
 function PasswordActions({ onClose, onSubmit, savingPassword }) {
   return (
-    <div className="flex gap-3 pt-2">
-      <button type="button" onClick={onClose} className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-medium">Hủy</button>
-      <button type="button" disabled={savingPassword} onClick={onSubmit} className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg font-medium disabled:opacity-60">Cập nhật</button>
+    <div className="flex gap-3 pt-4 border-t border-slate-100">
+      <button
+        type="button"
+        onClick={onClose}
+        className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 active:scale-[0.98] transition cursor-pointer"
+      >
+        Hủy
+      </button>
+      <button
+        type="button"
+        disabled={savingPassword}
+        onClick={onSubmit}
+        className="flex-1 px-4 py-2.5 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 shadow-md shadow-indigo-200 active:scale-[0.98] transition cursor-pointer disabled:opacity-60"
+      >
+        {savingPassword ? 'Đang lưu...' : 'Cập nhật'}
+      </button>
     </div>
   );
 }

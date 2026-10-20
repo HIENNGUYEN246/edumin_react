@@ -590,8 +590,8 @@ function ManageCourses() {
       </div>
 
       {showModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50">
-          <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-2xl mx-4 overflow-y-auto max-h-[90vh]">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 sm:px-6 md:px-8 py-16 sm:py-24 md:py-28 bg-slate-950/50 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-white p-8 rounded-3xl shadow-2xl border border-slate-100/80 w-full max-w-2xl my-auto overflow-y-auto max-h-[85vh]">
             <h3 className="text-xl font-bold mb-6 text-indigo-900 border-b pb-4">
               {editCourseId ? 'Chỉnh sửa Học Phần' : 'Thêm Học Phần'}
             </h3>

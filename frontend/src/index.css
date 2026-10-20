@@ -63,3 +63,30 @@ th.sticky-col {
   transform: translateY(-2px);
   box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.08), 0 8px 10px -6px rgba(15, 23, 42, 0.04);
 }
+
+/* SweetAlert2 modern polish & vertical breathing room */
+.swal2-container {
+  padding: 3rem 1rem !important;
+  backdrop-filter: blur(4px) !important;
+  background-color: rgba(2, 6, 23, 0.5) !important;
+}
+
+.swal2-popup {
+  border-radius: 1.5rem !important;
+  font-family: inherit !important;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25) !important;
+  border: 1px solid rgba(226, 232, 240, 0.8) !important;
+  margin: auto !important;
+}
+
+.swal2-title {
+  font-weight: 700 !important;
+  color: #1e293b !important;
+}
+
+.swal2-confirm, .swal2-cancel {
+  border-radius: 0.75rem !important;
+  font-weight: 600 !important;
+  font-size: 0.875rem !important;
+  padding: 0.625rem 1.25rem !important;
+}
