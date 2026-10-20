@@ -495,8 +495,8 @@ export default function ManageAttendance() {
 
         {/* Admin Detail & Adjustment Modal */}
         {detailModal.isOpen && detailModal.record && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-fadeIn">
+          <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm z-[200] flex items-center justify-center p-4 sm:p-6 md:p-8 py-10 sm:py-16 overflow-y-auto">
+            <div className="bg-white rounded-3xl shadow-2xl border border-slate-100/80 w-full max-w-md my-auto overflow-hidden animate-fadeIn">
               <div className="bg-indigo-600 p-5 text-white flex items-center justify-between">
                 <div>
                   <h3 className="font-bold text-base">Chi tiết & Điều chỉnh điểm danh</h3>

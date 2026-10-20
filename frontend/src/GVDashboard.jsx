@@ -1285,8 +1285,8 @@ const GVDashboard = () => {
       </div>
 
       {evaluatingStudent && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[300] flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden border border-gray-100">
+        <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm z-[300] flex items-center justify-center p-4 sm:p-6 md:p-8 py-10 sm:py-16 overflow-y-auto">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full my-auto overflow-hidden border border-slate-100">
             {/* Header */}
             <div className="bg-gradient-to-r from-indigo-600 to-indigo-700 p-5 text-white flex justify-between items-center gap-3">
               <div className="flex items-center gap-3.5 min-w-0">
@@ -1495,8 +1495,8 @@ const GVDashboard = () => {
 
       {/* Teacher Reply Modal */}
       {replyModal.isOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[300] flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden border border-gray-100">
+        <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm z-[300] flex items-center justify-center p-4 sm:p-6 md:p-8 py-10 sm:py-16 overflow-y-auto">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full my-auto overflow-hidden border border-slate-100">
             <div className="bg-gradient-to-r from-indigo-600 to-indigo-700 p-5 text-white flex justify-between items-center">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center text-lg">
@@ -1642,9 +1642,9 @@ const GVDashboard = () => {
       )}
 
       {showLockModal && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center">
-          <div className="absolute inset-0 bg-gray-900/60 backdrop-blur-md"></div>
-          <div className="relative bg-white p-8 rounded-[2.5rem] shadow-2xl max-w-sm w-full mx-4 text-center border-4 border-red-100">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 md:p-8 py-10 sm:py-16 overflow-y-auto">
+          <div className="fixed inset-0 bg-gray-950/60 backdrop-blur-md" />
+          <div className="relative bg-white p-8 rounded-3xl shadow-2xl max-w-sm w-full my-auto text-center border-4 border-red-100">
             <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6">
               <i className="fas fa-user-lock text-red-500 text-3xl animate-pulse"></i>
             </div>

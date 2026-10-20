@@ -122,6 +122,7 @@ export function ForgotPasswordModal({ open, onClose, onSuccess }) {
       open={open}
       onClose={handleClose}
       title="Khôi phục thông tin tài khoản"
+      icon="fas fa-key text-indigo-600"
       size="sm"
     >
       <form onSubmit={handleSubmit} className="space-y-4">

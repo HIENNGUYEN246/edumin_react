@@ -267,8 +267,8 @@ export function ScheduleChangeNotificationModal({ isOpen, onClose, defaultClassI
   };
 
   return (
-    <div className="fixed inset-0 z-[1200] flex items-center justify-center p-3 sm:p-6 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
-      <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden border border-slate-100 flex flex-col max-h-[85vh]">
+    <div className="fixed inset-0 z-[1200] flex items-center justify-center p-4 sm:p-6 md:p-8 py-10 sm:py-16 bg-slate-950/50 backdrop-blur-sm overflow-y-auto animate-fadeIn">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl my-auto overflow-hidden border border-slate-100/80 flex flex-col max-h-[85vh]">
         {/* Header */}
         <div className="bg-gradient-to-r from-indigo-600 via-indigo-700 to-indigo-800 text-white px-6 py-4 flex items-center justify-between shrink-0 shadow-xs border-b border-indigo-700/60">
           <div className="flex items-center gap-3">

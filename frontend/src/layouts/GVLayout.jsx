@@ -332,9 +332,9 @@ function GVShell({
       )}
 
       {showLockModal && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center">
-          <div className="absolute inset-0 bg-gray-900/60 backdrop-blur-md" />
-          <div className="relative bg-white p-8 rounded-[2.5rem] shadow-2xl max-w-sm w-full mx-4 text-center border-4 border-red-100">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 md:p-8 py-10 sm:py-16 overflow-y-auto">
+          <div className="fixed inset-0 bg-gray-950/60 backdrop-blur-md" />
+          <div className="relative bg-white p-8 rounded-3xl shadow-2xl max-w-sm w-full my-auto text-center border-4 border-red-100">
             <h2 className="text-2xl font-bold text-gray-800 mb-2">Tài khoản bị khóa!</h2>
             <p className="text-red-600 text-sm mb-8">{lockReason}</p>
             <button type="button" onClick={handleLogoutToLogin} className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold">

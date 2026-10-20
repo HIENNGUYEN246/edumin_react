@@ -933,9 +933,9 @@ const SVPage = () => {
 
       {/* Lock Modal */}
       {showLockModal && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center">
-          <div className="absolute inset-0 bg-gray-900/60 backdrop-blur-md"></div>
-          <div className="relative bg-white p-8 rounded-[2.5rem] shadow-2xl max-w-sm w-full mx-4 text-center border-4 border-red-100">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 md:p-8 py-10 sm:py-16 overflow-y-auto">
+          <div className="fixed inset-0 bg-gray-950/60 backdrop-blur-md" />
+          <div className="relative bg-white p-8 rounded-3xl shadow-2xl max-w-sm w-full my-auto text-center border-4 border-red-100">
             <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6">
               <i className="fas fa-user-lock text-red-500 text-3xl animate-pulse"></i>
             </div>
