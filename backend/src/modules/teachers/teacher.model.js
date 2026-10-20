@@ -9,6 +9,13 @@ const teacherSchema = new Schema(
     // Numeric code shown as GV-00x on the client.
     id: { type: Number, required: true, unique: true },
     email: { type: String, required: true, trim: true, lowercase: true },
+    emailNhanThongBao: { type: String, trim: true, lowercase: true, default: '' },
+    emailHistory: [
+      {
+        email: { type: String, trim: true, lowercase: true },
+        updatedAt: { type: Date, default: Date.now },
+      },
+    ],
     hoTen: { type: String, default: '' },
     dob: { type: String, default: '' },
     gender: { type: String, enum: ['Nam', 'Nữ', 'Khác'], default: 'Nam' },

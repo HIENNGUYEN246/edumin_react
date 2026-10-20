@@ -4,7 +4,7 @@ import { config } from '../../config/env.js';
 import { validate } from '../../middleware/validate.js';
 import { authenticate } from '../../middleware/authenticate.js';
 import { uploadImage } from '../../middleware/upload.js';
-import { loginSchema, changePasswordSchema } from './auth.schema.js';
+import { loginSchema, changePasswordSchema, forgotPasswordSchema } from './auth.schema.js';
 import { registerSchema } from '../students/student.schema.js';
 import * as controller from './auth.controller.js';
 
@@ -30,6 +30,7 @@ const registerLimiter = rateLimit({
 });
 
 router.post('/login', loginLimiter, validate(loginSchema), controller.login);
+router.post('/forgot-password', loginLimiter, validate(forgotPasswordSchema), controller.forgotPassword);
 
 // Public student self-registration.
 router.get('/registration-options', controller.registrationOptions);

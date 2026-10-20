@@ -108,6 +108,14 @@ export function AuthProvider({ children }) {
     return result;
   };
 
+  const loginWithSession = async (session) => {
+    if (session?.token) {
+      tokenStore.set(session.token);
+    }
+    await primeSession(session);
+    return session;
+  };
+
   const register = async (payload) => {
     const result = await authApi.register(payload);
     await primeSession(result);
@@ -165,6 +173,7 @@ export function AuthProvider({ children }) {
         setStoredJson(LOCK_KEY, null);
       },
       login,
+      loginWithSession,
       register,
       logout,
       refetch: meQuery.refetch,
@@ -188,6 +197,7 @@ export function useAuth() {
       lockInfo: null,
       dismissLock: () => {},
       login: async () => {},
+      loginWithSession: async () => {},
       register: async () => {},
       logout: () => {},
       refetch: async () => {},

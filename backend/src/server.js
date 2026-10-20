@@ -21,7 +21,12 @@ async function start() {
   try {
     await connectDatabase();
     console.log('MongoDB connected');
-    await closeExpiredClasses();
+    try {
+      await closeExpiredClasses();
+    } catch (e) {
+      console.warn('[Startup Warning] closeExpiredClasses:', e?.message || e);
+    }
+
     const expiryTimer = setInterval(() => {
       closeExpiredClasses().catch((error) => {
         console.error('Failed to close expired class registrations:', error);
@@ -31,7 +36,7 @@ async function start() {
 
     const app = createApp();
 
-    const listenWithRetry = (retriesLeft = 5) => {
+    const listenWithRetry = (retriesLeft = 10) => {
       const server = app.listen(config.PORT, () => {
         console.log(`Edumin backend listening on http://localhost:${config.PORT}`);
       });
