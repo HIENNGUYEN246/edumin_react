@@ -851,19 +851,20 @@ export function StudentCourseRegistration() {
             </div>
           </div>
 
-          {/* Right: Validation & Rule Tag */}
+          {/* Right: Auto Validation Badge & Rule Tag */}
           <div className="flex items-center gap-2.5">
+            {enrollments.length > 0 && (
+              <span
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200/80 text-xs font-semibold shadow-2xs"
+                title={`Kế hoạch đăng ký hợp lệ với ${enrollments.length} môn học (${totalEnrolledCredits} tín chỉ)`}
+              >
+                <i className="fas fa-check-circle text-emerald-500 text-xs" />
+                <span>Kế hoạch hợp lệ ({enrollments.length} môn - {totalEnrolledCredits} TC)</span>
+              </span>
+            )}
             <span className="text-[11px] text-slate-400 font-medium hidden md:inline">
               Hạn mức tối đa: {MAX_CREDITS} TC / học kỳ
             </span>
-            <button
-              type="button"
-              onClick={handleValidatePlan}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-900 text-white text-xs font-bold hover:bg-slate-800 transition shadow-xs cursor-pointer active:scale-95 whitespace-nowrap"
-            >
-              <i className="fas fa-clipboard-check text-indigo-400" />
-              <span>Kiểm tra hợp lệ kế hoạch đăng ký</span>
-            </button>
           </div>
         </div>
       </div>

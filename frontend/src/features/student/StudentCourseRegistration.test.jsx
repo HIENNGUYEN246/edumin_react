@@ -437,14 +437,9 @@ describe('StudentCourseRegistration Exclusive Class Selection & Credit Limit Val
     expect(screen.getByText(/3 \/ 25 TC/i)).toBeInTheDocument();
     expect(screen.queryByText(/Chưa đạt tối thiểu/i)).not.toBeInTheDocument();
 
-    // Click "Kiểm tra hợp lệ kế hoạch đăng ký"
-    const validateBtn = screen.getByRole('button', { name: /Kiểm tra hợp lệ kế hoạch đăng ký/i });
-    fireEvent.click(validateBtn);
-
-    // Should succeed because minimum credit restrictions have been removed
-    expect(mockToast.success).toHaveBeenCalledWith(
-      expect.stringMatching(/Kế hoạch đăng ký hợp lệ/i)
-    );
+    // Verify automatic validation badge is rendered without needing manual button click
+    expect(screen.getByText(/Kế hoạch hợp lệ/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Kiểm tra hợp lệ kế hoạch đăng ký/i })).not.toBeInTheDocument();
   });
 
   it('confirms plan when credits are enrolled', async () => {
@@ -471,13 +466,9 @@ describe('StudentCourseRegistration Exclusive Class Selection & Credit Limit Val
     // Check valid badge
     expect(screen.getByText(/12 TC đã đăng ký/i)).toBeInTheDocument();
 
-    // Click "Kiểm tra hợp lệ kế hoạch đăng ký"
-    const validateBtn = screen.getByRole('button', { name: /Kiểm tra hợp lệ kế hoạch đăng ký/i });
-    fireEvent.click(validateBtn);
-
-    expect(mockToast.success).toHaveBeenCalledWith(
-      expect.stringMatching(/Kế hoạch đăng ký hợp lệ/i)
-    );
+    // Check automatic validation badge
+    expect(screen.getByText(/Kế hoạch hợp lệ/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Kiểm tra hợp lệ kế hoạch đăng ký/i })).not.toBeInTheDocument();
   });
 
   it('supports searching and filtering courses in open classes list', () => {
