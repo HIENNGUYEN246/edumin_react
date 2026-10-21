@@ -473,8 +473,16 @@ export function ManageFeedbacks() {
               {item.response && (
                 <div className="ml-6 pl-4 border-l-2 border-indigo-500 py-1 space-y-1">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-indigo-700">Phản hồi từ {item.respondedByRole === 'teacher' ? (item.respondedByName || item.teacherName || 'Giảng viên') : (item.respondedByName || 'Phòng Đào tạo')}:</span>
-                    <span className="bg-indigo-100 text-indigo-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-indigo-200">
+                    <span className="text-xs font-bold text-indigo-700">
+                      {item.respondedByRole === 'teacher'
+                        ? `Phản hồi từ Giảng viên ${item.respondedByName || item.teacherName || ''}:`
+                        : 'Phản hồi từ Phòng Đào tạo:'}
+                    </span>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                      item.respondedByRole === 'teacher'
+                        ? 'bg-amber-50 text-amber-700 border-amber-200'
+                        : 'bg-indigo-100 text-indigo-700 border-indigo-200'
+                    }`}>
                       {item.respondedByRole === 'teacher' ? 'Giảng viên phụ trách' : 'Phòng Đào tạo (Admin)'}
                     </span>
                     <span className="text-[10px] text-gray-400">{item.respondedAt}</span>

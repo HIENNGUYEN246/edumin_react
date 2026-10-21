@@ -602,9 +602,13 @@ export function StudentDashboardInner() {
                           />
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <span className="font-bold text-indigo-900 text-xs">
-                              Phản hồi từ {fb?.respondedByName || 'Phòng Đào tạo'}
+                              {fb?.respondedByRole === 'teacher'
+                                ? `Phản hồi từ Giảng viên ${fb?.respondedByName || fb?.teacherName || ''}`
+                                : 'Phản hồi từ Phòng Đào tạo'}
                             </span>
-                            <span className="bg-indigo-100 text-indigo-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                              fb?.respondedByRole === 'teacher' ? 'bg-amber-100 text-amber-700' : 'bg-indigo-100 text-indigo-700'
+                            }`}>
                               {fb?.respondedByRole === 'teacher' ? 'Giảng viên phụ trách' : 'Phòng Đào tạo (Admin)'}
                             </span>
                           </div>

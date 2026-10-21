@@ -92,7 +92,7 @@ router.get('/', async (req, res, next) => {
       const isTeacherResp = respRole === 'teacher';
       const respName = isTeacherResp
         ? (item.respondedByName || tName)
-        : (item.respondedByName && item.respondedByName !== tName ? item.respondedByName : 'Phòng Đào tạo');
+        : 'Phòng Đào tạo';
       const respAvatar = isTeacherResp
         ? (item.respondedByAvatar || tAvatar || '')
         : (item.respondedByAvatar || '');

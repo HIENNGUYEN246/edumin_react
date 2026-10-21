@@ -934,9 +934,19 @@ class APIClient {
           const key = String(item.id || item._id);
           const existing = map.get(key);
           if (existing) {
-            map.set(key, { ...existing, ...item });
+            const merged = { ...existing, ...item };
+            if (merged.response && merged.respondedByRole !== 'teacher') {
+              merged.respondedByName = 'Phòng Đào tạo';
+              merged.respondedByRole = 'admin';
+            }
+            map.set(key, merged);
           } else {
-            map.set(key, item);
+            const clean = { ...item };
+            if (clean.response && clean.respondedByRole !== 'teacher') {
+              clean.respondedByName = 'Phòng Đào tạo';
+              clean.respondedByRole = 'admin';
+            }
+            map.set(key, clean);
           }
         });
         const combined = Array.from(map.values()).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
@@ -1017,14 +1027,16 @@ class APIClient {
         ...local[idx],
         response,
         respondedAt,
+        respondedByName: local[idx].respondedByRole === 'teacher' ? (local[idx].respondedByName || local[idx].teacherName) : 'Phòng Đào tạo',
+        respondedByRole: local[idx].respondedByRole === 'teacher' ? 'teacher' : 'admin',
       };
       this.saveStoredFeedbacks(local);
       window.dispatchEvent(new CustomEvent('edumin_feedback_updated', { detail: local[idx] }));
     }
 
     try {
-      const res = await this.fetchJson(`/feedbacks/${id}/respond`, {
-        method: 'PATCH',
+      const res = await this.fetchJson(`/feedbacks/${id}/reply`, {
+        method: 'POST',
         body: JSON.stringify({ response }),
       });
       return res;

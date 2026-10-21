@@ -527,9 +527,15 @@ export default function ManageFeedbacks() {
                             <div className="p-3 bg-indigo-50/70 border border-indigo-100 rounded-xl text-xs space-y-1">
                               <div className="flex items-center justify-between text-indigo-700 font-bold text-[11px]">
                                 <span className="flex items-center gap-1.5">
-                                  <i className="fas fa-reply"></i> Phản hồi từ {item.respondedByRole === 'teacher' ? (item.respondedByName || item.teacherName || 'Giảng viên') : (item.respondedByName || 'Phòng Đào tạo')}:
+                                  <i className="fas fa-reply"></i> {item.respondedByRole === 'teacher'
+                                    ? `Phản hồi từ Giảng viên ${item.respondedByName || item.teacherName || ''}:`
+                                    : 'Phản hồi từ Phòng Đào tạo:'}
                                 </span>
-                                <span className="bg-indigo-100 text-indigo-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-indigo-200">
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                                  item.respondedByRole === 'teacher'
+                                    ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                    : 'bg-indigo-100 text-indigo-700 border-indigo-200'
+                                }`}>
                                   {item.respondedByRole === 'teacher' ? 'Giảng viên phụ trách' : 'Phòng Đào tạo (Admin)'}
                                 </span>
                                 {item.respondedAt && (
