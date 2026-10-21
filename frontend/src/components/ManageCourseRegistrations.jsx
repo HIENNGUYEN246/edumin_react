@@ -502,6 +502,87 @@ function ManageCourseRegistrations() {
     reader.readAsArrayBuffer(file);
   };
 
+  const handleDownloadTemplate = () => {
+    try {
+      const sampleCourse = courses[0];
+      const sampleCourse2 = courses[1] || sampleCourse;
+      const sampleTeacher = teachers[0];
+      const sampleTeacher2 = teachers[1] || sampleTeacher;
+
+      const templateRows = [
+        {
+          MaHP: sampleCourse?.id || 'IT101',
+          TenHP: sampleCourse?.name || 'Lập trình căn bản',
+          Khoa: sampleCourse?.department || departments[0]?.name || 'Công nghệ thông tin',
+          TinChi: sampleCourse?.credits || 3,
+          HocPhi: sampleCourse?.fee || 1500000,
+          GiangVien: sampleTeacher?.name || sampleTeacher?.hoTen || 'ThS. Nguyễn Văn A',
+          MaGV: sampleTeacher?.id != null ? sampleTeacher.id : 101,
+          Phong: 'A101',
+          Thu: '2,4',
+          Ca: 'S1,S1',
+          NgayBatDauHoc: '2026-09-01',
+          NgayKetThucHoc: '2026-12-15',
+          BatDauDK: '2026-08-15 08:00',
+          KetThucDK: '2026-08-30 23:59',
+        },
+        {
+          MaHP: sampleCourse2?.id || 'IT102',
+          TenHP: sampleCourse2?.name || 'Cơ sở dữ liệu',
+          Khoa: sampleCourse2?.department || departments[0]?.name || 'Công nghệ thông tin',
+          TinChi: sampleCourse2?.credits || 4,
+          HocPhi: sampleCourse2?.fee || 2000000,
+          GiangVien: sampleTeacher2?.name || sampleTeacher2?.hoTen || 'TS. Trần Thị B',
+          MaGV: sampleTeacher2?.id != null ? sampleTeacher2.id : 102,
+          Phong: 'B202',
+          Thu: '3,5',
+          Ca: 'S2,S2',
+          NgayBatDauHoc: '2026-09-01',
+          NgayKetThucHoc: '2026-12-15',
+          BatDauDK: '2026-08-15 08:00',
+          KetThucDK: '2026-08-30 23:59',
+        },
+      ];
+
+      const courseRefRows = (courses || []).map((c, idx) => ({
+        STT: idx + 1,
+        'Mã HP (Cột MaHP)': c.id,
+        'Tên HP': c.name,
+        'Khoa': c.department,
+        'Tín chỉ': c.credits,
+        'Học phí': c.fee,
+      }));
+
+      const teacherRefRows = (teachers || []).map((t, idx) => ({
+        STT: idx + 1,
+        'Mã GV (Cột MaGV)': t.id,
+        'Họ tên Giảng viên': t.name || t.hoTen,
+        'Khoa': t.department,
+      }));
+
+      const guideRows = [
+        { 'Cột dữ liệu': 'MaHP', 'Bắt buộc': 'Bắt buộc', 'Quy tắc': 'Phải chọn đúng Mã HP trong Sheet "DanhMucHocPhan_CSDL"' },
+        { 'Cột dữ liệu': 'MaGV', 'Bắt buộc': 'Bắt buộc', 'Quy tắc': 'Phải chọn đúng Mã GV trong Sheet "DanhMucGiangVien_CSDL"' },
+        { 'Cột dữ liệu': 'Thu', 'Bắt buộc': 'Bắt buộc', 'Quy tắc': 'Thứ học: 2, 3, 4, 5, 6, 7 (ví dụ: 2,4)' },
+        { 'Cột dữ liệu': 'Ca', 'Bắt buộc': 'Bắt buộc', 'Quy tắc': 'Mã ca học: S1 (7h-9h30), S2 (9h45-12h15), S3 (13h-15h30)...' },
+        { 'Cột dữ liệu': 'Phong', 'Bắt buộc': 'Bắt buộc', 'Quy tắc': 'Mã phòng học (A101, B202, LAB-01)' },
+        { 'Cột dữ liệu': 'NgayBatDauHoc / NgayKetThucHoc', 'Bắt buộc': 'Bắt buộc', 'Quy tắc': 'Định dạng YYYY-MM-DD' },
+        { 'Cột dữ liệu': 'BatDauDK / KetThucDK', 'Bắt buộc': 'Bắt buộc', 'Quy tắc': 'Định dạng YYYY-MM-DD HH:mm' },
+      ];
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(templateRows), 'BieuMau_LopHocPhan');
+      if (courseRefRows.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(courseRefRows), 'DanhMucHocPhan_CSDL');
+      if (teacherRefRows.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(teacherRefRows), 'DanhMucGiangVien_CSDL');
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(guideRows), 'HuongDan_NhapLieu');
+
+      XLSX.writeFile(wb, 'bieu-mau-mo-lop-hoc-phan.xlsx');
+      Swal.fire('Thành công', 'Đã tải xuống biểu mẫu Excel kèm dữ liệu học phần và giảng viên từ CSDL!', 'success');
+    } catch {
+      Swal.fire('Lỗi', 'Không tạo được file biểu mẫu Excel.', 'error');
+    }
+  };
+
   const viewDetail = (id) => {
     const reg = registrations.find((r) => String(r.id) === String(id));
     if (reg) {
@@ -594,7 +675,12 @@ function ManageCourseRegistrations() {
           <h2 className="text-2xl font-bold text-gray-800">Quản lý Đợt Đăng Ký Học Phần</h2>
           <p className="text-sm text-gray-500">Thiết lập thời gian và lịch học chi tiết cho sinh viên</p>
         </div>
-        <PageActions importRef={importRef} handleImportExcel={handleImportExcel} openRegModal={openRegModal} />
+        <PageActions
+          importRef={importRef}
+          handleImportExcel={handleImportExcel}
+          handleDownloadTemplate={handleDownloadTemplate}
+          openRegModal={openRegModal}
+        />
       </div>
 
       <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-6 grid grid-cols-1 md:grid-cols-5 gap-4">
@@ -765,23 +851,34 @@ function ManageCourseRegistrations() {
   );
 }
 
-function PageActions({ importRef, handleImportExcel, openRegModal }) {
+function PageActions({ importRef, handleImportExcel, handleDownloadTemplate, openRegModal }) {
   return (
-    <div className="flex gap-3">
+    <div className="flex flex-wrap items-center gap-2.5">
       <input type="file" ref={importRef} accept=".xlsx, .xls" className="hidden" onChange={handleImportExcel} />
       <button
         type="button"
-        onClick={() => importRef.current?.click()}
-        className="bg-emerald-600 text-white px-5 py-2.5 rounded-xl hover:bg-emerald-700 shadow-lg flex items-center gap-2 transition-all transform hover:scale-105"
+        onClick={handleDownloadTemplate}
+        className="bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-xl hover:bg-slate-50 shadow-xs flex items-center gap-2 text-xs font-semibold transition active:scale-95 cursor-pointer"
+        title="Tải biểu mẫu Excel mở lớp kèm danh mục môn học và giảng viên từ CSDL"
       >
-        <i className="fas fa-file-excel" /> Import Excel
+        <i className="fas fa-file-excel text-emerald-600 text-sm" />
+        <span>Biểu mẫu</span>
+      </button>
+      <button
+        type="button"
+        onClick={() => importRef.current?.click()}
+        className="bg-emerald-600 text-white px-4 py-2 rounded-xl hover:bg-emerald-700 shadow-xs flex items-center gap-2 text-xs font-semibold transition active:scale-95 cursor-pointer"
+      >
+        <i className="fas fa-file-import text-sm" />
+        <span>Import Excel</span>
       </button>
       <button
         type="button"
         onClick={openRegModal}
-        className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl hover:bg-indigo-700 shadow-lg flex items-center gap-2 transition-all transform hover:scale-105"
+        className="bg-indigo-600 text-white px-4 py-2 rounded-xl hover:bg-indigo-700 shadow-xs flex items-center gap-2 text-xs font-semibold transition active:scale-95 cursor-pointer"
       >
-        <i className="fas fa-calendar-plus" /> Mở lớp học phần mới
+        <i className="fas fa-calendar-plus text-sm" />
+        <span>Mở lớp học phần mới</span>
       </button>
     </div>
   );

@@ -5,6 +5,15 @@ import NotificationBell from './NotificationBell.jsx';
 import { notificationsApi } from '../api/notificationsApi.js';
 import { tokenStore } from '../api/http.js';
 
+const mockNavigate = vi.fn();
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual('react-router-dom');
+  return {
+    ...actual,
+    useNavigate: () => mockNavigate,
+  };
+});
+
 vi.mock('../api/notificationsApi.js', () => ({
   notificationsApi: {
     list: vi.fn(),
@@ -133,5 +142,123 @@ describe('NotificationBell Component with Schedule Change Coordination', () => {
       expect(notificationsApi.list).toHaveBeenCalledTimes(2);
     });
   });
-});
 
+  it('clicking directly on a notification item opens detail modal directly, and "Đi tới trang liên quan" navigates properly', async () => {
+    const teacherUser = {
+      id: 2,
+      _id: 'gv-1',
+      hoTen: 'Thầy Nguyễn Văn Bình',
+      role: 'giao-vien',
+    };
+
+    const avatarNotif = [
+      {
+        _id: 'notif-avatar-99',
+        type: 'approval',
+        title: 'Yêu cầu thay đổi đã được phê duyệt',
+        message: 'Quản trị viên đã phê duyệt thay đổi ảnh đại diện của bạn.',
+        link: '/teacher',
+        isRead: false,
+        createdAt: new Date().toISOString(),
+        metadata: { requestId: 'req-avatar-123' },
+      },
+    ];
+
+    notificationsApi.list.mockResolvedValueOnce({
+      data: avatarNotif,
+    });
+
+    render(
+      <MemoryRouter>
+        <NotificationBell currentUser={teacherUser} customRole="giao-vien" />
+      </MemoryRouter>
+    );
+
+    const bellBtn = await screen.findByRole('button', { name: /Xem thông báo/i });
+    fireEvent.click(bellBtn);
+
+    // Verify dropdown is open
+    const itemTitle = await screen.findByText('Yêu cầu thay đổi đã được phê duyệt');
+    expect(itemTitle).toBeInTheDocument();
+
+    // User clicks directly on the notification item (not the eye icon!)
+    fireEvent.click(itemTitle);
+
+    // 1. Dropdown must be closed
+    await waitFor(() => {
+      expect(screen.queryByText('Đã đọc tất cả')).not.toBeInTheDocument();
+    });
+
+    // 2. Modal table must appear immediately
+    expect(screen.getByText('Chi tiết thông báo')).toBeInTheDocument();
+    expect(screen.getByText('Quản trị viên đã phê duyệt thay đổi ảnh đại diện của bạn.')).toBeInTheDocument();
+    expect(screen.getByText('Thông tin chi tiết')).toBeInTheDocument();
+    expect(screen.getByText('Phòng Đào tạo (Quản trị viên)')).toBeInTheDocument();
+    expect(screen.getByText('Đã phê duyệt')).toBeInTheDocument();
+
+    // 3. Item was marked as read
+    expect(notificationsApi.markRead).toHaveBeenCalledWith('notif-avatar-99');
+
+    // 4. "Đi tới trang liên quan" button is present and works
+    const goToRelatedBtn = screen.getByRole('button', { name: /Đi tới trang liên quan/i });
+    expect(goToRelatedBtn).toBeInTheDocument();
+
+    fireEvent.click(goToRelatedBtn);
+
+    // 5. Modal closes and navigates to target link
+    await waitFor(() => {
+      expect(screen.queryByText('Chi tiết thông báo')).not.toBeInTheDocument();
+      expect(mockNavigate).toHaveBeenCalledWith('/teacher');
+    });
+  });
+
+  it('does not render redundant eye icon and closes detail modal on Escape or backdrop click', async () => {
+    const teacherUser = {
+      id: 2,
+      _id: 'gv-1',
+      hoTen: 'Thầy Nguyễn Văn Bình',
+      role: 'giao-vien',
+    };
+
+    const avatarNotif = [
+      {
+        _id: 'notif-avatar-99',
+        type: 'approval',
+        title: 'Yêu cầu thay đổi đã được phê duyệt',
+        message: 'Quản trị viên đã phê duyệt thay đổi ảnh đại diện của bạn.',
+        link: '/teacher',
+        isRead: false,
+        createdAt: new Date().toISOString(),
+        metadata: { requestId: 'req-avatar-123' },
+      },
+    ];
+
+    notificationsApi.list.mockResolvedValueOnce({
+      data: avatarNotif,
+    });
+
+    render(
+      <MemoryRouter>
+        <NotificationBell currentUser={teacherUser} customRole="giao-vien" />
+      </MemoryRouter>
+    );
+
+    const bellBtn = await screen.findByRole('button', { name: /Xem thông báo/i });
+    fireEvent.click(bellBtn);
+
+    // Eye icon must be removed completely
+    expect(screen.queryByTitle('Xem chi tiết nội dung')).not.toBeInTheDocument();
+
+    // Clicking the item opens the modal
+    const item = await screen.findByText('Yêu cầu thay đổi đã được phê duyệt');
+    fireEvent.click(item);
+
+    expect(screen.getByText('Chi tiết thông báo')).toBeInTheDocument();
+
+    // Press Escape to close
+    fireEvent.keyDown(window, { key: 'Escape', code: 'Escape' });
+    await waitFor(() => {
+      expect(screen.queryByText('Chi tiết thông báo')).not.toBeInTheDocument();
+    });
+  });
+});

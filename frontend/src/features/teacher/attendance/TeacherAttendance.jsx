@@ -11,7 +11,7 @@ import { useDebounce } from '../../../lib/useDebounce.js';
 import { useMyTeacherClasses, useClassStudents } from '../useTeacherClasses.js';
 import { attendanceApi } from '../../../api/attendanceApi.js';
 import { formatStudentCode } from '../../../lib/format.js';
-import { exportSheet } from '../../../lib/excel.js';
+import { exportSheet, exportWorkbook } from '../../../lib/excel.js';
 import {
   getTodayDateString,
   formatAttendanceDate,
@@ -573,6 +573,47 @@ function TeacherClassAccordionCard({
     }
   };
 
+  const handleDownloadTemplate = async () => {
+    if (students.length === 0) return toast.error('Không có dữ liệu sinh viên để tạo biểu mẫu');
+    try {
+      const templateRows = filteredStudents.map((s) => {
+        const row = {
+          STT: s.index,
+          'Mã sinh viên': formatStudentCode(s.id),
+          'Họ và tên': s.hoTen,
+          'Lớp sinh hoạt': s.className || '',
+          'Ghi chú': '',
+        };
+
+        sessions.forEach((ses) => {
+          const colName = `Buổi ${ses.sessionNumber} (${ses.shortDate})`;
+          row[colName] = '';
+        });
+
+        return row;
+      });
+
+      const symbolGuideRows = [
+        { 'Ký hiệu điểm danh': 'Có mặt (hoặc P)', 'Ý nghĩa': 'Sinh viên tham gia buổi học đầy đủ', 'Tính chuyên cần': '100%' },
+        { 'Ký hiệu điểm danh': 'Đi muộn (hoặc L)', 'Ý nghĩa': 'Sinh viên vào lớp trễ', 'Tính chuyên cần': '50%' },
+        { 'Ký hiệu điểm danh': 'Vắng có phép (hoặc E)', 'Ý nghĩa': 'Sinh viên xin nghỉ có đơn/lý do chính đáng', 'Tính chuyên cần': 'Không trừ chuyên cần' },
+        { 'Ký hiệu điểm danh': 'Vắng không phép (hoặc A)', 'Ý nghĩa': 'Sinh viên vắng mặt không lý do', 'Tính chuyên cần': '0%' },
+      ];
+
+      const sheets = [
+        { sheetName: 'BieuMau_DiemDanh', rows: templateRows },
+        { sheetName: 'QuyDinh_KyHieu', rows: symbolGuideRows },
+      ];
+
+      await exportWorkbook(sheets, {
+        fileName: `bieu-mau-diem-danh-${classId || 'lop'}.xlsx`,
+      });
+      toast.success('Đã tải xuống biểu mẫu điểm danh kèm danh sách sinh viên lớp!');
+    } catch {
+      toast.error('Lỗi khi tải biểu mẫu điểm danh');
+    }
+  };
+
   const rate = classStats.avgRate;
   let rateBadgeClass = 'bg-emerald-50 text-emerald-700 border-emerald-200';
   let rateDotClass = 'bg-emerald-500';
@@ -737,6 +778,17 @@ function TeacherClassAccordionCard({
                 </button>
               )}
 
+
+              {/* Biểu Mẫu Button */}
+              <button
+                type="button"
+                onClick={handleDownloadTemplate}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold transition shadow-2xs active:scale-95 cursor-pointer"
+                title="Tải biểu mẫu Excel điểm danh lớp này kèm danh sách sinh viên và các buổi học từ CSDL"
+              >
+                <i className="fas fa-file-excel text-emerald-600 text-xs" />
+                <span>Biểu mẫu</span>
+              </button>
 
               {/* Export Excel Button */}
               <button

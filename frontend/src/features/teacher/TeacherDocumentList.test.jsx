@@ -258,7 +258,7 @@ describe('TeacherDocumentList (Grouped by Class)', () => {
     fireEvent.click(editBtns[0]);
 
     const fileInput = screen.getByTestId('edit-document-file-input');
-    const newFile = new File(['mock content'], 'TaiLieuThayThe.docx', { type: 'application/docx' });
+    const newFile = new File(['mock content'], 'TaiLieuThayThe.pdf', { type: 'application/pdf' });
     fireEvent.change(fileInput, { target: { files: [newFile] } });
 
     expect(screen.getByTestId('edit-file-preview-card')).toBeInTheDocument();

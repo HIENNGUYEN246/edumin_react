@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import { AppError } from '../../lib/AppError.js';
 import { ROLES } from '../../lib/roles.js';
 import { Assignment, Submission } from './assignment.model.js';

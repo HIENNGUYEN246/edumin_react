@@ -8,7 +8,7 @@ import { useToast } from '../../../app/providers/ToastProvider.jsx';
 import { useConfirm } from '../../../app/providers/ConfirmProvider.jsx';
 import { useDebounce } from '../../../lib/useDebounce.js';
 import { formatCurrency, DEFAULT_GRADE_WEIGHTS, GRADE_COMPONENTS } from '../../../lib/format.js';
-import { readSheet, exportSheet } from '../../../lib/excel.js';
+import { readSheet, exportSheet, exportWorkbook } from '../../../lib/excel.js';
 import { useDepartments } from '../departments/useDepartments.js';
 import { useCourses, useCourseMutations } from './useCourses.js';
 import { coursesApi } from '../../../api/coursesApi.js';
@@ -284,13 +284,16 @@ export function ManageCourses() {
 
   const onDownloadTemplate = async () => {
     try {
+      const sampleDept = departments[0]?.id || 'CNTT';
+      const sampleDept2 = departments[1]?.id || departments[0]?.id || 'CNTT';
+
       const templateRows = [
         {
           Ma: 'CS101',
           Ten: 'Nhập môn Lập trình',
           SoTinChi: 3,
           HocPhi: 1500000,
-          Khoa: departments[0]?.id || 'CNTT',
+          Khoa: sampleDept,
           LoaiHocPhan: 'LT_TH',
           TietLyThuyet: 30,
           TietThucHanh: 30,
@@ -300,16 +303,50 @@ export function ManageCourses() {
           Ten: 'Cấu trúc dữ liệu và giải thuật',
           SoTinChi: 4,
           HocPhi: 2000000,
-          Khoa: departments[0]?.id || 'CNTT',
+          Khoa: sampleDept2,
           LoaiHocPhan: 'LT_TH',
           TietLyThuyet: 45,
           TietThucHanh: 30,
         },
       ];
-      await exportSheet(templateRows, { fileName: 'file-mau-hoc-phan.xlsx', sheetName: 'HocPhan' });
-      toast.success('Đã tải xuống file mẫu học phần!');
+
+      // Sheet 2: Danh mục Khoa từ CSDL để người dùng biết đường điền đúng Mã Khoa
+      const deptRefRows = (departments || []).map((d, idx) => ({
+        STT: idx + 1,
+        'Mã Khoa (Điền cột Khoa)': d.id || d._id,
+        'Tên Khoa': d.name || d.tenKhoa || '',
+        'Trưởng Khoa': typeof d.dean === 'object' ? d.dean?.hoTen || d.dean?.name || '' : d.dean || '',
+        'Ghi chú': 'Bắt buộc điền đúng Mã Khoa này ở Sheet biểu mẫu',
+      }));
+
+      // Sheet 3: Quy chuẩn loại học phần và số tiết
+      const typeRefRows = [
+        { 'Mã Loại (Cột LoaiHocPhan)': 'LT', 'Tên Loại': 'Lý thuyết', 'Quy tắc tiết': 'TietLyThuyet = SoTinChi * 15, TietThucHanh = 0' },
+        { 'Mã Loại (Cột LoaiHocPhan)': 'TH', 'Tên Loại': 'Thực hành', 'Quy tắc tiết': 'TietLyThuyet = 0, TietThucHanh = SoTinChi * 30' },
+        { 'Mã Loại (Cột LoaiHocPhan)': 'LT_TH', 'Tên Loại': 'Lý thuyết & Thực hành', 'Quy tắc tiết': 'Phân bổ cả tiết lý thuyết và thực hành' },
+        { 'Mã Loại (Cột LoaiHocPhan)': 'DA', 'Tên Loại': 'Đồ án / Khóa luận', 'Quy tắc tiết': 'Tự học và hướng dẫn nghiên cứu' },
+      ];
+
+      // Sheet 4: Mẫu học phần hiện có trong CSDL để tham khảo
+      const sampleExisting = (courses || []).slice(0, 15).map((c) => ({
+        'Mã HP hiện có': c.id,
+        'Tên học phần': c.name,
+        'Số tín chỉ': c.credits,
+        'Khoa': typeof c.department === 'object' ? c.department?.id || c.department?.name : c.department,
+        'Học phí': c.fee,
+      }));
+
+      const sheets = [
+        { sheetName: 'BieuMau_HocPhan', rows: templateRows },
+        { sheetName: 'DanhMucKhoa_CSDL', rows: deptRefRows.length ? deptRefRows : [{ 'Mã Khoa (Điền cột Khoa)': 'CNTT', 'Tên Khoa': 'Công nghệ thông tin' }] },
+        { sheetName: 'QuyChuan_LoaiHocPhan', rows: typeRefRows },
+        ...(sampleExisting.length ? [{ sheetName: 'HocPhan_ThamKhao_CSDL', rows: sampleExisting }] : []),
+      ];
+
+      await exportWorkbook(sheets, { fileName: 'bieu-mau-hoc-phan.xlsx' });
+      toast.success('Đã tải xuống biểu mẫu học phần kèm dữ liệu tham chiếu CSDL!');
     } catch (err) {
-      toast.error('Lỗi khi tải file mẫu');
+      toast.error('Lỗi khi tải biểu mẫu học phần');
     }
   };
 
@@ -424,10 +461,10 @@ export function ManageCourses() {
               type="button"
               onClick={onDownloadTemplate}
               className="inline-flex items-center justify-center gap-1.5 h-9 px-3.5 rounded-xl bg-white text-slate-700 hover:bg-slate-50 border border-slate-200 shadow-xs hover:shadow transition active:scale-[0.98] text-xs font-semibold cursor-pointer whitespace-nowrap"
-              title="Tải xuống tệp Excel mẫu chuẩn cột"
+              title="Tải xuống tệp biểu mẫu Excel chuẩn kèm dữ liệu danh mục khoa từ CSDL"
             >
               <i className="fas fa-file-excel text-emerald-600 text-xs" />
-              <span>File mẫu</span>
+              <span>Biểu mẫu</span>
             </button>
             <button
               type="button"

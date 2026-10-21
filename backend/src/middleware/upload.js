@@ -3,19 +3,6 @@ import { config } from '../config/env.js';
 import { AppError } from '../lib/AppError.js';
 
 const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-const DOC_TYPES = [
-  ...IMAGE_TYPES,
-  'application/pdf',
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'application/vnd.ms-excel',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  'application/vnd.ms-powerpoint',
-  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-  'application/zip',
-  'application/x-zip-compressed',
-  'text/plain',
-];
 
 /** In-memory single-file upload; the buffer is streamed to Cloudinary. */
 function makeUploader(allowed) {
@@ -31,7 +18,27 @@ function makeUploader(allowed) {
 
 export const uploadImage = makeUploader(IMAGE_TYPES).single('file');
 
-const documentMulter = makeUploader(DOC_TYPES).fields([
+/** Strict PDF-only uploader for course learning documents */
+function makeDocumentUploader() {
+  return multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: config.uploadMaxBytes },
+    fileFilter: (_req, file, cb) => {
+      const isPdfMime = file.mimetype === 'application/pdf';
+      const isPdfExt = file.originalname && file.originalname.toLowerCase().endsWith('.pdf');
+      if (isPdfMime || isPdfExt) {
+        return cb(null, true);
+      }
+      cb(
+        AppError.badRequest(
+          `Tệp "${file.originalname}" không hợp lệ. Hệ thống chỉ chấp nhận tệp tài liệu định dạng PDF (.pdf). Vui lòng lưu/xuất file sang PDF trước khi tải lên. Các định dạng khác và thư mục đều bị từ chối.`
+        )
+      );
+    },
+  });
+}
+
+const documentMulter = makeDocumentUploader().fields([
   { name: 'file', maxCount: 1 },
   { name: 'files', maxCount: 10 },
 ]);

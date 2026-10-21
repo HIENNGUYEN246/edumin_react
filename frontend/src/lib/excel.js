@@ -33,3 +33,16 @@ export async function exportSheet(rows, { fileName = 'export.xlsx', sheetName = 
   XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
   XLSX.writeFile(workbook, fileName);
 }
+
+/** Export multiple sheets into a single downloaded .xlsx file.
+ *  sheets: Array of { sheetName: string, rows: Array<object> }
+ */
+export async function exportWorkbook(sheets = [], { fileName = 'export.xlsx' } = {}) {
+  const XLSX = await loadXlsx();
+  const workbook = XLSX.utils.book_new();
+  sheets.forEach(({ sheetName = 'Sheet', rows = [] }) => {
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+  });
+  XLSX.writeFile(workbook, fileName);
+}

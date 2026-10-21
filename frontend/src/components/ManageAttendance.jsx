@@ -168,6 +168,59 @@ export default function ManageAttendance() {
     XLSX.writeFile(workbook, `BaoCao_DiemDanh_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
+  // Download Biểu Mẫu template based on actual students & courses
+  const handleDownloadTemplate = () => {
+    try {
+      const sample1 = students[0];
+      const sample2 = students[1] || sample1;
+      const sampleCourse = courses[0];
+
+      const templateRows = [
+        {
+          STT: 1,
+          'Mã SV': sample1?.id ? `SV-${String(sample1.id).padStart(3, '0')}` : 'SV-1001',
+          'Họ và tên': sample1?.hoTen || 'Nguyễn Văn An',
+          Email: sample1?.email || 'an.nguyen@student.edu.vn',
+          'Mã HP': sampleCourse?.id || 'IT101',
+          'Tên học phần': sampleCourse?.name || 'Lập trình căn bản',
+          'Ngày học': new Date().toISOString().slice(0, 10),
+          'Ca học': 'Ca 1 (Tiết 1-3)',
+          'Trạng thái': 'Có mặt',
+          'Điểm số': 10,
+          'Nhận xét đánh giá': 'Tích cực tham gia phát biểu và làm bài tập',
+        },
+        {
+          STT: 2,
+          'Mã SV': sample2?.id ? `SV-${String(sample2.id).padStart(3, '0')}` : 'SV-1002',
+          'Họ và tên': sample2?.hoTen || 'Trần Thị Mai',
+          Email: sample2?.email || 'mai.tran@student.edu.vn',
+          'Mã HP': sampleCourse?.id || 'IT101',
+          'Tên học phần': sampleCourse?.name || 'Lập trình căn bản',
+          'Ngày học': new Date().toISOString().slice(0, 10),
+          'Ca học': 'Ca 1 (Tiết 1-3)',
+          'Trạng thái': 'Đi muộn',
+          'Điểm số': 7,
+          'Nhận xét đánh giá': 'Vào lớp trễ 15 phút',
+        },
+      ];
+
+      const guideRows = [
+        { 'Trường dữ liệu': 'Mã SV', 'Quy tắc': 'Bắt buộc khớp với Mã SV trong hệ thống (SV-001, SV-1001...)' },
+        { 'Trường dữ liệu': 'Mã HP', 'Quy tắc': 'Bắt buộc khớp với Mã học phần thực tế (IT101, CS102...)' },
+        { 'Trường dữ liệu': 'Trạng thái', 'Quy tắc': 'Có mặt, Đi muộn, Vắng có phép hoặc Vắng không phép' },
+        { 'Trường dữ liệu': 'Điểm số', 'Quy tắc': 'Thang điểm 0 - 10' },
+      ];
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(templateRows), 'BieuMau_DiemDanh');
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(guideRows), 'HuongDan_QuyDinh');
+      XLSX.writeFile(wb, 'bieu-mau-diem-danh-toan-truong.xlsx');
+      Swal.fire('Thành công', 'Đã tải xuống biểu mẫu Excel điểm danh!', 'success');
+    } catch {
+      Swal.fire('Lỗi', 'Không tạo được file biểu mẫu Excel.', 'error');
+    }
+  };
+
   // Open detail / edit modal
   const openDetailModal = (record) => {
     setDetailModal({
@@ -243,11 +296,20 @@ export default function ManageAttendance() {
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
+            <button
+              type="button"
+              onClick={handleDownloadTemplate}
+              className="px-4 py-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-xl text-sm font-semibold shadow-xs transition flex items-center gap-2 cursor-pointer"
+              title="Tải biểu mẫu Excel điểm danh chuẩn hệ thống"
+            >
+              <i className="fas fa-file-excel text-emerald-600" />
+              <span>Biểu mẫu</span>
+            </button>
             <button
               type="button"
               onClick={handleExportExcel}
-              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold shadow-sm transition flex items-center gap-2"
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold shadow-sm transition flex items-center gap-2 cursor-pointer"
             >
               <i className="fas fa-file-excel" />
               <span>Xuất Excel</span>

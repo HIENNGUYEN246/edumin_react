@@ -9,7 +9,7 @@ import { useToast } from '../../app/providers/ToastProvider.jsx';
 import { useConfirm } from '../../app/providers/ConfirmProvider.jsx';
 import { useDebounce } from '../../lib/useDebounce.js';
 import { tuitionApi } from '../../api/tuitionApi.js';
-import { readSheet, exportSheet } from '../../lib/excel.js';
+import { readSheet, exportSheet, exportWorkbook } from '../../lib/excel.js';
 import { formatCurrency, formatDate, formatStudentCode, getTodayDate } from '../../lib/format.js';
 
 const getDefaultDueDate = () => {
@@ -298,6 +298,73 @@ export function ManageTuition() {
     }
   };
 
+  // Download Biểu Mẫu with reference data from DB
+  const handleDownloadTemplate = async () => {
+    try {
+      const currentList = data?.data || [];
+      const sample1 = currentList[0];
+      const sample2 = currentList[1] || sample1;
+
+      const templateRows = [
+        {
+          'Mã SV': sample1?.student?.id != null ? formatStudentCode(sample1.student.id) : (sample1?.studentId ? `SV-${sample1.studentId}` : 'SV-1001'),
+          'Họ tên': sample1?.student?.hoTen || 'Nguyễn Văn An',
+          'Lớp': sample1?.className || 'CNTT-K18A',
+          'Học kỳ': sample1?.semester || selectedSemester || 'HK1-2025-2026',
+          'Học phí': sample1?.amount || 15000000,
+          'Đã nộp': sample1?.amountDue || sample1?.amount || 15000000,
+          'Hình thức': 'Chuyển khoản',
+          'Ghi chú': 'Nộp học phí kỳ mới qua STK ngân hàng',
+        },
+        {
+          'Mã SV': sample2?.student?.id != null ? formatStudentCode(sample2.student.id) : (sample2?.studentId ? `SV-${sample2.studentId}` : 'SV-1002'),
+          'Họ tên': sample2?.student?.hoTen || 'Trần Thị Mai',
+          'Lớp': sample2?.className || 'CNTT-K18A',
+          'Học kỳ': sample2?.semester || selectedSemester || 'HK1-2025-2026',
+          'Học phí': sample2?.amount || 15000000,
+          'Đã nộp': 5000000,
+          'Hình thức': 'Chuyển khoản',
+          'Ghi chú': 'Nộp đợt 1',
+        },
+      ];
+
+      // Sheet 2: Danh sách sinh viên công nợ thực tế trong CSDL
+      const studentDebtRows = currentList.slice(0, 100).map((t, idx) => ({
+        STT: idx + 1,
+        'Mã SV (Điền cột Mã SV)': t.student?.id != null ? formatStudentCode(t.student.id) : (t.studentId ? `SV-${t.studentId}` : ''),
+        'Họ và tên': t.student?.hoTen || '',
+        'Lớp sinh hoạt': t.className || '',
+        'Học kỳ': t.semester || '',
+        'Học phí': t.amount || 0,
+        'Đã nộp': t.amountPaid || 0,
+        'Còn nợ': t.amountDue || 0,
+        'Trạng thái': t.status || '',
+      }));
+
+      // Sheet 3: Hướng dẫn
+      const guideRows = [
+        { 'Cột dữ liệu': 'Mã SV', 'Bắt buộc': 'Bắt buộc', 'Quy tắc': 'Phải khớp với Mã SV trong CSDL (ví dụ: SV-1001)' },
+        { 'Cột dữ liệu': 'Họ tên', 'Bắt buộc': 'Tùy chọn', 'Quy tắc': 'Họ và tên của sinh viên' },
+        { 'Cột dữ liệu': 'Học kỳ', 'Bắt buộc': 'Bắt buộc', 'Quy tắc': 'Ví dụ: HK1-2025-2026, HK2-2025-2026' },
+        { 'Cột dữ liệu': 'Học phí', 'Bắt buộc': 'Bắt buộc', 'Quy tắc': 'Số tiền học phí (số nguyên, ví dụ: 15000000)' },
+        { 'Cột dữ liệu': 'Đã nộp', 'Bắt buộc': 'Bắt buộc', 'Quy tắc': 'Số tiền thực tế sinh viên đã nộp' },
+        { 'Cột dữ liệu': 'Hình thức', 'Bắt buộc': 'Tùy chọn', 'Quy tắc': 'Chuyển khoản, Tiền mặt hoặc POS' },
+        { 'Cột dữ liệu': 'Ghi chú', 'Bắt buộc': 'Tùy chọn', 'Quy tắc': 'Mã giao dịch ngân hàng hoặc nội dung chuyển tiền' },
+      ];
+
+      const sheets = [
+        { sheetName: 'BieuMau_ThuHocPhi', rows: templateRows },
+        ...(studentDebtRows.length ? [{ sheetName: 'SinhVien_CongNo_CSDL', rows: studentDebtRows }] : []),
+        { sheetName: 'HuongDan_NhapSaoKe', rows: guideRows },
+      ];
+
+      await exportWorkbook(sheets, { fileName: `bieu-mau-thu-hoc-phi-${selectedSemester || 'ky-moi'}.xlsx` });
+      toast.success('Đã tải xuống biểu mẫu thu học phí kèm danh sách sinh viên CSDL!');
+    } catch (err) {
+      toast.error(err?.message || 'Lỗi khi tải biểu mẫu học phí');
+    }
+  };
+
   const columns = [
     {
       key: 'student',
@@ -459,6 +526,16 @@ export function ManageTuition() {
             >
               <i className="fas fa-file-import text-emerald-600" />
               <span>Import Excel / Sao kê</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleDownloadTemplate}
+              className="inline-flex items-center justify-center gap-1.5 h-9 px-3.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-xl text-xs font-semibold shadow-xs hover:shadow transition active:scale-[0.98] cursor-pointer whitespace-nowrap"
+              title="Tải biểu mẫu Excel sao kê học phí kèm danh sách sinh viên nợ từ CSDL"
+            >
+              <i className="fas fa-file-excel text-emerald-600 text-xs" />
+              <span>Biểu mẫu</span>
             </button>
 
             <button

@@ -185,6 +185,17 @@ export async function createDocument({ courseId, classId, name, status, link }, 
 
   if (fileList.length > 0) {
     for (const file of fileList) {
+      const isPdfExt = file.originalname && file.originalname.toLowerCase().endsWith('.pdf');
+      const isPdfMime = file.mimetype === 'application/pdf';
+      const isPdfMagic = file.buffer && file.buffer.length >= 4 && file.buffer.slice(0, 4).toString() === '%PDF';
+      if (!isPdfExt || (!isPdfMime && !isPdfMagic)) {
+        throw AppError.badRequest(
+          `Tệp "${file.originalname}" không hợp lệ. Hệ thống chỉ chấp nhận tệp tài liệu định dạng PDF (.pdf). Vui lòng lưu/xuất file sang PDF trước khi tải lên. Các định dạng khác và thư mục đều bị từ chối.`
+        );
+      }
+    }
+
+    for (const file of fileList) {
       const uploaded = await filesService.uploadBuffer(file.buffer, {
         folder: 'documents',
         resourceType: 'auto',
@@ -287,6 +298,14 @@ export async function updateDocument(id, body, fileOrUser, maybeUser) {
 
   // If a new file is uploaded, upload buffer and update file metadata
   if (file && file.buffer) {
+    const isPdfExt = file.originalname && file.originalname.toLowerCase().endsWith('.pdf');
+    const isPdfMime = file.mimetype === 'application/pdf';
+    const isPdfMagic = file.buffer && file.buffer.length >= 4 && file.buffer.slice(0, 4).toString() === '%PDF';
+    if (!isPdfExt || (!isPdfMime && !isPdfMagic)) {
+      throw AppError.badRequest(
+        `Tệp "${file.originalname}" không hợp lệ. Hệ thống chỉ chấp nhận tệp tài liệu định dạng PDF (.pdf). Vui lòng lưu/xuất file sang PDF trước khi tải lên. Các định dạng khác và thư mục đều bị từ chối.`
+      );
+    }
     const oldPublicId = doc.file?.publicId;
     const oldResourceType = doc.file?.resourceType;
 

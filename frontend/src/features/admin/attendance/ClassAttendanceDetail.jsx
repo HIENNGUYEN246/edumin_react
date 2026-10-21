@@ -7,6 +7,7 @@ import { useToast } from '../../../app/providers/ToastProvider.jsx';
 import { useConfirm } from '../../../app/providers/ConfirmProvider.jsx';
 import { useDebounce } from '../../../lib/useDebounce.js';
 import { formatStudentCode } from '../../../lib/format.js';
+import { exportSheet, exportWorkbook } from '../../../lib/excel.js';
 import { attendanceApi } from '../../../api/attendanceApi.js';
 import { classesApi } from '../../../api/classesApi.js';
 import {
@@ -305,6 +306,76 @@ export function ClassAttendanceDetail({ classItem, onBack }) {
     }
   };
 
+  const handleDownloadTemplate = async () => {
+    if (!students.length) return toast.error('Lớp chưa có sinh viên để tạo biểu mẫu');
+    try {
+      const templateRows = students.map((s, idx) => {
+        const row = {
+          STT: idx + 1,
+          'Mã sinh viên': formatStudentCode(s.id),
+          'Họ và tên': s.hoTen,
+          'Lớp sinh hoạt': s.className || '',
+          'Ghi chú': '',
+        };
+        sessions.forEach((ses) => {
+          const colName = `Buổi ${ses.sessionNumber} (${ses.shortDate})`;
+          row[colName] = '';
+        });
+        return row;
+      });
+
+      const symbolGuideRows = [
+        { 'Ký hiệu điểm danh': 'Có mặt (hoặc P)', 'Ý nghĩa': 'Sinh viên tham gia đầy đủ', 'Tính chuyên cần': '100%' },
+        { 'Ký hiệu điểm danh': 'Đi muộn (hoặc L)', 'Ý nghĩa': 'Sinh viên vào lớp trễ', 'Tính chuyên cần': '50%' },
+        { 'Ký hiệu điểm danh': 'Vắng có phép (hoặc E)', 'Ý nghĩa': 'Có đơn xin nghỉ phép', 'Tính chuyên cần': 'Không trừ chuyên cần' },
+        { 'Ký hiệu điểm danh': 'Vắng không phép (hoặc A)', 'Ý nghĩa': 'Vắng mặt không lý do', 'Tính chuyên cần': '0%' },
+      ];
+
+      const sheets = [
+        { sheetName: 'BieuMau_DiemDanh', rows: templateRows },
+        { sheetName: 'QuyDinh_KyHieu', rows: symbolGuideRows },
+      ];
+
+      await exportWorkbook(sheets, { fileName: `bieu-mau-diem-danh-${classItem.id}.xlsx` });
+      toast.success('Đã tải xuống biểu mẫu điểm danh kèm danh sách sinh viên lớp!');
+    } catch {
+      toast.error('Lỗi khi tải biểu mẫu điểm danh');
+    }
+  };
+
+  const handleExportExcel = async () => {
+    if (!students.length) return toast.error('Không có dữ liệu sinh viên để xuất Excel');
+    try {
+      const rows = students.map((s, idx) => {
+        const row = {
+          STT: idx + 1,
+          'Mã sinh viên': formatStudentCode(s.id),
+          'Họ và tên': s.hoTen,
+          'Lớp sinh hoạt': s.className || '',
+          'Chuyên cần (%)': `${s.rate}%`,
+          'Có mặt': s.present,
+          'Đi muộn': s.late,
+          'Vắng có phép': s.excused,
+          'Vắng không phép': s.absent,
+        };
+        sessions.forEach((ses) => {
+          const val = getCellValue(s.id, ses.date);
+          const colName = `Buổi ${ses.sessionNumber} (${ses.shortDate})`;
+          row[colName] = val.status || '-';
+        });
+        return row;
+      });
+
+      await exportSheet(rows, {
+        fileName: `Diem_danh_${classItem.id}_${getTodayDateString()}.xlsx`,
+        sheetName: 'Diem_Danh_Ma_Tran',
+      });
+      toast.success('Đã xuất file Excel bảng điểm danh thành công!');
+    } catch {
+      toast.error('Lỗi khi xuất file Excel');
+    }
+  };
+
   return (
     <div className="space-y-5">
       {/* Top Header Card: Cân đối, không thừa khoảng trắng */}
@@ -356,16 +427,36 @@ export function ClassAttendanceDetail({ classItem, onBack }) {
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={loadClassData}
-            disabled={loading}
-            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold text-gray-600 bg-gray-50 hover:bg-gray-100 border border-gray-200 transition"
-            title="Tải lại dữ liệu điểm danh"
-          >
-            <i className={`fas fa-rotate-right ${loading ? 'fa-spin text-indigo-600' : ''}`} />
-            <span>Làm mới</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleDownloadTemplate}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 transition cursor-pointer shadow-2xs"
+              title="Tải biểu mẫu Excel điểm danh kèm danh sách sinh viên lớp từ CSDL"
+            >
+              <i className="fas fa-file-excel text-emerald-600 text-xs" />
+              <span>Biểu mẫu</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleExportExcel}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 transition cursor-pointer shadow-2xs"
+              title="Xuất bảng điểm danh lớp này ra file Excel"
+            >
+              <i className="fas fa-file-export text-slate-600 text-xs" />
+              <span>Xuất Excel</span>
+            </button>
+            <button
+              type="button"
+              onClick={loadClassData}
+              disabled={loading}
+              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold text-gray-600 bg-gray-50 hover:bg-gray-100 border border-gray-200 transition cursor-pointer"
+              title="Tải lại dữ liệu điểm danh"
+            >
+              <i className={`fas fa-rotate-right ${loading ? 'fa-spin text-indigo-600' : ''}`} />
+              <span>Làm mới</span>
+            </button>
+          </div>
         </div>
       </div>
 

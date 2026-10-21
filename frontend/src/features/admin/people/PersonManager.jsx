@@ -12,7 +12,7 @@ import { useDebounce } from '../../../lib/useDebounce.js';
 import { useDepartments } from '../departments/useDepartments.js';
 import { usePeople, usePeopleMutations } from './usePeople.js';
 import { PersonFormModal } from './PersonFormModal.jsx';
-import { readSheet, exportSheet } from '../../../lib/excel.js';
+import { readSheet, exportSheet, exportWorkbook } from '../../../lib/excel.js';
 import { accountsApi } from '../../../api/accountsApi.js';
 
 const LOCK_REASONS = ['Vi phạm quy định', 'Nghỉ học/nghỉ dạy', 'Yêu cầu từ quản lý', 'Khác'];
@@ -373,13 +373,16 @@ export function PersonManager({ config }) {
   const onDownloadTemplate = async () => {
     try {
       const isStudent = config.queryKey === 'students' || (config.entityLabel && config.entityLabel.toLowerCase().includes('sinh viên'));
+      const sampleDept = departments[0]?.id || 'CNTT';
+      const sampleDept2 = departments[1]?.id || departments[0]?.id || 'CNTT';
+
       const templateRows = isStudent
         ? [
             {
               Ma: 'SV-1001',
               HoTen: 'Nguyễn Văn An',
               Email: 'an.nguyen@student.edu.vn',
-              Khoa: departments[0]?.id || 'CNTT',
+              Khoa: sampleDept,
               Lop: 'CNTT-K18A',
               GioiTinh: 'Nam',
               NgaySinh: '2004-05-15',
@@ -391,7 +394,7 @@ export function PersonManager({ config }) {
               Ma: 'SV-1002',
               HoTen: 'Trần Thị Mai',
               Email: 'mai.tran@student.edu.vn',
-              Khoa: departments[0]?.id || 'CNTT',
+              Khoa: sampleDept2,
               Lop: 'CNTT-K18A',
               GioiTinh: 'Nữ',
               NgaySinh: '2004-08-20',
@@ -405,7 +408,7 @@ export function PersonManager({ config }) {
               Ma: 'GV-101',
               HoTen: 'TS. Trần Văn Bình',
               Email: 'binh.tran@edu.vn',
-              Khoa: departments[0]?.id || 'CNTT',
+              Khoa: sampleDept,
               GioiTinh: 'Nam',
               NgaySinh: '1985-03-12',
               SoDienThoai: '0903123456',
@@ -416,7 +419,7 @@ export function PersonManager({ config }) {
               Ma: 'GV-102',
               HoTen: 'ThS. Lê Thị Hoa',
               Email: 'hoa.le@edu.vn',
-              Khoa: departments[0]?.id || 'CNTT',
+              Khoa: sampleDept2,
               GioiTinh: 'Nữ',
               NgaySinh: '1990-11-25',
               SoDienThoai: '0914567890',
@@ -425,11 +428,45 @@ export function PersonManager({ config }) {
             },
           ];
 
-      const fileName = isStudent ? 'file-mau-sinh-vien.xlsx' : 'file-mau-giang-vien.xlsx';
-      await exportSheet(templateRows, { fileName, sheetName: isStudent ? 'SinhVien' : 'GiangVien' });
-      toast.success('Đã tải xuống file mẫu Excel!');
+      // Sheet 2: Danh sách Khoa thực tế từ Database để người dùng biết đường điền đúng mã Khoa
+      const deptRefRows = (departments || []).map((d, idx) => ({
+        STT: idx + 1,
+        'Mã Khoa (Điền cột Khoa)': d.id || d._id,
+        'Tên Khoa': d.name || d.tenKhoa || '',
+        'Trưởng Khoa': typeof d.dean === 'object' ? d.dean?.hoTen || d.dean?.name || '' : d.dean || '',
+        'Ghi chú': 'Bắt buộc điền đúng Mã Khoa này ở Sheet biểu mẫu',
+      }));
+
+      // Sheet 3: Hướng dẫn quy cách nhập liệu chuẩn
+      const guideRows = [
+        { 'Trường dữ liệu': 'Ma', 'Bắt buộc': 'Bắt buộc', 'Quy tắc hợp lệ': 'Mã định danh duy nhất (ví dụ: SV-1001, GV-101)' },
+        { 'Trường dữ liệu': 'HoTen', 'Bắt buộc': 'Bắt buộc', 'Quy tắc hợp lệ': 'Họ và tên đầy đủ' },
+        { 'Trường dữ liệu': 'Email', 'Bắt buộc': 'Bắt buộc', 'Quy tắc hợp lệ': 'Email hợp lệ, không trùng với tài khoản đã có' },
+        { 'Trường dữ liệu': 'Khoa', 'Bắt buộc': 'Bắt buộc', 'Quy tắc hợp lệ': 'Phải khớp với Mã Khoa trong Sheet "DanhMucKhoa_CSDL"' },
+        { 'Trường dữ liệu': 'GioiTinh', 'Bắt buộc': 'Tùy chọn', 'Quy tắc hợp lệ': 'Nam hoặc Nữ' },
+        { 'Trường dữ liệu': 'NgaySinh', 'Bắt buộc': 'Tùy chọn', 'Quy tắc hợp lệ': 'Định dạng YYYY-MM-DD (Ví dụ: 2004-05-15)' },
+        { 'Trường dữ liệu': 'SoDienThoai', 'Bắt buộc': 'Tùy chọn', 'Quy tắc hợp lệ': 'Số điện thoại liên hệ 10 số' },
+        ...(isStudent
+          ? [
+              { 'Trường dữ liệu': 'Lop', 'Bắt buộc': 'Tùy chọn', 'Quy tắc hợp lệ': 'Mã lớp sinh hoạt (ví dụ: CNTT-K18A)' },
+              { 'Trường dữ liệu': 'HeDaoTao', 'Bắt buộc': 'Tùy chọn', 'Quy tắc hợp lệ': 'Chính quy, Liên thông, Chất lượng cao...' },
+            ]
+          : [
+              { 'Trường dữ liệu': 'TrinhDo', 'Bắt buộc': 'Tùy chọn', 'Quy tắc hợp lệ': 'Tiến sĩ, Thạc sĩ, Cử nhân, Kỹ sư...' },
+            ]),
+      ];
+
+      const sheets = [
+        { sheetName: isStudent ? 'BieuMau_SinhVien' : 'BieuMau_GiangVien', rows: templateRows },
+        { sheetName: 'DanhMucKhoa_CSDL', rows: deptRefRows.length ? deptRefRows : [{ 'Mã Khoa (Điền cột Khoa)': 'CNTT', 'Tên Khoa': 'Công nghệ thông tin' }] },
+        { sheetName: 'HuongDan_NhapLieu', rows: guideRows },
+      ];
+
+      const fileName = isStudent ? 'bieu-mau-sinh-vien.xlsx' : 'bieu-mau-giang-vien.xlsx';
+      await exportWorkbook(sheets, { fileName });
+      toast.success('Đã tải xuống biểu mẫu Excel kèm dữ liệu tham chiếu CSDL!');
     } catch (err) {
-      toast.error('Lỗi khi tải file mẫu');
+      toast.error('Lỗi khi tải biểu mẫu Excel');
     }
   };
 
@@ -636,10 +673,10 @@ export function PersonManager({ config }) {
               type="button"
               onClick={onDownloadTemplate}
               className="inline-flex items-center justify-center gap-1.5 h-9 px-3.5 rounded-xl bg-white text-slate-700 text-xs font-semibold hover:bg-slate-50 border border-slate-200 shadow-xs hover:shadow transition active:scale-[0.98] cursor-pointer whitespace-nowrap"
-              title="Tải xuống tệp Excel mẫu chuẩn cột"
+              title="Tải xuống tệp biểu mẫu Excel chuẩn kèm dữ liệu danh mục khoa từ CSDL"
             >
               <i className="fas fa-file-excel text-emerald-600 text-xs" />
-              <span>File mẫu</span>
+              <span>Biểu mẫu</span>
             </button>
             <button
               type="button"

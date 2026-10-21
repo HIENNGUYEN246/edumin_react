@@ -227,6 +227,65 @@ export default function ManageFeedbacks() {
     XLSX.writeFile(wb, `Danh_Sach_Phan_Hoi_Sinh_Vien_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
+  const handleDownloadTemplate = () => {
+    try {
+      const sampleCourse = courses[0];
+      const sampleTeacher = teachers[0];
+
+      const templateRows = [
+        {
+          STT: 1,
+          'Mã SV': 'SV-1001',
+          'Họ tên SV': 'Nguyễn Văn An',
+          'Giảng viên': sampleTeacher?.name || sampleTeacher?.hoTen || 'ThS. Nguyễn Văn A',
+          'Học phần': sampleCourse?.name || 'Lập trình căn bản',
+          'Đánh giá sao': 5,
+          'Chất lượng học phần': 'Tốt',
+          'Nội dung góp ý': 'Thầy giảng dạy rất tận tình, bài tập thực tế phong phú.',
+        },
+        {
+          STT: 2,
+          'Mã SV': 'Ẩn danh',
+          'Họ tên SV': 'Sinh viên ẩn danh',
+          'Giảng viên': sampleTeacher?.name || sampleTeacher?.hoTen || 'ThS. Nguyễn Văn A',
+          'Học phần': sampleCourse?.name || 'Lập trình căn bản',
+          'Đánh giá sao': 4,
+          'Chất lượng học phần': 'Ổn',
+          'Nội dung góp ý': 'Mong phòng đào tạo bổ sung thêm slide bài giảng trước buổi học.',
+        },
+      ];
+
+      const courseRefRows = (courses || []).map((c, idx) => ({
+        STT: idx + 1,
+        'Mã HP': c.id,
+        'Tên học phần': c.name,
+      }));
+
+      const teacherRefRows = (teachers || []).map((t, idx) => ({
+        STT: idx + 1,
+        'Mã GV': t.id,
+        'Họ tên Giảng viên': t.name || t.hoTen,
+      }));
+
+      const guideRows = [
+        { 'Cột dữ liệu': 'Đánh giá sao', 'Quy tắc': 'Số nguyên từ 1 đến 5' },
+        { 'Cột dữ liệu': 'Chất lượng học phần', 'Quy tắc': 'Tốt, Ổn, hoặc Cần cải thiện' },
+        { 'Cột dữ liệu': 'Mã SV / Họ tên SV', 'Quy tắc': 'Điền "Ẩn danh" nếu muốn gửi phản hồi kín đáo' },
+      ];
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(templateRows), 'BieuMau_GopYPhanHoi');
+      if (courseRefRows.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(courseRefRows), 'DanhSachHocPhan_CSDL');
+      if (teacherRefRows.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(teacherRefRows), 'DanhSachGiangVien_CSDL');
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(guideRows), 'HuongDan_DanhGia');
+
+      XLSX.writeFile(wb, 'bieu-mau-khao-sat-phan-hoi-sinh-vien.xlsx');
+      Swal.fire('Thành công', 'Đã tải xuống biểu mẫu khảo sát phản hồi sinh viên!', 'success');
+    } catch {
+      Swal.fire('Lỗi', 'Không tạo được file biểu mẫu Excel.', 'error');
+    }
+  };
+
   const getQualityBadge = (quality) => {
     switch (quality) {
       case 'Tốt':
@@ -263,6 +322,13 @@ export default function ManageFeedbacks() {
               title="Khởi tạo hoặc nạp lại dữ liệu phản hồi mẫu"
             >
               <i className="fas fa-magic"></i> Nạp dữ liệu mẫu
+            </button>
+            <button
+              onClick={handleDownloadTemplate}
+              className="inline-flex items-center gap-2 px-3.5 py-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-xl text-xs font-bold shadow-xs transition active:scale-95"
+              title="Tải biểu mẫu Excel khảo sát phản hồi sinh viên"
+            >
+              <i className="fas fa-file-excel text-emerald-600"></i> Biểu mẫu
             </button>
             <button
               onClick={exportExcel}

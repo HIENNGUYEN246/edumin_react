@@ -6,7 +6,7 @@ import { communicationsApi } from '../../../api/communicationsApi.js';
 import { useDebounce } from '../../../lib/useDebounce.js';
 import { PageHeader, SearchInput } from '../../../components/ui/PageHeader.jsx';
 import { Pagination } from '../../../components/ui/Pagination.jsx';
-import { exportSheet, readSheet } from '../../../lib/excel.js';
+import { exportSheet, exportWorkbook, readSheet } from '../../../lib/excel.js';
 
 const PAGE_SIZE = 20;
 const MAX_RECIPIENTS = 100;
@@ -242,19 +242,49 @@ export function AdminEmailNotifications() {
 
   const downloadTemplate = async () => {
     try {
-      await exportSheet(
-        [
-          {
-            'Vai trò': 'Giáo viên',
-            'Email tài khoản': 'hiennguyen123@university.edu.vn',
-            'Email Gmail nhận': 'gmail-ca-nhan@gmail.com',
-            'Họ tên (tùy chọn)': 'Nguyễn Hiển',
-          },
-        ],
-        { fileName: 'mau-email-thong-bao-tai-khoan.xlsx', sheetName: 'NguoiNhan' }
-      );
+      const sampleRows = [
+        {
+          'Vai trò': 'Giáo viên',
+          'Email tài khoản': 'hiennguyen123@university.edu.vn',
+          'Email Gmail nhận': 'gmail-ca-nhan@gmail.com',
+          'Họ tên (tùy chọn)': 'Nguyễn Hiển',
+        },
+        {
+          'Vai trò': 'Sinh viên',
+          'Email tài khoản': 'sinhvien.an@student.edu.vn',
+          'Email Gmail nhận': 'sinhvien.canhan@gmail.com',
+          'Họ tên (tùy chọn)': 'Nguyễn Văn An',
+        },
+      ];
+
+      // Sheet 2: Danh sách tài khoản trong CSDL chưa được gửi thông báo để người dùng dễ dàng copy-paste
+      const unnotifiedRefRows = (candidates || []).slice(0, 100).map((c, idx) => ({
+        STT: idx + 1,
+        'Vai trò': c.role === 'teacher' ? 'Giáo viên' : 'Sinh viên',
+        'Mã số': c.code || c.id || '',
+        'Họ và tên': c.hoTen || c.name || '',
+        'Email tài khoản (Điền cột Email tài khoản)': c.email || '',
+        'Email Gmail nhận hiện tại': c.personalEmail || '',
+      }));
+
+      // Sheet 3: Hướng dẫn
+      const guideRows = [
+        { 'Cột dữ liệu': 'Vai trò', 'Bắt buộc': 'Không', 'Quy tắc': 'Giáo viên hoặc Sinh viên' },
+        { 'Cột dữ liệu': 'Email tài khoản', 'Bắt buộc': 'Bắt buộc', 'Quy tắc': 'Email đăng nhập hệ thống Edumin của người dùng' },
+        { 'Cột dữ liệu': 'Email Gmail nhận', 'Bắt buộc': 'Bắt buộc', 'Quy tắc': 'Địa chỉ Gmail cá nhân hợp lệ nhận thư' },
+        { 'Cột dữ liệu': 'Họ tên (tùy chọn)', 'Bắt buộc': 'Không', 'Quy tắc': 'Tên xưng hô trong nội dung email' },
+      ];
+
+      const sheets = [
+        { sheetName: 'BieuMau_NguoiNhan', rows: sampleRows },
+        ...(unnotifiedRefRows.length ? [{ sheetName: 'TaiKhoan_ChuaGui_CSDL', rows: unnotifiedRefRows }] : []),
+        { sheetName: 'HuongDan_NhapLieu', rows: guideRows },
+      ];
+
+      await exportWorkbook(sheets, { fileName: 'bieu-mau-email-thong-bao-tai-khoan.xlsx' });
+      toast.success('Đã tải xuống biểu mẫu Excel kèm dữ liệu tài khoản CSDL!');
     } catch (error) {
-      toast.error(error.message || 'Không tạo được file mẫu');
+      toast.error(error.message || 'Không tạo được biểu mẫu');
     }
   };
 
@@ -404,10 +434,11 @@ export function AdminEmailNotifications() {
             <button
               type="button"
               onClick={downloadTemplate}
-              className="inline-flex items-center justify-center gap-1.5 h-9 px-3.5 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-600 hover:bg-slate-50 shadow-2xs transition active:scale-[0.98] cursor-pointer whitespace-nowrap"
+              className="inline-flex items-center justify-center gap-1.5 h-9 px-3.5 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-2xs transition active:scale-[0.98] cursor-pointer whitespace-nowrap"
+              title="Tải biểu mẫu Excel chuẩn kèm danh sách tài khoản từ CSDL"
             >
-              <i className="fas fa-download" />
-              File mẫu
+              <i className="fas fa-file-excel text-emerald-600 text-xs" />
+              Biểu mẫu
             </button>
             {selectedRecipients.size > 0 && (
               <button

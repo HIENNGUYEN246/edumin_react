@@ -373,8 +373,30 @@ export function TeacherDocumentList() {
 
   // Handle Document Actions
   const handleFilesChange = (e) => {
-    const selected = Array.from(e.target.files || []);
-    setUploadForm((f) => ({ ...f, files: selected }));
+    const rawSelected = Array.from(e.target.files || []);
+    const validPdfs = [];
+    const rejectedFiles = [];
+
+    rawSelected.forEach((file) => {
+      const isPdfExt = file.name && file.name.toLowerCase().endsWith('.pdf');
+      const isPdfMime = file.type === 'application/pdf';
+      if (isPdfExt || isPdfMime) {
+        validPdfs.push(file);
+      } else {
+        rejectedFiles.push(file.name);
+      }
+    });
+
+    if (rejectedFiles.length > 0) {
+      toast.error(
+        `Từ chối ${rejectedFiles.length} tệp không hợp lệ: "${rejectedFiles.join(', ')}". Hệ thống chỉ chấp nhận định dạng PDF (.pdf). Vui lòng lưu/xuất file sang PDF trước khi tải lên. Các định dạng khác và thư mục đều bị từ chối.`
+      );
+      if (fileRef.current) {
+        fileRef.current.value = '';
+      }
+    }
+
+    setUploadForm((f) => ({ ...f, files: validPdfs }));
   };
 
   const openUploadForClass = (group) => {
@@ -467,6 +489,17 @@ export function TeacherDocumentList() {
   const handleEditFileChange = (e) => {
     const selected = e.target.files?.[0];
     if (selected) {
+      const isPdfExt = selected.name && selected.name.toLowerCase().endsWith('.pdf');
+      const isPdfMime = selected.type === 'application/pdf';
+      if (!isPdfExt && !isPdfMime) {
+        toast.error(
+          `Từ chối tệp "${selected.name}". Hệ thống chỉ chấp nhận định dạng PDF (.pdf). Vui lòng lưu/xuất file sang PDF trước khi tải lên. Các định dạng khác và thư mục đều bị từ chối.`
+        );
+        if (editFileInputRef.current) {
+          editFileInputRef.current.value = '';
+        }
+        return;
+      }
       setEditForm((f) => ({
         ...f,
         file: selected,
@@ -1084,14 +1117,14 @@ export function TeacherDocumentList() {
           )}
 
           <FormField
-            label="Chọn tệp tài liệu (chọn được 2 - 3 tệp cùng lúc)"
-            hint="Hỗ trợ các định dạng PDF, Word, Excel, PowerPoint, ZIP, hình ảnh..."
+            label="Chọn tệp tài liệu PDF (chọn được 2 - 3 tệp cùng lúc)"
+            hint="Quy chuẩn toàn hệ thống: Chỉ chấp nhận tệp định dạng PDF (.pdf). Vui lòng xuất Word/Excel/PPT sang PDF trước khi tải lên. Các định dạng khác và thư mục đều bị từ chối."
           >
             <input
               ref={fileRef}
               type="file"
               multiple
-              accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.ppt,.pptx,.txt,.md,.zip,.rar,.7z,image/*"
+              accept=".pdf,application/pdf"
               className="block w-full text-sm text-gray-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 transition cursor-pointer"
               onChange={handleFilesChange}
             />
@@ -1214,11 +1247,11 @@ export function TeacherDocumentList() {
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
-                Tệp tài liệu tải lên <span className="text-[11px] font-normal text-slate-400 lowercase">(tùy chọn)</span>
+                Tệp tài liệu PDF thay thế <span className="text-[11px] font-normal text-slate-400 lowercase">(chỉ nhận .pdf, tùy chọn)</span>
               </label>
               {editTarget?.hasFile && !editForm.file && (
                 <span className="text-[11px] text-slate-500 italic">
-                  (Chọn tệp mới nếu muốn thay thế tệp hiện tại)
+                  (Chọn tệp PDF mới nếu muốn thay thế tệp hiện tại)
                 </span>
               )}
             </div>
@@ -1227,7 +1260,7 @@ export function TeacherDocumentList() {
               ref={editFileInputRef}
               type="file"
               data-testid="edit-document-file-input"
-              accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar,.7z,.txt,image/*"
+              accept=".pdf,application/pdf"
               onChange={handleEditFileChange}
               className="hidden"
             />

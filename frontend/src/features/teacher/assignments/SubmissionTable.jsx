@@ -3,7 +3,7 @@ import { Avatar } from '../../../components/ui/Avatar.jsx';
 import { Spinner } from '../../../components/ui/Spinner.jsx';
 import { Modal } from '../../../components/ui/Modal.jsx';
 import { formatStudentCode, formatDateTime, formatDueDate } from '../../../lib/format.js';
-import { exportSheet } from '../../../lib/excel.js';
+import { exportSheet, exportWorkbook } from '../../../lib/excel.js';
 import { useToast } from '../../../app/providers/ToastProvider.jsx';
 import { useSubmissions } from '../../shared/useAssignments.js';
 
@@ -114,6 +114,41 @@ export function SubmissionTable({ assignmentId, assignment, onBack }) {
     }
   };
 
+  const handleDownloadTemplate = async () => {
+    try {
+      const templateRows = (rows.length ? rows : [
+        { student: { id: 'SV-1001', hoTen: 'Nguyễn Văn An', className: 'CNTT-K18A' }, submittedAt: new Date().toISOString() },
+        { student: { id: 'SV-1002', hoTen: 'Trần Thị Mai', className: 'CNTT-K18A' }, submittedAt: new Date().toISOString() },
+      ]).map((r, idx) => ({
+        STT: idx + 1,
+        'Mã SV': formatStudentCode(r.student?.id ?? r.studentId),
+        'Họ và tên': r.student?.hoTen || r.studentName || '',
+        'Lớp sinh hoạt': r.student?.className || assignment?.classId || '',
+        'Thời gian nộp': r.submittedAt ? formatDateTime(r.submittedAt) : 'Chưa nộp',
+        'Điểm số (0-10)': '',
+        'Nhận xét của giảng viên': '',
+      }));
+
+      const infoRows = [
+        { 'Mục': 'Tên bài tập', 'Thông tin': assignment?.title || 'Bài tập' },
+        { 'Mục': 'Lớp học phần', 'Thông tin': assignment?.classId || '—' },
+        { 'Mục': 'Hạn nộp', 'Thông tin': assignment?.dueDate ? formatDateTime(assignment.dueDate) : 'Không giới hạn' },
+        { 'Mục': 'Thang điểm', 'Thông tin': '0.0 - 10.0' },
+      ];
+
+      const sheets = [
+        { sheetName: 'BieuMau_ChamDiem', rows: templateRows },
+        { sheetName: 'ThongTin_BaiTap', rows: infoRows },
+      ];
+
+      const safeTitle = (assignment?.title || 'bai-tap').replace(/[^\w\s-]/gi, '').trim().replace(/\s+/g, '-');
+      await exportWorkbook(sheets, { fileName: `bieu-mau-cham-diem-${safeTitle}.xlsx` });
+      toast.success('Đã tải xuống biểu mẫu chấm điểm bài tập!');
+    } catch (err) {
+      toast.error('Lỗi khi tải biểu mẫu chấm điểm');
+    }
+  };
+
   const getScoreBadge = (score) => {
     if (score == null) return <span className="text-slate-400 font-semibold">—</span>;
     const num = Number(score);
@@ -195,6 +230,15 @@ export function SubmissionTable({ assignmentId, assignment, onBack }) {
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleDownloadTemplate}
+              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs shadow-2xs transition cursor-pointer active:scale-95"
+              title="Tải biểu mẫu Excel chấm điểm cho bài tập này"
+            >
+              <i className="fas fa-file-excel text-emerald-600 text-sm" />
+              <span>Biểu mẫu</span>
+            </button>
             <button
               type="button"
               onClick={handleExportExcel}

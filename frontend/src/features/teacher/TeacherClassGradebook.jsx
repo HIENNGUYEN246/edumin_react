@@ -15,6 +15,7 @@ import {
 import { useToast } from '../../app/providers/ToastProvider.jsx';
 import { useClassStudents } from './useTeacherClasses.js';
 import { setAiPageContext } from '../../components/ai/EduMinAiAssistant.jsx';
+import { exportSheet, exportWorkbook } from '../../lib/excel.js';
 
 function StudentGradeRow({ classId, student, weights, activeComponents, quizConfig, isLocked }) {
   const toast = useToast();
@@ -477,6 +478,91 @@ export function TeacherClassGradebook() {
   const effectiveCourseId = effectiveClass.courseId || '';
   const effectiveCourseName = effectiveClass.courseName || '';
 
+  const handleDownloadTemplate = async () => {
+    try {
+      const templateRows = (students || []).map((st, idx) => ({
+        STT: idx + 1,
+        'Mã sinh viên': formatStudentCode(st.id),
+        'Họ và tên': st.hoTen || '',
+        'Lớp sinh hoạt': st.className || '',
+        'Điểm Chuyên cần / Điểm danh (0-10)': '',
+        'Điểm Bài tập (0-10)': '',
+        'Điểm Thuyết trình (0-10)': '',
+        'Điểm Giữa kỳ (0-10)': '',
+        'Điểm Cuối kỳ (0-10)': '',
+        'Ghi chú': '',
+      }));
+
+      const weightRows = (activeComponents || []).map((comp) => ({
+        'Thành phần điểm': comp.label,
+        'Mã cột': comp.key,
+        'Tỷ lệ trọng số (%)': `${weights[comp.key] || 0}%`,
+        'Cách thức chấm': comp.key === 'homework' ? 'Tính tự động từ các bài tập đã nộp' : (comp.key === 'midterm' && quizConfig.midtermQuiz ? `Đồng bộ Quiz: ${quizConfig.midtermQuiz.title}` : (comp.key === 'final' && quizConfig.finalQuiz ? `Đồng bộ Quiz: ${quizConfig.finalQuiz.title}` : 'Nhập điểm trực tiếp')),
+      }));
+
+      const guideRows = [
+        { 'Quy tắc': 'Thang điểm', 'Chi tiết': 'Thang điểm 10, giá trị từ 0.0 đến 10.0' },
+        { 'Quy tắc': 'Làm tròn', 'Chi tiết': 'Làm tròn đến 1 chữ số thập phân (ví dụ: 7.5, 8.2)' },
+        { 'Quy tắc': 'Công thức GPA', 'Chi tiết': 'GPA = Tổng (Điểm thành phần * Tỷ lệ %) / 100' },
+      ];
+
+      const sheets = [
+        { sheetName: 'BieuMau_SoDiem', rows: templateRows.length ? templateRows : [{ STT: 1, 'Mã sinh viên': 'SV-1001', 'Họ và tên': 'Nguyễn Văn An' }] },
+        { sheetName: 'CoCauTrongSo_Lop', rows: weightRows },
+        { sheetName: 'QuyDinh_ChamDiem', rows: guideRows },
+      ];
+
+      await exportWorkbook(sheets, { fileName: `bieu-mau-so-diem-${id || 'lop'}.xlsx` });
+      toast.success('Đã tải xuống biểu mẫu sổ điểm kèm danh sách sinh viên lớp!');
+    } catch (err) {
+      toast.error('Lỗi khi tải biểu mẫu sổ điểm');
+    }
+  };
+
+  const handleExportExcel = async () => {
+    try {
+      if (!students.length) {
+        return toast.error('Lớp học phần chưa có sinh viên để xuất bảng điểm');
+      }
+      const exportRows = filteredStudents.map((st, idx) => {
+        const attVal = st.manualGrades?.attendance ?? st.attendanceStats?.autoScore;
+        const midVal = st.manualGrades?.midterm ?? st.quizMidterm?.score;
+        const finVal = st.manualGrades?.final ?? st.quizFinal?.score;
+        const presVal = st.manualGrades?.presentation;
+        const hwVal = st.homeworkGrade;
+
+        const gpa = calculateGpa(
+          { attendance: attVal, presentation: presVal, midterm: midVal, final: finVal, homework: hwVal },
+          weights
+        );
+        const classification = gpa != null ? getGpaClassification(gpa) : { label: 'Chưa đủ điểm' };
+
+        return {
+          STT: idx + 1,
+          'Mã sinh viên': formatStudentCode(st.id),
+          'Họ và tên': st.hoTen || '',
+          'Lớp sinh hoạt': st.className || '',
+          'Điểm danh': attVal != null ? attVal : '—',
+          'Bài tập': hwVal != null ? hwVal : '—',
+          'Thuyết trình': presVal != null ? presVal : '—',
+          'Giữa kỳ': midVal != null ? midVal : '—',
+          'Cuối kỳ': finVal != null ? finVal : '—',
+          'Điểm TB (GPA)': gpa != null ? gpa : '—',
+          'Xếp loại': classification.label,
+          'Trạng thái': isStudentComplete(st) ? 'Đã đủ điểm' : 'Chưa đủ điểm',
+        };
+      });
+
+      await exportSheet(exportRows, {
+        fileName: `bang-diem-${id || 'lop'}.xlsx`,
+        sheetName: 'BangDiemLop',
+      });
+      toast.success('Đã xuất bảng điểm lớp ra file Excel thành công!');
+    } catch (err) {
+      toast.error('Lỗi khi xuất bảng điểm Excel');
+    }
+  };
+
   return (
     <div>
       <PageHeader
@@ -484,6 +570,24 @@ export function TeacherClassGradebook() {
         subtitle={`Mã HP: ${effectiveCourseId} · Tên HP: ${effectiveCourseName} · ${students.length} sinh viên`}
         actions={
           <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={handleDownloadTemplate}
+              className="whitespace-nowrap rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition cursor-pointer shadow-2xs flex items-center gap-1.5"
+              title="Tải biểu mẫu Excel sổ điểm lớp học phần này kèm danh sách sinh viên từ CSDL"
+            >
+              <i className="fas fa-file-excel text-emerald-600 text-xs" />
+              <span>Biểu mẫu</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleExportExcel}
+              className="whitespace-nowrap rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition cursor-pointer shadow-2xs flex items-center gap-1.5"
+              title="Xuất bảng điểm hiện tại ra file Excel"
+            >
+              <i className="fas fa-file-export text-slate-600 text-xs" />
+              <span>Xuất Excel</span>
+            </button>
             <button
               type="button"
               onClick={() => setIsQuizConfigOpen(true)}

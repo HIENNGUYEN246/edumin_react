@@ -171,4 +171,29 @@ describe('Documents', () => {
     expect(updateRes.body.hasFile).toBe(true);
     expect(destroyMock).toHaveBeenCalled();
   });
+
+  it('rejects non-PDF files and rejects folders strictly (Giai phap 2: PDF only)', async () => {
+    const { token, teacher } = await makeTeacher(1);
+    await classForTeacher(teacher);
+
+    // Attempting to upload a .docx file -> 400 Bad Request
+    const resDocx = await request(app)
+      .post('/api/documents')
+      .set(authHeader(token))
+      .field('courseId', 'IT101')
+      .field('name', 'Bao cao Word')
+      .attach('file', Buffer.from('PK...'), { filename: 'report.docx', contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+    expect(resDocx.status).toBe(400);
+    expect(resDocx.body.error?.message || resDocx.body.error).toMatch(/PDF/i);
+
+    // Attempting to upload a .zip archive -> 400 Bad Request
+    const resZip = await request(app)
+      .post('/api/documents')
+      .set(authHeader(token))
+      .field('courseId', 'IT101')
+      .field('name', 'Thu muc nen')
+      .attach('file', Buffer.from('ZIP...'), { filename: 'folder.zip', contentType: 'application/zip' });
+    expect(resZip.status).toBe(400);
+    expect(resZip.body.error?.message || resZip.body.error).toMatch(/PDF/i);
+  });
 });

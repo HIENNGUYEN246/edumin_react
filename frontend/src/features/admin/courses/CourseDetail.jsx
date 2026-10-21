@@ -25,7 +25,7 @@ import {
 } from '../../../components/schedule/ScheduleBadge.jsx';
 import { classesApi } from '../../../api/classesApi.js';
 import { teachersApi } from '../../../api/teachersApi.js';
-import { readSheet, exportSheet } from '../../../lib/excel.js';
+import { readSheet, exportSheet, exportWorkbook } from '../../../lib/excel.js';
 import { classExportRow, classImportPayload } from '../classes/classExcel.js';
 
 export function CourseDetail() {
@@ -85,26 +85,75 @@ export function CourseDetail() {
   };
 
   const onDownloadTemplate = async () => {
-    const templateRows = [
-      {
-        'Mã lớp': `${course?.id || 'CS101'}-01`,
-        'Tên lớp': `Lớp học phần ${course?.name || ''} 01`,
-        'Mã GV': 'GV001',
-        'Phòng học': 'P.A102',
-        'Sĩ số tối đa': 40,
-        'Học phí': course?.fee || 1500000,
-        'Thứ (2,3,4,5,6,7,CN)': '2,4',
-        'Ca học (1-5)': '1',
-        'Ngày bắt đầu (YYYY-MM-DD)': '2026-09-01',
-        'Ngày kết thúc (YYYY-MM-DD)': '2026-12-15',
-        'Hạn đăng ký (YYYY-MM-DDTHH:mm)': '2026-08-30T23:59',
-      },
-    ];
-    await exportSheet(templateRows, {
-      fileName: `file-mau-lop-hoc-phan-${course?.id || 'sample'}.xlsx`,
-      sheetName: 'MauLopHocPhan',
-    });
-    toast.success('Đã tải xuống file mẫu Excel cho Lớp học phần');
+    try {
+      const sampleTeacher = teachers[0]?.id || teachers[0]?.code || 'GV001';
+      const sampleTeacher2 = teachers[1]?.id || teachers[1]?.code || sampleTeacher;
+
+      const templateRows = [
+        {
+          'Mã lớp': `${course?.id || 'CS101'}-01`,
+          'Tên lớp': `Lớp học phần ${course?.name || ''} 01`,
+          'Mã GV': sampleTeacher,
+          'Phòng học': 'P.A102',
+          'Sĩ số tối đa': 40,
+          'Học phí': course?.fee || 1500000,
+          'Thứ (2,3,4,5,6,7,CN)': '2,4',
+          'Ca học (1-5)': '1',
+          'Ngày bắt đầu (YYYY-MM-DD)': '2026-09-01',
+          'Ngày kết thúc (YYYY-MM-DD)': '2026-12-15',
+          'Hạn đăng ký (YYYY-MM-DDTHH:mm)': '2026-08-30T23:59',
+        },
+        {
+          'Mã lớp': `${course?.id || 'CS101'}-02`,
+          'Tên lớp': `Lớp học phần ${course?.name || ''} 02`,
+          'Mã GV': sampleTeacher2,
+          'Phòng học': 'P.B204',
+          'Sĩ số tối đa': 35,
+          'Học phí': course?.fee || 1500000,
+          'Thứ (2,3,4,5,6,7,CN)': '3,5',
+          'Ca học (1-5)': '2',
+          'Ngày bắt đầu (YYYY-MM-DD)': '2026-09-01',
+          'Ngày kết thúc (YYYY-MM-DD)': '2026-12-15',
+          'Hạn đăng ký (YYYY-MM-DDTHH:mm)': '2026-08-30T23:59',
+        },
+      ];
+
+      // Sheet 2: Danh sách Giảng viên thực tế từ CSDL để người dùng biết đường điền đúng Mã GV
+      const teacherRefRows = (teachers || []).map((t, idx) => ({
+        STT: idx + 1,
+        'Mã GV (Điền cột Mã GV)': t.id || t.code || t._id,
+        'Họ và tên Giảng viên': t.hoTen || t.name || '',
+        'Khoa': typeof t.department === 'object' ? t.department?.name || t.department?.tenKhoa || '' : t.department || '',
+        'Email': t.email || '',
+        'Ghi chú': 'Điền chính xác Mã GV này vào cột Mã GV ở Sheet biểu mẫu',
+      }));
+
+      // Sheet 3: Hướng dẫn cấu hình lịch học
+      const scheduleGuideRows = [
+        { 'Cột dữ liệu': 'Mã lớp', 'Quy tắc': 'Mã duy nhất, ví dụ: CS101-01, CS101-02' },
+        { 'Cột dữ liệu': 'Tên lớp', 'Quy tắc': 'Tên lớp học phần hiển thị' },
+        { 'Cột dữ liệu': 'Mã GV', 'Quy tắc': 'Bắt buộc chọn đúng Mã GV trong Sheet "DanhSachGiangVien_CSDL"' },
+        { 'Cột dữ liệu': 'Phòng học', 'Quy tắc': 'Tên phòng (ví dụ: P.A102, P.B204, LAB-01)' },
+        { 'Cột dữ liệu': 'Sĩ số tối đa', 'Quy tắc': 'Số nguyên dương (ví dụ: 30, 40, 50)' },
+        { 'Cột dữ liệu': 'Thứ (2,3,4,5,6,7,CN)', 'Quy tắc': 'Thứ trong tuần, nếu nhiều buổi cách nhau bằng dấu phẩy: 2,4 hoặc 3,5 hoặc 6' },
+        { 'Cột dữ liệu': 'Ca học (1-5)', 'Quy tắc': 'Ca 1 (7h-9h30), Ca 2 (9h45-12h15), Ca 3 (13h-15h30), Ca 4 (15h45-18h15), Ca 5 (18h30-21h)' },
+        { 'Cột dữ liệu': 'Ngày bắt đầu / kết thúc', 'Quy tắc': 'Định dạng YYYY-MM-DD (Ví dụ: 2026-09-01)' },
+        { 'Cột dữ liệu': 'Hạn đăng ký', 'Quy tắc': 'Định dạng YYYY-MM-DDTHH:mm (Ví dụ: 2026-08-30T23:59)' },
+      ];
+
+      const sheets = [
+        { sheetName: 'BieuMau_LopHocPhan', rows: templateRows },
+        { sheetName: 'DanhSachGiangVien_CSDL', rows: teacherRefRows.length ? teacherRefRows : [{ 'Mã GV': 'GV001', 'Họ tên': 'Giảng viên mẫu' }] },
+        { sheetName: 'HuongDan_LichHoc', rows: scheduleGuideRows },
+      ];
+
+      await exportWorkbook(sheets, {
+        fileName: `bieu-mau-lop-hoc-phan-${course?.id || 'sample'}.xlsx`,
+      });
+      toast.success('Đã tải xuống biểu mẫu Lớp học phần kèm danh sách giảng viên CSDL!');
+    } catch (err) {
+      toast.error('Lỗi khi tải biểu mẫu Lớp học phần');
+    }
   };
 
   const openCreate = () =>
@@ -473,10 +522,10 @@ export function CourseDetail() {
             type="button"
             onClick={onDownloadTemplate}
             className="inline-flex items-center justify-center gap-1.5 h-9 px-3.5 rounded-xl border border-slate-200 bg-white text-slate-700 text-xs font-semibold hover:bg-slate-50 shadow-2xs transition active:scale-[0.98] cursor-pointer whitespace-nowrap"
-            title="Tải file mẫu Excel chuẩn để nhập dữ liệu lớp học phần"
+            title="Tải biểu mẫu Excel chuẩn kèm danh sách giảng viên từ CSDL"
           >
             <i className="fas fa-file-excel text-emerald-600 text-xs" />
-            <span>File mẫu</span>
+            <span>Biểu mẫu</span>
           </button>
           <button
             type="button"
