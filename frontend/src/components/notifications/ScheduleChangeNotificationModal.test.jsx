@@ -115,5 +115,46 @@ describe('ScheduleChangeNotificationModal Component', () => {
       expect(mockOnClose).toHaveBeenCalled();
     });
   });
-});
 
+  it('closes when pressing Escape key and locks body scroll', async () => {
+    const { unmount } = render(
+      <ScheduleChangeNotificationModal
+        isOpen={true}
+        onClose={mockOnClose}
+        defaultClassId="IT101-01"
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Điều phối & Thông báo Đổi lịch học')).toBeInTheDocument();
+    });
+
+    expect(document.body.style.overflow).toBe('hidden');
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(mockOnClose).toHaveBeenCalledTimes(1);
+
+    unmount();
+    expect(document.body.style.overflow).toBe('');
+  });
+
+  it('closes when clicking on the backdrop overlay', async () => {
+    render(
+      <ScheduleChangeNotificationModal
+        isOpen={true}
+        onClose={mockOnClose}
+        defaultClassId="IT101-01"
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Điều phối & Thông báo Đổi lịch học')).toBeInTheDocument();
+    });
+
+    const backdrop = document.querySelector('.fixed.inset-0.z-\\[9999\\]');
+    expect(backdrop).toBeInTheDocument();
+
+    fireEvent.click(backdrop);
+    expect(mockOnClose).toHaveBeenCalledTimes(1);
+  });
+});

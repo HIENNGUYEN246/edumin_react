@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { notificationsApi } from '../../api/notificationsApi.js';
 import { classesApi } from '../../api/classesApi.js';
 import { departmentsApi } from '../../api/departmentsApi.js';
@@ -8,6 +9,21 @@ import { useToast } from '../../app/providers/ToastProvider.jsx';
 
 export function ScheduleChangeNotificationModal({ isOpen, onClose, defaultClassId = '', userRole = 'giao-vien' }) {
   const toast = useToast();
+
+  // Escape key & scroll locking
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    const onKey = (e) => {
+      if (e.key === 'Escape') onClose?.();
+    };
+    document.addEventListener('keydown', onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [isOpen, onClose]);
 
   const [targetType, setTargetType] = useState('class'); // 'class' | 'department' | 'all' | 'individual'
   const [selectedClassId, setSelectedClassId] = useState(defaultClassId);
@@ -266,9 +282,21 @@ export function ScheduleChangeNotificationModal({ isOpen, onClose, defaultClassI
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-[1200] flex items-center justify-center p-4 sm:p-6 bg-slate-950/50 backdrop-blur-sm overflow-y-auto animate-fadeIn">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl my-auto overflow-hidden border border-slate-100/80 flex flex-col max-h-[90vh]">
+  if (!isOpen) return null;
+
+  const modalContent = (
+    <div
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 bg-slate-950/60 backdrop-blur-sm overflow-y-auto animate-fadeIn"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose?.();
+        }
+      }}
+    >
+      <div
+        className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl my-auto overflow-hidden border border-slate-100/80 flex flex-col max-h-[90vh]"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="bg-gradient-to-r from-indigo-600 via-indigo-700 to-indigo-800 text-white px-6 py-4 flex items-center justify-between shrink-0 shadow-xs border-b border-indigo-700/60">
           <div className="flex items-center gap-3">
@@ -639,6 +667,10 @@ export function ScheduleChangeNotificationModal({ isOpen, onClose, defaultClassI
       </div>
     </div>
   );
+
+  return typeof document !== 'undefined'
+    ? createPortal(modalContent, document.body)
+    : modalContent;
 }
 
 export default ScheduleChangeNotificationModal;

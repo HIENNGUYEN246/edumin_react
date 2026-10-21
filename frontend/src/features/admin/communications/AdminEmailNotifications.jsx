@@ -305,12 +305,13 @@ export function AdminEmailNotifications() {
     if (!recipientsToSend.length || recipientsToSend.length > MAX_RECIPIENTS) return;
 
     const accepted = await confirm({
-      title: `Gửi thông tin tài khoản cho ${recipientsToSend.length} người?`,
+      title: `Gửi thông tin tài khoản cho ${recipientsToSend.length} người`,
       message:
         'Mỗi Gmail nhận sẽ được gửi riêng email đăng nhập trường và mật khẩu mặc định 123. Chỉ tài khoản hiện vẫn dùng mật khẩu mặc định mới được gửi.',
       confirmText: `Gửi ${recipientsToSend.length} email`,
       cancelText: 'Kiểm tra lại',
-      tone: 'primary',
+      tone: 'email',
+      icon: 'fa-paper-plane',
     });
     if (!accepted) return;
     const invalidRecipients = recipientsToSend.filter(
