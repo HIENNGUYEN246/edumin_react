@@ -10,9 +10,12 @@ export const profileRequestsApi = {
   bulkReject: (ids, reason) => http.post('/admin/requests/bulk-reject', { ids, reason }).catch(() => http.post('/profile-requests/bulk-reject', { ids, reason })),
   bulkDelete: (ids) => http.post('/admin/requests/bulk-delete', { ids }).catch(() => http.post('/profile-requests/bulk-delete', { ids })),
   getAiCriteria: () => http.get('/ai/admin-criteria'),
-  setAiCriteria: (rawCriteriaText) => http.post('/ai/admin-criteria', { rawCriteriaText }),
+  setAiCriteria: (payload) => {
+    const body = typeof payload === 'string' ? { rawCriteriaText: payload } : payload;
+    return http.post('/ai/admin-criteria', body);
+  },
   clearAiCriteria: () => http.delete('/ai/admin-criteria'),
+  applyAiCriteria: () => http.post('/ai/admin-criteria/apply'),
 };
 
 export default profileRequestsApi;
-

@@ -5115,6 +5115,46 @@ function EduMinAiAssistantInner() {
   const [attachedFile, setAttachedFile] = useState(null);
   const fileInputRef = useRef(null);
 
+  const [chatTab, setChatTab] = useState(() => {
+    try {
+      return sessionStorage.getItem('edumin_chat_active_tab') || 'ai';
+    } catch {
+      return 'ai';
+    }
+  });
+
+  const handleSwitchTab = (tab) => {
+    setChatTab(tab);
+    try {
+      sessionStorage.setItem('edumin_chat_active_tab', tab);
+    } catch {
+      // ignore
+    }
+  };
+
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
+
+  useEffect(() => {
+    if (!user) return;
+    let isMounted = true;
+    const fetchChannels = async () => {
+      try {
+        const res = await chatApi.getChannels();
+        if (isMounted && res) {
+          setUnreadChatCount(res.totalUnread || 0);
+        }
+      } catch {
+        // ignore
+      }
+    };
+    fetchChannels();
+    const interval = setInterval(fetchChannels, 6000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [user]);
+
   const handleFileChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;

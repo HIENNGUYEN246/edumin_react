@@ -12,6 +12,7 @@ import { useDebounce } from '../../../lib/useDebounce.js';
 import { profileRequestsApi } from '../../../api/profileRequestsApi.js';
 import { formatStudentCode, formatTeacherCode } from '../../../lib/format.js';
 import { setAiPageContext } from '../../../components/ai/EduMinAiAssistant.jsx';
+import { CriteriaSettingsModal } from './CriteriaSettingsModal.jsx';
 
 export function ManageProfileRequests() {
   const toast = useToast();
@@ -25,6 +26,8 @@ export function ManageProfileRequests() {
   const search = useDebounce(searchText);
   const [selectedIds, setSelectedIds] = useState([]);
   const [bulkApproveModalOpen, setBulkApproveModalOpen] = useState(false);
+  const [criteriaModalOpen, setCriteriaModalOpen] = useState(false);
+  const [isApplyingCriteria, setIsApplyingCriteria] = useState(false);
 
   // Reject Modal
   const [rejectModal, setRejectModal] = useState({ isOpen: false, targetId: null, isBulk: false, reason: '' });
@@ -47,12 +50,26 @@ export function ManageProfileRequests() {
     refetchInterval: 15000,
   });
 
-  const { data: criteriaRes } = useQuery({
+  const { data: criteriaRes, refetch: refetchCriteria } = useQuery({
     queryKey: ['ai-criteria'],
     queryFn: () => profileRequestsApi.getAiCriteria(),
     refetchInterval: 10000,
   });
   const activeCriteria = criteriaRes?.criteria;
+
+  const hasActiveRules = Boolean(
+    activeCriteria &&
+    activeCriteria.rules &&
+    (activeCriteria.rules.requirePhone10 ||
+      activeCriteria.rules.requireCccd12 ||
+      activeCriteria.rules.requireReason ||
+      activeCriteria.rules.noAvatar ||
+      activeCriteria.rules.requireName ||
+      activeCriteria.rules.requireAddress ||
+      activeCriteria.rules.requireHumanSingleAvatar ||
+      activeCriteria.rules.requireHumanAvatar ||
+      activeCriteria.rules.requireSinglePersonAvatar)
+  );
 
   const rows = data?.data || [];
   const meta = data?.meta || { page: 1, pages: 1, total: 0 };
@@ -163,6 +180,79 @@ export function ManageProfileRequests() {
     },
     onError: (err) => toast.error(err.message || 'Lỗi khi xóa bản ghi'),
   });
+
+  const saveCriteriaMutation = useMutation({
+    mutationFn: (payload) => profileRequestsApi.setAiCriteria(payload),
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ['ai-criteria'] });
+      refetchCriteria();
+      invalidate();
+      setCriteriaModalOpen(false);
+      const approvedCount = res?.processResult?.autoApprovedCount ?? 0;
+      if (approvedCount > 0) {
+        toast.success(
+          `Đã lưu tiêu chí và tự động phê duyệt thành công ${approvedCount} yêu cầu đang chờ!`
+        );
+      } else {
+        toast.success('Đã thiết lập và kích hoạt tiêu chí kiểm duyệt tự động!');
+      }
+    },
+    onError: (err) => toast.error(err?.message || 'Lỗi khi lưu tiêu chí kiểm duyệt'),
+  });
+
+  const clearCriteriaMutation = useMutation({
+    mutationFn: () => profileRequestsApi.clearAiCriteria(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['ai-criteria'] });
+      refetchCriteria();
+      setCriteriaModalOpen(false);
+      toast.info('Đã tắt tiêu chí kiểm duyệt tự động.');
+    },
+    onError: (err) => toast.error(err?.message || 'Lỗi khi tắt tiêu chí'),
+  });
+
+  const handleClearCriteria = async () => {
+    const ok = await confirm({
+      title: 'Tắt tiêu chí kiểm duyệt',
+      message:
+        'Bạn có chắc muốn hủy quy chuẩn kiểm duyệt tự động? Các yêu cầu mới sẽ không được tự động phê duyệt đón đầu nữa.',
+      confirmText: 'Tắt quy chuẩn',
+      tone: 'danger',
+    });
+    if (!ok) return;
+    clearCriteriaMutation.mutate();
+  };
+
+  const handleApplyCriteriaToPending = async () => {
+    if (!hasActiveRules) {
+      setCriteriaModalOpen(true);
+      return;
+    }
+    const ok = await confirm({
+      title: 'Kiểm duyệt theo tiêu chí',
+      message: `Tiến hành kiểm tra ${pendingCount} yêu cầu đang chờ duyệt theo tiêu chí hiện tại? Các hồ sơ đạt tiêu chuẩn sẽ được tự động duyệt ngay lập tức.`,
+      confirmText: 'Chạy kiểm duyệt',
+      tone: 'primary',
+    });
+    if (!ok) return;
+
+    try {
+      setIsApplyingCriteria(true);
+      const res = await profileRequestsApi.applyAiCriteria();
+      invalidate();
+      queryClient.refetchQueries({ queryKey: ['profile-requests'] });
+      const count = res?.processResult?.autoApprovedCount ?? 0;
+      if (count > 0) {
+        toast.success(`Đã tự động phê duyệt thành công ${count} yêu cầu đạt tiêu chuẩn!`);
+      } else {
+        toast.info('Không có hồ sơ nào trong danh sách chờ đạt tiêu chuẩn.');
+      }
+    } catch (err) {
+      toast.error(err?.message || 'Lỗi khi kiểm duyệt yêu cầu');
+    } finally {
+      setIsApplyingCriteria(false);
+    }
+  };
 
   const handleApprove = async (req) => {
     const ok = await confirm({
@@ -469,10 +559,22 @@ export function ManageProfileRequests() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Duyệt Yêu Cầu Thay Đổi Thông Tin & Avatar"
+        title="Duyệt Thay Đổi Thông Tin"
         subtitle="Quản lý và phê duyệt các yêu cầu cập nhật hồ sơ cá nhân và ảnh đại diện từ Giảng viên & Sinh viên"
         actions={
           <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setCriteriaModalOpen(true)}
+              className="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 hover:text-indigo-600 border border-slate-200/90 text-xs font-bold transition flex items-center gap-2 shadow-2xs hover:shadow-xs cursor-pointer"
+              title="Cấu hình tiêu chí kiểm duyệt tự động"
+            >
+              <i className="fas fa-sliders-h text-indigo-600" />
+              <span>Tiêu chí kiểm duyệt</span>
+              {hasActiveRules && (
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              )}
+            </button>
             <SearchInput
               value={searchText}
               onChange={(v) => {
@@ -485,114 +587,112 @@ export function ManageProfileRequests() {
         }
       />
 
-      {/* AI Pre-configured Approval Policy Banner */}
-      {activeCriteria &&
-      (activeCriteria.rules?.requirePhone10 ||
-        activeCriteria.rules?.requireCccd12 ||
-        activeCriteria.rules?.requireReason ||
-        activeCriteria.rules?.noAvatar ||
-        activeCriteria.rules?.requireName ||
-        activeCriteria.rules?.requireAddress ||
-        activeCriteria.rules?.requireHumanSingleAvatar ||
-        activeCriteria.rules?.requireHumanAvatar ||
-        activeCriteria.rules?.requireSinglePersonAvatar) ? (
-        <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-blue-50 border border-blue-200/90 rounded-2xl p-4 shadow-xs">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-sm shadow-blue-500/20">
-                <i className="fas fa-shield-alt text-lg" />
+      {/* Criteria Policy Banner */}
+      {hasActiveRules ? (
+        <div className="bg-gradient-to-r from-indigo-50/90 via-slate-50 to-blue-50/90 border border-indigo-100/90 rounded-2xl p-4 shadow-2xs">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div className="flex items-start gap-3.5">
+              <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-sm shadow-indigo-500/20">
+                <i className="fas fa-shield-halved text-lg" />
               </div>
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <h4 className="text-sm font-bold text-slate-800">
-                    Quy chuẩn kiểm duyệt tự động đón đầu (EduMin AI Policy)
+                    Tiêu chí kiểm duyệt tự động đang kích hoạt
                   </h4>
-                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-200">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    Đang kích hoạt đón đầu
+                    Đang áp dụng đón đầu
                   </span>
                 </div>
                 <p className="text-xs text-slate-600 mt-0.5">
-                  <span className="font-semibold text-blue-700">Tiêu chuẩn:</span>{' '}
+                  <span className="font-semibold text-indigo-700">Quy chuẩn:</span>{' '}
                   {activeCriteria.rules?.customSummary || activeCriteria.rawCriteriaText}
                 </p>
-                <div className="flex items-center gap-2 mt-1.5 flex-wrap text-[11px] text-slate-500">
+                <div className="flex items-center gap-1.5 mt-2 flex-wrap text-[11px]">
                   {activeCriteria.rules?.requirePhone10 && (
-                    <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200 font-medium text-slate-700">
-                      <i className="fas fa-check text-emerald-500 mr-1" /> SĐT 10 số
+                    <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200 font-semibold text-slate-700 shadow-2xs flex items-center gap-1">
+                      <i className="fas fa-phone text-emerald-500 text-[10px]" /> SĐT 10 số
                     </span>
                   )}
                   {activeCriteria.rules?.requireCccd12 && (
-                    <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200 font-medium text-slate-700">
-                      <i className="fas fa-check text-emerald-500 mr-1" /> CCCD 12 số (sẵn sàng, không ràng buộc)
+                    <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200 font-semibold text-slate-700 shadow-2xs flex items-center gap-1">
+                      <i className="fas fa-id-card text-emerald-500 text-[10px]" /> CCCD 12 số
                     </span>
                   )}
                   {activeCriteria.rules?.requireReason && (
-                    <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200 font-medium text-slate-700">
-                      <i className="fas fa-check text-emerald-500 mr-1" /> Có lý do thay đổi
-                    </span>
-                  )}
-                  {activeCriteria.rules?.noAvatar && (
-                    <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200 font-medium text-slate-700">
-                      <i className="fas fa-check text-emerald-500 mr-1" /> Không duyệt avatar
+                    <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200 font-semibold text-slate-700 shadow-2xs flex items-center gap-1">
+                      <i className="fas fa-file-pen text-emerald-500 text-[10px]" /> Có lý do thay đổi
                     </span>
                   )}
                   {activeCriteria.rules?.requireHumanSingleAvatar && (
-                    <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200 font-medium text-slate-700">
-                      <i className="fas fa-check text-emerald-500 mr-1" /> Avatar là hình người & chỉ 1 người
+                    <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200 font-semibold text-slate-700 shadow-2xs flex items-center gap-1">
+                      <i className="fas fa-user-check text-emerald-500 text-[10px]" /> Avatar người thật (1 người)
                     </span>
                   )}
-                  <span className="text-slate-400">• Tự động duyệt nhanh nếu đạt chuẩn, giữ lại Chờ duyệt nếu chưa đạt.</span>
+                  {activeCriteria.rules?.noAvatar && (
+                    <span className="px-2 py-0.5 rounded-md bg-white border border-rose-200 text-rose-700 font-semibold shadow-2xs flex items-center gap-1">
+                      <i className="fas fa-ban text-rose-500 text-[10px]" /> Khóa đổi Avatar
+                    </span>
+                  )}
+                  <span className="text-slate-400">• Tự động phê duyệt hồ sơ đạt chuẩn ngay khi gửi.</span>
                 </div>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                window.dispatchEvent(
-                  new CustomEvent('edumin_toggle_ai_assistant', {
-                    detail: { open: true, prompt: 'Admin ra yêu cầu duyệt: ' },
-                  })
-                );
-              }}
-              className="shrink-0 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-xs"
-            >
-              <i className="fas fa-sliders-h" />
-              <span>Điều chỉnh tiêu chí</span>
-            </button>
+
+            <div className="flex items-center gap-2 shrink-0 self-end lg:self-center flex-wrap">
+              <button
+                type="button"
+                onClick={handleApplyCriteriaToPending}
+                disabled={isApplyingCriteria || pendingCount === 0}
+                className="px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200/80 text-xs font-bold transition flex items-center gap-1.5 shadow-2xs disabled:opacity-50 cursor-pointer"
+                title="Kiểm tra và duyệt các yêu cầu chờ theo tiêu chí này"
+              >
+                <i className={`fas ${isApplyingCriteria ? 'fa-spinner fa-spin' : 'fa-bolt'}`} />
+                <span>Duyệt danh sách chờ ({pendingCount})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setCriteriaModalOpen(true)}
+                className="px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
+              >
+                <i className="fas fa-pen text-slate-500" />
+                <span>Điều chỉnh</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleClearCriteria}
+                className="px-2.5 py-1.5 rounded-xl text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+                title="Tắt quy chuẩn kiểm duyệt tự động"
+              >
+                <i className="fas fa-power-off text-rose-500" />
+                <span>Tắt</span>
+              </button>
+            </div>
           </div>
         </div>
       ) : (
-        <div className="bg-slate-50 border border-dashed border-slate-300 rounded-2xl p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div className="bg-slate-50 border border-dashed border-slate-300 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-slate-200 text-slate-600 flex items-center justify-center shrink-0">
-              <i className="fas fa-robot text-sm" />
+            <div className="w-10 h-10 rounded-xl bg-slate-200 text-slate-600 flex items-center justify-center shrink-0">
+              <i className="fas fa-sliders-h text-lg" />
             </div>
             <div>
-              <p className="text-xs font-bold text-slate-700">
-                Chưa thiết lập quy chuẩn kiểm duyệt tự động đón đầu
+              <p className="text-xs font-bold text-slate-800">
+                Chưa thiết lập tiêu chí kiểm duyệt tự động
               </p>
-              <p className="text-[11px] text-slate-500">
-                Admin có thể ra yêu cầu trước qua AI Chatbot (ví dụ: SĐT 10 số, CCCD 12 số) để AI tự động kiểm duyệt đón đầu các yêu cầu mới.
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Thiết lập các quy chuẩn (SĐT 10 số, CCCD 12 số, Avatar người thật 1 người, có lý do...) để hệ thống tự động kiểm duyệt đón đầu các yêu cầu mới.
               </p>
             </div>
           </div>
           <button
             type="button"
-            onClick={() => {
-              window.dispatchEvent(
-                new CustomEvent('edumin_toggle_ai_assistant', {
-                  detail: {
-                    open: true,
-                    prompt: 'Admin ra yêu cầu duyệt: SĐT 10 số, CCCD 12 số, lý do rõ ràng',
-                  },
-                })
-              );
-            }}
-            className="shrink-0 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-blue-700 border border-blue-200 text-xs font-bold transition flex items-center gap-1.5 shadow-2xs"
+            onClick={() => setCriteriaModalOpen(true)}
+            className="shrink-0 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition flex items-center gap-2 shadow-xs cursor-pointer"
           >
-            <i className="fas fa-magic text-blue-600" />
-            <span>Ra yêu cầu duyệt cho AI</span>
+            <i className="fas fa-plus" />
+            <span>Thiết lập tiêu chí duyệt</span>
           </button>
         </div>
       )}
@@ -857,6 +957,17 @@ export function ManageProfileRequests() {
           </div>
         </Modal>
       )}
+
+      {/* Criteria Settings Modal */}
+      <CriteriaSettingsModal
+        isOpen={criteriaModalOpen}
+        onClose={() => setCriteriaModalOpen(false)}
+        activeCriteria={activeCriteria}
+        pendingCount={pendingCount}
+        onSave={(payload) => saveCriteriaMutation.mutate(payload)}
+        onClear={handleClearCriteria}
+        isLoading={saveCriteriaMutation.isPending || clearCriteriaMutation.isPending}
+      />
     </div>
   );
 }

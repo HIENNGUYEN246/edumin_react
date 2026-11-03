@@ -6,6 +6,7 @@ import { Sidebar } from './Sidebar.jsx';
 import { Spinner } from '../ui/Spinner.jsx';
 import { ErrorBoundary } from '../ui/ErrorBoundary.jsx';
 import { EduMinAiAssistant, shouldShowAiAssistant } from '../ai/EduMinAiAssistant.jsx';
+import { FloatingChatContainer } from '../chat/FloatingChatContainer.jsx';
 
 /** Shared shell for all three roles. Sidebar content is role-driven. */
 export function AppLayout() {
@@ -27,6 +28,7 @@ export function AppLayout() {
         </main>
       </div>
       {showAi && <EduMinAiAssistant />}
+      <FloatingChatContainer />
     </div>
   );
 }

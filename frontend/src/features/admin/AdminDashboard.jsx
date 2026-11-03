@@ -29,7 +29,7 @@ export function AdminDashboard() {
     { to: '/admin/courses', label: 'Quản lý Môn học', desc: `${data?.courses ?? 0} môn học trong danh mục`, icon: 'fa-book-bookmark', color: 'bg-violet-50 text-violet-600 hover:bg-violet-100' },
     { to: '/admin/classes', label: 'Quản lý Lớp học phần', desc: `${data?.classes ?? 0} lớp học phần mở theo kỳ`, icon: 'fa-shapes', color: 'bg-blue-50 text-blue-600 hover:bg-blue-100' },
     { to: '/admin/feedbacks', label: 'Ý kiến & Phản hồi', desc: `${feedbackCount} phản hồi (⭐ ${avgRating})`, icon: 'fa-comments', color: 'bg-teal-50 text-teal-600 hover:bg-teal-100' },
-    { to: '/admin/profile-requests', label: 'Duyệt yêu cầu thay đổi', desc: 'Phê duyệt ảnh đại diện & hồ sơ GV/SV', icon: 'fa-user-check', color: 'bg-rose-50 text-rose-600 hover:bg-rose-100' },
+    { to: '/admin/profile-requests', label: 'Duyệt thay đổi thông tin', desc: 'Phê duyệt ảnh đại diện & hồ sơ GV/SV', icon: 'fa-user-check', color: 'bg-rose-50 text-rose-600 hover:bg-rose-100' },
   ];
 
   return (

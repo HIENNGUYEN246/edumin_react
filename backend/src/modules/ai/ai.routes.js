@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { authenticate } from '../../middleware/authenticate.js';
 import { handleAiAssistantQuery } from './ai.service.js';
-import { getAdminCriteria, setAdminCriteria, clearAdminCriteria } from './adminCriteria.store.js';
+import { getAdminCriteria, setAdminCriteria, clearAdminCriteria, evaluateAndProcessPendingRequests } from './adminCriteria.store.js';
 import { ROLES } from '../../lib/roles.js';
 
 const router = Router();
@@ -22,11 +22,34 @@ router.get('/admin-criteria', authenticate, async (req, res, next) => {
 // POST /api/ai/admin-criteria - Thiết lập trước quy chuẩn kiểm duyệt tự động đón đầu
 router.post('/admin-criteria', authenticate, async (req, res, next) => {
   try {
-    const { rawCriteriaText } = req.body;
-    const criteria = await setAdminCriteria(rawCriteriaText || '', req.user);
+    const { rawCriteriaText, rules, autoProcessPending } = req.body;
+    const criteria = await setAdminCriteria(rawCriteriaText || '', req.user, rules);
+    let processResult = null;
+    if (autoProcessPending) {
+      processResult = await evaluateAndProcessPendingRequests(criteria, req.user);
+    }
     res.json({
       success: true,
       criteria,
+      processResult,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/ai/admin-criteria/apply - Áp dụng kiểm duyệt tiêu chí cho danh sách chờ
+router.post('/admin-criteria/apply', authenticate, async (req, res, next) => {
+  try {
+    const criteria = await getAdminCriteria();
+    if (!criteria) {
+      return res.status(400).json({ error: 'Chưa thiết lập quy chuẩn kiểm duyệt tự động' });
+    }
+    const processResult = await evaluateAndProcessPendingRequests(criteria, req.user);
+    res.json({
+      success: true,
+      criteria,
+      processResult,
     });
   } catch (error) {
     next(error);

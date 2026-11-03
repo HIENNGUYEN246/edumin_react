@@ -3,6 +3,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { ToastProvider } from './providers/ToastProvider.jsx';
 import { ConfirmProvider } from './providers/ConfirmProvider.jsx';
 import { AuthProvider } from './providers/AuthProvider.jsx';
+import { ChatProvider } from './providers/ChatProvider.jsx';
 import { LockModal } from '../components/account/LockModal.jsx';
 import { AppRouter } from './router.jsx';
 
@@ -27,8 +28,10 @@ export function App({ client = defaultClient }) {
         <ToastProvider>
           <AuthProvider>
             <ConfirmProvider>
-              <AppRouter />
-              <LockModal />
+              <ChatProvider>
+                <AppRouter />
+                <LockModal />
+              </ChatProvider>
             </ConfirmProvider>
           </AuthProvider>
         </ToastProvider>

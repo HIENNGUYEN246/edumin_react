@@ -17,6 +17,7 @@ import profileRequestRoutes from './modules/profileRequests/profileRequest.route
 import tuitionRoutes from './modules/tuition/tuition.routes.js';
 import aiRoutes from './modules/ai/ai.routes.js';
 import communicationsRoutes from './modules/communications/communications.routes.js';
+import chatRoutes from './modules/chat/chat.routes.js';
 
 /**
  * Aggregate router. Feature modules register their sub-routers here.
@@ -42,5 +43,6 @@ apiRouter.use('/admin/requests', profileRequestRoutes);
 apiRouter.use('/tuition', tuitionRoutes);
 apiRouter.use('/ai', aiRoutes);
 apiRouter.use('/communications', communicationsRoutes);
+apiRouter.use('/chat', chatRoutes);
 
 export default apiRouter;

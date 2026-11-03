@@ -6,6 +6,7 @@ import { ROLE_LABEL } from '../../app/navConfig.js';
 import { Avatar } from '../ui/Avatar.jsx';
 import { ChangePasswordModal } from '../account/ChangePasswordModal.jsx';
 import NotificationBell from '../NotificationBell.jsx';
+import { MessengerBell } from '../chat/MessengerBell.jsx';
 import { authApi } from '../../api/authApi.js';
 
 export function Header() {
@@ -81,6 +82,7 @@ export function Header() {
       </div>
 
       <div className="flex items-center gap-4">
+        <MessengerBell />
         <NotificationBell currentUser={user} />
         <div className="relative" ref={menuRef}>
           <button

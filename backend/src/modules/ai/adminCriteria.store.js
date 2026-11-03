@@ -261,14 +261,36 @@ export function evaluateRequestAgainstCriteria(r, rules = {}) {
   };
 }
 
-export async function setAdminCriteria(rawText = '', adminUser = null) {
-  const parsed = parseCriteriaFromText(rawText);
+export async function setAdminCriteria(rawText = '', adminUser = null, explicitRules = null) {
+  let parsed = parseCriteriaFromText(rawText);
+  if (explicitRules && typeof explicitRules === 'object') {
+    parsed.rules = {
+      ...parsed.rules,
+      ...explicitRules,
+    };
+    const summaries = [];
+    if (parsed.rules.requirePhone10) summaries.push('SĐT đủ 10 số');
+    if (parsed.rules.requireCccd12) summaries.push('CCCD đủ 12 số (sẵn sàng, không ràng buộc)');
+    if (parsed.rules.requireReason) summaries.push('Có lý do thay đổi rõ ràng');
+    if (parsed.rules.requireName) summaries.push('Họ tên đầy đủ');
+    if (parsed.rules.requireAddress) summaries.push('Địa chỉ hợp lệ');
+    if (parsed.rules.noAvatar) summaries.push('Không duyệt đổi avatar');
+    if (parsed.rules.requireHumanSingleAvatar) {
+      summaries.push('Avatar phải là hình người và chỉ 1 người');
+    } else {
+      if (parsed.rules.requireHumanAvatar) summaries.push('Avatar phải là hình người thật');
+      if (parsed.rules.requireSinglePersonAvatar) summaries.push('Avatar chỉ được có đúng 1 người');
+    }
+    if (summaries.length > 0) {
+      parsed.rules.customSummary = summaries.join(' • ');
+    }
+  }
   memoryCriteria = parsed;
 
   try {
     const doc = new AdminCriteria({
       adminId: adminUser?._id || null,
-      rawCriteriaText: parsed.rawCriteriaText,
+      rawCriteriaText: parsed.rawCriteriaText || parsed.rules.customSummary || 'Tiêu chuẩn kiểm duyệt tùy chỉnh',
       rules: parsed.rules,
       isActive: true,
     });
@@ -301,4 +323,50 @@ export async function clearAdminCriteria() {
     await AdminCriteria.updateMany({ isActive: true }, { isActive: false });
   } catch (err) {}
   return null;
+}
+
+export async function evaluateAndProcessPendingRequests(criteria, currentUser) {
+  try {
+    const { ProfileRequest } = await import('../profileRequests/profileRequest.model.js');
+    const { approveOne } = await import('../profileRequests/profileRequest.service.js');
+    const pendingList = await ProfileRequest.find({ status: 'pending' }).sort({ createdAt: -1 });
+
+    const autoApproved = [];
+    const keptPending = [];
+    const rules = criteria?.rules || {};
+
+    for (const r of pendingList) {
+      const evaluation = evaluateRequestAgainstCriteria(r, rules);
+      if (evaluation.pass) {
+        try {
+          await approveOne(r._id, currentUser || { _id: null, hoTen: 'Quản trị viên', role: 'dao-tao' });
+        } catch {
+          r.status = 'approved';
+          r.reviewedBy = currentUser?._id;
+          r.reviewedAt = new Date();
+          r.adminNote = `[Tự động duyệt] Đạt tiêu chuẩn: ${rules.customSummary || criteria?.rawCriteriaText}`;
+          await r.save().catch(() => {});
+        }
+        autoApproved.push(r);
+      } else {
+        r.adminNote = `[Chưa đạt tiêu chuẩn] ${evaluation.fails.join(', ')}`;
+        await r.save().catch(() => {});
+        keptPending.push({ request: r, fails: evaluation.fails });
+      }
+    }
+
+    return {
+      total: pendingList.length,
+      autoApprovedCount: autoApproved.length,
+      keptPendingCount: keptPending.length,
+      autoApprovedIds: autoApproved.map((x) => String(x._id)),
+    };
+  } catch (err) {
+    return {
+      total: 0,
+      autoApprovedCount: 0,
+      keptPendingCount: 0,
+      autoApprovedIds: [],
+    };
+  }
 }
