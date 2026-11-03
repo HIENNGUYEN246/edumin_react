@@ -1880,39 +1880,39 @@ export async function handleAiAssistantQuery({ message, user, currentPath = '', 
           `${criteria.rules?.requireHumanSingleAvatar ? '  ✓ Avatar bắt buộc là hình người và chỉ 1 người (ảnh chân dung/ảnh thẻ, không phải con vật/đồ vật/anime/nhóm người)\n' : ''}` +
           `${!criteria.rules?.requireHumanSingleAvatar && criteria.rules?.requireHumanAvatar ? '  ✓ Avatar bắt buộc là hình người thật\n' : ''}` +
           `${!criteria.rules?.requireHumanSingleAvatar && criteria.rules?.requireSinglePersonAvatar ? '  ✓ Avatar chỉ được có đúng 1 người\n' : ''}` +
-          `\n⚡ **Cơ chế kiểm duyệt đón đầu tự động:**\n` +
-          `Từ thời điểm này trở đi, bất kỳ khi nào Sinh viên hoặc Giảng viên gửi yêu cầu chỉnh sửa hồ sơ hoặc đổi avatar, EduMin AI sẽ lập tức đối soát tự động:\n` +
-          `- ✅ **Nếu đạt chuẩn:** Tự động phê duyệt nhanh ngay lập tức và đồng bộ vào cơ sở dữ liệu.\n` +
-          `- ⚠️ **Nếu không đạt chuẩn:** Giữ nguyên hồ sơ ở trạng thái Chờ duyệt (Pending) tại trang Duyệt yêu cầu kèm lý do chưa đạt chuẩn để Admin xem xét thủ công.\n\n` +
+          `\n⚡ **Cơ chế kiểm duyệt đón đầu:**\n` +
+          `Từ thời điểm này trở đi, bất kỳ khi nào Sinh viên hoặc Giảng viên gửi yêu cầu chỉnh sửa hồ sơ hoặc đổi avatar, EduMin AI sẽ lập tức đối soát:\n` +
+          `- 📋 **Nếu đạt chuẩn:** Giữ lại hiển thị trong danh sách Chờ duyệt, đánh dấu [Đạt tiêu chuẩn - Chờ Admin duyệt] để Admin trực tiếp kiểm duyệt và bấm Duyệt thủ công (không tự động phê duyệt).\n` +
+          `- ❌ **Nếu không đạt chuẩn:** Tự động từ chối kiểm duyệt ngay lập tức kèm lý do vi phạm tiêu chuẩn.\n\n` +
           `📌 *Dữ liệu thực tế: Hiện tại trong cơ sở dữ liệu không có hồ sơ nào đang chờ duyệt (0 pending). Hệ thống đang ở trạng thái trực ban sẵn sàng kiểm duyệt đón đầu mọi thay đổi mới.*`,
       };
     }
 
-    const autoApproved = [];
-    const keptPending = [];
+    const validPending = [];
+    const autoRejected = [];
 
     for (const r of pendingList) {
       const evaluation = evaluateRequestAgainstCriteria(r, criteria.rules);
       const fails = evaluation.fails;
 
       if (fails.length === 0) {
-        try {
-          await approveOne(r._id, currentUser);
-        } catch {
-          r.status = 'approved';
-          r.reviewedBy = currentUser?._id;
-          r.reviewedAt = new Date();
-          await r.save().catch(() => {});
-        }
-        autoApproved.push(r);
+        r.status = 'pending';
+        r.adminNote = `[Đạt tiêu chuẩn - Chờ Admin duyệt] Phù hợp tiêu chí: ${criteria.rules?.customSummary || criteria.rawCriteriaText}`;
+        await r.save().catch(() => {});
+        validPending.push(r);
       } else {
-        keptPending.push({ request: r, fails });
+        r.status = 'rejected';
+        r.reviewedBy = currentUser?._id;
+        r.reviewedAt = new Date();
+        r.adminNote = `[Tự động từ chối] Không đạt tiêu chuẩn: ${fails.join(', ')}`;
+        await r.save().catch(() => {});
+        autoRejected.push({ request: r, fails });
       }
     }
 
     let reply =
       `🛡️ **QUY CHUẨN KIỂM DUYỆT TỰ ĐỘNG ĐÃ ĐƯỢC THIẾT LẬP ĐÓN ĐẦU (PRE-CONFIGURED POLICY)**\n\n` +
-      `Quy chuẩn kiểm duyệt tự động đã được kích hoạt trước trên toàn hệ thống:\n` +
+      `Quy chuẩn kiểm duyệt đã được kích hoạt trên toàn hệ thống:\n` +
       `• **Tiêu chuẩn đang áp dụng:** ${criteria.rules?.customSummary || criteria.rawCriteriaText}\n` +
       `• **Tiêu chí kiểm định đón đầu:**\n` +
       `${criteria.rules?.requirePhone10 ? '  ✓ Số điện thoại bắt buộc đủ 10 chữ số\n' : ''}` +
@@ -1924,45 +1924,45 @@ export async function handleAiAssistantQuery({ message, user, currentPath = '', 
       `${criteria.rules?.requireHumanSingleAvatar ? '  ✓ Avatar bắt buộc là hình người và chỉ 1 người (ảnh chân dung/ảnh thẻ, không phải con vật/đồ vật/anime/nhóm người)\n' : ''}` +
       `${!criteria.rules?.requireHumanSingleAvatar && criteria.rules?.requireHumanAvatar ? '  ✓ Avatar bắt buộc là hình người thật\n' : ''}` +
       `${!criteria.rules?.requireHumanSingleAvatar && criteria.rules?.requireSinglePersonAvatar ? '  ✓ Avatar chỉ được có đúng 1 người\n' : ''}` +
-      `\n⚡ **Cơ chế đón đầu tự động:**\n` +
-      `Từ thời điểm này trở đi, mọi yêu cầu thay đổi mới phát sinh từ Sinh viên & Giảng viên sẽ được EduMin AI đối soát tức thì ngay khi gửi (tự động duyệt nhanh nếu đạt, hoặc giữ lại ở phần Duyệt nếu chưa đạt).\n\n` +
+      `\n⚡ **Cơ chế kiểm duyệt:**\n` +
+      `Hồ sơ phù hợp tiêu chí sẽ được hiển thị ra cho Admin kiểm duyệt (chứ không tự động duyệt); chỉ tự động từ chối các yêu cầu không đạt chuẩn.\n\n` +
       `📊 **Kết quả đối soát các hồ sơ hiện có trong cơ sở dữ liệu (${pendingList.length} hồ sơ):**\n\n`;
 
-    if (autoApproved.length > 0) {
-      reply += `✅ **ĐÃ TỰ ĐỘNG DUYỆT NHANH (ĐÃ TỰ ĐỘNG DUYỆT NGAY ${autoApproved.length} hồ sơ đạt chuẩn):**\n`;
-      autoApproved.forEach((r, idx) => {
+    if (validPending.length > 0) {
+      reply += `📋 **HỒ SƠ HỢP LỆ (HIỂN THỊ CHỜ ADMIN KIỂM DUYỆT ${validPending.length} hồ sơ):**\n`;
+      validPending.forEach((r, idx) => {
         const roleLabel = r.requesterRole === 'giao-vien' ? 'Giảng viên' : 'Sinh viên';
-        reply += `  ${idx + 1}. **${r.requesterName}** (${roleLabel}): Đạt tiêu chuẩn, đã được duyệt và cập nhật vào hệ thống.\n`;
+        reply += `  ${idx + 1}. **${r.requesterName}** (${roleLabel}): Phù hợp tiêu chuẩn → *Đang chờ Admin phê duyệt thủ công*.\n`;
       });
       reply += `\n`;
     }
 
-    if (keptPending.length > 0) {
-      reply += `⚠️ **HỒ SƠ KHÔNG ĐẠT TIÊU CHUẨN (${keptPending.length} hồ sơ — Giữ lại bên phần Duyệt):**\n`;
-      keptPending.forEach((item, idx) => {
+    if (autoRejected.length > 0) {
+      reply += `❌ **ĐÃ TỰ ĐỘNG TỪ CHỐI (${autoRejected.length} hồ sơ không đạt chuẩn):**\n`;
+      autoRejected.forEach((item, idx) => {
         const r = item.request;
         const roleLabel = r.requesterRole === 'giao-vien' ? 'Giảng viên' : 'Sinh viên';
-        reply += `  ${idx + 1}. **${r.requesterName}** (${roleLabel}): ${item.fails.join(', ')} → *Giữ nguyên ở trạng thái Chờ duyệt để Admin xem xét thủ công*.\n`;
+        reply += `  ${idx + 1}. **${r.requesterName}** (${roleLabel}): ${item.fails.join(', ')} → *Đã tự động từ chối*.\n`;
       });
-      reply += `\n📌 Các hồ sơ không đạt chuẩn được giữ nguyên tại trang **Duyệt yêu cầu** để Admin kiểm tra lại.`;
+      reply += `\n📌 Các hồ sơ không đạt chuẩn đã được tự động từ chối để Admin không phải xử lý rác.\n`;
     } else {
-      reply += `🎉 Toàn bộ hồ sơ chờ duyệt đều thỏa mãn tiêu chuẩn và đã được tự động duyệt nhanh thành công!`;
+      reply += `🎉 Toàn bộ hồ sơ đều hợp lệ và đang hiển thị sẵn sàng cho Admin kiểm duyệt!\n`;
     }
 
-    const approvedCards = autoApproved.map((r) => ({
+    const approvedCards = validPending.map((r) => ({
       type: 'approval',
       id: String(r._id || r.id),
       requestId: String(r._id || r.id),
       title: r.requesterName || 'Người dùng',
       code: `Yêu cầu #${String(r._id || r.id).slice(-4).toUpperCase()}`,
-      subtitle: `✓ Đã tự động phê duyệt thành công (Đạt tiêu chuẩn)`,
+      subtitle: `📋 Đạt tiêu chuẩn (Chờ Admin duyệt)`,
       meta: `Email: ${r.requesterEmail || ''} • ${r.requesterRole === 'giao-vien' ? 'Giảng viên' : 'Sinh viên'}`,
-      status: 'approved',
+      status: 'pending',
       meetsCriteria: true,
       details: [
         { label: 'Người gửi', value: r.requesterName },
         { label: 'Loại yêu cầu', value: r.type === 'avatar' ? 'Đổi avatar' : 'Cập nhật hồ sơ' },
-        { label: 'Trạng thái', value: '✓ Đã duyệt tự động' },
+        { label: 'Trạng thái', value: 'Chờ Admin duyệt' },
         { label: 'Tiêu chuẩn', value: criteria.rules?.customSummary || criteria.rawCriteriaText },
       ],
       action: { label: 'Xem tại phần Duyệt', path: '/admin/profile-requests' },

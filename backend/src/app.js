@@ -1,4 +1,5 @@
 import express from 'express';
+import path from 'path';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
@@ -47,6 +48,7 @@ export function createApp() {
   });
 
   app.use('/api', apiRouter);
+  app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
   app.use(notFoundHandler);
   app.use(errorHandler);

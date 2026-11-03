@@ -229,9 +229,9 @@ export function ManageProfileRequests() {
       return;
     }
     const ok = await confirm({
-      title: 'Kiểm duyệt theo tiêu chí',
-      message: `Tiến hành kiểm tra ${pendingCount} yêu cầu đang chờ duyệt theo tiêu chí hiện tại? Các hồ sơ đạt tiêu chuẩn sẽ được tự động duyệt ngay lập tức.`,
-      confirmText: 'Chạy kiểm duyệt',
+      title: 'Lọc danh sách chờ theo tiêu chí',
+      message: `Hệ thống sẽ đối soát ${pendingCount} yêu cầu đang chờ duyệt: tự động từ chối các yêu cầu không đạt chuẩn, và giữ lại các yêu cầu hợp lệ để Admin xem xét duyệt.`,
+      confirmText: 'Chạy lọc danh sách',
       tone: 'primary',
     });
     if (!ok) return;
@@ -241,11 +241,12 @@ export function ManageProfileRequests() {
       const res = await profileRequestsApi.applyAiCriteria();
       invalidate();
       queryClient.refetchQueries({ queryKey: ['profile-requests'] });
-      const count = res?.processResult?.autoApprovedCount ?? 0;
-      if (count > 0) {
-        toast.success(`Đã tự động phê duyệt thành công ${count} yêu cầu đạt tiêu chuẩn!`);
+      const rejectedCount = res?.processResult?.autoRejectedCount ?? 0;
+      const validCount = res?.processResult?.keptForAdminReviewCount ?? 0;
+      if (rejectedCount > 0 || validCount > 0) {
+        toast.success(`Đã tự động từ chối ${rejectedCount} yêu cầu không đạt chuẩn. Còn lại ${validCount} yêu cầu hợp lệ đang chờ Admin duyệt.`);
       } else {
-        toast.info('Không có hồ sơ nào trong danh sách chờ đạt tiêu chuẩn.');
+        toast.info('Không có hồ sơ nào cần xử lý trong danh sách chờ.');
       }
     } catch (err) {
       toast.error(err?.message || 'Lỗi khi kiểm duyệt yêu cầu');
@@ -458,16 +459,27 @@ export function ManageProfileRequests() {
       className: 'w-28',
       render: (r) => {
         if (r.status === 'pending') {
+          const isMatch = r.adminNote?.includes('Đạt tiêu chuẩn') || r.adminNote?.includes('Đạt tiêu chí');
           return (
             <div>
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
-                <i className="fas fa-clock text-[10px]" /> Chờ duyệt
-              </span>
-              {r.adminNote?.includes('Chưa đạt') && (
+              {isMatch ? (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  <i className="fas fa-circle-check text-emerald-600 text-[10px]" /> Đạt chuẩn (Chờ duyệt)
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                  <i className="fas fa-clock text-[10px]" /> Chờ duyệt
+                </span>
+              )}
+              {isMatch ? (
+                <p className="text-[10px] text-emerald-600 font-semibold mt-0.5 max-w-[140px] truncate" title={r.adminNote}>
+                  Sẵn sàng để Admin duyệt
+                </p>
+              ) : r.adminNote?.includes('Chưa đạt') ? (
                 <p className="text-[10px] text-amber-700 font-medium mt-0.5 max-w-[130px] truncate" title={r.adminNote}>
                   {r.adminNote.replace(/\[.*?\]\s*/g, '')}
                 </p>
-              )}
+              ) : null}
             </div>
           );
         }
@@ -635,7 +647,7 @@ export function ManageProfileRequests() {
                       <i className="fas fa-ban text-rose-500 text-[10px]" /> Khóa đổi Avatar
                     </span>
                   )}
-                  <span className="text-slate-400">• Tự động phê duyệt hồ sơ đạt chuẩn ngay khi gửi.</span>
+                  <span className="text-slate-400">• Tự động từ chối hồ sơ không đạt chuẩn; hồ sơ hợp lệ hiển thị chờ Admin kiểm duyệt.</span>
                 </div>
               </div>
             </div>
@@ -648,8 +660,8 @@ export function ManageProfileRequests() {
                 className="px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200/80 text-xs font-bold transition flex items-center gap-1.5 shadow-2xs disabled:opacity-50 cursor-pointer"
                 title="Kiểm tra và duyệt các yêu cầu chờ theo tiêu chí này"
               >
-                <i className={`fas ${isApplyingCriteria ? 'fa-spinner fa-spin' : 'fa-bolt'}`} />
-                <span>Duyệt danh sách chờ ({pendingCount})</span>
+                <i className={`fas ${isApplyingCriteria ? 'fa-spinner fa-spin' : 'fa-filter'}`} />
+                <span>Lọc danh sách chờ ({pendingCount})</span>
               </button>
               <button
                 type="button"

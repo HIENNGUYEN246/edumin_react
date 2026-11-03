@@ -67,6 +67,8 @@ export function ChatProvider({ children }) {
         subtitle: target.courseCode || target.role || target.email || '',
         avatar: target.avatar || '',
         role: target.role || '',
+        code: target.code || '',
+        inMyClass: target.inMyClass,
         studentCount: target.studentCount,
         teacher: target.teacher,
         isMinimized: false,

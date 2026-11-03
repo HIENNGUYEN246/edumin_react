@@ -14,16 +14,29 @@ function freePortOnWindows(port) {
   try {
     const output = execSync(`netstat -ano | findstr :${port}`, { encoding: 'utf8' });
     const lines = output.split('\n');
+    const seenPids = new Set();
     for (const line of lines) {
-      if (line.includes('LISTENING')) {
+      if (
+        line.includes('LISTENING') ||
+        line.includes('FIN_WAIT') ||
+        line.includes('CLOSE_WAIT') ||
+        line.includes('TIME_WAIT')
+      ) {
         const parts = line.trim().split(/\s+/);
         const pid = parts[parts.length - 1];
-        if (pid && Number(pid) > 0 && Number(pid) !== process.pid) {
-          console.warn(`[Auto-Recovery] Phát hiện tiến trình mồ côi (PID: ${pid}) đang chiếm giữ cổng ${port}. Đang tự động giải phóng...`);
+        if (pid && Number(pid) > 0 && Number(pid) !== process.pid && !seenPids.has(pid)) {
+          seenPids.add(pid);
+          console.warn(`[Auto-Recovery] Phát hiện tiến trình (PID: ${pid}) đang chiếm giữ cổng ${port}. Đang tự động giải phóng...`);
           try {
-            execSync(`taskkill /F /PID ${pid}`, { stdio: 'ignore' });
+            execSync(`taskkill /F /T /PID ${pid}`, { stdio: 'ignore' });
             console.log(`[Auto-Recovery] Đã giải phóng cổng ${port} thành công!`);
-          } catch {}
+          } catch (e) {
+            console.warn(`[Auto-Recovery] ❌ Không thể tự động tắt PID ${pid} vì tiến trình này chạy bằng quyền Administrator (Access is denied).`);
+            console.warn(`👉 Cách xử lý nhanh nhất:`);
+            console.warn(`   1. Mở Task Manager (Ctrl + Shift + Esc) -> tìm Node.js (PID ${pid}) -> bấm End Task.`);
+            console.warn(`   2. Hoặc mở CMD / PowerShell (Run as Administrator) và gõ: taskkill /F /PID ${pid}`);
+            console.warn(`   3. Hoặc nhấp chuột phải file "kill_port_4000.bat" ở thư mục dự án và chọn "Run as administrator".`);
+          }
         }
       }
     }
@@ -67,8 +80,12 @@ async function start() {
         if (err.code === 'EADDRINUSE') {
           if (retriesLeft > 0) {
             console.warn(`[Server] Port ${config.PORT} đang bận (EADDRINUSE). Đang tự động thử lại sau 1s... (${retriesLeft} lần thử còn lại)`);
-            if (retriesLeft <= 28) {
+            if (retriesLeft === 30 || retriesLeft % 5 === 0) {
               freePortOnWindows(config.PORT);
+            }
+            if (retriesLeft === 28) {
+              console.warn(`[Server] 💡 Gợi ý: Có thể server backend cũ đang chạy ngầm trong một tab terminal khác.`);
+              console.warn(`👉 Bạn có thể nhấp chuột phải file "kill_port_4000.bat" ở thư mục dự án và chọn "Run as administrator" để giải phóng ngay.`);
             }
             setTimeout(() => {
               try {

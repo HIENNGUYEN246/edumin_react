@@ -137,11 +137,11 @@ export function CriteriaSettingsModal({
           </div>
           <div>
             <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-              Cơ chế kiểm duyệt đón đầu tự động
+              Cơ chế kiểm duyệt tiêu chuẩn
             </h4>
             <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">
               Các yêu cầu cập nhật hồ sơ và ảnh đại diện gửi lên từ Giảng viên & Sinh viên sẽ được đối soát theo bộ tiêu chuẩn dưới đây:
-              Tự động phê duyệt ngay nếu đạt chuẩn, hoặc giữ lại danh sách Chờ duyệt nếu chưa đạt để Admin xem xét thủ công.
+              Hệ thống sẽ <strong className="font-semibold text-rose-600">tự động từ chối</strong> các yêu cầu không đạt chuẩn; các yêu cầu hợp lệ sẽ được <strong className="font-semibold text-indigo-700">hiển thị trong danh sách chờ để Admin kiểm duyệt</strong> (không tự động phê duyệt).
             </p>
           </div>
         </div>
@@ -400,10 +400,10 @@ export function CriteriaSettingsModal({
             </div>
             <div>
               <p className="text-xs font-bold text-slate-800">
-                Tự động kiểm tra và duyệt ngay danh sách chờ ({pendingCount} yêu cầu)
+                Lọc danh sách chờ ({pendingCount} yêu cầu): Tự động từ chối yêu cầu không đạt chuẩn
               </p>
               <p className="text-[11px] text-slate-500">
-                Khi lưu tiêu chí, hệ thống sẽ tự động đối soát và duyệt ngay các hồ sơ hợp lệ đang chờ.
+                Khi lưu tiêu chí, hệ thống sẽ tự động từ chối các hồ sơ không phù hợp và giữ lại hồ sơ đạt chuẩn để Admin xem xét duyệt.
               </p>
             </div>
           </div>

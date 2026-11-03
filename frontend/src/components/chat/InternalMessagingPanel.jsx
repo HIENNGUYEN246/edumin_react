@@ -456,16 +456,28 @@ export function InternalMessagingPanel({ onClose }) {
                       <h4 className="text-xs font-bold text-slate-900 truncate mt-0.5 group-hover:text-indigo-600 transition">
                         {c.courseName}
                       </h4>
-                      <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                      {/* Vị trí riêng biệt cho Giáo viên & Sĩ số */}
+                      <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                        <span
+                          className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-medium bg-slate-100 text-slate-700 border border-slate-200/80 shrink-0 max-w-[150px] truncate"
+                          title={`Giáo viên: ${c.teacher || 'Chưa phân công'}`}
+                        >
+                          <i className="fas fa-chalkboard-teacher text-indigo-500 text-[9px] shrink-0" />
+                          <span className="truncate">GV: <strong className="font-semibold text-slate-800">{c.teacher || 'Chưa phân công'}</strong></span>
+                        </span>
+                        <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0 flex items-center gap-1">
+                          <i className="fas fa-users text-[9px]" />
+                          <span>{c.memberCount || 0} TV</span>
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 truncate mt-1">
                         {c.lastMessage ? (
                           <span>
-                            <strong className="text-slate-700">{c.lastMessage.senderName}: </strong>
+                            <strong className="text-slate-800 font-bold">{c.lastMessage.senderName ? `${c.lastMessage.senderName}: ` : ''}</strong>
                             {c.lastMessage.content}
                           </span>
                         ) : (
-                          <span className="italic text-slate-400">
-                            GV: {c.teacher} • {c.memberCount} thành viên
-                          </span>
+                          <span className="italic text-slate-400">Chưa có tin nhắn nào</span>
                         )}
                       </p>
                     </div>

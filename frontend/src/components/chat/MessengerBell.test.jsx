@@ -95,6 +95,8 @@ describe('MessengerBell', () => {
       name: 'Nguyễn Thế Hiển',
       hoTen: 'Nguyễn Thế Hiển',
       role: 'sinh-vien',
+      code: 'SV-001',
+      inMyClass: true,
       email: 'hien.nt@sinhvien.edumin.edu.vn',
       avatar: '',
     },
@@ -103,7 +105,19 @@ describe('MessengerBell', () => {
       name: 'ThS. Lê Văn Quang',
       hoTen: 'ThS. Lê Văn Quang',
       role: 'giao-vien',
+      code: 'GV-001',
+      inMyClass: true,
       email: 'quang.lv@edumin.edu.vn',
+      avatar: '',
+    },
+    {
+      _id: 'teacher-ngoai',
+      name: 'TS. Vũ Đình Ngoài',
+      hoTen: 'TS. Vũ Đình Ngoài',
+      role: 'giao-vien',
+      code: 'GV-002',
+      inMyClass: false,
+      email: 'ngoai.vd@edumin.edu.vn',
       avatar: '',
     },
   ];
@@ -142,12 +156,13 @@ describe('MessengerBell', () => {
     fireEvent.click(button);
 
     expect(screen.getByText('Đoạn chat')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText(/Tìm kiếm lớp học phần/i)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/Tìm theo tên hoặc mã GV\/SV/i)).toBeInTheDocument();
 
     await waitFor(() => {
       expect(screen.getByText('Lập trình Cơ bản C++')).toBeInTheDocument();
       expect(screen.getByText('TS. Trần Thị B')).toBeInTheDocument();
       expect(screen.getByText(/45 SV/i)).toBeInTheDocument();
+      expect(screen.getByText(/Mặc định:/i)).toBeInTheDocument();
     });
   });
 
@@ -191,13 +206,28 @@ describe('MessengerBell', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Xem tin nhắn/i }));
 
-    const searchInput = screen.getByPlaceholderText(/Tìm kiếm lớp học phần/i);
+    const searchInput = screen.getByPlaceholderText(/Tìm theo tên hoặc mã GV\/SV/i);
     fireEvent.change(searchInput, { target: { value: 'Nguyễn Thế Hiển' } });
 
     await waitFor(() => {
       expect(screen.getByText('Nguyễn Thế Hiển')).toBeInTheDocument();
       expect(screen.getAllByText('Sinh viên').length).toBeGreaterThanOrEqual(1);
       expect(screen.queryByText('Lập trình Cơ bản C++')).not.toBeInTheDocument();
+    });
+  });
+
+  it('searches outside-class teacher by code "GV-002" and displays "Lớp ngoài" badge', async () => {
+    renderWithProviders(<MessengerBell />);
+
+    fireEvent.click(screen.getByRole('button', { name: /Xem tin nhắn/i }));
+
+    const searchInput = screen.getByPlaceholderText(/Tìm theo tên hoặc mã GV\/SV/i);
+    fireEvent.change(searchInput, { target: { value: 'GV-002' } });
+
+    await waitFor(() => {
+      expect(screen.getByText('TS. Vũ Đình Ngoài')).toBeInTheDocument();
+      expect(screen.getByText('GV-002')).toBeInTheDocument();
+      expect(screen.getByText('Lớp ngoài')).toBeInTheDocument();
     });
   });
 });

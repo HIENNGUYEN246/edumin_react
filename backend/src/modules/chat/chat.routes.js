@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import multer from 'multer';
 import { authenticate } from '../../middleware/authenticate.js';
 import { asyncHandler } from '../../lib/asyncHandler.js';
 import {
@@ -6,9 +7,15 @@ import {
   getContactsForUser,
   getMessages,
   sendMessage,
+  uploadChatAttachment,
 } from './chat.service.js';
 
 const router = Router();
+
+const chatUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 25 * 1024 * 1024 }, // 25MB max
+});
 
 // GET /api/chat/channels - Lấy danh sách nhóm lớp học phần và cuộc trò chuyện cá nhân
 router.get(
@@ -55,17 +62,36 @@ router.get(
   })
 );
 
+// POST /api/chat/upload - Tải lên tệp đính kèm (Hình ảnh, Tài liệu, Tin nhắn thoại)
+router.post(
+  '/upload',
+  authenticate,
+  chatUpload.single('file'),
+  asyncHandler(async (req, res) => {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'Vui lòng chọn tệp để tải lên' });
+    }
+    const uploaded = await uploadChatAttachment(req.file, req.body.duration);
+    res.json({
+      success: true,
+      file: uploaded,
+    });
+  })
+);
+
 // POST /api/chat/messages - Gửi tin nhắn mới vào nhóm lớp hoặc cá nhân
 router.post(
   '/messages',
   authenticate,
   asyncHandler(async (req, res) => {
-    const { type, classId, recipientId, content } = req.body;
+    const { type, classId, recipientId, content, attachments, mentions } = req.body;
     const message = await sendMessage(req.user, {
       type,
       classId,
       recipientId,
       content,
+      attachments,
+      mentions,
     });
     res.status(201).json({
       success: true,

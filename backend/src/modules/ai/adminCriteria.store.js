@@ -328,45 +328,60 @@ export async function clearAdminCriteria() {
 export async function evaluateAndProcessPendingRequests(criteria, currentUser) {
   try {
     const { ProfileRequest } = await import('../profileRequests/profileRequest.model.js');
-    const { approveOne } = await import('../profileRequests/profileRequest.service.js');
+    const { createNotification } = await import('../notifications/notification.service.js');
     const pendingList = await ProfileRequest.find({ status: 'pending' }).sort({ createdAt: -1 });
 
-    const autoApproved = [];
-    const keptPending = [];
+    const autoRejected = [];
+    const keptForAdminReview = [];
     const rules = criteria?.rules || {};
 
     for (const r of pendingList) {
       const evaluation = evaluateRequestAgainstCriteria(r, rules);
       if (evaluation.pass) {
-        try {
-          await approveOne(r._id, currentUser || { _id: null, hoTen: 'Quản trị viên', role: 'dao-tao' });
-        } catch {
-          r.status = 'approved';
-          r.reviewedBy = currentUser?._id;
-          r.reviewedAt = new Date();
-          r.adminNote = `[Tự động duyệt] Đạt tiêu chuẩn: ${rules.customSummary || criteria?.rawCriteriaText}`;
-          await r.save().catch(() => {});
-        }
-        autoApproved.push(r);
-      } else {
-        r.adminNote = `[Chưa đạt tiêu chuẩn] ${evaluation.fails.join(', ')}`;
+        // Thông tin phù hợp theo tiêu chí: Giữ lại hiển thị cho Admin kiểm duyệt thủ công (chứ KHÔNG tự động duyệt)
+        r.status = 'pending';
+        r.adminNote = `[Đạt tiêu chuẩn - Chờ Admin duyệt] Phù hợp tiêu chí: ${rules.customSummary || criteria?.rawCriteriaText}`;
         await r.save().catch(() => {});
-        keptPending.push({ request: r, fails: evaluation.fails });
+        keptForAdminReview.push(r);
+      } else {
+        // Thông tin không phù hợp: TỰ ĐỘNG TỪ CHỐI
+        r.status = 'rejected';
+        r.reviewedBy = currentUser?._id || null;
+        r.reviewedAt = new Date();
+        r.adminNote = `[Tự động từ chối] Không đạt tiêu chuẩn: ${evaluation.fails.join(', ')}`;
+        await r.save().catch(() => {});
+
+        try {
+          if (r.userId) {
+            await createNotification({
+              userId: r.userId,
+              title: 'Yêu cầu thay đổi thông tin bị từ chối',
+              message: `Yêu cầu cập nhật của bạn đã bị từ chối do không đạt tiêu chuẩn: ${evaluation.fails.join(', ')}`,
+              type: 'profile_request',
+            });
+          }
+        } catch {}
+
+        autoRejected.push(r);
       }
     }
 
     return {
       total: pendingList.length,
-      autoApprovedCount: autoApproved.length,
-      keptPendingCount: keptPending.length,
-      autoApprovedIds: autoApproved.map((x) => String(x._id)),
+      autoRejectedCount: autoRejected.length,
+      keptForAdminReviewCount: keptForAdminReview.length,
+      autoApprovedCount: 0, // Không tự động duyệt nữa theo yêu cầu Admin
+      autoRejectedIds: autoRejected.map((x) => String(x._id)),
+      validPendingIds: keptForAdminReview.map((x) => String(x._id)),
     };
   } catch (err) {
     return {
       total: 0,
+      autoRejectedCount: 0,
+      keptForAdminReviewCount: 0,
       autoApprovedCount: 0,
-      keptPendingCount: 0,
-      autoApprovedIds: [],
+      autoRejectedIds: [],
+      validPendingIds: [],
     };
   }
 }

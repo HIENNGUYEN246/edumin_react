@@ -304,19 +304,19 @@ describe('Admin Avatar Criteria Approval Flow & Chatbox Protection', () => {
 
     expect(chatRes.status).toBe(200);
     expect(chatRes.body.intent).toBe('ADMIN_SET_CRITERIA');
-    expect(chatRes.body.reply).toContain('ĐÃ TỰ ĐỘNG DUYỆT NGAY');
+    expect(chatRes.body.reply).toContain('HỒ SƠ HỢP LỆ (HIỂN THỊ CHỜ ADMIN KIỂM DUYỆT');
+    expect(chatRes.body.reply).toContain('ĐÃ TỰ ĐỘNG TỪ CHỐI');
     expect(chatRes.body.reply).toContain('Nguyễn Văn An');
     expect(chatRes.body.reply).toContain('Trần Đình');
-    expect(chatRes.body.actionTrigger).toBeDefined();
-    expect(chatRes.body.actionTrigger.action).toBe('criteria_approval_processed');
-    expect(chatRes.body.actionTrigger.autoApprovedCount).toBeGreaterThanOrEqual(1);
 
-    // 3. Verify database state: valid request is approved, invalid request remains pending
+    // 3. Verify database state: valid request is kept pending for Admin manual review, invalid request is auto-rejected!
     const checkValid = await ProfileRequest.findById(validReq._id);
-    expect(checkValid.status).toBe('approved');
+    expect(checkValid.status).toBe('pending');
+    expect(checkValid.adminNote).toContain('Đạt tiêu chuẩn - Chờ Admin duyệt');
 
     const checkInvalid = await ProfileRequest.findById(invalidReq._id);
-    expect(checkInvalid.status).toBe('pending');
+    expect(checkInvalid.status).toBe('rejected');
+    expect(checkInvalid.adminNote).toContain('Tự động từ chối');
   });
 
   it('Admin Chatbox: strictly refuses to approve requests with non-human avatars (scenery, objects, animals) and keeps them in pending', async () => {

@@ -14,6 +14,7 @@ export const chatApi = {
   getContacts: (params) => http.get(`/chat/contacts${qs(params)}`),
   getMessages: (params) => http.get(`/chat/messages${qs(params)}`),
   sendMessage: (payload) => http.post('/chat/messages', payload),
+  uploadAttachment: (formData) => http.post('/chat/upload', formData),
 };
 
 export default chatApi;

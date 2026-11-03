@@ -301,6 +301,19 @@ export async function updateMyAvatar(user, file) {
     requestedData: { avatar: uploaded },
   });
 
+  if (request.status === 'rejected') {
+    return {
+      success: false,
+      status: 'rejected',
+      approved: false,
+      pending: false,
+      rejected: true,
+      message: `Ảnh đại diện đã bị tự động từ chối do không đạt tiêu chuẩn: ${request.adminNote?.replace(/^\[.*?\]\s*/, '')}`,
+      avatar: uploaded,
+      request,
+    };
+  }
+
   return {
     success: true,
     status: 'pending',
@@ -327,6 +340,15 @@ export async function requestProfileUpdate(user, updateData) {
     type: 'profile',
     requestedData: updateData,
   });
+
+  if (request.status === 'rejected') {
+    return {
+      pending: false,
+      rejected: true,
+      message: `Yêu cầu thay đổi thông tin đã bị tự động từ chối do không đạt tiêu chuẩn: ${request.adminNote?.replace(/^\[.*?\]\s*/, '')}`,
+      request,
+    };
+  }
 
   if (request.status === 'approved') {
     return {

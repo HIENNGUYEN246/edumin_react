@@ -9,15 +9,25 @@ export function NewMessageModal() {
   const { user } = useAuth();
   const { openChat, isNewMessageModalOpen, setIsNewMessageModalOpen } = useChat();
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  // Debounce search input
+  React.useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(search.trim());
+    }, 200);
+    return () => clearTimeout(handler);
+  }, [search]);
 
   const role = user?.role || '';
   const isAdmin = role === 'dao-tao' || role === 'admin';
   const isTeacher = role === 'giao-vien' || role === 'teacher';
 
   const { data: contactsData, isLoading } = useQuery({
-    queryKey: ['chat-contacts', search],
-    queryFn: () => chatApi.getContacts({ search }),
+    queryKey: ['chat-contacts', debouncedSearch],
+    queryFn: () => chatApi.getContacts({ search: debouncedSearch }),
     enabled: isNewMessageModalOpen,
+    placeholderData: (prev) => prev,
   });
 
   const contacts = contactsData?.data || [];
@@ -31,6 +41,8 @@ export function NewMessageModal() {
       title: contact.name,
       name: contact.name,
       role: contact.role,
+      code: contact.code,
+      inMyClass: contact.inMyClass,
       avatar: contact.avatar,
       email: contact.email,
     });
@@ -100,7 +112,7 @@ export function NewMessageModal() {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Nhập tên hoặc email người cần nhắn..."
+              placeholder="Tìm theo tên, email hoặc mã GV/SV (ví dụ: GV-001)..."
               className="w-full pl-8 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-200 transition"
               autoFocus
             />
@@ -132,9 +144,21 @@ export function NewMessageModal() {
                 <div className="flex items-center gap-2.5 min-w-0">
                   <Avatar src={c.avatar} name={c.name} size={36} />
                   <div className="min-w-0">
-                    <h4 className="text-xs font-bold text-slate-900 group-hover:text-indigo-600 transition truncate">
-                      {c.name}
-                    </h4>
+                    <div className="flex items-center gap-1.5 truncate">
+                      <h4 className="text-xs font-bold text-slate-900 group-hover:text-indigo-600 transition truncate">
+                        {c.name}
+                      </h4>
+                      {c.code && (
+                        <span className="font-mono text-[9px] font-bold text-indigo-700 bg-indigo-50 px-1 py-0.2 rounded border border-indigo-100 shrink-0">
+                          {c.code}
+                        </span>
+                      )}
+                      {c.inMyClass === false && (
+                        <span className="px-1.5 py-0.2 rounded-md bg-slate-100 text-slate-600 text-[9px] font-semibold border border-slate-200 shrink-0">
+                          Lớp ngoài
+                        </span>
+                      )}
+                    </div>
                     <p className="text-[10px] text-slate-400 truncate mt-0.5">{c.email}</p>
                   </div>
                 </div>

@@ -86,15 +86,26 @@ export async function createRequest(user, { type = 'avatar', requestedData = {} 
     if (hasActiveRules) {
       const evaluation = evaluateRequestAgainstCriteria(reqDoc, rules);
       if (evaluation.pass) {
-        await approveOne(reqDoc._id, { _id: null, hoTen: 'EduMin AI Assistant (Tự động)', role: ROLES.ADMIN });
-        reqDoc.status = 'approved';
-        reqDoc.adminNote = `[EduMin AI Tự động duyệt] Đạt tiêu chí của Admin: ${rules.customSummary || adminCriteria.rawCriteriaText}`;
-        await reqDoc.save().catch(() => {});
-        return reqDoc;
-      } else {
+        // Đạt tiêu chuẩn: Giữ ở trạng thái pending để Admin tự tay xem xét và bấm Duyệt
         reqDoc.status = 'pending';
-        reqDoc.adminNote = `[EduMin AI Giữ lại bên phần Duyệt] Chưa đạt tiêu chí: ${evaluation.fails.join(', ')}`;
+        reqDoc.adminNote = `[Đạt tiêu chuẩn - Chờ Admin duyệt] Phù hợp tiêu chí: ${rules.customSummary || adminCriteria.rawCriteriaText}`;
         await reqDoc.save().catch(() => {});
+      } else {
+        // Không đạt tiêu chuẩn: TỰ ĐỘNG TỪ CHỐI KIỂM DUYỆT
+        reqDoc.status = 'rejected';
+        reqDoc.adminNote = `[Tự động từ chối] Không đạt tiêu chuẩn: ${evaluation.fails.join(', ')}`;
+        reqDoc.reviewedAt = new Date();
+        await reqDoc.save().catch(() => {});
+
+        try {
+          await createNotification({
+            userId: user._id,
+            title: 'Yêu cầu thay đổi thông tin bị từ chối',
+            message: `Yêu cầu cập nhật của bạn đã bị tự động từ chối do không đạt tiêu chuẩn: ${evaluation.fails.join(', ')}`,
+            type: 'profile_request',
+          });
+        } catch {}
+        return reqDoc;
       }
     }
   } catch (err) {
