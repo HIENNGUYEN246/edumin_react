@@ -775,3 +775,6 @@ export async function forgotPassword({ type = 'password', hoTen, identifier, ema
     message: 'Khôi phục mật khẩu thành công! Mật khẩu mới của bạn là: 123',
   };
 }
+
+// Re-export các phương thức mã hóa và JWT phục vụ các module nghiệp vụ
+export { hashPassword, comparePassword, signToken };

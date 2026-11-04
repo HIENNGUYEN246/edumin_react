@@ -25,7 +25,13 @@ export function createApp() {
 
   // 2. Trust proxy & Helmet security headers
   app.set('trust proxy', 1);
-  app.use(helmet({ crossOriginResourcePolicy: false }));
+  app.use(
+    helmet({
+      crossOriginResourcePolicy: false,
+      crossOriginEmbedderPolicy: false,
+      frameguard: false, // Cho phép nhúng iframe từ frontend client (localhost:5173)
+    })
+  );
   app.use(express.json({ limit: `${config.UPLOAD_MAX_MB}mb` }));
   app.use(express.urlencoded({ extended: true }));
 

@@ -59,22 +59,50 @@ export async function destroy(publicId, { resourceType = 'image', access = 'uplo
   });
 }
 
-/** Signed, time-limited delivery URL for authenticated (private) assets. */
-export function signedUrl(publicId, { resourceType = 'raw', expiresInSeconds = 300 } = {}) {
+/**
+ * Tạo URL có chữ ký số (signed URL) để tải hoặc xem tệp an toàn,
+ * vượt qua các hạn chế ACL / 401 của Cloudinary đối với tệp PDF và Raw files.
+ */
+export function signedUrl(
+  publicId,
+  { resourceType = 'auto', format = '', access = 'public', expiresInSeconds = 3600 } = {}
+) {
   ensureEnabled();
+  const type = access === 'authenticated' ? 'authenticated' : 'upload';
   const expiresAt = Math.floor(Date.now() / 1000) + expiresInSeconds;
-  return cloudinary.utils.private_download_url
-    ? cloudinary.utils.private_download_url(publicId, undefined, {
-        resource_type: resourceType,
-        type: 'authenticated',
-        expires_at: expiresAt,
-      })
-    : cloudinary.url(publicId, {
-        resource_type: resourceType,
-        type: 'authenticated',
-        sign_url: true,
-        secure: true,
-      });
+  const cleanFormat = format ? String(format).replace(/^\./, '') : undefined;
+
+  return cloudinary.url(publicId, {
+    resource_type: resourceType || 'auto',
+    type,
+    sign_url: true,
+    secure: true,
+    ...(cleanFormat ? { format: cleanFormat } : {}),
+    expires_at: expiresAt,
+  });
 }
 
-export default { uploadBuffer, destroy, signedUrl };
+/**
+ * Tạo URL tải riêng biệt qua Cloudinary API (private_download_url),
+ * dùng chữ ký HMAC xác thực trực tiếp với Cloudinary Server.
+ * Giúp vượt qua triệt để lỗi "401 deny or ACL failure" của CDN đối với các tệp PDF/tài liệu.
+ */
+export function privateDownloadUrl(
+  publicId,
+  { resourceType = 'image', format = 'pdf', access = 'public', attachment = false, expiresInSeconds = 3600 } = {}
+) {
+  ensureEnabled();
+  const type = access === 'authenticated' ? 'authenticated' : 'upload';
+  const expiresAt = Math.floor(Date.now() / 1000) + expiresInSeconds;
+  const cleanFormat = format ? String(format).replace(/^\./, '') : 'pdf';
+
+  return cloudinary.utils.private_download_url(publicId, cleanFormat, {
+    resource_type: resourceType || 'image',
+    type,
+    attachment,
+    expires_at: expiresAt,
+  });
+}
+
+export const filesService = { uploadBuffer, destroy, signedUrl, privateDownloadUrl };
+export default filesService;

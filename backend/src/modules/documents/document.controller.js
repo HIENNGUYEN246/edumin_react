@@ -18,7 +18,11 @@ export const streamFile = asyncHandler(async (req, res) => {
   }
   const disposition = result.download ? 'attachment' : 'inline';
   const encodedName = encodeURIComponent(result.filename);
-  res.setHeader('Content-Type', result.mimeType);
+  // Cho phép nhúng vào iframe trên client và loại bỏ X-Frame-Options
+  res.removeHeader('X-Frame-Options');
+  res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Content-Type', result.mimeType || 'application/pdf');
   res.setHeader(
     'Content-Disposition',
     `${disposition}; filename="${encodedName}"; filename*=UTF-8''${encodedName}`

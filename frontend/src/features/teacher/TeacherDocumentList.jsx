@@ -1,4 +1,5 @@
 import { useState, useRef, useMemo, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { PageHeader } from '../../components/ui/PageHeader.jsx';
 import { Modal } from '../../components/ui/Modal.jsx';
 import { FormField, inputClass } from '../../components/ui/FormField.jsx';
@@ -7,6 +8,7 @@ import { useToast } from '../../app/providers/ToastProvider.jsx';
 import { useConfirm } from '../../app/providers/ConfirmProvider.jsx';
 import { useCourseOptions } from '../shared/useCourseOptions.js';
 import { useDocuments, useDocumentMutations, downloadDocument } from '../shared/useDocuments.js';
+import { tokenStore } from '../../api/http.js';
 import { useMyTeacherClasses } from './useTeacherClasses.js';
 import { formatDate } from '../../lib/format.js';
 
@@ -904,15 +906,34 @@ export function TeacherDocumentList() {
                                         <i className={`fas ${meta.icon}`} />
                                       </div>
                                       <div className="min-w-0">
-                                        <a
-                                          href={`/documents/${d._id}/view`}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="font-bold text-slate-800 text-xs hover:text-indigo-600 transition truncate max-w-sm inline-block"
-                                          title="Nhấn để mở tài liệu trong trang riêng"
-                                        >
-                                          {d.name}
-                                        </a>
+                                        {meta.type === 'pdf' ? (
+                                          <Link
+                                            to={`/documents/${d._id}/view`}
+                                            className="font-bold text-slate-800 text-xs hover:text-indigo-600 transition truncate max-w-sm inline-block"
+                                            title="Nhấn để xem trực tuyến tài liệu PDF"
+                                          >
+                                            {d.name}
+                                          </Link>
+                                        ) : d.hasFile || d.size > 0 ? (
+                                          <button
+                                            type="button"
+                                            onClick={() => onDownload(d)}
+                                            className="font-bold text-slate-800 text-xs hover:text-indigo-600 transition truncate max-w-sm inline-block text-left cursor-pointer"
+                                            title="Nhấn để tải tệp về máy"
+                                          >
+                                            {d.name}
+                                          </button>
+                                        ) : (
+                                          <a
+                                            href={d.link}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="font-bold text-slate-800 text-xs hover:text-indigo-600 transition truncate max-w-sm inline-block"
+                                            title="Nhấn để mở liên kết ngoài"
+                                          >
+                                            {d.name}
+                                          </a>
+                                        )}
                                         {sizeText && (
                                           <p className="text-[10px] text-slate-400 font-mono mt-0.5">
                                             {sizeText}
@@ -1003,15 +1024,7 @@ export function TeacherDocumentList() {
                                         <span>Tạo Quiz nhanh</span>
                                       </button>
 
-                                      <a
-                                        href={`/documents/${d._id}/view`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="w-8 h-8 rounded-lg text-indigo-600 hover:bg-indigo-50 flex items-center justify-center transition cursor-pointer"
-                                        title="Mở tài liệu trong trang riêng (xem trước)"
-                                      >
-                                        <i className="fas fa-arrow-up-right-from-square text-xs" />
-                                      </a>
+                                      
 
                                       {(d.hasFile || d.size > 0) && (
                                         <button

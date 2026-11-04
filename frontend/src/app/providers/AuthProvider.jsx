@@ -11,7 +11,11 @@ const LOCK_KEY = 'authLockInfo';
 
 function getStoredJson(key) {
   try {
-    const raw = typeof window !== 'undefined' ? sessionStorage.getItem(key) : null;
+    if (typeof window === 'undefined') return null;
+    const raw = sessionStorage.getItem(key) || localStorage.getItem(key) || null;
+    if (raw) {
+      try { sessionStorage.setItem(key, raw); } catch {}
+    }
     return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
@@ -21,8 +25,14 @@ function getStoredJson(key) {
 function setStoredJson(key, val) {
   try {
     if (typeof window !== 'undefined') {
-      if (val != null) sessionStorage.setItem(key, JSON.stringify(val));
-      else sessionStorage.removeItem(key);
+      if (val != null) {
+        const str = JSON.stringify(val);
+        sessionStorage.setItem(key, str);
+        try { localStorage.setItem(key, str); } catch {}
+      } else {
+        sessionStorage.removeItem(key);
+        try { localStorage.removeItem(key); } catch {}
+      }
     }
   } catch {}
 }

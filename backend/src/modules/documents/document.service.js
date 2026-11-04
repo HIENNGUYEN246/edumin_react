@@ -369,7 +369,11 @@ export async function getDocumentById(id, user) {
   if (user.role === ROLES.STUDENT && doc.status !== 'Công khai') {
     throw AppError.forbidden('Tài liệu không khả dụng');
   }
-  const allowed = await canAccessCourse(user, doc.courseId);
+  const isOwner = Boolean(
+    (doc.uploadedByRef && user.teacher && String(doc.uploadedByRef) === String(user.teacher)) ||
+    (doc.uploadedBy && (doc.uploadedBy === user.email || doc.uploadedBy === user.hoTen))
+  );
+  const allowed = isOwner || (await canAccessCourse(user, doc.courseId));
   if (!allowed) throw AppError.forbidden('Bạn không có quyền truy cập tài liệu này');
 
   const stripped = stripFile(doc);
@@ -387,7 +391,11 @@ export async function streamDocumentFile(id, user, { download = false } = {}) {
   if (user.role === ROLES.STUDENT && doc.status !== 'Công khai') {
     throw AppError.forbidden('Tài liệu không khả dụng');
   }
-  const allowed = await canAccessCourse(user, doc.courseId);
+  const isOwner = Boolean(
+    (doc.uploadedByRef && user.teacher && String(doc.uploadedByRef) === String(user.teacher)) ||
+    (doc.uploadedBy && (doc.uploadedBy === user.email || doc.uploadedBy === user.hoTen))
+  );
+  const allowed = isOwner || (await canAccessCourse(user, doc.courseId));
   if (!allowed) throw AppError.forbidden('Bạn không có quyền truy cập tài liệu này');
 
   if (!doc.file?.publicId && !doc.file?.url) {
@@ -397,28 +405,74 @@ export async function streamDocumentFile(id, user, { download = false } = {}) {
     throw AppError.badRequest('Tài liệu không có tệp đính kèm');
   }
 
-  let sourceUrl = doc.file?.url || '';
-  if (!sourceUrl || doc.file?.access === 'authenticated') {
+  // Thu thập danh sách candidate URLs để fetch buffer.
+  // Đối với PDF và tài liệu, Cloudinary CDN chặn phân phối trực tiếp (lỗi 401 deny or ACL failure).
+  // Vì vậy ưu tiên dùng privateDownloadUrl (chữ ký HMAC API trực tiếp tới Cloudinary Server).
+  const candidateUrls = [];
+  if (doc.file?.publicId) {
+    const resType = doc.file.resourceType || 'image';
+    const fmt = doc.file.format || 'pdf';
+    if (typeof filesService.privateDownloadUrl === 'function') {
+      try {
+        const pUrl = filesService.privateDownloadUrl(doc.file.publicId, {
+          resourceType: resType,
+          format: fmt,
+          access: doc.file.access || 'public',
+          attachment: false,
+        });
+        if (pUrl) candidateUrls.push(pUrl);
+      } catch {
+        // ignore
+      }
+      try {
+        const pRawUrl = filesService.privateDownloadUrl(doc.file.publicId, {
+          resourceType: 'raw',
+          format: fmt,
+          access: doc.file.access || 'public',
+          attachment: false,
+        });
+        if (pRawUrl && !candidateUrls.includes(pRawUrl)) candidateUrls.push(pRawUrl);
+      } catch {
+        // ignore
+      }
+    }
+
     try {
-      sourceUrl = filesService.signedUrl(doc.file.publicId, {
-        resourceType: doc.file.resourceType || 'raw',
-        expiresInSeconds: 300,
+      const sUrl = filesService.signedUrl(doc.file.publicId, {
+        resourceType: resType,
+        format: fmt,
+        access: doc.file.access || 'public',
+        expiresInSeconds: 3600,
       });
+      if (sUrl && !candidateUrls.includes(sUrl)) candidateUrls.push(sUrl);
     } catch {
-      sourceUrl = doc.file?.url || '';
+      // ignore
     }
   }
 
-  if (!sourceUrl) {
+  if (doc.file?.url && !candidateUrls.includes(doc.file.url)) {
+    candidateUrls.push(doc.file.url);
+  }
+
+  if (!candidateUrls.length) {
     throw AppError.badRequest('Không tìm thấy đường dẫn tệp');
   }
 
-  let response = await fetch(sourceUrl);
-  if (!response.ok && doc.file?.url && doc.file.url !== sourceUrl) {
-    response = await fetch(doc.file.url);
+  let response = null;
+  for (const url of candidateUrls) {
+    try {
+      const res = await fetch(url);
+      if (res.ok) {
+        response = res;
+        break;
+      }
+    } catch {
+      // Thử URL ứng viên tiếp theo
+    }
   }
-  if (!response.ok) {
-    throw AppError.badRequest(`Không thể tải tệp từ lưu trữ đám mây (Mã lỗi: ${response.status})`);
+
+  if (!response || !response.ok) {
+    throw AppError.badRequest('Không thể tải tệp từ lưu trữ đám mây. Vui lòng thử lại sau.');
   }
 
   const arrayBuffer = await response.arrayBuffer();
@@ -434,7 +488,7 @@ export async function streamDocumentFile(id, user, { download = false } = {}) {
   };
 }
 
-/** Issue a direct download URL or stream route. */
+/** Issue a direct download URL or stream route with valid signature to prevent Cloudinary 401 ACL error. */
 export async function getDownloadUrl(id, user) {
   const doc = await Document.findById(id).lean();
   if (!doc) throw AppError.notFound('Không tìm thấy tài liệu');
@@ -452,19 +506,33 @@ export async function getDownloadUrl(id, user) {
     throw AppError.badRequest('Tài liệu không có tệp đính kèm');
   }
 
-  if (doc.file?.url && doc.file.access === 'public') {
-    return { url: doc.file.url, name: doc.name, hasDirectFile: true };
+  // Ưu tiên signedUrl nếu được tạo hợp lệ
+  let downloadUrl = '';
+  if (doc.file?.publicId) {
+    try {
+      if (typeof filesService.signedUrl === 'function') {
+        downloadUrl = filesService.signedUrl(doc.file.publicId, {
+          resourceType: doc.file.resourceType || 'image',
+          format: doc.file.format || 'pdf',
+          access: doc.file.access || 'public',
+          expiresInSeconds: 3600,
+        });
+      }
+    } catch {
+      downloadUrl = '';
+    }
   }
 
-  try {
-    const url = filesService.signedUrl(doc.file.publicId, {
-      resourceType: doc.file.resourceType || 'raw',
-      expiresInSeconds: 300,
-    });
-    return { url, name: doc.name };
-  } catch {
-    return { url: doc.file?.url || `/api/documents/${doc._id}/file?download=1`, name: doc.name };
+  // Fallback về stream route nội bộ của máy chủ nếu không tạo được signedUrl
+  if (!downloadUrl) {
+    downloadUrl = `/api/documents/${doc._id}/file?download=1`;
   }
+
+  return {
+    url: downloadUrl,
+    name: doc.name,
+    hasDirectFile: true,
+  };
 }
 
 /** Summarize an academic document by ID with security checks. */

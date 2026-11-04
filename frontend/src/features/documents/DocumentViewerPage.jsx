@@ -1,5 +1,6 @@
-import { useState, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { tokenStore } from '../../api/http.js';
 import { useDocumentDetail, getFileMeta, downloadDocument } from '../shared/useDocuments.js';
 import { documentsApi } from '../../api/documentsApi.js';
 import { Spinner } from '../../components/ui/Spinner.jsx';
@@ -16,8 +17,15 @@ function formatFileSize(bytes) {
 
 export function DocumentViewerPage() {
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const toast = useToast();
+
+  // Đồng bộ token từ query params (khi mở tab mới) vào tokenStore để request API không bị 401
+  const queryToken = searchParams.get('token');
+  if (queryToken && (!tokenStore.get() || tokenStore.get() !== queryToken)) {
+    tokenStore.set(queryToken);
+  }
 
   const { data: docData, isLoading, error } = useDocumentDetail(id);
   const doc = docData?.data || docData;
@@ -28,6 +36,13 @@ export function DocumentViewerPage() {
   const [isDownloading, setIsDownloading] = useState(false);
   const [showAiSummaryModal, setShowAiSummaryModal] = useState(false);
   const [selectedChapterIndex, setSelectedChapterIndex] = useState(0);
+
+  // Trạng thái tải Blob nội bộ cho tệp PDF để nhúng an toàn, tránh lỗi 401/CORS/X-Frame-Options
+  const [pdfBlobUrl, setPdfBlobUrl] = useState(null);
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [pdfError, setPdfError] = useState(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const pdfContainerRef = useRef(null);
 
   const meta = useMemo(() => {
     if (!doc) return getFileMeta('', '', false);
@@ -43,6 +58,69 @@ export function DocumentViewerPage() {
     if (!doc) return '';
     return doc.fileUrl || doc.directUrl || fileStreamUrl;
   }, [doc, fileStreamUrl]);
+
+  const isPdf = meta.type === 'pdf';
+
+  const loadPdfBlob = useCallback(async () => {
+    if (!id || !isPdf) return;
+    setPdfLoading(true);
+    setPdfError(null);
+    try {
+      const token = tokenStore.get() || searchParams.get('token');
+      const streamUrl = documentsApi.getFileUrl(id);
+      const res = await fetch(streamUrl, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) {
+        const errorJson = await res.json().catch(() => ({}));
+        throw new Error(errorJson?.error?.message || `Không thể tải dữ liệu PDF (Mã lỗi: ${res.status})`);
+      }
+      const blob = await res.blob();
+      const pdfBlob = new Blob([blob], { type: 'application/pdf' });
+      const objectUrl = URL.createObjectURL(pdfBlob);
+      setPdfBlobUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return objectUrl;
+      });
+    } catch (err) {
+      setPdfError(err.message || 'Không thể tải nội dung tệp PDF');
+    } finally {
+      setPdfLoading(false);
+    }
+  }, [id, isPdf, searchParams]);
+
+  useEffect(() => {
+    if (isPdf) {
+      loadPdfBlob();
+    }
+    return () => {
+      setPdfBlobUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
+    };
+  }, [loadPdfBlob, isPdf]);
+
+  const handleToggleFullscreen = () => {
+    if (!pdfContainerRef.current) return;
+    if (!document.fullscreenElement) {
+      pdfContainerRef.current.requestFullscreen?.().catch(() => {});
+      setIsFullscreen(true);
+    } else {
+      document.exitFullscreen?.().catch(() => {});
+      setIsFullscreen(false);
+    }
+  };
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement));
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    };
+  }, []);
 
   const officeViewerEmbedUrl = useMemo(() => {
     if (!directFileUrl || !directFileUrl.startsWith('http')) return '';
@@ -71,7 +149,7 @@ export function DocumentViewerPage() {
     if (window.history.length > 1) {
       navigate(-1);
     } else {
-      window.close();
+      navigate('/');
     }
   };
 
@@ -117,7 +195,6 @@ export function DocumentViewerPage() {
   const isWord = meta.type === 'word';
   const isExcel = meta.type === 'excel';
   const isPpt = meta.type === 'powerpoint';
-  const isPdf = meta.type === 'pdf';
   const isImage = meta.type === 'image';
   const isText = meta.type === 'text';
   const isVideo = meta.type === 'video';
@@ -132,10 +209,11 @@ export function DocumentViewerPage() {
             <button
               type="button"
               onClick={handleClose}
-              className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center shrink-0 transition cursor-pointer"
-              title="Quay lại danh sách"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition cursor-pointer shadow-2xs hover:shadow active:scale-95"
+              title="Quay lại trang danh sách tài liệu"
             >
               <i className="fas fa-arrow-left text-xs" />
+              <span className="hidden sm:inline">Quay lại</span>
             </button>
 
             <div
@@ -262,27 +340,83 @@ export function DocumentViewerPage() {
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 flex flex-col">
         {/* CASE 1: PDF DOCUMENT */}
         {isPdf && (
-          <div className="flex-1 flex flex-col bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden min-h-[calc(100vh-140px)]">
-            <div className="p-3 bg-slate-50/80 border-b border-slate-200/80 flex items-center justify-between text-xs text-slate-500">
+          <div
+            ref={pdfContainerRef}
+            className={`flex-1 flex flex-col bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden ${
+              isFullscreen ? 'fixed inset-0 z-50 rounded-none border-0' : 'min-h-[calc(100vh-140px)]'
+            }`}
+          >
+            <div className="p-3 bg-slate-50/90 border-b border-slate-200/80 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600">
               <span className="font-semibold flex items-center gap-2">
-                <i className="fas fa-file-pdf text-rose-500" />
-                <span>Xem trực tuyến tệp PDF qua trình duyệt</span>
+                <i className="fas fa-file-pdf text-rose-500 text-sm" />
+                <span>Trình chiếu & xem trực tuyến PDF</span>
               </span>
-              <a
-                href={fileStreamUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-indigo-600 hover:text-indigo-800 font-bold inline-flex items-center gap-1"
-              >
-                <span>Mở bằng trình đọc gốc của trình duyệt</span>
-                <i className="fas fa-external-link-alt text-[10px]" />
-              </a>
+              <div className="flex items-center gap-2">
+                {pdfBlobUrl && (
+                  <button
+                    type="button"
+                    onClick={handleToggleFullscreen}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs transition cursor-pointer border border-indigo-200 shadow-2xs"
+                    title={isFullscreen ? 'Thu nhỏ cửa sổ' : 'Phóng to toàn màn hình để trình chiếu'}
+                  >
+                    <i className={`fas ${isFullscreen ? 'fa-compress' : 'fa-expand'} text-[11px]`} />
+                    <span>{isFullscreen ? 'Thoát toàn màn hình' : 'Trình chiếu toàn màn hình'}</span>
+                  </button>
+                )}
+                <a
+                  href={pdfBlobUrl || fileStreamUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-indigo-600 hover:text-indigo-800 font-bold inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg hover:bg-slate-100 transition"
+                  title="Mở sang tab mới với trình đọc riêng của trình duyệt"
+                >
+                  <span>Mở tab mới</span>
+                  <i className="fas fa-arrow-up-right-from-square text-[10px]" />
+                </a>
+              </div>
             </div>
-            <iframe
-              src={fileStreamUrl}
-              title={doc.name}
-              className="w-full flex-1 border-0 min-h-[calc(100vh-180px)]"
-            />
+
+            {pdfLoading ? (
+              <div className="flex-1 flex flex-col items-center justify-center p-12 space-y-3 min-h-[calc(100vh-220px)] bg-slate-50/40">
+                <Spinner />
+                <p className="text-xs font-semibold text-slate-700">Đang chuẩn bị hiển thị tài liệu PDF...</p>
+                <p className="text-[11px] text-slate-400">Hệ thống đang kết nối dữ liệu từ lưu trữ đám mây</p>
+              </div>
+            ) : pdfError ? (
+              <div className="flex-1 flex flex-col items-center justify-center p-12 text-center space-y-4 min-h-[calc(100vh-220px)] bg-slate-50/30">
+                <div className="w-14 h-14 rounded-2xl bg-rose-50 text-rose-500 flex items-center justify-center text-2xl border border-rose-100 shadow-2xs">
+                  <i className="fas fa-triangle-exclamation" />
+                </div>
+                <div className="space-y-1">
+                  <h4 className="font-bold text-slate-800 text-sm">Không thể kết xuất trực tiếp tệp PDF</h4>
+                  <p className="text-xs text-slate-500 max-w-md">{pdfError}</p>
+                </div>
+                <div className="flex items-center gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={loadPdfBlob}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition shadow-2xs cursor-pointer active:scale-95"
+                  >
+                    <i className="fas fa-rotate-right text-[11px]" />
+                    <span>Thử tải lại</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDownload}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition border border-slate-200 shadow-2xs cursor-pointer active:scale-95"
+                  >
+                    <i className="fas fa-download text-[11px]" />
+                    <span>Tải tệp về máy</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <iframe
+                src={`${pdfBlobUrl || fileStreamUrl}#toolbar=1&navpanes=1&scrollbar=1&view=FitH`}
+                title={doc.name}
+                className="w-full flex-1 border-0 min-h-[calc(100vh-200px)]"
+              />
+            )}
           </div>
         )}
 

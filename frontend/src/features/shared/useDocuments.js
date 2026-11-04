@@ -144,11 +144,15 @@ export function getFileMeta(format, link, hasFile, fileName = '') {
   };
 }
 
-/** Fetch a download URL or trigger direct browser download. */
+/** Fetch a download URL or trigger direct browser download safely without Cloudinary ACL errors. */
 export async function downloadDocument(id, docName) {
   try {
     const res = await documentsApi.download(id);
-    const targetUrl = res?.url || documentsApi.getFileUrl(id, { download: true });
+    let targetUrl = res?.url;
+    // Nếu là link Cloudinary hoặc không có targetUrl, dùng route stream backend để tránh 401 ACL failure
+    if (!targetUrl || targetUrl.includes('cloudinary.com')) {
+      targetUrl = documentsApi.getFileUrl(id, { download: true });
+    }
     const fileName = res?.name || docName || 'tai-lieu';
 
     const link = document.createElement('a');
@@ -165,8 +169,26 @@ export async function downloadDocument(id, docName) {
   }
 }
 
-/** Open document in a separate dedicated viewer tab */
-export function openDocumentInNewTab(id) {
+/** Open document in the same tab if PDF, otherwise download directly */
+export function openDocument(id, navigate, { isPdf = true, docName = '' } = {}) {
   if (!id) return;
-  window.open(`/documents/${id}/view`, '_blank', 'noopener');
+  if (isPdf) {
+    if (typeof navigate === 'function') {
+      navigate(`/documents/${id}/view`);
+    } else {
+      window.location.href = `/documents/${id}/view`;
+    }
+  } else {
+    downloadDocument(id, docName);
+  }
+}
+
+/** Open document in a separate dedicated viewer tab if PDF, otherwise download directly */
+export function openDocumentInNewTab(id, { isPdf = true, docName = '' } = {}) {
+  if (!id) return;
+  if (isPdf) {
+    window.location.href = `/documents/${id}/view`;
+  } else {
+    downloadDocument(id, docName);
+  }
 }

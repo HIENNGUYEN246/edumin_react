@@ -2,6 +2,11 @@ import { asyncHandler } from '../../lib/asyncHandler.js';
 import * as authService from './auth.service.js';
 import { registerStudent } from '../students/student.service.js';
 import { Department } from '../departments/department.model.js';
+import { hashPassword, comparePassword } from '../../lib/password.js';
+import { signToken, verifyToken } from '../../lib/jwt.js';
+
+// Re-export các hàm băm mật khẩu và JWT để tái sử dụng chuẩn hóa khi cần
+export { hashPassword, comparePassword, signToken, verifyToken };
 
 export const login = asyncHandler(async (req, res) => {
   const result = await authService.login(req.body);

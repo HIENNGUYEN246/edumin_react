@@ -224,4 +224,24 @@ describe('StudentDocumentList (Grouped by Class)', () => {
 
     dispatchSpy.mockRestore();
   });
+
+  it('opens preview for PDF when clicking title, and directly downloads for non-PDF files', async () => {
+    downloadDocument.mockReset();
+    downloadDocument.mockResolvedValue();
+    renderComponent();
+
+    // doc1 is PDF -> title link points to /documents/doc1/view
+    const doc1TitleLink = await screen.findByRole('link', { name: /Slide Bài giảng Chương 1 - HTML & CSS/i });
+    expect(doc1TitleLink).toBeInTheDocument();
+    expect(doc1TitleLink).toHaveAttribute('href', '/documents/doc1/view');
+
+    // doc2 is DOCX (non-PDF) -> clicking title directly triggers download
+    const doc2TitleBtn = screen.getByRole('button', { name: /Tài liệu ôn tập SQL/i });
+    expect(doc2TitleBtn).toBeInTheDocument();
+    fireEvent.click(doc2TitleBtn);
+
+    await waitFor(() => {
+      expect(downloadDocument).toHaveBeenCalledWith('doc2');
+    });
+  });
 });

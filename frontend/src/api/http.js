@@ -45,16 +45,41 @@ export const API_URL = API_BASE_URL.endsWith('/api') ? API_BASE_URL : `${API_BAS
 const TOKEN_KEY = 'authToken';
 
 export const tokenStore = {
-  get: () => (typeof window !== 'undefined' ? sessionStorage.getItem(TOKEN_KEY) : null),
+  get: () => {
+    if (typeof window === 'undefined') return null;
+    let token = sessionStorage.getItem(TOKEN_KEY);
+    if (token) {
+      try {
+        localStorage.setItem(TOKEN_KEY, token);
+      } catch {}
+      return token;
+    }
+    token = localStorage.getItem(TOKEN_KEY) || null;
+    if (token) {
+      try {
+        sessionStorage.setItem(TOKEN_KEY, token);
+      } catch {}
+    }
+    return token;
+  },
   set: (token) => {
     if (typeof window !== 'undefined') {
-      sessionStorage.setItem(TOKEN_KEY, token);
+      if (token) {
+        sessionStorage.setItem(TOKEN_KEY, token);
+        try {
+          localStorage.setItem(TOKEN_KEY, token);
+        } catch {}
+      } else {
+        tokenStore.clear();
+      }
     }
   },
   clear: () => {
     if (typeof window !== 'undefined') {
       sessionStorage.removeItem(TOKEN_KEY);
-      localStorage.removeItem(TOKEN_KEY);
+      try {
+        localStorage.removeItem(TOKEN_KEY);
+      } catch {}
     }
   },
 };

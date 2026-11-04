@@ -1,10 +1,12 @@
 import { useState, useMemo, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { PageHeader } from '../../components/ui/PageHeader.jsx';
 import { Spinner } from '../../components/ui/Spinner.jsx';
 import { useToast } from '../../app/providers/ToastProvider.jsx';
 import { useCourseOptions } from '../shared/useCourseOptions.js';
 import { useDocuments, downloadDocument } from '../shared/useDocuments.js';
+import { tokenStore } from '../../api/http.js';
 import { enrollmentsApi } from '../../api/enrollmentsApi.js';
 import { formatDate } from '../../lib/format.js';
 
@@ -663,15 +665,34 @@ export function StudentDocumentList() {
                                         <i className={`fas ${meta.icon}`} />
                                       </div>
                                       <div className="min-w-0">
-                                        <a
-                                          href={`/documents/${doc._id}/view`}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="font-bold text-slate-800 text-xs hover:text-indigo-600 transition truncate max-w-sm inline-block"
-                                          title="Nhấn để mở tài liệu trong trang riêng"
-                                        >
-                                          {doc.name}
-                                        </a>
+                                        {meta.type === 'pdf' ? (
+                                          <Link
+                                            to={`/documents/${doc._id}/view`}
+                                            className="font-bold text-slate-800 text-xs hover:text-indigo-600 transition truncate max-w-sm inline-block"
+                                            title="Nhấn để xem trực tuyến tài liệu PDF"
+                                          >
+                                            {doc.name}
+                                          </Link>
+                                        ) : doc.hasFile || doc.size > 0 || (doc.format && doc.format !== 'Liên kết') ? (
+                                          <button
+                                            type="button"
+                                            onClick={() => onDownload(doc)}
+                                            className="font-bold text-slate-800 text-xs hover:text-indigo-600 transition truncate max-w-sm inline-block text-left cursor-pointer"
+                                            title="Nhấn để tải tệp về máy"
+                                          >
+                                            {doc.name}
+                                          </button>
+                                        ) : (
+                                          <a
+                                            href={doc.link}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="font-bold text-slate-800 text-xs hover:text-indigo-600 transition truncate max-w-sm inline-block"
+                                            title="Nhấn để mở liên kết ngoài"
+                                          >
+                                            {doc.name}
+                                          </a>
+                                        )}
                                         {doc.link && (
                                           <p className="text-[10px] text-purple-600 font-mono truncate max-w-xs mt-0.5">
                                             {doc.link}
@@ -725,17 +746,7 @@ export function StudentDocumentList() {
                                         <span>AI Tóm tắt</span>
                                       </button>
 
-                                      <a
-                                        href={`/documents/${doc._id}/view`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold transition shadow-2xs hover:shadow active:scale-95 cursor-pointer"
-                                        title="Mở tài liệu trong trang riêng để xem trước"
-                                      >
-                                        <i className="fas fa-arrow-up-right-from-square text-[10px]" />
-                                        <span>Xem trước</span>
-                                      </a>
-
+                                      {/* Nút Tải về cho tệp tài liệu */}
                                       {(doc.hasFile || doc.size > 0 || (doc.format && doc.format !== 'Liên kết')) && (
                                         <button
                                           type="button"
