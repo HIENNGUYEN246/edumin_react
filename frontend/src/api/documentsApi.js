@@ -50,6 +50,9 @@ export const documentsApi = {
   download: (id) => http.get(`/documents/${id}/download`),
   summarize: (id, payload) => http.post(`/documents/${id}/summarize`, payload),
   generateQuiz: (id, payload) => http.post(`/documents/${id}/generate-quiz`, payload),
+  getAiStudy: (id) => http.get(`/documents/${id}/ai-study`),
+  publishSummary: (id, payload) => http.put(`/documents/${id}/publish-summary`, payload),
+  publishQuiz: (id, payload) => http.put(`/documents/${id}/publish-quiz`, payload),
   studyQuery: (payload) => http.post('/documents/study/query', payload),
 };
 

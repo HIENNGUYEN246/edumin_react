@@ -9,7 +9,7 @@ import { tuitionApi } from '../../api/tuitionApi.js';
 import { formatCurrency } from '../../lib/format.js';
 
 export function AccountantDashboard() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const navigate = useNavigate();
 
   const [selectedSemester, setSelectedSemester] = useState('');
@@ -70,7 +70,7 @@ export function AccountantDashboard() {
 
       <ProfileCard
         user={user}
-        profile={{
+        profile={profile || {
           hoTen: user?.hoTen || 'Võ Thị Kế Toán',
           email: user?.email,
           avatar: user?.avatar,

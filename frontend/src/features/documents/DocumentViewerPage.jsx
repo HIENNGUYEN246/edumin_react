@@ -293,7 +293,7 @@ export function DocumentViewerPage() {
             {(doc.summary || fullText) && (
               <button
                 type="button"
-                onClick={() => setShowAiSummaryModal(true)}
+                onClick={() => navigate(`/documents/${doc._id}/ai-study?tab=summary`)}
                 className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-xs font-bold transition shadow-2xs cursor-pointer active:scale-95"
                 title="Xem tóm tắt thông minh từ AI"
               >

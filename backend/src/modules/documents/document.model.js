@@ -41,6 +41,39 @@ const documentSchema = new Schema(
         concept: { type: String, default: '' },
       },
     ],
+    // Bản tóm tắt do Giáo viên chỉnh sửa & phát hành cho sinh viên
+    publishedSummary: { type: String, default: '' },
+    publishedKeyConcepts: [
+      {
+        concept: { type: String, default: '' },
+        definition: { type: String, default: '' },
+        formula: { type: String, default: '' },
+      },
+    ],
+    publishedChapters: [
+      {
+        chapterNumber: { type: Number, default: 1 },
+        title: { type: String, default: '' },
+        content: { type: String, default: '' },
+      },
+    ],
+    isSummaryPublished: { type: Boolean, default: false },
+    summaryPublishedAt: { type: Date, default: null },
+    summaryLastEditedBy: { type: String, default: '' },
+
+    // Bộ câu hỏi Quiz do Giáo viên chỉnh sửa & phát hành cho sinh viên
+    publishedQuizzes: [
+      {
+        question: { type: String, default: '' },
+        options: [{ type: String }],
+        correctIndex: { type: Number, default: 0 },
+        explanation: { type: String, default: '' },
+        concept: { type: String, default: '' },
+      },
+    ],
+    isQuizPublished: { type: Boolean, default: false },
+    quizPublishedAt: { type: Date, default: null },
+    quizLastEditedBy: { type: String, default: '' },
   },
   { timestamps: true }
 );

@@ -42,7 +42,11 @@ export function AuthProvider({ children }) {
   const [hasToken, setHasToken] = useState(() => Boolean(tokenStore.get()));
   const [lockInfo, setLockInfo] = useState(() => getStoredJson(LOCK_KEY));
   const [cachedUser, setCachedUser] = useState(() => getStoredJson(USER_KEY));
-  const [cachedProfile, setCachedProfile] = useState(() => getStoredJson(PROFILE_KEY));
+  const [cachedProfile, setCachedProfile] = useState(() => {
+    const storedUser = getStoredJson(USER_KEY);
+    if (storedUser?.role === 'admin' || storedUser?.role === 'dao-tao') return null;
+    return getStoredJson(PROFILE_KEY);
+  });
 
   // /auth/me is the single source of truth for the session.
   // When active, check every 5s or on window focus. When locked, stop polling.
@@ -57,24 +61,30 @@ export function AuthProvider({ children }) {
   });
 
   useEffect(() => {
-    if (meQuery.data?.user) {
-      setCachedUser(meQuery.data.user);
-      setStoredJson(USER_KEY, meQuery.data.user);
-    }
-    if (meQuery.data?.profile) {
-      setCachedProfile(meQuery.data.profile);
-      setStoredJson(PROFILE_KEY, meQuery.data.profile);
+    if (meQuery.data) {
+      if (meQuery.data.user) {
+        setCachedUser(meQuery.data.user);
+        setStoredJson(USER_KEY, meQuery.data.user);
+      }
+      // Admin không có hồ sơ GV/SV riêng, bắt buộc xóa sạch cachedProfile cũ để tránh hiển thị sai thông tin
+      if (meQuery.data.user?.role === 'admin' || meQuery.data.user?.role === 'dao-tao') {
+        setCachedProfile(null);
+        setStoredJson(PROFILE_KEY, null);
+      } else {
+        const p = meQuery.data.profile || null;
+        setCachedProfile(p);
+        setStoredJson(PROFILE_KEY, p);
+      }
     }
   }, [meQuery.data]);
 
+  // Wire global http listener to log out or lock the state.
   useEffect(() => {
     setAuthListeners({
       onUnauthorized: () => {
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('edumin:clear-toasts'));
-        }
         tokenStore.clear();
         setHasToken(false);
+        setLockInfo(null);
         setCachedUser(null);
         setCachedProfile(null);
         setStoredJson(LOCK_KEY, null);
@@ -98,15 +108,27 @@ export function AuthProvider({ children }) {
     setHasToken(true);
     setLockInfo(null);
     setStoredJson(LOCK_KEY, null);
-    if (result.user) {
-      setCachedUser(result.user);
-      setStoredJson(USER_KEY, result.user);
+
+    if (!result) return Promise.resolve(null);
+
+    const resolvedUser = result.user || result.data?.user || null;
+    const resolvedProfile = result.profile || result.data?.profile || null;
+
+    if (resolvedUser) {
+      setCachedUser(resolvedUser);
+      setStoredJson(USER_KEY, resolvedUser);
     }
-    if (result.profile) {
-      setCachedProfile(result.profile);
-      setStoredJson(PROFILE_KEY, result.profile);
+    if (resolvedUser?.role === 'admin' || resolvedUser?.role === 'dao-tao') {
+      setCachedProfile(null);
+      setStoredJson(PROFILE_KEY, null);
+    } else {
+      setCachedProfile(resolvedProfile);
+      setStoredJson(PROFILE_KEY, resolvedProfile);
     }
-    queryClient.setQueryData(['auth', 'me'], { user: result.user, profile: result.profile });
+    queryClient.setQueryData(['auth', 'me'], {
+      user: resolvedUser,
+      profile: (resolvedUser?.role === 'admin' || resolvedUser?.role === 'dao-tao') ? null : resolvedProfile,
+    });
     // Non-blocking background refetch so slow backend /me or cold starts never stall login
     queryClient.invalidateQueries({ queryKey: ['auth', 'me'] }).catch(() => {});
     return Promise.resolve(result);
@@ -115,21 +137,41 @@ export function AuthProvider({ children }) {
   const login = async (email, password) => {
     const result = await authApi.login(email, password);
     await primeSession(result);
-    return result;
+    const resolvedUser = result?.user || result?.data?.user || null;
+    const resolvedProfile = result?.profile || result?.data?.profile || null;
+    return {
+      ...(result || {}),
+      user: resolvedUser,
+      profile: resolvedProfile,
+    };
   };
 
   const loginWithSession = async (session) => {
     if (session?.token) {
       tokenStore.set(session.token);
+    } else if (session?.data?.token) {
+      tokenStore.set(session.data.token);
     }
     await primeSession(session);
-    return session;
+    const resolvedUser = session?.user || session?.data?.user || null;
+    const resolvedProfile = session?.profile || session?.data?.profile || null;
+    return {
+      ...(session || {}),
+      user: resolvedUser,
+      profile: resolvedProfile,
+    };
   };
 
   const register = async (payload) => {
     const result = await authApi.register(payload);
     await primeSession(result);
-    return result;
+    const resolvedUser = result?.user || result?.data?.user || null;
+    const resolvedProfile = result?.profile || result?.data?.profile || null;
+    return {
+      ...(result || {}),
+      user: resolvedUser,
+      profile: resolvedProfile,
+    };
   };
 
   const logout = () => {
@@ -161,6 +203,8 @@ export function AuthProvider({ children }) {
         ...rawUser,
         department: rawUser.department || userDept,
         khoa: rawUser.khoa || userDept,
+        avatar: rawUser.avatar || currentProfile?.avatar || null,
+        hoTen: rawUser.hoTen || currentProfile?.hoTen || '',
       }
     : rawUser;
 
@@ -206,9 +250,9 @@ export function useAuth() {
       isAuthenticated: false,
       lockInfo: null,
       dismissLock: () => {},
-      login: async () => {},
-      loginWithSession: async () => {},
-      register: async () => {},
+      login: async () => ({ user: null }),
+      loginWithSession: async () => ({ user: null }),
+      register: async () => ({ user: null }),
       logout: () => {},
       refetch: async () => {},
     };

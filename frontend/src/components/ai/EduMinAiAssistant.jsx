@@ -5831,6 +5831,7 @@ function EduMinAiAssistantInner() {
     const handleStudyEvent = (e) => {
       const detail = e?.detail;
       if (!detail) return;
+      if (detail.openChat === false || detail.skipChat) return;
 
       setIsOpen(true);
       if (detail.courseName) {

@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { PageHeader } from '../../components/ui/PageHeader.jsx';
 import { Spinner } from '../../components/ui/Spinner.jsx';
@@ -137,6 +137,7 @@ function getFileMeta(format, link, hasFile, fileName = '') {
 
 
 export function StudentDocumentList() {
+  const navigate = useNavigate();
   const toast = useToast();
 
   const { data: enrollmentsData, isLoading: loadingEnrollments } = useQuery({
@@ -185,9 +186,13 @@ export function StudentDocumentList() {
           courseId,
           classId,
           role: 'student',
+          openChat: false,
         },
       })
     );
+    if (doc?._id) {
+      navigate(`/documents/${doc._id}/ai-study?tab=${action === 'quiz' ? 'quiz' : 'summary'}`);
+    }
   };
 
   // Group documents by Class and Course
@@ -745,6 +750,16 @@ export function StudentDocumentList() {
                                         <i className="fas fa-wand-magic-sparkles text-[10px] text-purple-600" />
                                         <span>AI Tóm tắt</span>
                                       </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleAiStudyAction(doc, group, 'quiz')}
+                                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-semibold transition active:scale-95 cursor-pointer shadow-2xs"
+                                        title="Làm bài trắc nghiệm ôn tập kiến thức từ tài liệu này"
+                                      >
+                                        <i className="fas fa-spell-check text-[10px] text-amber-600" />
+                                        <span>Ôn tập Quiz</span>
+                                      </button>
+
 
                                       {/* Nút Tải về cho tệp tài liệu */}
                                       {(doc.hasFile || doc.size > 0 || (doc.format && doc.format !== 'Liên kết')) && (

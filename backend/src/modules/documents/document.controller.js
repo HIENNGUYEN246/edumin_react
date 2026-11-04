@@ -63,6 +63,21 @@ export const generateQuiz = asyncHandler(async (req, res) => {
   res.json({ success: true, ...result });
 });
 
+export const getAiStudy = asyncHandler(async (req, res) => {
+  const result = await service.getAiStudyData(req.params.id, req.user);
+  res.json({ success: true, data: result });
+});
+
+export const publishSummary = asyncHandler(async (req, res) => {
+  const result = await service.publishSummary(req.params.id, req.body, req.user);
+  res.json({ success: true, message: 'Cập nhật tóm tắt thành công', data: result });
+});
+
+export const publishQuiz = asyncHandler(async (req, res) => {
+  const result = await service.publishQuiz(req.params.id, req.body, req.user);
+  res.json({ success: true, message: 'Cập nhật bộ câu hỏi quiz thành công', data: result });
+});
+
 export const studyQuery = asyncHandler(async (req, res) => {
   const doc = await service.findDocumentForStudy(req.body, req.user);
   if (!doc) {

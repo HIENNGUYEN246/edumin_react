@@ -1,6 +1,7 @@
 /** Avatar with an automatic ui-avatars fallback when no image is set. */
 export function Avatar({ src, name = 'User', size = 40, className = '' }) {
-  const imageUrl = typeof src === 'string' ? src : src?.url || '';
+  const rawUrl = typeof src === 'string' ? src : (src?.url || src?.secure_url || src?.path || '');
+  const imageUrl = typeof rawUrl === 'string' && rawUrl.trim() ? rawUrl.trim() : '';
   const fallback = `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'User')}&background=6366f1&color=fff`;
   return (
     <img

@@ -7,7 +7,7 @@ import { useAuth } from '../../app/providers/AuthProvider.jsx';
 import { statsApi } from '../../api/statsApi.js';
 
 export function AdminDashboard() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const navigate = useNavigate();
   const { data, isLoading } = useQuery({
     queryKey: ['stats', 'overview'],
@@ -47,7 +47,7 @@ export function AdminDashboard() {
 
       <ProfileCard
         user={user}
-        profile={{
+        profile={profile || {
           hoTen: user?.hoTen || 'Quản trị viên',
           email: user?.email,
           avatar: user?.avatar,

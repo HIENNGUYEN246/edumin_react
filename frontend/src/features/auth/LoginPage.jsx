@@ -44,7 +44,9 @@ export function LoginPage() {
     setIsLoading(true);
     try {
       const result = await login(email.trim(), password);
-      navigate(roleHome(result.user.role), { replace: true });
+      const userObj = result?.user || result?.data?.user || null;
+      const targetRole = userObj?.role || 'admin';
+      navigate(roleHome(targetRole), { replace: true });
     } catch (error) {
       if (error.status === 401) {
         toast.error('Email hoặc mật khẩu không chính xác');

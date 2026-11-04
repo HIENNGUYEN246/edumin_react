@@ -118,6 +118,17 @@ function stripFile(doc) {
     summary: doc.summary || '',
     chapters: doc.chapters || [],
     keyConcepts: doc.keyConcepts || [],
+    sampleQuizzes: doc.sampleQuizzes || [],
+    publishedSummary: doc.publishedSummary || '',
+    publishedKeyConcepts: doc.publishedKeyConcepts || [],
+    publishedChapters: doc.publishedChapters || [],
+    isSummaryPublished: Boolean(doc.isSummaryPublished),
+    summaryPublishedAt: doc.summaryPublishedAt || null,
+    summaryLastEditedBy: doc.summaryLastEditedBy || '',
+    publishedQuizzes: doc.publishedQuizzes || [],
+    isQuizPublished: Boolean(doc.isQuizPublished),
+    quizPublishedAt: doc.quizPublishedAt || null,
+    quizLastEditedBy: doc.quizLastEditedBy || '',
   };
 }
 
@@ -537,30 +548,285 @@ export async function getDownloadUrl(id, user) {
 
 /** Summarize an academic document by ID with security checks. */
 export async function summarizeDocumentById(id, { chapter, focus } = {}, user) {
-  const doc = await Document.findById(id).populate('courseRef').populate('classRef').lean();
+  const doc = await Document.findById(id).populate('courseRef').populate('classRef');
   if (!doc) throw AppError.notFound('Không tìm thấy tài liệu');
   if (user.role === ROLES.STUDENT) {
     if (doc.status !== 'Công khai') throw AppError.forbidden('Tài liệu không khả dụng');
     const allowed = await canAccessCourse(user, doc.courseId);
     if (!allowed) throw AppError.forbidden('Bạn không có quyền truy cập tài liệu này');
   }
-  return summarizeDocument({ document: doc, chapter, focus });
+
+  const courseName = doc.courseRef?.name || doc.courseId || '';
+  // Nếu dữ liệu text cũ bị gán nhầm Virtual DOM hoặc trống, cố gắng trích xuất lại từ file
+  if (!doc.extractedText || doc.extractedText.includes('Virtual DOM')) {
+    try {
+      if (doc.file?.publicId) {
+        const streamRes = await streamDocumentFile(doc._id, user, { download: false });
+        if (streamRes?.buffer) {
+          const freshExt = await extractTextFromFile({
+            buffer: streamRes.buffer,
+            mimetype: streamRes.mimeType,
+            originalname: streamRes.filename,
+            name: doc.name,
+            courseName,
+            courseId: doc.courseId,
+          });
+          if (freshExt?.extractedText) {
+            doc.extractedText = freshExt.extractedText;
+            doc.keyConcepts = freshExt.keyConcepts;
+            doc.chapters = freshExt.chapters;
+          }
+        }
+      }
+    } catch {}
+  }
+
+  const result = await summarizeDocument({ document: doc, chapter, focus });
+  if (result?.summaryMarkdown) {
+    doc.summary = result.summaryMarkdown;
+    doc.keyConcepts = result.coreConcepts || [];
+    doc.chapters = result.chapters || [];
+    await doc.save().catch(() => {});
+  }
+  return result;
 }
 
 /** Generate an interactive Quiz from an academic document by ID with security checks. */
 export async function generateQuizByDocumentId(id, { chapter, count, difficulty } = {}, user) {
-  const doc = await Document.findById(id).populate('courseRef').populate('classRef').lean();
+  const doc = await Document.findById(id).populate('courseRef').populate('classRef');
   if (!doc) throw AppError.notFound('Không tìm thấy tài liệu');
   if (user.role === ROLES.STUDENT) {
     if (doc.status !== 'Công khai') throw AppError.forbidden('Tài liệu không khả dụng');
     const allowed = await canAccessCourse(user, doc.courseId);
     if (!allowed) throw AppError.forbidden('Bạn không có quyền truy cập tài liệu này');
   }
-  return generateQuizFromDocument({ document: doc, count, chapter, difficulty });
+  const result = await generateQuizFromDocument({ document: doc, count, chapter, difficulty });
+  const quizList = result?.questions || result?.quizzes || [];
+  if (quizList.length) {
+    doc.sampleQuizzes = quizList;
+    await doc.save().catch(() => {});
+  }
+  return { ...result, quizzes: quizList, questions: quizList };
 }
 
 /** Find relevant document for AI Study coordinator. */
 export async function findDocumentForStudy(params, user) {
   return findRelevantDocument({ ...params, user });
+}
+
+/** Lấy toàn bộ dữ liệu Tóm tắt & Quiz chuyên sâu cho trang AI Study */
+export async function getAiStudyData(id, user) {
+  const doc = await Document.findById(id).populate('courseRef').populate('classRef');
+  if (!doc) throw AppError.notFound('Không tìm thấy tài liệu');
+
+  const isTeacherOrAdmin = user.role === ROLES.ADMIN || user.role === ROLES.TEACHER;
+  if (user.role === ROLES.STUDENT) {
+    if (doc.status !== 'Công khai') throw AppError.forbidden('Tài liệu không khả dụng');
+    const allowed = await canAccessCourse(user, doc.courseId);
+    if (!allowed) throw AppError.forbidden('Bạn không có quyền truy cập tài liệu này');
+  }
+
+  const courseName = doc.courseRef?.name || doc.courseId || '';
+  const className = doc.classRef?.name || doc.classId || '';
+
+  // Nhận diện xem tài liệu có bị gán nhầm nội dung Web/Virtual DOM hay không
+  const isWebSubject = /web|html|css|react|javascript/i.test(`${doc.name} ${courseName} ${doc.courseId}`);
+  const hasStaleVirtualDom = !isWebSubject && Boolean(
+    (doc.summary && doc.summary.includes('Virtual DOM')) ||
+    (doc.keyConcepts && doc.keyConcepts.some((c) => /virtual dom|react hooks|flexbox/i.test(c.concept || '')))
+  );
+
+  // Nhận diện xem tài liệu có bị lưu tóm tắt tĩnh chung chung cũ hoặc dính email/website giảng viên hay không
+  const hasStaleGenericSummary = Boolean(
+    doc.summary && (
+      doc.summary.includes('vai trò trung gian giữa phần cứng máy tính và ứng dụng người dùng. Trọng tâm gồm kiến trúc Nhân') ||
+      doc.summary.includes('trinhtandat@sgu.edu.vn') ||
+      doc.summary.includes('sites.google.com')
+    )
+  );
+
+  const hasInvalidKeyConcepts = Boolean(
+    doc.keyConcepts && doc.keyConcepts.some((c) =>
+      /email|website|url|sgu\.edu\.vn|sites\.google/i.test(`${c.concept} ${c.definition}`)
+    )
+  );
+
+  // Nếu text trích xuất bị trống hoặc dính text nhầm Virtual DOM, trích xuất lại từ file PDF
+  if (hasStaleVirtualDom || hasStaleGenericSummary || hasInvalidKeyConcepts || !doc.extractedText || doc.extractedText.includes('Virtual DOM')) {
+    try {
+      if (doc.file?.publicId) {
+        const streamRes = await streamDocumentFile(doc._id, user, { download: false });
+        if (streamRes?.buffer) {
+          const freshExt = await extractTextFromFile({
+            buffer: streamRes.buffer,
+            mimetype: streamRes.mimeType,
+            originalname: streamRes.filename,
+            name: doc.name,
+            courseName,
+            courseId: doc.courseId,
+          });
+          if (freshExt?.extractedText) {
+            doc.extractedText = freshExt.extractedText;
+            doc.keyConcepts = freshExt.keyConcepts;
+            doc.chapters = freshExt.chapters;
+            doc.summary = freshExt.summary;
+          }
+        }
+      }
+    } catch {}
+  }
+
+  // Tự động khởi tạo AI Summary nếu chưa có hoặc đang chứa nội dung sai môn học / tóm tắt tĩnh cũ
+  if (!doc.summary || hasStaleVirtualDom || hasStaleGenericSummary || hasInvalidKeyConcepts) {
+    try {
+      const sumResult = await summarizeDocument({ document: doc });
+      if (sumResult?.summaryMarkdown) {
+        doc.summary = sumResult.summaryMarkdown;
+        doc.keyConcepts = sumResult.coreConcepts || [];
+        doc.chapters = sumResult.chapters || [];
+        await doc.save().catch(() => {});
+      }
+    } catch {}
+  }
+
+  // Tự động khởi tạo Quiz nếu chưa có hoặc quiz dính React sai môn học hoặc sai chủ đề
+  const isFileDoc = /file|tap tin|bg_hdh/i.test(`${doc.name} ${courseName}`);
+  const hasWrongQuizTopic = isFileDoc && Boolean(
+    doc.sampleQuizzes && !doc.sampleQuizzes.some((q) => /file|tep tin|thu muc|flag|read-only/i.test(q.question || q.concept || ''))
+  );
+
+  const hasStaleQuiz = !isWebSubject && Boolean(
+    doc.sampleQuizzes && doc.sampleQuizzes.some((q) => /react|virtual dom|flexbox|hooks/i.test(q.question || q.concept || ''))
+  );
+
+  if (!doc.sampleQuizzes || doc.sampleQuizzes.length === 0 || hasStaleQuiz || hasWrongQuizTopic) {
+    try {
+      const qResult = await generateQuizFromDocument({ document: doc, count: 5 });
+      const quizList = qResult?.questions || qResult?.quizzes;
+      if (quizList?.length) {
+        doc.sampleQuizzes = quizList;
+        await doc.save().catch(() => {});
+      }
+    } catch {}
+  }
+
+  // Phản hồi cho Sinh viên
+  if (user.role === ROLES.STUDENT) {
+    const hasTeacherSummary = Boolean(doc.isSummaryPublished && doc.publishedSummary);
+    const hasTeacherQuiz = Boolean(doc.isQuizPublished && doc.publishedQuizzes?.length);
+
+    return {
+      document: {
+        _id: doc._id,
+        name: doc.name,
+        courseId: doc.courseId,
+        courseName,
+        classId: doc.classId,
+        className,
+        format: doc.file?.format || 'pdf',
+        size: doc.file?.bytes || 0,
+        uploadedBy: doc.uploadedBy,
+      },
+      canEdit: false,
+      summary: {
+        content: hasTeacherSummary ? doc.publishedSummary : (doc.summary || ''),
+        keyConcepts: hasTeacherSummary ? (doc.publishedKeyConcepts?.length ? doc.publishedKeyConcepts : doc.keyConcepts) : (doc.keyConcepts || []),
+        chapters: hasTeacherSummary ? (doc.publishedChapters?.length ? doc.publishedChapters : doc.chapters) : (doc.chapters || []),
+        isTeacherPublished: hasTeacherSummary,
+        publishedAt: doc.summaryPublishedAt,
+        publishedBy: doc.summaryLastEditedBy,
+      },
+      quiz: {
+        questions: hasTeacherQuiz ? doc.publishedQuizzes : (doc.sampleQuizzes || []),
+        isTeacherPublished: hasTeacherQuiz,
+        publishedAt: doc.quizPublishedAt,
+        publishedBy: doc.quizLastEditedBy,
+      },
+    };
+  }
+
+  // Phản hồi cho Giáo viên và Admin
+  return {
+    document: {
+      _id: doc._id,
+      name: doc.name,
+      courseId: doc.courseId,
+      courseName,
+      classId: doc.classId,
+      className,
+      format: doc.file?.format || 'pdf',
+      size: doc.file?.bytes || 0,
+      uploadedBy: doc.uploadedBy,
+    },
+    canEdit: isTeacherOrAdmin,
+    summary: {
+      aiSummary: doc.summary || '',
+      aiKeyConcepts: doc.keyConcepts || [],
+      aiChapters: doc.chapters || [],
+      publishedSummary: doc.publishedSummary || '',
+      publishedKeyConcepts: doc.publishedKeyConcepts || [],
+      publishedChapters: doc.publishedChapters || [],
+      isPublished: Boolean(doc.isSummaryPublished),
+      publishedAt: doc.summaryPublishedAt,
+      publishedBy: doc.summaryLastEditedBy,
+    },
+    quiz: {
+      aiQuizzes: doc.sampleQuizzes || [],
+      publishedQuizzes: doc.publishedQuizzes || [],
+      isPublished: Boolean(doc.isQuizPublished),
+      publishedAt: doc.quizPublishedAt,
+      publishedBy: doc.quizLastEditedBy,
+    },
+  };
+}
+
+/** Lưu và phát hành tóm tắt bài học do Giáo viên chỉnh sửa */
+export async function publishSummary(id, { summary, keyConcepts, chapters, isPublished = true }, user) {
+  const doc = await Document.findById(id);
+  if (!doc) throw AppError.notFound('Không tìm thấy tài liệu');
+
+  if (user.role === ROLES.TEACHER) {
+    const isOwner = Boolean(
+      (doc.uploadedByRef && user.teacher && String(doc.uploadedByRef) === String(user.teacher)) ||
+      (doc.uploadedBy && (doc.uploadedBy === user.email || doc.uploadedBy === user.hoTen))
+    );
+    const allowed = isOwner || (await canAccessCourse(user, doc.courseId));
+    if (!allowed) throw AppError.forbidden('Bạn không có quyền chỉnh sửa tài liệu này');
+  }
+
+  doc.publishedSummary = summary !== undefined ? summary : doc.publishedSummary;
+  if (Array.isArray(keyConcepts)) doc.publishedKeyConcepts = keyConcepts;
+  if (Array.isArray(chapters)) doc.publishedChapters = chapters;
+  doc.isSummaryPublished = Boolean(isPublished);
+  doc.summaryPublishedAt = isPublished ? new Date() : doc.summaryPublishedAt;
+  doc.summaryLastEditedBy = user.hoTen || user.email || 'Giảng viên';
+
+  await doc.save();
+  return getAiStudyData(id, user);
+}
+
+/** Lưu và phát hành bộ câu hỏi Quiz do Giáo viên chỉnh sửa */
+export async function publishQuiz(id, { quizzes, isPublished = true }, user) {
+  const doc = await Document.findById(id);
+  if (!doc) throw AppError.notFound('Không tìm thấy tài liệu');
+
+  if (user.role === ROLES.TEACHER) {
+    const isOwner = Boolean(
+      (doc.uploadedByRef && user.teacher && String(doc.uploadedByRef) === String(user.teacher)) ||
+      (doc.uploadedBy && (doc.uploadedBy === user.email || doc.uploadedBy === user.hoTen))
+    );
+    const allowed = isOwner || (await canAccessCourse(user, doc.courseId));
+    if (!allowed) throw AppError.forbidden('Bạn không có quyền chỉnh sửa tài liệu này');
+  }
+
+  if (Array.isArray(quizzes)) {
+    doc.publishedQuizzes = quizzes;
+  }
+  doc.isQuizPublished = Boolean(isPublished);
+  doc.quizPublishedAt = isPublished ? new Date() : doc.quizPublishedAt;
+  doc.quizLastEditedBy = user.hoTen || user.email || 'Giảng viên';
+
+  await doc.save();
+  return getAiStudyData(id, user);
 }
 

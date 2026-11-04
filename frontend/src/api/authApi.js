@@ -3,7 +3,8 @@ import { http, tokenStore } from './http.js';
 export const authApi = {
   async login(email, password) {
     const result = await http.post('/auth/login', { email, password });
-    if (result?.token) tokenStore.set(result.token);
+    const token = result?.token || result?.data?.token;
+    if (token) tokenStore.set(token);
     return result;
   },
   me() {
@@ -25,7 +26,8 @@ export const authApi = {
   },
   async register(payload) {
     const result = await http.post('/auth/register', payload);
-    if (result?.token) tokenStore.set(result.token);
+    const regToken = result?.token || result?.data?.token;
+    if (regToken) tokenStore.set(regToken);
     return result;
   },
   forgotPassword(payload) {

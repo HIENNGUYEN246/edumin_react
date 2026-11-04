@@ -1,5 +1,5 @@
 import { useState, useRef, useMemo, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { PageHeader } from '../../components/ui/PageHeader.jsx';
 import { Modal } from '../../components/ui/Modal.jsx';
 import { FormField, inputClass } from '../../components/ui/FormField.jsx';
@@ -139,6 +139,7 @@ function getFileMeta(format, link, hasFile, fileName = '') {
 
 
 export function TeacherDocumentList() {
+  const navigate = useNavigate();
   const toast = useToast();
   const confirm = useConfirm();
   const fileRef = useRef(null);
@@ -315,9 +316,13 @@ export function TeacherDocumentList() {
             courseId,
             classId,
             role: 'teacher',
+            openChat: false,
           },
         })
       );
+    }
+    if (doc?._id) {
+      navigate(`/documents/${doc._id}/ai-study?tab=${action === 'quiz' ? 'quiz' : 'summary'}`);
     }
   };
 

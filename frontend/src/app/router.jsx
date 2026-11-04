@@ -42,14 +42,18 @@ const StudentDocumentList = lazy(() => import('../features/student/StudentDocume
 const StudentAssignmentList = lazy(() => import('../features/student/assignments/StudentAssignmentList.jsx'));
 const StudentQuizPage = lazy(() => import('../features/student/assignments/StudentQuizPage.jsx'));
 const DocumentViewerPage = lazy(() => import('../features/documents/DocumentViewerPage.jsx'));
+const DocumentAiStudyPage = lazy(() => import('../features/documents/DocumentAiStudyPage.jsx'));
 
 export function AppRouter() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
 
-      {/* Standalone Document Viewer in a separate tab/window */}
+      {/* Standalone Document Viewer & AI Study in the same application */}
       <Route path="/documents/:id/view" element={<DocumentViewerPage />} />
+      <Route path="/documents/:id/ai-study" element={<DocumentAiStudyPage />} />
+      <Route path="/documents/:id/ai study" element={<DocumentAiStudyPage />} />
+      <Route path="/documents/:id/ai%20study" element={<DocumentAiStudyPage />} />
       <Route path="/documents/:id" element={<DocumentViewerPage />} />
 
       <Route

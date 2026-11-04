@@ -41,5 +41,10 @@
     "prettier": "^3.3.3",
     "supertest": "^7.0.0",
     "vitest": "^2.1.4"
+  },
+  "config": {
+    "mongodbMemoryServer": {
+      "disablePostinstall": "1"
+    }
   }
 }

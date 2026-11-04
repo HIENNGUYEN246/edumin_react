@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../app/providers/AuthProvider.jsx';
 import { useToast } from '../../app/providers/ToastProvider.jsx';
-import { ROLE_LABEL } from '../../app/navConfig.js';
+import { ROLE_LABEL, ROLES } from '../../app/navConfig.js';
 import { Avatar } from '../ui/Avatar.jsx';
 import { ChangePasswordModal } from '../account/ChangePasswordModal.jsx';
 import NotificationBell from '../NotificationBell.jsx';
@@ -28,12 +28,17 @@ export function Header() {
     return () => document.removeEventListener('click', onClick);
   }, [menuOpen]);
 
-  const displayName = profile?.hoTen || user?.hoTen || 'Người dùng';
+  const isAdmin = user?.role === 'admin' || user?.role === 'dao-tao' || user?.role === ROLES.ADMIN;
+  const displayName = isAdmin
+    ? (user?.hoTen || profile?.hoTen || 'Quản trị viên')
+    : (profile?.hoTen || user?.hoTen || 'Người dùng');
   const avatar =
-    profile?.avatar?.url ||
-    (typeof profile?.avatar === 'string' ? profile?.avatar : '') ||
     user?.avatar?.url ||
+    user?.avatar?.secure_url ||
     (typeof user?.avatar === 'string' ? user?.avatar : '') ||
+    profile?.avatar?.url ||
+    profile?.avatar?.secure_url ||
+    (typeof profile?.avatar === 'string' ? profile?.avatar : '') ||
     '';
 
   const handleAvatarChange = async (e) => {
@@ -44,6 +49,12 @@ export function Header() {
       setUploadingAvatar(true);
       toast.info('Đang tải ảnh đại diện lên...');
       const res = await authApi.updateAvatar(file);
+      if (res?.user) {
+        queryClient.setQueryData(['auth', 'me'], (old) => ({
+          ...old,
+          user: { ...(old?.user || {}), ...res.user, avatar: res.avatar || res.user?.avatar },
+        }));
+      }
       await queryClient.invalidateQueries({ queryKey: ['auth', 'me'] });
       await queryClient.invalidateQueries({ queryKey: ['profile-requests'] });
       if (res?.approved && !res?.pending) {
@@ -74,86 +85,86 @@ export function Header() {
   return (
     <>
       <header className="w-full bg-white/95 backdrop-blur-md z-40 flex items-center justify-between px-6 py-3 border-b border-slate-200/80 shadow-2xs flex-shrink-0">
-      <div className="flex items-center gap-3">
-        <div className="bg-gradient-to-tr from-indigo-600 to-indigo-700 p-2 rounded-xl shadow-xs shadow-indigo-500/20 text-white flex items-center justify-center">
-          <i className="fas fa-graduation-cap text-lg" />
+        <div className="flex items-center gap-3">
+          <div className="bg-gradient-to-tr from-indigo-600 to-indigo-700 p-2 rounded-xl shadow-xs shadow-indigo-500/20 text-white flex items-center justify-center">
+            <i className="fas fa-graduation-cap text-lg" />
+          </div>
+          <span className="text-xl font-extrabold text-slate-900 uppercase tracking-tight">EDUMIN</span>
         </div>
-        <span className="text-xl font-extrabold text-slate-900 uppercase tracking-tight">EDUMIN</span>
-      </div>
 
-      <div className="flex items-center gap-4">
-        <MessengerBell />
-        <NotificationBell currentUser={user} />
-        <div className="relative" ref={menuRef}>
-          <button
-            type="button"
-            className="flex items-center gap-3 border-l pl-5 border-slate-200 hover:opacity-90 transition group"
-            onClick={() => setMenuOpen((v) => !v)}
-          >
-            <div className="text-right hidden sm:block">
-              <p className="text-sm font-bold text-slate-800 group-hover:text-indigo-600 transition">{displayName}</p>
-              <p className="text-xs text-slate-400 font-medium">{ROLE_LABEL[user?.role] || ''}</p>
-            </div>
-            <div className="relative">
-              <Avatar src={avatar} name={displayName} size={40} />
-              {uploadingAvatar && (
-                <span className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center text-white text-xs">
-                  <i className="fas fa-spinner fa-spin" />
-                </span>
-              )}
-            </div>
-          </button>
+        <div className="flex items-center gap-4">
+          <MessengerBell />
+          <NotificationBell currentUser={user} />
+          <div className="relative" ref={menuRef}>
+            <button
+              type="button"
+              className="flex items-center gap-3 border-l pl-5 border-slate-200 hover:opacity-90 transition group"
+              onClick={() => setMenuOpen((v) => !v)}
+            >
+              <div className="text-right hidden sm:block">
+                <p className="text-sm font-bold text-slate-800 group-hover:text-indigo-600 transition">{displayName}</p>
+                <p className="text-xs text-slate-400 font-medium">{ROLE_LABEL[user?.role] || ''}</p>
+              </div>
+              <div className="relative">
+                <Avatar src={avatar} name={displayName} size={40} />
+                {uploadingAvatar && (
+                  <span className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center text-white text-xs">
+                    <i className="fas fa-spinner fa-spin" />
+                  </span>
+                )}
+              </div>
+            </button>
 
-          {menuOpen && (
-            <div className="absolute right-0 mt-2.5 w-56 bg-white border border-slate-200/80 rounded-2xl shadow-xl p-1.5 z-50 animate-in fade-in zoom-in-95 duration-100">
-              <button
-                type="button"
-                onClick={() => {
-                  avatarInputRef.current?.click();
-                  setMenuOpen(false);
-                }}
-                disabled={uploadingAvatar}
-                className="w-full text-left px-3.5 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-indigo-600 flex items-center rounded-xl transition"
-              >
-                <i className="fas fa-camera mr-2.5 text-indigo-500 text-sm" />
-                <span>Đổi ảnh đại diện</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowPassword(true);
-                  setMenuOpen(false);
-                }}
-                className="w-full text-left px-3.5 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-indigo-600 flex items-center rounded-xl transition"
-              >
-                <i className="fas fa-key mr-2.5 text-amber-500 text-sm" />
-                <span>Đổi mật khẩu</span>
-              </button>
-              <div className="my-1 border-t border-slate-100" />
-              <button
-                type="button"
-                onClick={logout}
-                className="w-full text-left px-3.5 py-2.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 flex items-center rounded-xl transition"
-              >
-                <i className="fas fa-sign-out-alt mr-2.5 text-rose-500 text-sm" />
-                <span>Đăng xuất</span>
-              </button>
-            </div>
-          )}
+            {menuOpen && (
+              <div className="absolute right-0 mt-2.5 w-56 bg-white border border-slate-200/80 rounded-2xl shadow-xl p-1.5 z-50 animate-in fade-in zoom-in-95 duration-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    avatarInputRef.current?.click();
+                    setMenuOpen(false);
+                  }}
+                  disabled={uploadingAvatar}
+                  className="w-full text-left px-3.5 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-indigo-600 flex items-center rounded-xl transition"
+                >
+                  <i className="fas fa-camera mr-2.5 text-indigo-500 text-sm" />
+                  <span>Đổi ảnh đại diện</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowPassword(true);
+                    setMenuOpen(false);
+                  }}
+                  className="w-full text-left px-3.5 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-indigo-600 flex items-center rounded-xl transition"
+                >
+                  <i className="fas fa-key mr-2.5 text-amber-500 text-sm" />
+                  <span>Đổi mật khẩu</span>
+                </button>
+                <div className="my-1 border-t border-slate-100" />
+                <button
+                  type="button"
+                  onClick={logout}
+                  className="w-full text-left px-3.5 py-2.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 flex items-center rounded-xl transition"
+                >
+                  <i className="fas fa-sign-out-alt mr-2.5 text-rose-500 text-sm" />
+                  <span>Đăng xuất</span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
 
-      <input
-        ref={avatarInputRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={handleAvatarChange}
-      />
-    </header>
-    <ChangePasswordModal open={showPassword} onClose={() => setShowPassword(false)} />
-  </>
-);
+        <input
+          ref={avatarInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleAvatarChange}
+        />
+      </header>
+      <ChangePasswordModal open={showPassword} onClose={() => setShowPassword(false)} />
+    </>
+  );
 }
 
 export default Header;
